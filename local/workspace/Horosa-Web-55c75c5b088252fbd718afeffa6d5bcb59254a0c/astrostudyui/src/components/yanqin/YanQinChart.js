@@ -29,7 +29,7 @@ export default function YanQinChart({ cast, me, they }) {
 	const meName = me ? me.name : null;
 	const theyName = they ? they.name : null;
 	return (
-		<svg viewBox="0 0 320 320" width="100%" style={{ maxWidth: 340, display: 'block', margin: '0 auto' }} role="img" aria-label="圆形演禽盘">
+		<svg className="horosa-plain-text-board" viewBox="0 0 320 320" width="100%" style={{ maxWidth: 340, display: 'block', margin: '0 auto' }} role="img" aria-label="圆形演禽盘">
 			<circle cx={CX} cy={CY} r={R_OUT} fill="none" stroke="var(--horosa-border,rgba(120,120,120,0.35))" strokeWidth="1" />
 			<circle cx={CX} cy={CY} r={R_IN} fill="none" stroke="var(--horosa-border,rgba(120,120,120,0.25))" strokeWidth="1" />
 			{cells.map((c) => {

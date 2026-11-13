@@ -347,7 +347,7 @@ class IndiaChartKernel:
         """把默认平交点(SE_MEAN_NODE=10)替换为真交点(SE_TRUE_NODE=11)。
         仅 nodeType=='true' 调用,默认 mean 零回归。零全局污染:复用 chart 自己的
         sidereal context+flags 直接算 swe ID 11,再 relocate 罗睺/计都两对象。
-        与 flatlib ephem.getObject 的交点对处理一致(南交=北交 lon+180、ra+180,lat/decl 不取负)。
+        与 flatlib ephem.getObject 的交点对处理一致(南交是北交的对点:lon、ra 加 180°,lat、decl 连同速度取负)。
         失败安全回退:保留平交点。"""
         north = next((o for o in self.chart.objects if getattr(o, 'id', None) == const.NORTH_NODE), None)
         south = next((o for o in self.chart.objects if getattr(o, 'id', None) == const.SOUTH_NODE), None)
@@ -358,7 +358,7 @@ class IndiaChartKernel:
         try:
             with self.chart._siderealContext():
                 sweList = swe.swisseph.calc_ut(jd, 11, flags)[0]
-                eqlist = swe.swisseph.calc_ut(jd, 11, flags | swe.SEFLG_EQUATORIAL)[0]
+                eqlist = swe.swisseph.calc_ut(jd, 11, swe.equatorialFlags(flags))[0]
         except Exception:
             return
         true_lon = sweList[0]
@@ -372,11 +372,11 @@ class IndiaChartKernel:
             north.decl = eqlist[1]
         if south is not None:
             south.relocate((true_lon + 180.0) % 360.0)
-            south.lat = sweList[1]
+            south.lat = -sweList[1]
             south.lonspeed = sweList[3]
-            south.latspeed = sweList[4]
+            south.latspeed = -sweList[4]
             south.ra = (ra + 180.0) % 360.0
-            south.decl = eqlist[1]
+            south.decl = -eqlist[1]
 
     def _compute_ayanamsa_value(self):
         try:
@@ -401,7 +401,9 @@ class IndiaChartKernel:
             house.hsys = self.house
             house.size = 30.0
             house.relocate((start_lon + (house_num - 1) * 30.0) % 360.0)
-            ra, decl = utils.eqCoords(house.lon, 0)
+            with self.chart._siderealContext():
+                offset = swe.tropicalOffset(self.chart.date.jd, getattr(self.chart, 'flags', 0))
+            ra, decl = swe.eclipticToEquatorial(house.lon, 0.0, swe.trueObliquity(self.chart.date.jd), offset)
             house.ra = ra
             house.decl = decl
         self.chart.hsys = self.house

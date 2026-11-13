@@ -164,7 +164,8 @@ def compute_barbault(data):
     """ Barbault 行星周期指数(§9.3 Indice Cyclique):取慢星两两角距和成「行星聚散」曲线。
         默认 5 慢星 ♃♄♅♆♇ → C(5,2)=10 对;每对 d=min(|λi−λj|,360−) ∈[0,180];Index=Σ ∈[0,1800]。
         低(→0,聚集)=危机/战争(史上 1914、1939-40 极小与两次大战吻合);高(→1800,四散)=扩张繁荣。
-        params: startYear,endYear,stepMonths(默认1),planets(名表,可配「仅外三星」等变体),center。 """
+        params: startYear,endYear,stepMonths(默认1),planets(名表,可配「仅外三星」等变体),center,
+        harm(谐波,默认 1;h 倍时每对角距乘 h 后取模再折半圆,看 h 次相位的聚散)。 """
     start_year = _int_arg(data, 'startYear', 1900)
     end_year = _int_arg(data, 'endYear', 2050)
     if end_year < start_year:
@@ -188,6 +189,9 @@ def compute_barbault(data):
         ids = [(n, _SWE_PLANET_BY_NAME[n]) for n in DEFAULT]
     center = str(data.get('center', 'geo') or 'geo').lower()
     extra_flag = center_flag(center) if center in ('helio', 'topo') else 0
+    harm = _int_arg(data, 'harm', 1)          # 谐波:每对角距先乘 h 再取模、折到 0~180
+    if harm < 1 or harm > 12:
+        harm = 1
 
     def _lon(jd_, planet):
         if extra_flag:
@@ -204,7 +208,7 @@ def compute_barbault(data):
         total = 0.0
         for i in range(len(lons)):
             for j in range(i + 1, len(lons)):
-                d = abs(lons[i] - lons[j]) % 360.0
+                d = (abs(lons[i] - lons[j]) * harm) % 360.0
                 if d > 180.0:
                     d = 360.0 - d
                 total += d
@@ -226,7 +230,7 @@ def compute_barbault(data):
         'extrema': extrema,
         'maxIndex': max_index,
         'planets': [n for n, _ in ids],
-        'startYear': start_year, 'endYear': end_year, 'stepMonths': step_months, 'center': center,
+        'startYear': start_year, 'endYear': end_year, 'stepMonths': step_months, 'center': center, 'harm': harm,
     }
 
 

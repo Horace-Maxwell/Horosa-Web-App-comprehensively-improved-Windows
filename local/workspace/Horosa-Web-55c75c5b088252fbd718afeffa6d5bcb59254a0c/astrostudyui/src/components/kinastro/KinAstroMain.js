@@ -1,6 +1,6 @@
 import React, { Component, Suspense } from 'react';   // React/Suspense:神数正传组件级 lazy 所需
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
-import { Checkbox, Collapse, Input, InputNumber, Modal, Spin, Switch } from 'antd';
+import { Checkbox, Collapse, Input, InputNumber, Modal, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr, formatLonDms, formatLatDms } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
@@ -25,7 +25,7 @@ import { deriveLocalNongliAsync } from '../../utils/divinationTimeDraft';
 import { buildTiebanFramework, buildTiebanFrameworkSnapshot, TIEBAN_SCHOOLS, TIEBAN_KE_SYSTEMS, tiebanKeOptions, clampTiebanKe, tiebanKeBeyondEight } from '../../utils/tiebanFrameworkLocal';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQSwitch as Switch } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import ZiWeiChart from '../ziwei/ZiWeiChart';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';   // 中宫四柱兜底(策天/演禽后端不产 pillars)
@@ -37,6 +37,7 @@ import { postKentang } from '../../services/kentangPost';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { cachedKentangFetch } from '../../utils/kentangCache';
 import { formatHumanValue } from '../../utils/humanReadableFields';
+import { formatZoneLabel } from '../../utils/zoneText';
 import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
@@ -737,11 +738,14 @@ const KIN_CENTER_CONTENT_KEY = { cetian: 'cetianCenterContent', xianqin: 'xianqi
 // 概览段的经纬度按专业记法显示(116°24′27″E / 39°54′15″N),不再把浮点原样铺开
 // —— 后端 sections 直接给的是 double,十进制换算出来就是 119.31666666666666 这种一长串,
 // 既难读又把二进制浮点误差摊在用户眼前(用户实报「不要变成一长串」)。
-// 同段的「时区」后端本就已格式化成 UTC+8.0,此处是把同一条显示纪律补齐到经纬度两行。
+// 同段的「时区」行同一条纪律:后端给「UTC±HH:MM」,这里再过一遍单一来源(数值 / 旧写法也落成同一形)。
 // 仅动**显示**:计算一律仍用 pan.longitude/latitude 原值,精度不受影响。
 // 按 label 认而非按值认:值就是个 number,只有 label 能区分它是经度、纬度还是别的度数。
 function formatGeoRowValue(label, value){
 	const key = `${label || ''}`;
+	if(key === '时区' && value !== undefined && value !== null && value !== ''){
+		return formatZoneLabel(value) || value;
+	}
 	if(value === undefined || value === null || value === '' || !Number.isFinite(Number(value))){
 		return value;
 	}
@@ -764,7 +768,7 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 	const chart = {
 		kinastroBorrowed: true,
 		birth: dateStr,
-		zone: fmtValue(pan && pan.timezone),
+		zone: formatZoneLabel(pan && pan.timezone) || fmtValue(pan && pan.timezone),   // 中宫全量档的时区:UTC±HH:MM(地方平时是无限小数,不原样拼)
 		lon: fmtValue(pan && pan.longitude),
 		lat: fmtValue(pan && pan.latitude),
 		yearZi: '子',
@@ -1036,6 +1040,18 @@ export const KINASTRO_PAGE_SETTINGS = definePageSettings('horosa.kinastro.settin
 });
 // 预设字段 → state 键（前缀 yizhangjing）
 export const YZJ_PRESET_STATEMAP = ['Shunni', 'MingGong', 'DayunLen', 'StartAge', 'Annual', 'XiaoStart', 'XiaoDir', 'FlowSet', 'LeapRule', 'ZaoZi', 'Tongxian', 'DingYue', 'StarNaming', 'DaoTerm', 'GradeSet', 'Chongfan'];
+// 一掌经右栏页签(与 YiZhangJingMain 右栏的页签同序同名;神煞页只在开了神煞合参时出现)
+export const YZJ_AUX_TABS = [
+	{ key: 'overview', label: '概览' },
+	{ key: 'geju', label: '格局' },
+	{ key: 'renshi', label: '十二宫' },
+	{ key: 'dayun', label: '运限' },
+	{ key: 'shensha', label: '神煞' },
+	{ key: 'duanfa', label: '断法' },
+	{ key: 'lore', label: '诗文' },
+	{ key: 'sizhu', label: '四柱文献' },
+];
+
 // 预设字段 → buildYizhangjingOpts 输出键（供哨兵/测试核对预设→引擎口径一致）
 export const YZJ_STATE_TO_OPT = {
 	Shunni: 'shunniRule', MingGong: 'mingGongMethod', DayunLen: 'dayunLength', StartAge: 'dayunStartAge',
@@ -1213,6 +1229,7 @@ class KinAstroMain extends Component{
 		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
+		this.setYizhangjingTab = this.setYizhangjingTab.bind(this);
 		this.fetchPan = this.fetchPan.bind(this);
 		this.setRightPanelTab = this.setRightPanelTab.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
@@ -1843,6 +1860,11 @@ class KinAstroMain extends Component{
 		);
 	}
 
+	// 一掌经右栏页签由它自己的组件画;这里记当前页,底部快捷栏才能点得到、亮得对。
+	setYizhangjingTab(key){
+		this.setState({ yizhangjingTab: key });
+	}
+
 	renderPillarOverrideFields(){
 		if(!['shaozi', 'tieban'].includes(this.config.serviceKey) || this.state.pillarOverride !== '1'){
 			return null;
@@ -1989,7 +2011,7 @@ class KinAstroMain extends Component{
 										<Checkbox key={key} checked={!!this.state[key]} onChange={(e)=>this.setUserOpt({ [key]: e.target.checked ? 1 : 0 }, this.clickPlot)} title={title}>{label}</Checkbox>
 									))}
 								</div>
-{/* 原此处一段口径提要已按「左边栏永不放大段解释」铁律移入帮助文档「策天飞星 · 设置与判读」章首「左栏一览」卡。 */}
+{/* 原此处一段口径提要已按「左边栏永不放大段解释」铁律移入帮助文档「命·其他」手册的「策天飞星」章。 */}
 								{this.renderCenterContentSelect()}
 							</>
 						) : null}
@@ -2035,7 +2057,7 @@ class KinAstroMain extends Component{
 										<Option value="baziStyle">八字大运法（与八字盘同源）</Option>
 									</Select>
 								</label>
-								{/* 大运排法三档的口径分歧详见帮助文档「数算 · 本页直算三门 · 邵子参评数」——「左边栏永不放大段解释」铁律。 */}
+								{/* 大运排法三档的口径分歧详见帮助文档「数算」手册的「邵子参评数」章——「左边栏永不放大段解释」铁律。 */}
 							</>
 						) : null}
 						{this.config.serviceKey === 'heluo' ? (
@@ -2094,7 +2116,7 @@ class KinAstroMain extends Component{
 										<span>纪年基准（黄帝纪元差，默认 2697）</span>
 										<InputNumber min={0} max={16799} value={Number.isFinite(parseInt(this.state.heluoHuangdiOffset, 10)) ? parseInt(this.state.heluoHuangdiOffset, 10) : 2697} onChange={(v)=>this.setUserOpt({ heluoHuangdiOffset: `${(v === null || v === undefined || v === '') ? 2697 : v}` })} />   {/* 0 可达 */}
 									</label>
-									{/* 九项默认口径与各档差异详见帮助文档「数算 · 本页直算三门 · 河洛理数 · 左栏九项」——「左边栏永不放大段解释」铁律。 */}
+									{/* 九项默认口径与各档差异详见帮助文档「数算」手册的「河洛理数」章——「左边栏永不放大段解释」铁律。 */}
 								</>
 							) : null}
 							{this.config.serviceKey === 'zhengchuan' ? (
@@ -3736,7 +3758,7 @@ class KinAstroMain extends Component{
 				</div>;
 		}
 		if(this.config.serviceKey === 'yizhangjing'){
-			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} /></div>;
+			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} activeTab={this.state.yizhangjingTab || 'overview'} onTabChange={this.setYizhangjingTab} /></div>;
 		}
 		const snapshot = this.snapshotText();
 		const visibleTabs = this.visibleTabsOf(snapshot);
@@ -3785,6 +3807,11 @@ class KinAstroMain extends Component{
 		// 又整整算了第二遍,同一次重渲白付两倍。
 		const snapshot = this.snapshotText();
 		const visibleTabs = this.visibleTabsOf(snapshot);
+		// 一掌经的右栏页签不在 config.tabs 里(它自己画),快捷栏照它的页签列,和其它技法同一种用法。
+		const yzjTabs = this.config.serviceKey === 'yizhangjing'
+			? YZJ_AUX_TABS.filter((item)=>item.key !== 'shensha' || this.state.yizhangjingShensha)
+			: [];
+		const yzjActive = this.state.yizhangjingTab || 'overview';
 		const actions = [
 			{ label: '起盘', icon: 'quickPrimary', onClick: this.clickPlot },
 			...visibleTabs.map((item)=>({
@@ -3792,6 +3819,12 @@ class KinAstroMain extends Component{
 				icon: item.key === 'snapshot' ? 'quickAi' : (item.key === 'classics' ? 'book' : 'quickNote'),
 				active: this.state.rightPanelTab === item.key,
 				onClick: ()=>this.setRightPanelTab(item.key),
+			})),
+			...yzjTabs.map((item)=>({
+				label: item.label,
+				icon: item.key === 'lore' || item.key === 'sizhu' ? 'book' : 'quickNote',
+				active: yzjActive === item.key || (item.key === 'overview' && yzjActive === 'shensha' && !this.state.yizhangjingShensha),
+				onClick: ()=>this.setYizhangjingTab(item.key),
 			})),
 		];
 		return (

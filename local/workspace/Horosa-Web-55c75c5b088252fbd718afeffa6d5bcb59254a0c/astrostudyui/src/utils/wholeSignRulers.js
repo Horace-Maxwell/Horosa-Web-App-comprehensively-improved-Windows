@@ -168,11 +168,15 @@ export const DERIVED_WHOLE_SIGN_LABEL = '整宫(变换后上升)';
 // 组合盘:所选宫制属整宫一类 / 合不出有效宫头时,后端按组合上升起整宫并逐宫打 'compositeWholeFromAsc'
 // (此前前端仍按左栏标所选宫制、宫主表也不折叠)
 export const COMPOSITE_WHOLE_SIGN_LABEL = '整宫(组合上升)';
+// 变换盘的九分盘、北交宫盘:等宫,但宫头不对齐星座,不能按整宫折叠宫主
+export const TRANSFORM_EQUAL_LABEL = '等宫(变换后)';
+// 福点整宫这类自定义宫制在地方盘上算不出,按它的基础宫制算
+export const TRANSFORM_BASE_LABEL = '基础宫制(变换后)';
 function derivedModeOf(chart){
 	const houses = chart && Array.isArray(chart.houses) ? chart.houses : [];
 	for(let i=0; i<houses.length; i++){
 		const m = houses[i] && houses[i].hsysDerived;
-		if(m === 'wholeFromAsc' || m === 'compositeWholeFromAsc'){
+		if(m === 'wholeFromAsc' || m === 'compositeWholeFromAsc' || m === 'equalFromTransform' || m === 'baseFromTransform'){
 			return m;
 		}
 	}
@@ -181,6 +185,8 @@ function derivedModeOf(chart){
 export function derivedWholeSignLabelOf(chart){
 	const m = derivedModeOf(chart);
 	if(m === 'compositeWholeFromAsc'){ return COMPOSITE_WHOLE_SIGN_LABEL; }
+	if(m === 'equalFromTransform'){ return TRANSFORM_EQUAL_LABEL; }
+	if(m === 'baseFromTransform'){ return TRANSFORM_BASE_LABEL; }
 	return m ? DERIVED_WHOLE_SIGN_LABEL : '';
 }
 
@@ -209,7 +215,8 @@ export function resolveHouseSystem(chartObj, fields){
 	const derivedLabel = derivedWholeSignLabelOf(chart);   // 派生盘:标注只认宫位实算口径
 	const label = derivedLabel || (fallback ? `${baseLabel}→回退${fallback}` : baseLabel);
 	// 组合盘改按组合上升起了整宫:宫位就是上升整宫,宫主表按整宫折叠(派生盘的数值口径另议,不在此改)
-	const isAscWholeSign = derivedModeOf(chart) === 'compositeWholeFromAsc' ? true : (num !== null
+	const derivedMode = derivedModeOf(chart);
+	const isAscWholeSign = derivedMode === 'compositeWholeFromAsc' ? true : (derivedMode === 'equalFromTransform' || derivedMode === 'baseFromTransform') ? false : (num !== null
 		? numIsAscWholeSign(num)
 		: (echoText === AstroConst.HSYS_Whole_Sign || echoText === '整宫制'));
 	// 形状保持 { num, label, isAscWholeSign };仅极区回退时附 fallback(既有精确断言零变)

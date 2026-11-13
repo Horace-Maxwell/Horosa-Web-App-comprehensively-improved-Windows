@@ -107,6 +107,7 @@ class GeoCoordSelector extends Component{
 	}
 
 	// 直接按 GPS（城市库 / 手输）选点：GPS → GCJ 供地图显示，回填 GPS。
+	// (回传里 lat / lng 是 GCJ、只给本弹窗地图打点;交给页面时 GeoCoordModal.clickOk 换成真坐标 gpsLat / gpsLng)
 	// name:城市库直接给城市名;手输经纬度无名 → 传空串(表示「此坐标暂无地名」,上层据实回填/清名)。
 	applyGps(gpsLat, gpsLng, name){
 		const lat = Number(gpsLat);

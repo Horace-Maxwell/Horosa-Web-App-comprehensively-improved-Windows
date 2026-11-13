@@ -17,6 +17,7 @@ import AstroKlimata from '../AstroKlimata';
 import AstroPredictPlanetSign from '../AstroPredictPlanetSign';
 import AstroAnalysisLab from '../AstroAnalysisLab';
 import AstroEgypt from '../AstroEgypt';
+import AstroChartDetails from '../AstroChartDetails';
 import { inspectorEmptyNode } from '../inspectorEmpty';
 
 global.React = React;   // 源码依赖构建期注入的全局 React
@@ -24,6 +25,7 @@ global.React = React;   // 源码依赖构建期注入的全局 React
 const FIELDS = { zone: { value: '+08:00' }, lat: { value: '26n04' }, lon: { value: '119e19' } };
 
 const PANEL = {
+	AstroChartDetails: (v)=><AstroChartDetails height={600} value={v} />,
 	AstroInfo: (v)=><AstroInfo mode="summary" height={600} value={v} fields={FIELDS} />,
 	AstroInfoClassical: (v)=><AstroInfo mode="classical" height={600} value={v} fields={FIELDS} />,
 	AstroAspect: (v)=><AstroAspect value={v} height={600} />,

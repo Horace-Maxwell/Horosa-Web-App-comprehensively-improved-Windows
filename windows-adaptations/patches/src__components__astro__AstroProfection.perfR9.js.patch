@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroProfection.js b/astrostudyui/src/components/astro/AstroProfection.js
-index 28eba3d9..bbc3eac2 100644
+index a294a838..012570b5 100644
 --- a/astrostudyui/src/components/astro/AstroProfection.js
 +++ b/astrostudyui/src/components/astro/AstroProfection.js
 @@ -25,6 +25,7 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
@@ -21,7 +21,7 @@ index 28eba3d9..bbc3eac2 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -128,7 +131,13 @@ class AstroProfection extends Component{
+@@ -130,7 +133,13 @@ class AstroProfection extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -36,7 +36,7 @@ index 28eba3d9..bbc3eac2 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -207,6 +216,8 @@ class AstroProfection extends Component{
+@@ -209,6 +218,8 @@ class AstroProfection extends Component{
  		};
  
  		this.setState(st, ()=>{

@@ -107,6 +107,8 @@ class Chart:
         chart.houses = self.houses.copy()
         chart.angles = self.angles.copy()
         chart.pars = self.pars.copy()
+        chart.halfTurned = getattr(self, 'halfTurned', False)
+        chart.labelTurn = getattr(self, 'labelTurn', 0.0)
         return chart
     
     
@@ -206,13 +208,18 @@ class Chart:
         """ Returns true if this chart is diurnal. """
         sun = self.getObject(const.SUN)
         mc = self.getAngle(const.MC)
-        
-        # Get ecliptical positions and check if the
-        # sun is above the horizon.
-        lat = self.pos.lat
-        sunRA, sunDecl = utils.eqCoords(sun.lon, sun.lat)
-        mcRA, mcDecl = utils.eqCoords(mc.lon, 0)
-        return utils.isAboveHorizon(sunRA, sunDecl, mcRA, lat)
+        # 按盘上「此刻」的太阳与天顶黄经判(搬点盘如组合盘随之变);黄→赤用本日真黄赤交角、恒星盘先加回岁差
+        # (旧写法固定 23.44°、恒星盘直接拿恒星黄经换)。十三分 / 调波 / 龙盘等派生盘的昼夜另在 reinit_derived 固定成本命。
+        jd = self.date.jd
+        with self._siderealContext():
+            offset = swe.tropicalOffset(jd, self.flags)
+        eps = swe.trueObliquity(jd)
+        # 南半球盘把全盘黄经整体转了 180°(只换星座标签,天上的位置没动):昼夜是天上的事实,先转回去再换赤道坐标。
+        # 不转回的话是拿「对面那一点」去比真实纬度的半日弧,日出日没前后一段时间里昼夜判反。
+        turn = 180.0 if getattr(self, 'halfTurned', False) else 0.0
+        sunRA, sunDecl = swe.eclipticToEquatorial((sun.lon + turn) % 360.0, sun.lat, eps, offset)
+        mcRA = swe.eclipticToEquatorial((mc.lon + turn) % 360.0, 0.0, eps, offset)[0]
+        return utils.isAboveHorizon(sunRA, sunDecl, mcRA, self.pos.lat)
     
     def getMoonPhase(self):
         """ Returns the phase of the moon. """

@@ -69,7 +69,7 @@ async function requestLiurengGods(record, options){
 	const params = {
 		ad: fields.ad.value,
 		date: fields.date.value.format('YYYY-MM-DD'),
-		time: fields.time.value.format('HH:mm'),
+		time: fields.time.value.format('HH:mm:ss'),
 		zone: fields.zone.value,
 		lon: fields.lon.value,
 		lat: fields.lat.value,

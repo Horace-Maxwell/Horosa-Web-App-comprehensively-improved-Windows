@@ -14,6 +14,7 @@
 	"cntradition": "fuzhu fz",
 	"decennials": "xingyun shiniandayun xy sndy",
 	"distributions": "xingyun jietuiyun xy jty",
+	"dongya": "dongyazhushu dyzs",
 	"draconic": "longpan lp",
 	"dwadasamsa": "shierfenpan sefp",
 	"election": "zeripan zrp",
@@ -89,8 +90,10 @@
 	"tarot": "taluo tl",
 	"tianxing": "tianxingzeri txzr",
 	"tieban": "tiebanshenshu tbss",
+	"timelords": "xingyun shizhulunzhuan xy szlz",
 	"tongshefa": "tongshefa tsf",
 	"tongshu": "tongshuzeri tszr",
+	"transformchart": "bianhuanpan bhp",
 	"triplicityrulers": "xingyun sanfenzhuxing xy sfzx",
 	"vedicprog": "xingyun hengxingtuiyun xy hxty",
 	"wuzhao": "wuzhao wz",
@@ -100,7 +103,9 @@
 	"yearsystem129": "xingyun nianxitong xy nxt",
 	"yizhangjing": "yizhangjing yzj",
 	"zhengchuan": "shenshuzhengzhuan sszz",
+	"zhufang": "zhufangzashu zfzs",
 	"ziwei": "ziweidoushu zwds",
 	"ziweizeri": "ziweizeri zwzr",
+	"zodiacsystems": "huangdaozhi hdz",
 	"zodialrelease": "xingyun huangdaoxingshi xy hdxs"
 }

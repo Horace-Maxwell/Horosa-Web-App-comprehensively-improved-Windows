@@ -7,10 +7,13 @@ import React, { Component } from 'react';
 import { Spin } from 'antd';
 import { XQSelect as Select, XQInputNumber } from '../xq-ui';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { pointerLocalRatio } from '../../utils/zoomDomain';
 import styles from '../../css/styles.less';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, chartParams, chartRequestKey, SmallTable, symbolWithMeaning, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from './AstroExtraCommon';
+import { fetchChart } from '../../services/astro';
+import AstroChart from './AstroChart';
 import AstroDoubleChart from './AstroDoubleChart';
 import MichonDualRing from './MichonDualRing';
 import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, ControlCol, ControlGrid, TargetTimeControl, FillCard, LoadFailNote, EmptyWheel, MUTED } from './progPageLayout';
@@ -23,6 +26,10 @@ import {
 	DIRECTED_FIGURES, NEROMAN_EQUATOR_OPTIONS, BEZZA_KIND_LABELS, BEZZA_MUNDANE_ASPECTS, ZODIAC_ASPECT_LABELS, MICHON_FAMILY_LABELS,
 	directedFigureRequestFields, buildDirectedFigureText, pointName, fmtLon, fmtN,
 } from '../../utils/directedFigures';
+import {
+	TIMELORD_FIELD_LABELS, TIMELORD_METHOD_FIELDS, TIMELORD_METHODS, TIMELORD_OPTIONS, TIMELORD_POLAR_NOTE, normalizeTimeLordOpts, timeLordAspectText,
+	timeLordFields, timeLordMethod, timeLordPointName, timeLordRowLord,
+} from '../../utils/timeLordTables';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 
@@ -36,6 +43,11 @@ export function directedFigureOptsFromSettings(key, sv){
 	if(key === 'bezzafigure'){ return { orb: s.bezzaOrb }; }
 	if(key === 'jayprofection'){ return { from: s.jayFrom }; }
 	if(key === 'michon'){ return { orb: s.michonOrb, swap: s.michonSwap, equal: s.michonEqual }; }
+	if(key === 'timelords'){
+		return { method: s.tlMethod, yearType: s.tlYearType, movingYear: s.tlMovingYear, turnStart: s.tlTurnStart, turnOrder: s.tlTurnOrder, orbMode: s.tlOrbMode,
+			annualDays: s.tlAnnualDays, annualOrder: s.tlAnnualOrder, releaser: s.tlReleaser, variant: s.tlVariant, nineTime: s.tlNineTime, nineReverse: s.tlNineReverse,
+			rateKind: s.tlRateKind, movingStart: s.tlMovingStart, devBasis: s.tlDevBasis, diurnalMode: s.tlDiurnalMode };
+	}
 	return {};
 }
 
@@ -88,6 +100,7 @@ const pointCell = (id, on)=>(['Tyche', 'Daimon'].indexOf(id) >= 0
 	? <span style={{ whiteSpace: 'nowrap' }}>{GLYPH_PAD} {pointName(id)}</span>
 	: <span style={{ whiteSpace: 'nowrap' }}>{glyphBox(sm(id, on))} {pointName(id)}</span>);
 const HL = { background: 'var(--horosa-accent-soft, rgba(215,173,105,.14))' };
+const OPENED = { background: 'var(--horosa-panel-soft)' };
 const signedN = (v, d)=>{ const n = Number(v); return Number.isFinite(n) ? `${n > 0 ? '+' : ''}${n.toFixed(d)}` : '-'; };
 // 空表卡不撑最小高(只剩一行说明时别留一块空)
 const NO_MIN = { minHeight: 0 };
@@ -103,8 +116,12 @@ function scrollRowIntoBoxOnce(holder, slot, rowId, node){
 	const box = node.closest('.horosa-small-table-scroll');
 	if(!box || !box.clientHeight){ return; }
 	holder._rowScrolled[slot] = rowId;
-	const delta = node.getBoundingClientRect().top - box.getBoundingClientRect().top;
-	if(delta < 40 || delta > box.clientHeight - 40){ box.scrollTop = Math.max(box.scrollTop + delta - box.clientHeight / 3, 0); }
+	const table = node.closest('table');
+	const head = table && table.tHead ? table.tHead.offsetHeight : 0;      // 表头吸顶,行顶要留出表头
+	// 矩形是整页缩放后的尺寸,scrollTop / clientHeight 是缩放前的:先折回同一单位
+	const boxRect = box.getBoundingClientRect();
+	const delta = (node.getBoundingClientRect().top - boxRect.top) * pointerLocalRatio(box, boxRect).ky;
+	if(delta < head + 8 || delta > box.clientHeight - 40){ box.scrollTop = Math.max(box.scrollTop + delta - Math.max(head, box.clientHeight / 3), 0); }
 }
 
 class DirectedFigurePage extends Component{
@@ -207,7 +224,7 @@ class DirectedFigurePage extends Component{
 		const def = DIRECTED_FIGURES[this.key];
 		const sub = this.subtitle();
 		return (
-			<SidePanelHead title={def.label} sub={`${def.author}${sub ? ` · ${sub}` : ''}`} desc={this.description()}>
+			<SidePanelHead title={def.label} sub={[def.author, sub].filter(Boolean).join(' · ')} desc={this.description()}>
 				{this.hasTime() ? (
 					<SideSection title="时间选择" extra={chartZone(this.props.value) ? `本盘时区 ${chartZone(this.props.value)}` : null}>
 						<TargetTimeControl date={this.state.targetDate} time={this.state.targetTime} zone={chartZone(this.props.value)}
@@ -507,7 +524,7 @@ export class AstroMichon extends DirectedFigurePage{
 
 	initialSettings(){
 		const s = DIRECTION_PAGE_SETTINGS.load();
-		return { michonOrb: s.michonOrb, michonSwap: s.michonSwap, michonEqual: s.michonEqual, michonAll: false };
+		return { michonOrb: s.michonOrb, michonSwap: s.michonSwap, michonEqual: s.michonEqual, michonAll: !!s.michonAll };
 	}
 
 	opts(){ return { orb: this.state.michonOrb, swap: this.state.michonSwap, equal: this.state.michonEqual }; }
@@ -518,7 +535,7 @@ export class AstroMichon extends DirectedFigurePage{
 		const r = this.shownResult();
 		if(!r || !Number.isFinite(Number(r.ayanamsa))){ return '回归 / 恒星黄道叠合'; }
 		const lit = (r.superpositions || []).filter((s)=>s.family && s.family !== 'no').length;
-		return `岁差 ${fmtN(r.ayanamsa, 4)}° · 有族叠合 ${lit} / 12`;
+		return `岁差 ${fmtN(r.ayanamsa, 3)}° · 有族叠合 ${lit} / 12`;
 	}
 
 	description(){
@@ -545,7 +562,7 @@ export class AstroMichon extends DirectedFigurePage{
 				</Select>
 			</ControlCol>,
 			<ControlCol key="all" label="互动表">
-				<Select style={{ width: '100%' }} value={this.state.michonAll} onChange={(v)=>this.setState({ michonAll: v })}>
+				<Select style={{ width: '100%' }} value={this.state.michonAll} onChange={(v)=>this.saveSetting('michonAll', v)}>
 					<Option value={false}>只看有族</Option>
 					<Option value={true}>全部 66 组</Option>
 				</Select>
@@ -588,5 +605,161 @@ export class AstroMichon extends DirectedFigurePage{
 				) : emptyNote('没有任何一组互动落在族内')}
 			</FillCard>,
 		];
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 时主轮转:十二法共用一页,左边本命盘,右上选方法与该法的选项,右下期表或事件表
+// ---------------------------------------------------------------------------
+const TL_KEY_ROWS = [['tlMethod', 'method'], ['tlYearType', 'yearType'], ['tlMovingYear', 'movingYear'], ['tlTurnStart', 'turnStart'], ['tlTurnOrder', 'turnOrder'],
+	['tlOrbMode', 'orbMode'], ['tlAnnualDays', 'annualDays'], ['tlAnnualOrder', 'annualOrder'], ['tlReleaser', 'releaser'], ['tlVariant', 'variant'], ['tlNineTime', 'nineTime'],
+	['tlNineReverse', 'nineReverse'], ['tlRateKind', 'rateKind'], ['tlMovingStart', 'movingStart'], ['tlDevBasis', 'devBasis'], ['tlDiurnalMode', 'diurnalMode']];
+const TL_STATE_KEYS = {};
+TL_KEY_ROWS.forEach(([field, key])=>{ TL_STATE_KEYS[key] = field; });
+const fmtAge = (v)=>`${fmtN(v, 2)} 岁`;
+
+export class AstroTimeLords extends DirectedFigurePage{
+	constructor(props){ super(props, 'timelords'); }
+
+	initialSettings(){
+		const s = DIRECTION_PAGE_SETTINGS.load();
+		const out = { tlOpenRow: -1, tlMoonRow: -1, tlMoonChart: null, tlMoonSig: '' };
+		Object.keys(TL_STATE_KEYS).forEach((key)=>{ out[TL_STATE_KEYS[key]] = s[TL_STATE_KEYS[key]]; });
+		return out;
+	}
+
+	opts(){
+		const out = {};
+		Object.keys(TL_STATE_KEYS).forEach((key)=>{ out[key] = this.state[TL_STATE_KEYS[key]]; });
+		return normalizeTimeLordOpts(out);
+	}
+
+	subtitle(){
+		const r = this.shownResult();
+		return r && r.startLord ? `起始星 ${timeLordPointName(r.startLord)}` : '';
+	}
+
+	// 换盘清掉所有查看位置;改目标时刻回到当前段,页面与快照才是同一段
+	componentDidUpdate(prevProps, prevState){
+		super.componentDidUpdate(prevProps, prevState);
+		const { tlOpenRow, tlMoonRow } = this.state;
+		if(chartRequestKey(prevProps.value) !== chartRequestKey(this.props.value)){
+			this._moonSeq = (this._moonSeq || 0) + 1;
+			if(tlOpenRow !== -1 || tlMoonRow !== -1){ this.setState({ tlOpenRow: -1, tlMoonRow: -1, tlMoonChart: null }); }
+		}else if(tlOpenRow !== -1 && (prevState.targetDate !== this.state.targetDate || prevState.targetTime !== this.state.targetTime)){
+			this.setState({ tlOpenRow: -1 });
+		}
+	}
+
+	hasTime(){ return this.opts().method !== 'moondays'; }
+
+	description(){
+		const r = this.shownResult();
+		const note = timeLordMethod(this.opts().method).note;
+		return r && r.polar ? `${note}。${TIMELORD_POLAR_NOTE}` : note;
+	}
+
+	controls(){
+		const o = this.opts();
+		const spec = TIMELORD_METHOD_FIELDS[o.method];
+		const onChoose = (key, v)=>{ this.setState({ tlOpenRow: -1, tlMoonRow: -1, tlMoonChart: null }); this.saveSetting(TL_STATE_KEYS[key], v); };
+		const select = (key, list)=>(
+			<ControlCol key={key} label={TIMELORD_FIELD_LABELS[key] || '方法'}>
+				<Select style={{ width: '100%' }} value={o[key]} onChange={(v)=>onChoose(key, v)}>
+					{list.map((item)=>(<Option key={`${item.value}`} value={item.value}>{item.label}</Option>))}
+				</Select>
+			</ControlCol>
+		);
+		const out = [select('method', TIMELORD_METHODS)];
+		if(spec.yearField){ out.push(select(spec.yearField, TIMELORD_OPTIONS.yearType)); }
+		timeLordFields(o).forEach((key)=>out.push(select(key, TIMELORD_OPTIONS[key])));
+		return out;
+	}
+
+	// 月亮日:点一行左边换成该时刻的盘,再点一次回本命盘
+	async toggleMoonChart(index, row){
+		this._moonSeq = (this._moonSeq || 0) + 1;
+		const seq = this._moonSeq;
+		if(this.state.tlMoonRow === index){
+			this.setState({ tlMoonRow: -1, tlMoonChart: null });
+			return;
+		}
+		const [date, time] = `${row.date}`.trim().split(' ');
+		this.setState({ tlMoonRow: index, tlMoonChart: null, tlMoonSig: natalSourceKey(this.props.value) });
+		let chart = null;
+		try{
+			chart = unwrapResult(await fetchChart({ ...chartParams(this.props.value), date, time })) || null;
+		}catch(e){ chart = null; }
+		if(!this._mounted || seq !== this._moonSeq){ return; }
+		this.setState(chart ? { tlMoonChart: chart } : { tlMoonRow: -1, tlMoonChart: null });
+	}
+
+	renderWheel(result, size, h){
+		if(!this.props.value){ return <EmptyWheel text="起盘后显示本命盘" />; }
+		const moonChart = this.state.tlMoonRow >= 0 && this.opts().method === 'moondays' ? pickKeyedDerived(this.state.tlMoonChart, this.state.tlMoonSig, natalSourceKey(this.props.value)) : null;
+		return (
+			<AstroChart wheelArt={this.props.wheelArt} value={moonChart || this.props.value} chartDisplay={this.props.chartDisplay} planetDisplay={this.props.planetDisplay}
+				lotsDisplay={this.props.lotsDisplay} showAstroMeaning={this.props.showAstroMeaning} height={h} />
+		);
+	}
+
+	renderPeriods(r){
+		const current = Number.isInteger(r.currentIndex) ? r.currentIndex : -1;
+		const open = r.rows[this.state.tlOpenRow] ? this.state.tlOpenRow : current;
+		const row = r.rows[open];
+		const subs = (row && row.children) || [];
+		const cards = [
+			<FillCard key="p" grow title="期表" extra={`共 ${r.rows.length} 段${subs.length ? ' · 点一行看子段' : ''}`}>
+				<SmallTable rows={r.rows} fill scrollClassName={styles.scrollbar} rowStyle={(item, i)=>{ if(i === current){ return HL; } return i === open ? OPENED : undefined; }}
+					rowRef={(node, item, i)=>{ if(i === current){ scrollRowIntoBoxOnce(this, 'tl', `${r.method}-${i}`, node); } }}
+					onRowClick={r.rows[0] && r.rows[0].children ? (item, i)=>this.setState({ tlOpenRow: i }) : undefined} columns={[
+						{ key: 'lord', title: '主', render: (v, item)=>nowrap(timeLordRowLord(item)) },
+						{ key: 'startAge', title: '起', align: 'right', render: fmtAge },
+						{ key: 'start', title: '起始日', render: dateOnly },
+						{ key: 'end', title: '结束日', render: dateOnly },
+					]} />
+			</FillCard>,
+		];
+		if(subs.length){
+			cards.push(
+				<FillCard key="c" title="子段" extra={`${timeLordRowLord(row)} · ${dateOnly(row.start)} 起`}>
+					<SmallTable rows={subs} fill scrollClassName={styles.scrollbar} columns={[
+						{ key: 'lord', title: '主', render: (v, item)=>nowrap(timeLordRowLord(item)) },
+						{ key: 'start', title: '起始日', render: dateOnly },
+						{ key: 'end', title: '结束日', render: dateOnly },
+					]} />
+				</FillCard>,
+			);
+		}
+		return cards;
+	}
+
+	renderEvents(r){
+		const moonDays = r.method === 'moondays';
+		// 月亮日不看目标时刻(页上也不显示时间选择),不做「下一件」高亮;只有三行,表不铺满整栏
+		const next = !moonDays && Number.isInteger(r.currentIndex) ? r.currentIndex : -1;
+		return [
+			<FillCard key="e" grow={!moonDays} title={moonDays ? '月亮日' : '事件'} extra={`共 ${r.rows.length} 件${moonDays ? ' · 点一行看该时刻的盘' : ''}`}>
+				<SmallTable rows={r.rows} fill={!moonDays} scrollClassName={styles.scrollbar}
+					rowStyle={(item, i)=>{ if(i === next){ return HL; } return moonDays && i === this.state.tlMoonRow ? OPENED : undefined; }}
+					onRowClick={moonDays ? (item, i)=>this.toggleMoonChart(i, item) : undefined}
+					rowRef={(node, item, i)=>{ if(i === next){ scrollRowIntoBoxOnce(this, 'tl', `${r.method}-${i}`, node); } }} columns={moonDays ? [
+						{ key: 'day', title: '第几日', align: 'right' },
+						{ key: 'at', title: '月亮到', render: (v)=>fmtLon(v) },
+						{ key: 'afterDays', title: '生后天数', align: 'right', render: (v)=>fmtN(v, 2) },
+						{ key: 'date', title: '时刻' },
+					] : [
+						{ key: 'age', title: '年龄', align: 'right', render: fmtAge },
+						{ key: 'date', title: '日期', render: dateOnly },
+						{ key: 'point', title: '点', render: (v, item)=>nowrap(`${timeLordPointName(v)}${timeLordAspectText(item) ? ` ${timeLordAspectText(item)}` : ''}`) },
+						{ key: 'at', title: '位置', render: (v)=>fmtLon(v) },
+					]} />
+			</FillCard>,
+		];
+	}
+
+	renderTables(r){
+		if(!Array.isArray(r.rows)){ return null; }
+		return r.kind === 'periods' ? this.renderPeriods(r) : this.renderEvents(r);
 	}
 }

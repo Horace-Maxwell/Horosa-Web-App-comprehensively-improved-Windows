@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { XQTabs as Tabs } from '../xq-ui';
+import RelativeStageEmpty from './RelativeStageEmpty';
 import AstroChartMain from '../astro/AstroChartMain';
 import { paramsToFields } from './relativeFields';
 
@@ -89,7 +90,7 @@ class AstroMarks extends Component{
 										aspects={this.props.aspects}
 									/>
 							) : (
-								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>
+								<RelativeStageEmpty height={height - 40}>选好星盘 A 与星盘 B 并排盘后显示马克斯盘</RelativeStageEmpty>
 							)
 						}
 					</TabPane>
@@ -118,7 +119,7 @@ class AstroMarks extends Component{
 										aspects={this.props.aspects}
 									/>
 							) : (
-								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>
+								<RelativeStageEmpty height={height - 40}>选好星盘 A 与星盘 B 并排盘后显示马克斯盘</RelativeStageEmpty>
 							)
 						}
 					</TabPane>						

@@ -422,6 +422,10 @@ apply_patch horosa_win_slice_form_v1  astrostudyui/src/utils/__tests__/sanshiQ16
 # `onChange={this.onOuterCoordChange}`;我方合一页左栏是渲染切片子组件(horosa_sanshi_render_slice_v1,处理器经 props 进入),
 # 同一控件的代码形是 `this.props.onAstroFieldOptionChange('hsys', v)` / `(v)=>this.props.onOuterCoordChange(v)`;两形皆认,判据零放宽。
 apply_patch horosa_win_slice_form_v1  astrostudyui/src/components/sanshi/__tests__/sanshiQijuAndVisibleControls.test.js src__components__sanshi____tests____sanshiQijuAndVisibleControls.winSliceForm.test.js.patch
+# v3.14.0 同族第三例(#117):上游 ascRaModeTwoTiers 用例扫 SanShiUnitedMain 源码钉 `{this.state.outerCoord === 'equatorial' ? (`
+# (「上升取法」下拉只在外圈 = 赤道时显示);该下拉落在我方合一页左栏切片里,同一判据的代码形是 `{this.props.outerCoord === …`。
+# 两形皆认;切片形另须宿主把 outerCoord / ascRaMode / 处理器三项都传(判据比上游形更严,不是放宽)。
+apply_patch horosa_win_slice_form_v1  astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js src__utils____tests____ascRaModeTwoTiers.winSliceForm.test.js.patch
 # v3.11.0:上游资料导入白名单合同测试按 Mac 仓布局读 Tauri main.rs 的 AI_ANALYSIS_IMPORT_EXTENSIONS;Windows 壳是 Electron,
 # 同名常量住在 desktop_installer_bundle/electron/desktop-bridge.js(同一正则形)。main.rs 缺席时读它,判据零放宽(壳↔前端白名单逐字同集)。
 apply_patch horosa_win_shell_const_v1  astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js src__utils____tests____aiMaterialImportGuard.winShellConst.test.js.patch
@@ -694,6 +698,17 @@ apply_patch horosa_win_srv_base_env_v1      astropy/tests/srv_gate.py           
 #   码页(cp1252 / GBK)编解码 ⇒ 父进程读线程解码失败、月柱交节回归自己的引擎子进程同样解码失败而红(#109 row 90 同族)。子进程按
 #   UTF-8 模式跑(与发货运行时 -X utf8 同口径,孙进程继承)、父进程按 UTF-8 解码。另:pytest 跑法的 PYTHONPATH 要含 vendor(上游基线同口径)。
 apply_patch horosa_subprocess_utf8_v1       astropy/tests/test_vendor_suites_gate.py               astropy__tests__test_vendor_suites_gate.subprocessUtf8.py.patch
+# [#117,v3.14.0] 上游四份「整张表逐字相等」的新金标(盘面细节 30 张表 / 印占补充表 / 世俗周期表 / 变换盘全量)是在另一套数学库与
+#   星历构建上录的:同一算法在 Windows 上位置量差 1e-10 ~ 1e-12 度、差分速度百分比差到 3.5e-5,容许度并列的行(互为对点的南北交)
+#   先后次序随末位互换 ⇒ 14 例恒红,红了也看不出算法变没变(alcabitius 字节钉同族,但那一条是整份语料、这四份是日常回归面)。
+#   改按 win_float_golden.golden_equal 比:浮点差 1e-4 以内放过,整数 / 文字 / 布尔 / 键集合 / 行数仍须相等,行次序按一对一配对;
+#   判别力由 test_win_float_golden.py 自证(13 种真差异必红)。
+cp "$OV/files/astropy/tests/win_float_golden.py"      "$WS/astropy/tests/win_float_golden.py"      && ok "win_float_golden.py"
+cp "$OV/files/astropy/tests/test_win_float_golden.py" "$WS/astropy/tests/test_win_float_golden.py" && ok "test_win_float_golden.py"
+apply_patch horosa_win_float_golden_v1      astropy/tests/test_chart_details.py                    astropy__tests__test_chart_details.winFloatGolden.py.patch
+apply_patch horosa_win_float_golden_v1      astropy/tests/test_india_extra_tables.py               astropy__tests__test_india_extra_tables.winFloatGolden.py.patch
+apply_patch horosa_win_float_golden_v1      astropy/tests/test_mundane_cycles.py                   astropy__tests__test_mundane_cycles.winFloatGolden.py.patch
+apply_patch horosa_win_float_golden_v1      astropy/tests/test_transform_charts.py                 astropy__tests__test_transform_charts.winFloatGolden.py.patch
 # [#113,v3.12.0] 上游新测 test_india_variant_mount_contract 的「夹具 = 现行引擎输出」逐字节比:夹具在 macOS 上生成,Windows libm / 星历浮点
 #   尾数差 1e-12 级(916 处:浮点相对差 ≤1.6e-12、ISO 时刻 ≤21µs,结构 / 键 / 字符串零差;纯上游在本机同红,alcabitius 字节钉同族)。
 #   macOS 照旧逐字节比;其它平台逐叶比 —— 结构 / 键 / 字符串 / 整数 / 布尔全等,只放过浮点 1e-9 相对、时刻 1ms 以内的平台尾差。

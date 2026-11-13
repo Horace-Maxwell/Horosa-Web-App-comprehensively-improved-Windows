@@ -7,7 +7,7 @@ import { getAspectedSignNumbers } from '../../components/astro/IndiaSouthChart';
 import { buildLocalChartRecord } from '../localcharts';
 
 // 2026-07-21 KP 补齐:'14' 问事(parashari/tajika/kp)+ '15' 校时(五派全开);五支轮 '16' 纳迪 —— 均为有意的契约变更。
-const ALL_TABS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
+const ALL_TABS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'];
 // LagnaRef 选项是分组结构（{label, options}），压平成 [{value}] 再扫。
 const LAGNA_REF_FLAT = AstroConst.INDIA_LAGNA_REF_OPTIONS.reduce((a, g)=>a.concat(g.options || []), []);
 
@@ -41,7 +41,7 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 			expect(Array.isArray(d.tabs) && d.tabs.length > 0).toBe(true);
 			d.tabs.forEach((t)=>{ expect(ALL_TABS.indexOf(t) >= 0).toBe(true); });
 		});
-		expect(AstroConst.getIndiaSchoolDefaults('parashari').tabs.length).toBe(16);  // 默认全开(13+问事+校时+纳迪)
+		expect(AstroConst.getIndiaSchoolDefaults('parashari').tabs.length).toBe(17);  // 默认全开(13+问事+校时+纳迪+补充表)
 		// KP 默认 = Krishnamurti + Placidus(3) + 子集 tab。
 		const kp = AstroConst.getIndiaSchoolDefaults('kp');
 		expect(kp.ayanamsa).toBe('krishnamurti');

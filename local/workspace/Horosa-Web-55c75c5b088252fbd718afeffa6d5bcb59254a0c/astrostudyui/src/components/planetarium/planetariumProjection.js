@@ -255,6 +255,158 @@ function projectedEquatorialItem(item, jd, observer, applyRefraction = true) {
 	};
 }
 
+// —— 每帧矩阵化投影(天文馆播放热路径)——
+// 逐点走 projectedEquatorialItem → toSkyVector 每点约二十次三角函数外加几个临时对象,线一多(星座连线 /
+// 坐标网格 / 星官)每帧就是几万次,播放掉帧。这里把「历元坐标 → 场景方向」折成每帧只算一次的 3×3 矩阵,
+// 每点只剩九次乘加;结果与原公式逐点等价(同一组旋转,只是先合成再乘)。
+// 场景方向约定与 skyMath.toSkyVector 一致:x = cos(高度)·sin(方位),y = sin(高度),z = cos(高度)·cos(方位),
+// 方位从北向东量(toSkyVector 里的 +180 与 equatorialToHorizontal 的 +180 相抵)。
+// 三种基底各一张矩阵:m = 当日赤道 → 场景;mp = J2000 赤道 → 场景(m·岁差矩阵);me = 当日黄道 → 场景(m·绕 x 轴转黄赤交角)。
+function createSkyFrame() {
+	return {
+		ok: false,
+		refraction: true,
+		m: new Float64Array(9),
+		mp: new Float64Array(9),
+		me: new Float64Array(9),
+		x: 0,
+		y: 0,
+		z: 0,
+	};
+}
+
+// 按 (jd, 观测点) 填好三张矩阵。precessionMatrix 可传调用方缓存的 J2000→当日岁差矩阵(行主序九元素),不传则现算。
+// jd 或观测点不是有限数时 frame.ok = false,调用方应回落逐点慢路径。
+function buildSkyFrame(frame, jd, observer, applyRefraction, precessionMatrix) {
+	frame.ok = false;
+	frame.refraction = applyRefraction !== false;
+	if (!Number.isFinite(Number(jd))) {
+		return frame;
+	}
+	const obs = observer || {};
+	const lat = degToRad(obs.lat || 0);
+	// 经度不是数 → 不建帧(degToRad 会把 NaN 吞成 0,这里要在换算前拦住),调用方回落逐点路径。
+	const lstDeg = normalizeDegrees(apparentSiderealDegrees(jd) + Number(obs.lon || 0));
+	if (!Number.isFinite(lat) || !Number.isFinite(lstDeg)) {
+		return frame;
+	}
+	const lst = degToRad(lstDeg);
+	const sl = Math.sin(lst);
+	const cl = Math.cos(lst);
+	const sp = Math.sin(lat);
+	const cp = Math.cos(lat);
+	const m = frame.m;
+	m[0] = -sl; m[1] = cl; m[2] = 0;
+	m[3] = cp * cl; m[4] = cp * sl; m[5] = sp;
+	m[6] = -sp * cl; m[7] = -sp * sl; m[8] = cp;
+	const p = precessionMatrix || precessionMatrixJ2000ToDate(jd);
+	const mp = frame.mp;
+	const eps = degToRad(meanObliquityDeg(jd));
+	const se = Math.sin(eps);
+	const ce = Math.cos(eps);
+	const me = frame.me;
+	for (let i = 0; i < 3; i += 1) {
+		const r = i * 3;
+		mp[r] = m[r] * p[0] + m[r + 1] * p[3] + m[r + 2] * p[6];
+		mp[r + 1] = m[r] * p[1] + m[r + 1] * p[4] + m[r + 2] * p[7];
+		mp[r + 2] = m[r] * p[2] + m[r + 1] * p[5] + m[r + 2] * p[8];
+		me[r] = m[r];
+		me[r + 1] = m[r + 1] * ce + m[r + 2] * se;
+		me[r + 2] = -m[r + 1] * se + m[r + 2] * ce;
+	}
+	frame.ok = true;
+	return frame;
+}
+
+// 把一个数据项归到它的基底,并把该基底下的单位向量缓存进 cache[offset..offset+5] = [kind, 键1, 键2, ux, uy, uz]。
+// 返回 kind:1 当日赤道(ra/decl)· 2 J2000 赤道(raJ2000/declJ2000 或 epoch='J2000' 的 ra/decl)· 3 当日黄道(lon/lat)·
+// 0 不支持(调用方回落慢路径)。归类顺序与 projectedEquatorialItem 完全一致;键没变就不重算三角函数。
+function skySourceUnitInto(item, cache, offset) {
+	let kind = 0;
+	let a = NaN;
+	let b = NaN;
+	if (item) {
+		if (isJ2000Item(item)) {
+			const ra0 = Number(item.raJ2000);
+			const de0 = Number(item.declJ2000);
+			a = Number.isFinite(ra0) ? ra0 : Number(item.ra);
+			b = Number.isFinite(de0) ? de0 : Number(item.decl);
+			if (Number.isFinite(a) && Number.isFinite(b)) {
+				kind = 2;
+			}
+		}
+		if (!kind) {
+			a = Number(item.ra);
+			b = Number(item.decl);
+			if (Number.isFinite(a) && Number.isFinite(b)) {
+				kind = 1;
+			} else if (item.lon !== undefined) {
+				a = Number(item.lon);
+				b = Number(item.lat || 0);
+				if (Number.isFinite(a) && Number.isFinite(b)) {
+					kind = 3;
+				}
+			}
+		}
+	}
+	if (!kind) {
+		cache[offset] = 0;
+		return 0;
+	}
+	if (cache[offset] === kind && cache[offset + 1] === a && cache[offset + 2] === b) {
+		return kind;
+	}
+	const ar = a * Math.PI / 180;
+	const br = b * Math.PI / 180;
+	const cb = Math.cos(br);
+	cache[offset] = kind;
+	cache[offset + 1] = a;
+	cache[offset + 2] = b;
+	cache[offset + 3] = cb * Math.cos(ar);
+	cache[offset + 4] = cb * Math.sin(ar);
+	cache[offset + 5] = Math.sin(br);
+	return kind;
+}
+
+// 基底单位向量 → 场景单位方向,写进 frame.x / frame.y / frame.z,返回 frame.y(= 视高度的正弦)。
+// 需要折射时只对地平线附近及以上的点抬高度(与 equatorialToHorizontal 同一个 atmosphericRefractionDeg,
+// 真高度低于 -1° 它自己返回 0),地平线下的点零三角函数。
+function skyFrameDirection(frame, kind, ux, uy, uz) {
+	const mat = kind === 2 ? frame.mp : (kind === 3 ? frame.me : frame.m);
+	let x = mat[0] * ux + mat[1] * uy + mat[2] * uz;
+	let y = mat[3] * ux + mat[4] * uy + mat[5] * uz;
+	let z = mat[6] * ux + mat[7] * uy + mat[8] * uz;
+	if (frame.refraction && y > -0.02) {
+		const altTrue = radToDeg(Math.asin(clamp(y, -1, 1)));
+		const lift = atmosphericRefractionDeg(altTrue);
+		if (lift > 0) {
+			const altApp = degToRad(altTrue + lift);
+			const cosTrue = Math.sqrt(Math.max(0, 1 - y * y));
+			if (cosTrue > 1e-12) {
+				const k = Math.cos(altApp) / cosTrue;
+				x *= k;
+				z *= k;
+			}
+			y = Math.sin(altApp);
+		}
+	}
+	frame.x = x;
+	frame.y = y;
+	frame.z = z;
+	return y;
+}
+
+// skyFrameDirection 之后读数用:视高度(度)与展示方位(度)。展示方位 = 场景方位 + 180°,
+// 与 equatorialToHorizontal 的输出同制(skyMath.toSkyVector 画点时再减回去)—— 读数面板拿的就是这个制。
+function skyFrameAltitudeDeg(frame) {
+	return radToDeg(Math.asin(clamp(frame.y, -1, 1)));
+}
+
+function skyFrameAzimuthDeg(frame) {
+	const az = radToDeg(Math.atan2(frame.x, frame.z)) + 180;
+	return az >= 360 ? az - 360 : az;
+}
+
 // Local apparent sidereal time (degrees) at observer longitude.
 function localSiderealDeg(jd, lon) {
 	return normalizeDegrees(apparentSiderealDegrees(jd) + Number(lon || 0));
@@ -315,6 +467,12 @@ export {
 	isJ2000Item,
 	equatorialToHorizontal,
 	projectedEquatorialItem,
+	createSkyFrame,
+	buildSkyFrame,
+	skySourceUnitInto,
+	skyFrameDirection,
+	skyFrameAltitudeDeg,
+	skyFrameAzimuthDeg,
 	localSiderealDeg,
 	hourAngleDeg,
 	riseTransitSet,

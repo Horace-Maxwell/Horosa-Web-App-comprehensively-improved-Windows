@@ -93,9 +93,12 @@ const REGISTRY = {
 		moiraTransitTime: ex('流年流曜时刻只进流年盘;择日条件判候选时刻的本盘'),
 		electionOptions: ex('「天星择日」盘式的西占附图选项(分宫制 / 容许度等);七政择日条件按七政引擎判,不读这一份'),
 		eleLifeMode: ex('「天星择日」盘式的立命时刻;七政择日条件的命宫按候选时刻上升'),
+		ascRaMode: ex('赤仪「上升取法」只改盘面上「升」的位置与四轴宫头的显示;七政择日条件按引擎的上升判'),
 	},
 	india: {
 		...each(BASE_FIELDS, 'base'),
+		yogaTableVariant: 'ui', yogaTableScope: 'ui', dirahVariant: 'ui',   // 判定表 / 补充表页签里的显示口径,不进择日扫描
+		transitPlanet: 'ui', transitKind: 'ui', transitDays: 'ui',   // 行运页穿界表的星 / 事件 / 范围,只管那张表显示什么,不进择日扫描
 		indiaAyanamsa: 'workbench', indiaNodeType: 'workbench',   // 岁差制 / 交点 = 工作台参数(扫描后端只收这两项)
 		name: ex('盘名是显示'),
 		...each(['tradition', 'strongRecption', 'simpleAsp', 'virtualPointReceiveAsp'], ex('西占相位 / 接纳规则只进内嵌页的相位显示;印度择日条件不判这些')),

@@ -511,6 +511,14 @@
   "horosa_web_python_utf8_v1": {
    "start_horosa_local.sh": 1
   },
+  "horosa_win_float_golden_v1": {
+   "astropy/tests/test_chart_details.py": 2,
+   "astropy/tests/test_india_extra_tables.py": 2,
+   "astropy/tests/test_mundane_cycles.py": 2,
+   "astropy/tests/test_transform_charts.py": 2,
+   "astropy/tests/test_win_float_golden.py": 1,
+   "astropy/tests/win_float_golden.py": 1
+  },
   "horosa_win_float_tail_v1": {
    "astropy/tests/test_india_variant_mount_contract.py": 2
   },
@@ -558,6 +566,7 @@
    "astrostudyui/src/components/sanshi/__tests__/sanshiQijuAndVisibleControls.test.js": 3,
    "astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js": 1,
    "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1,
+   "astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js": 1,
    "astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js": 1
   },
   "horosa_win_socks_abort_v1": {

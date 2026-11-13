@@ -28,7 +28,16 @@ export default class XuanShiMicro extends React.Component {
 		if (left + W > frame.viewportWidth - 12) { left = rect.left - W - 12; }
 		if (left < 12) { left = 12; }
 		const top = Math.min(Math.max(12, rect.top), frame.viewportHeight - 240);
-		this.setState({ hover: ev, hoverPos: { left, top } });
+		this.setState({ hover: ev, hoverPos: { left, top } }, () => this.fitHover());
+	}
+	// 卡高随内容变(原文 / 译文长短不一),上面的 240 只是估值:落位后按实际高度再夹一次,卡底不出窗口。
+	// offsetHeight 与 fixed 的 top 同在布局域,可直接比。
+	fitHover() {
+		const node = this._hoverNode;
+		const pos = this.state.hoverPos;
+		if (!node || !pos || !this.state.hover) { return; }
+		const maxTop = Math.max(12, fixedPopupFrame().viewportHeight - node.offsetHeight - 12);
+		if (pos.top > maxTop) { this.setState({ hoverPos: { left: pos.left, top: maxTop } }); }
 	}
 	hideHover() { this.setState({ hover: null }); }
 
@@ -154,7 +163,7 @@ export default class XuanShiMicro extends React.Component {
 
 				{/* 悬停详情卡(对齐标准版:日期 / 原文 / 白话译文 / 来源 / 事件ID) */}
 				{this.state.hover ? (
-					<div className="xuanshi-micro-hover" style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
+					<div className="xuanshi-micro-hover" ref={(n) => { this._hoverNode = n; }} style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
 						{this.state.hover.omen ? <span className="xuanshi-chip is-jade" style={{ marginBottom: 8, display: 'inline-block' }}>{this.state.hover.omen}</span> : null}
 						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · ${celestialDateWithCalendar(this.state.hover, { prefix: true })}` : ''}</div></div>
 						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v horosa-script-classic" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}

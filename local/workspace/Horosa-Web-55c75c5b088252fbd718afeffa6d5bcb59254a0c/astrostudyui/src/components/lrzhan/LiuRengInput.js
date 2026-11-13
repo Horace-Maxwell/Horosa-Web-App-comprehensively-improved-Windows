@@ -3,7 +3,7 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as LRConst from '../liureng/LRConst';
-import { gcj02ToGps, randomStr } from '../../utils/helper';
+import { randomStr } from '../../utils/helper';
 import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -117,8 +117,8 @@ class LiuRengInput extends Component{
 		let datetm = new DateTime();
 		if(fields.date && fields.time){
 			let str = fields.date.value.format('YYYY-MM-DD') + ' ' + 
-						fields.time.value.format('HH:mm');
-			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm');
+						fields.time.value.format('HH:mm:ss');
+			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
 			if(fields.zone){
 				datetm.setZone(fields.zone.value);
 			}

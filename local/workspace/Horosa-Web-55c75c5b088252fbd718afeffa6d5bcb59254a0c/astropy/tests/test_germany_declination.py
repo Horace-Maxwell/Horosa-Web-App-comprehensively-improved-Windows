@@ -2,7 +2,7 @@
 
 守住:
  1. 同号 |Δdecl|≤orb = parallel;异号 |abs−abs|≤orb = contraParallel(本仓 perchart 同源口径)。
- 2. include_tnp=True 时 8 TNP 入算且赤纬为真值(非历表默认 0.0,而是 eqCoords 现算)。
+ 2. include_tnp=True 时 8 TNP 入算且赤纬为真值(读对象自带的本日真赤纬,与主盘行星同一出口)。
  3. 四轴(Asc/MC/Desc/IC)绝不入算。
  4. NaN/None 赤纬安全跳过、不抛栈。
 """
@@ -70,7 +70,7 @@ def test_include_tnp_adds_eight_with_real_decl():
     # 关键:TNP 赤纬必须是真值,不能全是历表默认 0.0(否则说明没现算)。
     tnp_decls = _tnp_decls(_perchart())
     assert len(tnp_decls) == 8
-    assert any(abs(v) > 1e-6 for v in tnp_decls.values()), 'TNP 赤纬不应恒为 0(必须 eqCoords 现算真值)'
+    assert any(abs(v) > 1e-6 for v in tnp_decls.values()), 'TNP 赤纬不应恒为 0(必须是本日真赤纬)'
 
 
 def test_parallel_same_sign_within_orb():
@@ -125,6 +125,20 @@ def test_finite_helper():
     assert _finite('x') is None
     assert _finite(3) == 3.0
     assert _finite(-2.5) == -2.5
+
+
+def test_node_axis_is_never_a_contact():
+    # 南北交是定义对点:赤纬恒互为相反数,任何盘都「反平行、差 0」—— 不列(与主盘赤纬平行同一组对点)。
+    # 替身:北交 -21.4 / 南交 +21.4 正是真盘的样子;太阳 +21.0 与二者都在容许度内,照常成对。
+    res = compute_declination(_StubPC({const.NORTH_NODE: -21.4, const.SOUTH_NODE: 21.4, const.SUN: 21.0}),
+                              include_tnp=False)
+    pairs = [{p['a'], p['b']} for p in res['parallel'] + res['contraParallel']]
+    assert {const.NORTH_NODE, const.SOUTH_NODE} not in pairs
+    assert {const.SUN, const.SOUTH_NODE} in pairs and {const.SUN, const.NORTH_NODE} in pairs
+    real = compute_declination(_perchart(), orb=10.0, include_tnp=False)
+    assert const.NORTH_NODE in real['decls'] and const.SOUTH_NODE in real['decls']
+    assert abs(real['decls'][const.NORTH_NODE] + real['decls'][const.SOUTH_NODE]) < 1e-3
+    assert {const.NORTH_NODE, const.SOUTH_NODE} not in [{p['a'], p['b']} for p in real['parallel'] + real['contraParallel']]
 
 
 def test_invalid_orb_falls_back():

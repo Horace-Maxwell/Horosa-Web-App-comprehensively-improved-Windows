@@ -1,6 +1,7 @@
 // 九星值日 / 时辰宜忌懒算:开关开关逐字节等价 + 全年扫描不触发两项底层计算(棘轮)+ 读取时值完整。
 
-// lunar-javascript 的方法挂在实例上(原型上 spy 不到):隔离模块实例里包一层,给新建 Lunar 的两个方法计数,其余透传。
+// lunar-javascript 的方法挂在实例上(原型上 spy 不到):隔离模块实例里包一层,给新建 Lunar 的 getTimes 计数,其余透传。
+// 九星值日的底层计算是本软件日紫白 zibai.dayCenter(不再是 lunar getDayNineStar):同样在隔离实例里包一层计数,记在 dayCenter 名下。
 function freshModules(lazyOn, counter){
 	let mods = null;
 	localStorage.setItem('horosa.perf.huangliLazyDetail', lazyOn ? '1' : '0');
@@ -21,6 +22,10 @@ function freshModules(lazyOn, counter){
 				Solar.fromYmd = (...a)=> wrapSolar(real.Solar.fromYmd(...a));
 				return { ...real, Solar };
 			});
+			jest.doMock('../../fengshui/zibai', ()=>{
+				const real = jest.requireActual('../../fengshui/zibai');
+				return { ...real, dayCenter: (...a)=>{ counter.dayCenter = (counter.dayCenter || 0) + 1; return real.dayCenter(...a); } };
+			});
 		}
 		mods = {
 			huangli: require('../huangliDay'),
@@ -30,7 +35,7 @@ function freshModules(lazyOn, counter){
 	return mods;
 }
 
-afterEach(()=>{ localStorage.removeItem('horosa.perf.huangliLazyDetail'); jest.dontMock('lunar-javascript'); });
+afterEach(()=>{ localStorage.removeItem('horosa.perf.huangliLazyDetail'); jest.dontMock('lunar-javascript'); jest.dontMock('../../fengshui/zibai'); });
 
 const SAMPLE = [
 	[2024, 1, 1, 12], [2024, 2, 29, 0], [2024, 6, 21, 23], [2025, 12, 31, 12], [1901, 3, 15, 5],
@@ -48,11 +53,11 @@ test('开关开关逐字节等价(含读取后两项的值)', ()=>{
 test('全年扫描不触发九星值日与时辰宜忌的底层计算;开关关时照旧计算(判别力)', ()=>{
 	const cOn = {};
 	freshModules(true, cOn).year.buildYearAuspicious(2037, { events: ['marriage'], topN: 366 });
-	expect(cOn.getDayNineStar || 0).toBe(0);
+	expect(cOn.dayCenter || 0).toBe(0);
 	expect(cOn.getTimes || 0).toBe(0);
 	const cOff = {};
 	freshModules(false, cOff).year.buildYearAuspicious(2038, { events: ['marriage'], topN: 366 });
-	expect(cOff.getDayNineStar).toBeGreaterThan(300);
+	expect(cOff.dayCenter).toBeGreaterThan(300);
 	expect(cOff.getTimes).toBeGreaterThan(300);
 });
 
@@ -66,7 +71,7 @@ test('读取时值完整,且只算一次', ()=>{
 	expect(day.times).toBe(day.times);
 	expect(c.getTimes).toBe(1);
 	expect(day.nineStar && day.nineStar.name).toBeTruthy();
-	expect(c.getDayNineStar).toBe(1);
+	expect(c.dayCenter).toBe(1);
 	expect(Object.keys(day)).toContain('times');
 	expect(Object.keys(day)).toContain('nineStar');
 });

@@ -42,7 +42,7 @@ it('🔴 无任何本命主派生盘快照 → missing + 引导提示(不再回�
 
 it('聚合键 schema 改只读(57 占星齿轮对它是本命请求,已撤);派生盘模块清单固定', ()=>{
 	expect(getTechniqueSettingsSchema('astrochart_like').kind).toBe('sectionsOnly');
-	expect(ASTRO_LIKE_DERIVED_MODULES).toEqual(['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation']);
+	expect(ASTRO_LIKE_DERIVED_MODULES).toEqual(['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems']);
 });
 
 // 派生盘五键独立技法键:各读本键模块快照(只认本命主),聚合键照旧并挂全部。

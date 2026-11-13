@@ -4,6 +4,7 @@ import { Component } from 'react';
 import { XQSegmented } from '../xq-ui';
 import { MULAPIN, BABYLON_ZIQPU, BABYLON_ZIQPU_MULAPIN, NOTES } from '../../divination/data/babylonianData';
 import { MONTHS } from '../../divination/babylon/calendar';
+import { SkyPathsCard, SkyZiqpuCard } from './BabylonSkyCards';
 
 class BabylonMulApin extends Component{
 	constructor(props){
@@ -23,7 +24,7 @@ class BabylonMulApin extends Component{
 		// 伪随机稳定散点(名字 hash → 带内位置)
 		const hash = (s) => { let h = 0; for(let i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) % 9973; } return h / 9973; };
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
 				{bands.map((b) => (
 					<g key={b.key}>
 						<rect x={10} y={b.y} width={W - 20} height={b.h} rx={10} fill={b.fill} stroke="rgba(122,94,48,0.28)" strokeWidth="0.8" />
@@ -61,7 +62,7 @@ class BabylonMulApin extends Component{
 			return [C + r * Math.cos(t), C - r * Math.sin(t)];
 		};
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
 				<circle cx={C} cy={C} r={R} fill="none" stroke="rgba(122,94,48,0.35)" strokeWidth="1" />
 				<circle cx={C} cy={C} r={R - 40} fill="none" stroke="rgba(122,94,48,0.18)" strokeWidth="0.7" strokeDasharray="2,4" />
 				{items.map((z, i) => {
@@ -99,6 +100,8 @@ class BabylonMulApin extends Component{
 				</div>
 				<div className="horosa-babylon-readout">
 					{this.props.schemePanel}
+					<SkyPathsCard sky={this.props.skyTables} />
+					<SkyZiqpuCard sky={this.props.skyTables} />
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">偕日升日期(理想历)</div>
 						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">

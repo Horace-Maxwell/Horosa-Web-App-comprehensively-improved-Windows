@@ -28,6 +28,7 @@ import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import { fetchChart } from '../../services/astro';
 import TaiyiBoardSvg from '../taiyi/TaiyiBoardSvg';
+import ZeriFloatPanel from './ZeriFloatPanel';
 import { computeTaiyiScanPan } from '../../divination/zeri/taiyiZeriScanEngine';
 import { ziweiScanCalcArgs, ziweiScanChartOf } from '../../divination/zeri/ziweiZeriScanEngine';
 import { baziScanParams } from '../../divination/zeri/baziZeriScanEngine';
@@ -43,7 +44,6 @@ import { getLayoutViewportHeight } from '../../utils/shellZoom';
 
 
 
-import { clientToFixed } from '../../utils/zoomDomain';
 import { geoDepKey } from './zeriHostUtils';
 import { toSlashDate, leadingYearOf } from '../../utils/dateStrSafe';
 
@@ -375,12 +375,12 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 	const isRemote = tech === 'qizheng' || tech === 'india';
 	// 默认尺寸=完整容盘零裁剪(2026-08-30 定案):三式一体化盘 stack≈770(表头+640盘+底条)
 	// +体 padding16+题头 34 → 需 ~830;其余技法沿用旧默认(已真机验完整)。夹屏高防超窗。
-	const [box, setBox] = useState(()=>{
+	const initialBox = ()=>{
 		const dflt = tech === 'sanshi' ? { w: 720, h: 972 } : { w: isRemote ? 720 : 700, h: isRemote ? 700 : 680 };	// 972=真机量值:fitContent 后 stack 918+padding16+题头34+边框——盘+底条两行完整零滚动
 		const vh = typeof window !== 'undefined' && window.innerHeight ? (getLayoutViewportHeight() || 900) : 900;   // 布局域实测
 		const h = Math.min(dflt.h, vh - 44);
 		return { x: 90, y: Math.max(12, Math.min(36, vh - h - 24)), w: dflt.w, h };
-	});
+	};
 	const pan = useMemo(()=>{
 		if(!computePan){ return null; }
 		try{
@@ -392,51 +392,20 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 			return null;
 		}
 	}, [row && row.pick, row && row.start]);
-	const dragFrom = (e, mode)=>{
-		e.preventDefault();
-		e.stopPropagation();
-		const start = { mx: e.clientX, my: e.clientY, ...box };
-		const move = (ev)=>{
-			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
-			const dx = clientToFixed(ev.clientX - start.mx);
-			const dy = clientToFixed(ev.clientY - start.my);
-			if(mode === 'drag'){
-				setBox((b)=>({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
-			}else{
-				setBox((b)=>({ ...b, w: Math.max(380, start.w + dx), h: Math.max(320, start.h + dy) }));
-			}
-		};
-		const up = ()=>{
-			document.removeEventListener('mousemove', move);
-			document.removeEventListener('mouseup', up);
-		};
-		document.addEventListener('mousemove', move);
-		document.addEventListener('mouseup', up);
-	};
 	const RealCard = REAL_CARD_BY_TECH[tech] || null;
 	return (
-		<div style={{
-			position: 'fixed', left: box.x, top: box.y, width: box.w, height: box.h,
-			zIndex: 2100, background: 'var(--horosa-astro-panel, #fff)', borderRadius: 10,
-			border: '1px solid rgba(148,163,184,.45)', boxShadow: '0 12px 40px rgba(0,0,0,.28)',
-			display: 'flex', flexDirection: 'column', overflow: 'hidden',
-		}}>
-			<div onMouseDown={(e)=>dragFrom(e, 'drag')}
-				style={{ cursor: 'move', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,.25)', userSelect: 'none' }}>
-				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {row ? (row.pick || row.start) : ''}{row && row.pick && row.pick !== row.start ? <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>(时段 {row.start} 起)</span> : null}</span>
-				<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>{subtitle || (isRemote ? '该时刻盘(与主盘同源)' : '速览(与扫描同源)')}</span>
-				<span style={{ flex: 1 }} />
-				<span onMouseDown={(e)=>e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
-			</div>
-			<div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: (isRemote || RealCard) ? 0 : 12, position: 'relative' }}>
-				{isRemote ? <RemoteChartCard tech={tech} row={row} geo={geo} techOptions={techOptions} />
-					: (RealCard ? <RealCard row={row} geo={geo} techOptions={techOptions} pan={pan} />
-						: <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12 }}>—</div>)}
-			</div>
-			<div onMouseDown={(e)=>dragFrom(e, 'resize')}
-				style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize',
-					background: 'linear-gradient(135deg, transparent 50%, rgba(148,163,184,.6) 50%)' }} />
-		</div>
+		<ZeriFloatPanel
+			initialBox={initialBox}
+			minW={380}
+			minH={320}
+			onClose={onClose}
+			title={<React.Fragment>概览 · {row ? (row.pick || row.start) : ''}{row && row.pick && row.pick !== row.start ? <span className="horosa-zeri-float-title-note">(时段 {row.start} 起)</span> : null}</React.Fragment>}
+			sub={subtitle || (isRemote ? '该时刻盘(与主盘同源)' : '速览(与扫描同源)')}
+			bodyStyle={{ overflow: 'auto', padding: (isRemote || RealCard) ? 0 : 12 }}
+		>
+			{isRemote ? <RemoteChartCard tech={tech} row={row} geo={geo} techOptions={techOptions} />
+				: (RealCard ? <RealCard row={row} geo={geo} techOptions={techOptions} pan={pan} />
+					: <div className="horosa-zeri-float-empty">—</div>)}
+		</ZeriFloatPanel>
 	);
 }

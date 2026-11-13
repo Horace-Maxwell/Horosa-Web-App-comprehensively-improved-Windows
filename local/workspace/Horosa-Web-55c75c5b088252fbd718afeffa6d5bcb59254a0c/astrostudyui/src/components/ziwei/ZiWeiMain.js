@@ -57,6 +57,7 @@ import { qiShuWei, allBorrowedStars, taiSuiRuGua } from './ziweiOverlays';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
 import { getLayoutViewportWidth } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 const TabPane = Tabs.TabPane;
 
 // 稳定空值(避免每次 render 新建字面量 → 下游 sCU/绘制守卫的引用比恒不等)。
@@ -957,7 +958,7 @@ function buildZiWeiInfoData(chart, fields){
 		['命局', ju || '—'],
 		[birthPrefix, nongli.birth || '—'],
 		['农历', `${nongli.year || ''}年 ${leap}${nongli.month || ''}${nongli.day || ''} ${nongli.time ? nongli.time.charAt(1) : ''}时`.trim()],
-		['时区', chart.zone || getFieldValue(fields, 'zone', '—')],
+		['时区', formatZoneLabel(chart.zone || getFieldValue(fields, 'zone', '')) || '—'],
 		['经纬度', `${chart.lon || getFieldValue(fields, 'lon', '—')}，${chart.lat || getFieldValue(fields, 'lat', '—')}`],
 	];
 	const bz = chart.bazi && chart.bazi.bazi ? chart.bazi.bazi : {};
@@ -1287,8 +1288,19 @@ class ZiWeiMain extends Component{
 		const prevChart = (this.state.result && this.state.result.chart) ? this.state.result.chart : null;
 		const chartIdentity = (c)=> c ? `${c.birth}|${c.gender}|${c.yearGan}|${c.lifeHouseIndex}` : '';
 		const sameChart = !!prevChart && chartIdentity(prevChart) === chartIdentity(result.chart);
+		// 回访 / 同参再取(切回本页、宿主重复触发):取回来的盘与手上这张逐字相同时,沿用手上的对象。
+		// 盘面与右栏都按引用判要不要重画 —— 内容没变却换了引用,整张盘就重建一遍(一次回访近四千次 DOM 改动)。
+		// 只比内容、不猜入参:流派 / 引擎开关 / 三盘改了,取回的盘自然不同,照常换新。
+		let nextResult = result;
+		try{
+			const prevResult = this.state.result;
+			if(prevResult && prevResult !== result){
+				if(this._resultJsonOf !== prevResult){ this._resultJsonOf = prevResult; this._resultJson = JSON.stringify(prevResult); }
+				if(this._resultJson === JSON.stringify(result)){ nextResult = prevResult; }
+			}
+		}catch(e){ nextResult = result; }
 		const st = {
-			result: result,
+			result: nextResult,
 			rules: rules[Constants.ResultKey],
 			luckSel: sameChart ? (this.state.luckSel || emptyLuckSel()) : emptyLuckSel(),
 			updating: false,

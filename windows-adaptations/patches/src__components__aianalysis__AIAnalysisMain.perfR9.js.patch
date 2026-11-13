@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index 85ea9b51..42fae27a 100644
+index ac97a05d..a8715573 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 @@ -216,6 +216,8 @@ import { AssistantMarkdown } from './main/AssistantMarkdown';

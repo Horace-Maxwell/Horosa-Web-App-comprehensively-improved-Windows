@@ -28,6 +28,19 @@ class ChartSynastry:
 
             outerChart.chart.otherAngles = innerChart.chart.angles.copy()
 
+        # 希腊点与星体同样换成对方的(福点在星体表里已换;此前其余各点仍是自己盘上的,与换过来的星体对不上)
+        outerPars = {p.id: p.lon for p in (getattr(outerChart.chart, 'pars', None) or [])}
+        innerPars = {p.id: p.lon for p in (getattr(innerChart1.chart, 'pars', None) or [])}
+        for p in (getattr(innerChart.chart, 'pars', None) or []):
+            if p.id in outerPars:
+                p.relocate(outerPars[p.id])
+        for p in (getattr(outerChart.chart, 'pars', None) or []):
+            if p.id in innerPars:
+                p.relocate(innerPars[p.id])
+        # 对方的点放进自己的宫位:点已各自按本命的变体起好,reinit 不再拿「自己的上升 + 对方的日月」重起
+        innerChart.freezeLotVariants()
+        outerChart.freezeLotVariants()
+
         innerChart.reinit()
         outerChart.reinit()
 

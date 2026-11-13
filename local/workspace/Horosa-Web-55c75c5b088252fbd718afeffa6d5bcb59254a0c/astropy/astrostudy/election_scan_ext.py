@@ -223,8 +223,10 @@ def _above_horizon_semiarc(m, planet):
     """perchart.isAboveHorizon 同款半弧法(ra/decl vs MC 赤经+纬度)——hayyiz 判据单源;
     与 sect 昼夜的真地平口径(altitudeTrue)是两个语义,勿混。"""
     from flatlib import utils as _futils
+    from flatlib.ephem import swe as _fswe
     eq = m.equatorial(planet)
-    mc_ra, _mc_decl = _futils.eqCoords(m.mc(), 0)
+    # 天顶赤经与主盘四轴同一个出口:本刻真黄赤交角(m.mc() 是回归黄经,不用加岁差),结果即 ARMC
+    mc_ra, _mc_decl = _fswe.eclipticToEquatorial(m.mc(), 0.0, m.obliquity())
     return _futils.isAboveHorizon(eq['ra'], eq['decl'], mc_ra, m.ctx.lat)
 
 

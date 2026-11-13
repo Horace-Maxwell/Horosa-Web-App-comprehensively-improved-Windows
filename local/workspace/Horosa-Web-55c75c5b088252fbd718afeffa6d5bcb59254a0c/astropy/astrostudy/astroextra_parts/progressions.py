@@ -374,12 +374,15 @@ def compute_prenatal_syzygy(data):
         hyleg_degree = moon_lon
         try:
             from flatlib import utils as _flutils
+            from flatlib.ephem import swe as _flswe
             # swisseph houses 取 MC 黄经(ascmc[1]);Placidus 仅用其 MC,与宫制无关。
             _cusps, ascmc = swisseph.houses(syz_jd, lat, lon, b'P')
             mc_lon = ascmc[1]
-            mc_ra, _mc_decl = _flutils.eqCoords(mc_lon, 0.0)
-            sun_ra, sun_decl = _flutils.eqCoords(sun_lon, 0.0)
-            moon_ra, moon_decl = _flutils.eqCoords(moon_lon, 0.0)
+            # 黄 → 赤与主盘四轴同一个出口:望时当日的真黄赤交角(这里的黄经都是回归黄经,不用加岁差)
+            eps = _flswe.trueObliquity(syz_jd)
+            mc_ra, _mc_decl = _flswe.eclipticToEquatorial(mc_lon, 0.0, eps)
+            sun_ra, sun_decl = _flswe.eclipticToEquatorial(sun_lon, 0.0, eps)
+            moon_ra, moon_decl = _flswe.eclipticToEquatorial(moon_lon, 0.0, eps)
             sun_above = _flutils.isAboveHorizon(sun_ra, sun_decl, mc_ra, lat)
             moon_above = _flutils.isAboveHorizon(moon_ra, moon_decl, mc_ra, lat)
             if sun_above and not moon_above:

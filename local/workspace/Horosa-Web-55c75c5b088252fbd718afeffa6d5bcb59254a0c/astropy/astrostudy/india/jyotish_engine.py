@@ -149,6 +149,7 @@ class JyotishEngine(AyurdayaMixin, NadiVargaMixin, FactorsMixin, DashasMixin, Pa
             ('shashtiamsa', self.shashtiamsa), ('vargaVariants', self.varga_variants),
             ('ayurdaya', self.ayurdaya), ('ayurdayaFinal', self.ayurdaya_final),
             ('sensitivePoints', self.sensitive_points),
+            ('yogaTable', self.yoga_table), ('extraTables', self.extra_tables),
         ]:
             try:
                 res[key] = fn()

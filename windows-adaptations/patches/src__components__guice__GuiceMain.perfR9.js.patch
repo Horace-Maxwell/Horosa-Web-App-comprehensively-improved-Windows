@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guice/GuiceMain.js b/astrostudyui/src/components/guice/GuiceMain.js
-index 83ac36b1..5f44b406 100644
+index 92db5e0d..5de37cd0 100644
 --- a/astrostudyui/src/components/guice/GuiceMain.js
 +++ b/astrostudyui/src/components/guice/GuiceMain.js
 @@ -20,6 +20,7 @@ import { XQSideSection } from '../xq-ui';

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/tongshefa/TongSheFaMain.js b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-index b9fd820b..41032e5d 100644
+index 9e13a30b..6184a7b8 100644
 --- a/astrostudyui/src/components/tongshefa/TongSheFaMain.js
 +++ b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-@@ -19,6 +19,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
+@@ -20,6 +20,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
  import styles from '../../css/styles.less';
  import { withLabelCell } from '../../utils/labelCell';
@@ -10,8 +10,8 @@ index b9fd820b..41032e5d 100644
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { Option } = Select;
- const { TabPane } = Tabs;
-@@ -1140,6 +1142,13 @@ class TongSheFaMain extends Component{
+ // 右栏四象取卦:键 = model.selected 的键,文 = 位名
+@@ -1148,6 +1150,13 @@ class TongSheFaMain extends Component{
  	}
  
  	componentDidUpdate(prevProps, prevState){
@@ -25,16 +25,16 @@ index b9fd820b..41032e5d 100644
  		if(prevState.selected !== this.state.selected){
  			this.saveSnapshot();
  		}
-@@ -2012,6 +2021,8 @@ class TongSheFaMain extends Component{
- 								</Select>
- 							</Col>
- 						</Row>
+@@ -1997,6 +2006,8 @@ class TongSheFaMain extends Component{
+ 									</div>
+ 								))}
+ 							</div>
 +						{/* horosa_freeze_subtabs_v1:四个详情页签(三十二观/三界/爻位/纳甲筮法)皆为长表,
 +						    非激活者此前每次重渲都跟着重建。冻结≠卸载,切回即拿最新 model 立刻重画。 */}
  						<Tabs
  							activeKey={this.state.detailTab}
  							defaultActiveKey='observe32'
-@@ -2021,16 +2032,16 @@ class TongSheFaMain extends Component{
+@@ -2006,16 +2017,16 @@ class TongSheFaMain extends Component{
  								style={tabheight ? { height: tabheight } : undefined}
  							>
  							<TabPane tab='三十二观' key='observe32'>

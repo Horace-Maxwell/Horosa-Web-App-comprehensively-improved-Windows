@@ -723,7 +723,7 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
                      max_arc=100.0, zodiacal=True, converse=False,
                      include_antiscia=False, include_terms=False,
                      include_parallels=False, include_rapt=False,
-                     terms_variant=0, sig_bodies=None):
+                     terms_variant=0, sig_bodies=None, term_label_turn=0.0):
     """
     主限法表格:对 {significator} × {promissor 本体 + 相位(+映点/界)} 算弧,产出 Horosa pdlist 行。
       bodies:  {name: {'lon':, 'lat':}}(行星/虚点),name 用 flatlib const 名。
@@ -791,6 +791,8 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
         # 界(terms)边界(作黄道合相点)
         if include_terms:
             for ruler, sgn_idx, lon in term_boundaries(terms_variant):
+                if term_label_turn:
+                    lon = norm360(lon - term_label_turn)   # 界按标签星座取,落在真黄经 = 标签黄经 − 转角(南半球读法)
                 prom_pt = {'lon': lon, 'lat': 0.0}
                 arc = _direction_arc(method, sig, prom_pt, ramc, phi, eps, True,
                                      converse, is_angle, angle_name, 0.0, max_arc)

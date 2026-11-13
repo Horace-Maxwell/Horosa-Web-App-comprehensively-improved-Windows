@@ -96,7 +96,7 @@ describe('内容锚点（防转录被误改／误删的关键句）', ()=>{
 
 	it('四位杂断歌以四位互克互生逐条立说', ()=>{
 		const txt = getJinKouFuwen('siweizaduan').lines.join('');
-		expect(txt).toContain('乾克贵人人谋己，贵人克干己谋人。');
+		expect(txt).toContain('干克贵人人谋己，贵人克干己谋人。');
 		expect(txt).toContain('四位相生百事吉，若逢刑克事还凶。');
 	});
 });

@@ -221,6 +221,8 @@ const SUBTECHNIQUES = {
 	'auxchart/relocation':  { inherit: 'auxchart' },
 	'auxchart/harmonic':    { inherit: 'auxchart', axes: { stepPrefetch: 'na:调波盘=确认制「计算调波盘」', stepSelect: 'na:同左' } },
 	'auxchart/draconic':    { inherit: 'auxchart' },
+	'auxchart/transformchart': { inherit: 'auxchart' },
+	'auxchart/zodiacsystems': { inherit: 'auxchart' },
 	'auxchart/otherbu':     { inherit: 'auxchart', axes: { netCache: 'na:骰子随机起卦冻结', stepPrefetch: 'na:随机冻结,绝不预取', stepSelect: 'na:同左', dataPrewarm: 'na:随机冻结' } },
 	'auxchart/horary':      { inherit: 'auxchart', axes: { stepPrefetch: 'na:卜卦盘=确认制「重算星盘」', stepSelect: 'na:同左' } },
 	'auxchart/election':    { inherit: 'auxchart', module: 'qizhengelection', axes: { stepPrefetch: 'na:择日区间扫描型,无步进主轴', stepSelect: 'na:同左' } },
@@ -233,6 +235,8 @@ const SUBTECHNIQUES = {
 	// 其他技法(MING_OTHER_TECHNIQUE_TABS)
 	'mingother/cetian':      { inherit: 'mingother', module: 'cetian' },
 	'mingother/xianqin':     { inherit: 'mingother', module: 'xianqin' },
+	'mingother/zhufang':     { inherit: 'mingother', axes: { netCache: 'na:人类图 / 灵名每次按出生资料直算', stepPrefetch: 'na:无步进', stepSelect: 'na:无步进', localMemo: 'na:本地即时' } },
+	'mingother/dongya':      { inherit: 'mingother', axes: { netCache: 'na:纯本地东亚诸术', stepPrefetch: 'na:本地即时', stepSelect: 'na:本地即时', localMemo: 'na:本地即时' } },
 	'mingother/yizhangjing': { inherit: 'mingother', axes: { netCache: 'na:纯本地一掌经引擎', stepPrefetch: 'na:本地即时', stepSelect: 'na:本地即时', localMemo: 'existing' } },
 	// 数算 rail(KinAstroMain.renderTechniqueRail shusuan)
 	'shusuan/shaozi':     { inherit: 'shusuan', module: 'shaozi' },

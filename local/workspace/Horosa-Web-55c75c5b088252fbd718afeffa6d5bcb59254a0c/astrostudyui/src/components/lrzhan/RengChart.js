@@ -37,19 +37,19 @@ function isBranch(value){
 function getStemColor(value){
 	const stem = `${value || ''}`.substr(0, 1);
 	if(stem === '甲' || stem === '乙'){
-		return 'var(--horosa-liureng-stem-wood, #73b36b)';
+		return 'var(--horosa-bazi-wood, #66c486)';
 	}
 	if(stem === '丙' || stem === '丁'){
-		return 'var(--horosa-liureng-stem-fire, #c9483e)';
+		return 'var(--horosa-bazi-fire, #ff5f50)';
 	}
 	if(stem === '戊' || stem === '己'){
-		return 'var(--horosa-liureng-stem-earth, #c19a57)';
+		return 'var(--horosa-bazi-earth, #c08a4c)';
 	}
 	if(stem === '庚' || stem === '辛'){
-		return 'var(--horosa-liureng-stem-metal, #d8d2c7)';
+		return 'var(--horosa-bazi-metal, #eda34a)';
 	}
 	if(stem === '壬' || stem === '癸'){
-		return 'var(--horosa-liureng-stem-water, #8f9694)';
+		return 'var(--horosa-bazi-water, #5f8fff)';
 	}
 	return 'var(--horosa-liureng-square-main, #f0eee7)';
 }
@@ -57,19 +57,19 @@ function getStemColor(value){
 function getBranchColor(value){
 	const branch = `${value || ''}`.substr(0, 1);
 	if(branch === '寅' || branch === '卯'){
-		return 'var(--horosa-liureng-stem-wood, #73b36b)';
+		return 'var(--horosa-bazi-wood, #66c486)';
 	}
 	if(branch === '巳' || branch === '午'){
-		return 'var(--horosa-liureng-stem-fire, #c9483e)';
+		return 'var(--horosa-bazi-fire, #ff5f50)';
 	}
 	if(branch === '辰' || branch === '戌' || branch === '丑' || branch === '未'){
-		return 'var(--horosa-liureng-stem-earth, #c19a57)';
+		return 'var(--horosa-bazi-earth, #c08a4c)';
 	}
 	if(branch === '申' || branch === '酉'){
-		return 'var(--horosa-liureng-stem-metal, #d8d2c7)';
+		return 'var(--horosa-bazi-metal, #eda34a)';
 	}
 	if(branch === '亥' || branch === '子'){
-		return 'var(--horosa-liureng-stem-water, #8f9694)';
+		return 'var(--horosa-bazi-water, #5f8fff)';
 	}
 	return 'var(--horosa-liureng-square-main, #f0eee7)';
 }
@@ -566,6 +566,7 @@ class RengChart {
 			.attr('text-anchor', anchor)
 			.attr('dominant-baseline', 'middle')
 			.attr('fill', options.fill || 'var(--horosa-liureng-square-main, #f0eee7)')
+			.attr('stroke', 'none')
 			.attr('font-size', options.size || 18)
 			.attr('font-weight', options.weight || 520)
 			.attr('font-family', options.family || '"Songti SC", "STSong", "Noto Serif CJK SC", serif')
@@ -1115,6 +1116,7 @@ class RengChart {
 			.attr('y', y + (compact ? 16 : 23))
 			.attr('text-anchor', 'middle')
 			.attr('fill', 'var(--horosa-astro-gold, #b8893f)')
+			.attr('stroke', 'none')
 			.attr('font-size', compact ? 12 : (tall ? 16 : 15))
 			.attr('font-weight', 700)
 			.text(title);
@@ -1123,6 +1125,7 @@ class RengChart {
 			.attr('y', y + (compact ? 32 : 45))
 			.attr('text-anchor', 'middle')
 			.attr('fill', 'var(--horosa-astro-muted, #7f7a70)')
+			.attr('stroke', 'none')
 			.attr('font-size', compact ? 9 : 11)
 			.text(this.getMetaSummary(rows));
 		group.append('title').text(`${title}：点击查看完整信息`);

@@ -5,7 +5,7 @@
 from flatlib import const
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
-from flatlib.ephem import ephem as flatlib_ephem
+from astrostudy.germany.chart_objects import ephem_object, ephem_houses
 
 # 戴维森点集:传统体(与量化盘盘面口径同源;黑月/紫气非汉堡因子不入) + 可选 8 TNP;
 # Asc/MC 由中点时空真算(getHouses)。
@@ -45,7 +45,7 @@ def compute_davison(perchart_a, perchart_b, include_tnp=True, hsys=None):
     errors = []
     for oid in ids:
         try:
-            o = flatlib_ephem.getObject(oid, dt, pos)
+            o = ephem_object(perchart_a, oid, dt, pos)   # 整张戴维森盘跟本盘的黄道制(行星 / 虚星 / 四轴同一零点)
             points.append({
                 'id': o.id, 'lon': o.lon, 'lat': o.lat, 'lonspeed': o.lonspeed,
                 'sign': o.sign, 'signlon': o.signlon,
@@ -54,7 +54,7 @@ def compute_davison(perchart_a, perchart_b, include_tnp=True, hsys=None):
             errors.append({'id': oid, 'msg': '{0}'.format(e)})
     angles = {}
     try:
-        _houses, angs = flatlib_ephem.getHouses(dt, pos, hsys or const.HOUSES_PLACIDUS)
+        _houses, angs = ephem_houses(perchart_a, dt, pos, hsys or const.HOUSES_PLACIDUS)
         for a in angs:
             if a.id in (const.ASC, const.MC):
                 angles[a.id] = a.lon

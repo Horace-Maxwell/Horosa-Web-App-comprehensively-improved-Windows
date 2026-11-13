@@ -48,13 +48,17 @@ reg('components/suzhan/SuZhanMain.js', ['houseStartMode']);
 // 埃及历七轴:随盘键经 egyptSchoolFromFields(fields) 进 AI 快照埃及历段(astroAiSnapshot:1556);
 // 消费形态=前缀常量拼键 fields[EGYPT_RECORD_KEY_PREFIX + k],anchor 用拼键表达式串。
 reg('divination/data/egyptianSchools.js', ['egypt_decanRuler', 'egypt_decanAnchor', 'egypt_decanNaming', 'egypt_starClock', 'egypt_calendarAnchor', 'egypt_petosirisMod', 'egypt_godEdition'], 'fields[EGYPT_RECORD_KEY_PREFIX + k]');
+// 盘面细节五项:chartDetails.chartDetailSettingsFor(record) 按 DETAIL_GEAR_KEYS 读记录上的齿轮值覆盖细节页保存值(已核)。
+reg('utils/chartDetails.js', ['astrochart.detailFaces', 'astrochart.detailVariant', 'astrochart.detailLunar', 'astrochart.detailMundo', 'astrochart.detailMidpoint']);
+// 印占穿界表三项:IndiaChart.fetchIndiaTransitLinesHeadless 按 pick('indiaTransitXxx') 读齿轮值,读不到回本机保存值(已核)。
+reg('components/astro/IndiaChart.js', ['indiachart.indiaTransitPlanet', 'indiachart.indiaTransitKind', 'indiachart.indiaTransitDays']);
 // 奇门 20 键(qimen 与 sanshiunited 同名共享):options 整包进 payload,DunJiaCalc 起局消费。
 reg('components/dunjia/DunJiaCalc.js', ['godsPreset', 'anGanMode', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'kongMarkBoth', 'showAllKong', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'keZiZhengHuanShi', 'jinhanMenPai', 'showAnZhi']);
 // 龟策:流派/起卦/大定表在 guiceSchools+engine 消费。
 reg('components/guice/guiceSchools.js', ['yanshuFa', 'qiguaShu', 'shiyingSet', 'dadingTable', 'shuXi', 'shiFang', 'shenSha']);
 reg('components/xiaoliuren/XiaoLiuRenMain.js', ['showOneThree']);
 // 推运图族四法:重算分派(regenChart)把记录交给 directedFigureOptsFromSettings,齿轮键在那里逐个读成请求设置。
-reg('components/astro/AstroDirectedFigures.js', ['nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual']);
+reg('components/astro/AstroDirectedFigures.js', ['nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual', 'tlMethod', 'tlYearType', 'tlMovingYear', 'tlTurnStart', 'tlTurnOrder', 'tlOrbMode', 'tlAnnualDays', 'tlAnnualOrder', 'tlReleaser', 'tlVariant', 'tlNineTime', 'tlNineReverse', 'tlRateKind', 'tlMovingStart', 'tlDevBasis', 'tlDiurnalMode']);
 reg('components/xiaochengtu/XiaoChengTuMain.js', ['yongGong', 'piKoujing']);
 reg('components/feigong/FeiGongMain.js', ['mingAge', 'mingGender', 'liuYueMonth', 'koujing']);
 // 通书:列宿用法在 tongshuSchools,命年在玄空层。

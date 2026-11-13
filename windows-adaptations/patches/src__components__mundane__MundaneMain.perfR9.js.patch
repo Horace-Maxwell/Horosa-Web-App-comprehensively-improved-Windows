@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/mundane/MundaneMain.js b/astrostudyui/src/components/mundane/MundaneMain.js
-index 84916430..93a5d71e 100644
+index 8c58e70d..8a22151b 100644
 --- a/astrostudyui/src/components/mundane/MundaneMain.js
 +++ b/astrostudyui/src/components/mundane/MundaneMain.js
-@@ -38,6 +38,8 @@ import * as Constants from '../../utils/constants';
+@@ -39,6 +39,8 @@ import * as Constants from '../../utils/constants';
  import { definePageSettings } from '../../utils/pageSettingsStore';
  import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
  import { segmentIndex } from '../../utils/segmentIndex';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
+ import MundaneCycleTables from './MundaneCycleTables';
  
  const Option = XQSelect.Option;
- const TabPane = XQTabs.TabPane;
-@@ -2835,17 +2837,27 @@ class MundaneMain extends Component{
+@@ -2853,17 +2855,27 @@ class MundaneMain extends Component{
  		const tabs = this.mundaneRightTabList(type);
  		let active = this.state.mundaneRightTab || tabs[0].value;
  		if(!tabs.some((t) => t.value === active)){ active = tabs[0].value; }

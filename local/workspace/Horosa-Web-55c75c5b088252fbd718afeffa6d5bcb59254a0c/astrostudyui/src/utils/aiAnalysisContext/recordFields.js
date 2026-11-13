@@ -7,7 +7,7 @@ import { chartDayBoundary } from '../dayBoundaryResolve';
 import { recordMissingOr } from '../recordFieldsRestore';
 import { recordPlaceGroupOrDefault } from '../kentangCaseSave';
 import { newChartSeedRecordMissingValue } from '../newChartSeeds';
-import { classicalGlobalValue, classicalBackendOverridesFromFields, CLASSICAL_GLOBAL_DEFAULTS } from '../classicalChartGlobals';
+import { classicalGlobalValue, classicalBackendOverridesFromFields, CLASSICAL_GLOBAL_DEFAULTS, chartOrbOverridesFromFields, chartOrbSignature } from '../classicalChartGlobals';
 // 埃及历七轴随盘键(egypt_*):挂载/存盘 record → fields 透传,astroAiSnapshot.egyptSchoolFromFields 优先消费。
 import { EGYPT_RECORD_KEYS } from '../../divination/data/egyptianSchools';
 // 「列挂载源」及其纯函数助手抽至轻模块 aiAnalysisSources —— 个别页面只需
@@ -249,6 +249,10 @@ export function buildFieldObject(record){
 		// Sthira 起座(lagna/brahma):IndiaChart.fieldsToParams 读 fields.indiaSthiraStart→仅非默认 'lagna' 才下发 →
 		// 默认 undefined→快照 Sthira 座运走 lagna(后端缺键即 lagna)=现状零回归;挂载/存盘携 brahma 则 AI 与盘一致。
 		indiaSthiraStart: { value: record.indiaSthiraStart !== undefined && record.indiaSthiraStart !== null ? record.indiaSthiraStart : missing(record, 'indiaSthiraStart', undefined) },
+		// 穿界表三项(挂载齿轮):IndiaChart.fetchIndiaTransitLinesHeadless 读 fields.indiaTransit*;缺 = 回印占行运页保存值
+		indiaTransitPlanet: { value: record.indiaTransitPlanet !== undefined && record.indiaTransitPlanet !== null ? record.indiaTransitPlanet : undefined },
+		indiaTransitKind: { value: record.indiaTransitKind !== undefined && record.indiaTransitKind !== null ? record.indiaTransitKind : undefined },
+		indiaTransitDays: { value: record.indiaTransitDays !== undefined && record.indiaTransitDays !== null ? record.indiaTransitDays : undefined },
 		// 大运起点 seed / 过运日期 / 年度盘年份 / 分盘集:IndiaChart.fieldsToParams 经 pickOpt 读 fields.indiaDashaSeed/
 		// indiaTransitDate/indiaTajakaYear/indiaVargaSet 下发后端。同源却漏透传 → 改这 4 项后挂载快照仍取默认盘、与界面不符。
 		// 缺省 undefined → 后端缺键回退默认(seed=moon / 过运=今日 / 年度=当前年 / 分盘集=单盘)=现状零回归;携带则 AI 与盘一致。
@@ -482,10 +486,13 @@ export function saveGeneratedTechniqueSnapshot(key, content, record, extraMeta =
 	if(!text){
 		return null;
 	}
+	// 挂载按记录重算出来的正文:容许度签名记挂载自己的口径(不是页面此刻那张盘的),下次挂载同一条记录才认得出、直接复用
+	let orbSig;
+	try{ orbSig = chartOrbSignature(chartOrbOverridesFromFields(buildFieldObject(record || {}))); }catch(e){ orbSig = undefined; }
 	return saveModuleAISnapshot(
 		getSnapshotSaveModuleName(normalizeTechniqueKey(key)),
 		text,
-		buildSnapshotMetaFromRecord(record, extraMeta)
+		buildSnapshotMetaFromRecord(record, orbSig === undefined ? extraMeta : { ...extraMeta, orbSig })
 	);
 }
 

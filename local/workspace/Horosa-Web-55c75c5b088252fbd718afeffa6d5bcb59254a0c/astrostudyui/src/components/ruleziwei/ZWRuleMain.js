@@ -32,6 +32,7 @@ class ZWRuleMain extends Component{
 			<div className={styles.scrollbar}>
 				<Tabs
 					defaultActiveKey='sihua'
+					className="horosa-zw-rule-tabs"
 				>
 					<TabPane tab="天干四化" key="sihua">
 						<RuleSihua rules={this.props.rules} />

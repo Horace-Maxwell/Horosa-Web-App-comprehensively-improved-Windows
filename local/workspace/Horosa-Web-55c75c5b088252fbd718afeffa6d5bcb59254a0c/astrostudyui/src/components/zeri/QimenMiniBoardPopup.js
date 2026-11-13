@@ -1,17 +1,16 @@
 // [奇门择日] 结果行「概览」浮窗:可拖拽(标题栏)/可缩放(右下角),fixed 于视口,不关结果表——
-// 交互逐字对齐天星 MiniChartPopup(ConditionBuilderModal.js:69)。内容 = DunJiaBoard 迷你盘,
+// 外壳与其余概览浮窗共用 ZeriFloatPanel。内容 = DunJiaBoard 迷你盘(图例胶囊等壳作用域样式靠 horosa-qimen-mini-board 补挂),
 // 盘面用与扫描同源的本地引擎速览(角标注明);pick 起盘后的主盘才走 DunJiaMain 标准显示路由。
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import DunJiaBoard from '../dunjia/DunJiaBoard';
 import { computeQimenScanPan } from '../../divination/zeri/qimenScanEngine';
-
-import { clientToFixed } from '../../utils/zoomDomain';
 import { geoDepKey } from './zeriHostUtils';
+import ZeriFloatPanel from './ZeriFloatPanel';
+
 const BOARD_BASE_W = 662;
 const BOARD_BASE_H = 870;
 
 export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, onClose }){
-	const [box, setBox] = useState({ x: 110, y: 40, w: 720, h: 780 });
 	const pan = useMemo(()=>{
 		try{
 			const text = `${row && row.pick ? row.pick : ''}`;
@@ -26,55 +25,25 @@ export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, on
 	// 依赖带上地点与找局种子:浮窗开着时宿主换了地点重扫(预览地点换成新的冻结地点),盘随之重排
 	// (此前只认时刻与参数,照旧显示旧地点的盘 —— 与概览浮窗其余各卡同病同修)
 	}, [row && row.pick, JSON.stringify(options || {}), geoDepKey(geoParams), JSON.stringify(seeds || {})]);
-	const dragFrom = (e, mode)=>{
-		e.preventDefault();
-		e.stopPropagation();
-		const start = { mx: e.clientX, my: e.clientY, ...box };
-		const move = (ev)=>{
-			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
-			const dx = clientToFixed(ev.clientX - start.mx);
-			const dy = clientToFixed(ev.clientY - start.my);
-			if(mode === 'drag'){
-				setBox((b)=>({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
-			}else{
-				setBox((b)=>({ ...b, w: Math.max(380, start.w + dx), h: Math.max(420, start.h + dy) }));
-			}
-		};
-		const up = ()=>{
-			document.removeEventListener('mousemove', move);
-			document.removeEventListener('mouseup', up);
-		};
-		document.addEventListener('mousemove', move);
-		document.addEventListener('mouseup', up);
-	};
-	// 缩放:随浮窗尺寸取宽高最小适配,夹在 DunJiaBoard 官方档位(0.58~1.18,基线 662×870)。
-	const boardScale = Math.max(0.58, Math.min(1.18, Math.min((box.w - 24) / BOARD_BASE_W, (box.h - 64) / BOARD_BASE_H)));
 	return (
-		<div style={{
-			position: 'fixed', left: box.x, top: box.y, width: box.w, height: box.h,
-			zIndex: 2100, background: 'var(--horosa-astro-panel, #fff)', borderRadius: 10,
-			border: '1px solid rgba(148,163,184,.45)', boxShadow: '0 12px 40px rgba(0,0,0,.28)',
-			display: 'flex', flexDirection: 'column', overflow: 'hidden',
-		}}>
-			<div onMouseDown={(e)=>dragFrom(e, 'drag')}
-				style={{ cursor: 'move', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,.25)', userSelect: 'none' }}>
-				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {row ? row.start : ''}</span>
-				<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>{pan ? pan.juText : ''} · 速览(本地排盘,与扫描同源)</span>
-				<span style={{ flex: 1 }} />
-				<span onMouseDown={(e)=>e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
-			</div>
-			{/* 浮窗挂 body 门户,壳作用域样式(图例胶囊等)靠本类补挂——app.less 图例规则并列含此作用域 */}
-			<div className="horosa-qimen-mini-board" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
-				{pan ? (
-					<DunJiaBoard pan={pan} boardScale={boardScale} />
-				) : (
-					<div style={{ padding: 20, color: 'var(--horosa-text-secondary)', fontSize: 12 }}>排盘失败</div>
-				)}
-			</div>
-			<div onMouseDown={(e)=>dragFrom(e, 'resize')}
-				style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize',
-					background: 'linear-gradient(135deg, transparent 50%, rgba(148,163,184,.6) 50%)' }} />
-		</div>
+		<ZeriFloatPanel
+			initialBox={{ x: 110, y: 40, w: 720, h: 780 }}
+			minW={380}
+			minH={420}
+			onClose={onClose}
+			title={`概览 · ${row ? row.start : ''}`}
+			sub={`${pan ? pan.juText : ''} · 速览(本地排盘,与扫描同源)`}
+			bodyClassName="horosa-qimen-mini-board"
+			bodyStyle={{ overflow: 'auto', display: 'flex', justifyContent: 'center' }}
+		>
+			{(box)=>{
+				if(!pan){
+					return <div className="horosa-zeri-float-empty">排盘失败</div>;
+				}
+				// 缩放:随浮窗尺寸取宽高最小适配,夹在 DunJiaBoard 官方档位(0.58~1.18,基线 662×870)。
+				const boardScale = Math.max(0.58, Math.min(1.18, Math.min((box.w - 24) / BOARD_BASE_W, (box.h - 64) / BOARD_BASE_H)));
+				return <DunJiaBoard pan={pan} boardScale={boardScale} />;
+			}}
+		</ZeriFloatPanel>
 	);
 }

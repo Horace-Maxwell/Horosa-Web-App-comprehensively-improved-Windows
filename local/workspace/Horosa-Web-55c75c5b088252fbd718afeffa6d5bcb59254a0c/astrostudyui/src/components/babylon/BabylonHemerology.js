@@ -17,7 +17,7 @@ class BabylonHemerology extends Component{
 		const W = 560, cell = 66, gap = 8, cols = 6;
 		const H = 90 + Math.ceil(30 / cols) * (cell + gap);
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
 				<text x={W / 2} y={24} fontSize="13" fontWeight="600" fill={ink} textAnchor="middle">
 					{bab ? `出生月:${bab.babylonianDate.month.akk}(${bab.babylonianDate.month.cn})· ${monthLen} 日` : '月历(30 日图式)'}
 				</text>

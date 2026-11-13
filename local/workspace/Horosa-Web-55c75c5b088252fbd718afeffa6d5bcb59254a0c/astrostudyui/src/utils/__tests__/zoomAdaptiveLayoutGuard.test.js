@@ -178,8 +178,9 @@ describe('放大档 / 窄栏自适应 · 源码闸', () => {
 		const gl = read('layouts/app/06-guolao-modules.less');
 		expect((gl.match(/repeat\(auto-fill, minmax\(~"max\(84px, calc\(\(100% - 8px\) \/ 2\)\)", 1fr\)\)/g) || []).length).toBe(2);
 		expect(gl).toMatch(/\.horosa-bazi-shensha-groups \.ant-checkbox-wrapper > span:last-child,[\s\S]{0,120}white-space: nowrap;/);
-		// 黄道星释基点此前是两列 22 项单选(窄栏折行修复锁在这里);现改成分组下拉,下拉自带截断 / 展开全文,该修复与锁一并退役
-		expect(read('components/astro/AstroZR.js')).not.toMatch(/horosa-zr-base-radio/);
+		// 黄道星释基点两列 22 项单选(三栏版式,星释期整列不被设置挤占):窄栏折行修复与锁一并恢复
+		expect(read('components/astro/AstroZR.js')).toMatch(/ref=\{ownedBoxSizeRef\(this, 'zrBase', zrBaseNarrowVars\)\}/);
+		expect(read('layouts/app/22-tail-fixes.less')).toMatch(/\[data-zr-narrow\] \.horosa-zr-base-radio\.ant-radio-wrapper/);
 	});
 
 	test('⑥ 工作区容器尺寸一变当帧同步工作区高(不走去抖)', () => {
@@ -192,7 +193,12 @@ describe('放大档 / 窄栏自适应 · 源码闸', () => {
 	});
 
 	test('⑦ 空态提示在位', () => {
-		expect(read('components/astro/AstroRelative.js')).toMatch(/\(!this\.state\.chartA \|\| !this\.state\.chartB\) \? \(\s*<div className="horosa-empty-line horosa-relative-empty-hint"/);
+		expect(read('components/astro/AstroRelative.js')).toMatch(/\(!this\.state\.chartA \|\| !this\.state\.chartB\) \? \(\s*<span className="horosa-empty-line horosa-relative-empty-hint"/);
+		// 合盘空态必须在文流里(「排盘」右侧一行),不许再绝对定位盖在子盘内容上
+		const tail = read('layouts/app/22-tail-fixes.less');
+		const k = tail.indexOf('.horosa-workspace-shell .horosa-relative-empty-hint {');
+		expect(k).toBeGreaterThan(-1);
+		expect(tail.slice(k, tail.indexOf('}', k))).not.toMatch(/position:\s*absolute/);
 		expect(read('components/gua/GuaSymDesc.js')).toMatch(/!this\.state\.allData \? \(\s*<div className="horosa-empty-line horosa-guasym-empty-hint"/);
 	});
 });

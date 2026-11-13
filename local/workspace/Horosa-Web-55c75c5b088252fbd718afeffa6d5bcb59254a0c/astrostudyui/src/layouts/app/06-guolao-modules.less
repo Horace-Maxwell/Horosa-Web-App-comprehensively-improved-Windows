@@ -978,6 +978,17 @@
         box-shadow: var(--horosa-small-shadow);
     }
 
+    /* AI 分析页里「页签里再套的页签」(进阶页的口径卡等)不再套一层面板框:上面给右栏主页签内容区画的
+       边框 / 底色是后代选择器,会一路漏到内层页签,把内层正文又框一圈、还把输入框的焦点光晕裁掉。 */
+    .horosa-workspace-shell .horosa-aianalysis-page .ant-tabs-content-holder .ant-tabs-content-holder,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-aianalysis-page .ant-tabs-content-holder .ant-tabs-content-holder {
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none;
+    }
+
     .horosa-workspace-shell .horosa-bazi-input-panel,
     .horosa-workspace-shell .horosa-ziwei-input-panel,
     .horosa-workspace-shell .horosa-bazi-analysis-panel,
@@ -1020,16 +1031,11 @@
     }
 
     /* 星运（推运）页右侧技法 tab 多达 20+ 个，纵排易顶到底、末尾按钮被裁：
-       整体收紧（行高/间距/上下内距）把它们往上收一收，并允许纵向滚动，确保全部可见可点。
+       整体收紧（行高/间距/上下内距）把它们往上收一收;纵向滚动由全站竖排页签单一来源(xq-ui XQTabs)负责。
        仅作用于 .horosa-direction-page，不影响其它页签较少的页面。 */
     .horosa-workspace-shell .horosa-direction-page > .ant-tabs.ant-tabs-right > .ant-tabs-nav {
         padding-top: 4px;
         padding-bottom: 4px;
-    }
-
-    .horosa-workspace-shell .horosa-direction-page > .ant-tabs.ant-tabs-right > .ant-tabs-nav .ant-tabs-nav-wrap {
-        overflow-y: auto;
-        overflow-x: hidden;
     }
 
     .horosa-workspace-shell .horosa-direction-page > .ant-tabs.ant-tabs-right > .ant-tabs-nav .ant-tabs-tab {
@@ -1143,6 +1149,7 @@
     .horosa-workspace-shell .horosa-dunjia-page .ant-card,
     .horosa-workspace-shell .horosa-guazhan-page .ant-card,
     .horosa-workspace-shell .horosa-taiyi-page .ant-card,
+    .horosa-workspace-shell .horosa-cnyibu-page .ant-card,
     .horosa-workspace-shell .horosa-aianalysis-page .ant-card {
         border-color: rgba(215, 173, 105, 0.16);
         border-radius: 6px;
@@ -1160,6 +1167,7 @@
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-dunjia-page .ant-card,
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guazhan-page .ant-card,
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-taiyi-page .ant-card,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-cnyibu-page .ant-card,
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-aianalysis-page .ant-card {
         border-color: var(--horosa-border);
         background: var(--horosa-surface-solid);
@@ -1341,9 +1349,10 @@
         .horosa-aianalysis-page,
         .horosa-3d-page
     ) .ant-btn:focus {
-        border-color: rgba(231, 189, 117, 0.42);
-        background: rgba(231, 189, 117, 0.10);
-        color: #e7bd75;
+        /* 主按钮 / 悬停 / 聚焦 = 金淡底金字;取主题变量,亮暗各自成立(暗色值与原先写死的一致) */
+        border-color: var(--horosa-border-strong);
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
     }
 
     .horosa-workspace-shell :is(

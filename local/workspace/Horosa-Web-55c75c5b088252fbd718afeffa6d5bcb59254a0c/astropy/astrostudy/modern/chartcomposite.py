@@ -75,6 +75,12 @@ class ChartComposite:
             objB = outerChart.chart.getObject(objA.id)
             objA.relocate(self.shortArcMid(objA.lon, objB.lon))
 
+        # 希腊点同样逐点取短弧中点(福点在上面的星体表里已取过;此前其余各点原样留着第一张盘的本命位置)
+        outerPars = {p.id: p.lon for p in (getattr(outerChart.chart, 'pars', None) or [])}
+        for parA in (getattr(innerChart.chart, 'pars', None) or []):
+            if parA.id in outerPars:
+                parA.relocate(self.shortArcMid(parA.lon, outerPars[parA.id]))
+
         for objA in innerChart.chart.angles:
             objB = outerChart.chart.getAngle(objA.id)
             objA.relocate(self.shortArcMid(objA.lon, objB.lon))
@@ -109,6 +115,7 @@ class ChartComposite:
                 obj.hsysDerived = COMPOSITE_WHOLE_MODE
             if self.polarFallback:
                 obj.hsysFallback = self.polarFallback
+        innerChart.markRelocated()
         innerChart.reinit()
         res = helper.getChartObj(self.innerData, innerChart)
         if self.houseNote and isinstance(res, dict):

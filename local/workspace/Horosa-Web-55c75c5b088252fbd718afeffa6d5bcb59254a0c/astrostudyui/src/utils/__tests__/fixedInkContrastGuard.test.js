@@ -54,7 +54,6 @@ const NON_DOM = [
 ];
 // 其余(装饰,或静态推不出的覆盖关系):[文件, 命中处的一段原文, 理由]
 const ALLOW = [
-	['layouts/app/06-guolao-modules.less', ') .ant-btn-primary', '命 / 卜各页的暗色按钮组(主按钮 / 悬停 / 聚焦 = 金淡底金字)只在暗色生效:亮色下同组 `:root[light] … .ant-btn { color: var(--horosa-text) !important; background: var(--horosa-surface-solid) !important }` 压住(antd 主按钮同时带 .ant-btn 类,静态按选择器文本推不出)'],
 ];
 
 // ── 颜色 ──

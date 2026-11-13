@@ -92,6 +92,8 @@ def test_bare_sid_mode_call_sites_whitelist():
         # perchart_parts/su28_moira.py:_moira_ayanamsha(由 perchart.py 整段搬入,astrostudy.perchart 照旧可取)。
         os.path.join('astrostudy', 'perchart_parts', 'su28_moira.py'),
         os.path.join('astrostudy', 'perpredict.py'),
+        # india/transit_events.py:sidereal_lon — set_sid_mode→calc_ut 相邻两行,每次取位前重设(已评审;并发回归在 test_transit_events)。
+        os.path.join('astrostudy', 'india', 'transit_events.py'),
         # acg/ACGraph.py:__init__ ayanamsa 恒星读数 — set_sid_mode→get_ayanamsa_ut 相邻两行(已评审符合 set/use 相邻约定;
         # 只取 ayanamsa 度数作标注,flatlib 主盘走 tropical 不受该全局态影响)。
         os.path.join('astrostudy', 'acg', 'ACGraph.py'),

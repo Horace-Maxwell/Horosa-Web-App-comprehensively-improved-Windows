@@ -29,9 +29,21 @@ import {
 } from '../components/guolao/guolaoData';
 import { classicalGlobalValue } from './classicalChartGlobals';
 import { storedBaziOptValue } from './baziStoredOpt';
+
+// 页面保存过的设置值(东亚 / 诸方齿轮缺省跟页面走);没存过或值不在候选里返回 undefined
+function storedPageSetting(storageKey, field, allowed){
+	try{
+		if(typeof localStorage === 'undefined'){ return undefined; }
+		const raw = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const vals = raw && raw.values && typeof raw.values === 'object' ? raw.values : {};   // 页面设置存成 { values: {...} }
+		const v = vals[field];
+		return allowed.indexOf(v) >= 0 ? v : undefined;
+	}catch(e){ return undefined; }
+}
 import { recordHasCaptureMark, recordMissingValue, RECORD_FIELDS_RESTORE_MANIFEST, RECORD_MISSING_IDENTITY_KEYS } from './recordFieldsRestore';
 import { GUOLAO_RECORD_FACTORY_DEFAULTS } from '../components/guolao/GuoLaoChartStyle';
 import { newChartSeedRecordMissingValue } from './newChartSeeds';
+import { ASC_RA_MODE_OPTIONS, ASC_RA_MODE_DEFAULT, loadSuzhanAscRaMode } from './ascRaMode';
 import { ZWEngineOptions } from '../components/ziwei/ziweiOptions';
 import { ZWSchool } from '../constants/ZWConst';
 import { EGYPT_SCHOOL_AXES, EGYPT_SCHOOL_DEFAULT, currentEgyptSchool } from '../divination/data/egyptianSchools';
@@ -126,6 +138,7 @@ import { SIGNS, SIGN_ORDER } from '../divination/data/signs';
 import { TRIPLICITY_DIVISIONS, TRIPLICITY_SYSTEMS, TRIPLICITY_DEFAULT_OPTS } from './triplicityRulers';
 import { BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
 import { NEROMAN_DEFAULTS, NEROMAN_EQUATOR_OPTIONS, BEZZA_DEFAULTS, JAY_DEFAULTS, MICHON_DEFAULTS } from './directedFigures';
+import { TIMELORD_DEFAULTS, TIMELORD_METHODS, TIMELORD_OPTIONS, timeLordFieldShown } from './timeLordTables';
 import { YS129_START_OPTIONS, YS129_ORDERS, YS129_YEAR_TYPES, YS129_SUB_RULES, YS129_DEFAULT_OPTS, yearSystem129StartLabel } from './yearSystem129';
 import { DIST_RELEASERS, DIST_METHODS, DIST_YEARS, DIST_SPANS, DIST_DEFAULTS } from './distributionsOptions';
 import { AP_METHODS, AP_EVENTS, AP_YEARS, AP_SPANS, AP_DEFAULTS } from './agePointOptions';
@@ -139,7 +152,7 @@ import {
 	DECENNIALS_CALENDAR_TYPES, DECENNIALS_AI_MODES,
 } from '../components/astro/AstroDecennials';
 import { ARC_SOURCES } from '../components/astro/AstroPlanetaryArc';
-import { RATE_LABEL as PERSIAN_RATE_LABEL } from '../components/astro/AstroPersianDirected';
+import { RATE_LABEL as PERSIAN_RATE_LABEL, PERSIAN_YEAR_LABEL } from '../components/astro/AstroPersianDirected';
 // 紫微「传本/排盘」开关选项(纯常量叶子模块,无循环导入风险)。挂载侧据此把传本设置进 record →
 // buildChartZiweiParams 透传 → buildZiweiSnapshotForParams 临时覆盖 ZWEngineOptions(用毕还原),与 sihuaSchool 同范式。
 import {
@@ -157,6 +170,7 @@ import { tiebanKeOptions, clampTiebanKe } from './tiebanFrameworkLocal';
 import { DIRECTION_PAGE_SETTINGS } from './directionPageSettings';
 import { BEIJI_KE_OPTIONS, NANJI_SECTION_OPTIONS, NANJI_JIANCHU_OPTIONS, NANJI_XIU_OPTIONS, NANJI_PASSWORD_OPTIONS, NANJI_CHART_OPTIONS, CHUNZI_KE_OPTIONS, CHUNZI_RESULT_LIMIT_OPTIONS, CHUNZI_MANSION_OPTIONS, SHAOZI_KE_OPTIONS, ZC_SOUNDS, ZC_KE, ZC_GONG, ZC_DAY_ZHI, zcEnvOptionsFor, zcEnvShown } from '../components/kinastro/kinastroOptions';
 import { BABYLON_SCHEMES, SCHEME_ORDER as BABYLON_SCHEME_ORDER } from '../divination/babylon/babylonSchools';
+import { CHART_DETAIL_OPTIONS, CHART_DETAIL_DEFAULTS } from './chartDetails';
 // 注：卜卦/择日/六壬起课的选项常量定义在「大组件」(HoraryMain/ElectionMain/LiuRengMain) 内，它们与 aiAnalysisContext
 // 形成循环导入（aiAnalysisContext→techniqueMountSettings→大组件→…→aiAnalysisContext）；当 aiAnalysisContext 为入口时
 // init 顺序会让这些常量在 .map 时为 undefined（抛错）。故此处「内联镜像」其值断开循环，并由 techniqueMountSettings.test.js
@@ -1151,6 +1165,12 @@ const ASTRO_CHART_FIELDS = [
 		group: '埃及历',
 		options: ax.options.map((o) => ({ value: o.value, label: o.label })),
 	})),
+	// 盘面细节五项(细节页同名设置,选项表单源取细节页的 CHART_DETAIL_OPTIONS;缺省跟细节页本机保存值,改了只作用于这次挂载的「盘面细节」段)
+	...[['detailFaces', '面的算法', 'faces'], ['detailVariant', '算法', 'variant'], ['detailLunar', '月亮日算法', 'lunar'], ['detailMundo', '世俗位置', 'mundo'], ['detailMidpoint', '中点坐标', 'midpoint']].map(([name, label, group])=>({
+		name, label: `盘面细节·${label}`, type: 'select', default: CHART_DETAIL_DEFAULTS[group], group: '盘面细节', pageStoreBound: true,
+		globalCurrent: ()=>storedPageSetting('horosa.astro.details.v1', name, CHART_DETAIL_OPTIONS[group].map((item)=>item.value)),
+		options: CHART_DETAIL_OPTIONS[group].map((item)=>({ value: item.value, label: item.label })),
+	})),
 ];
 
 // 印度占星：岁差制(indiaAyanamsa 47 制) + 分宫制(indiaHsys) + 交点(nodeType 平/真)。已接入挂载设置：
@@ -1243,6 +1263,17 @@ const INDIA_CHART_FIELDS = [
 	{ name: 'indiaPrashnaCuspMode', label: '宫始定法', type: 'select', default: AstroConst.INDIA_PRASHNA_CUSP_MODE_DEFAULT, group: '三旗/问事',
 		options: AstroConst.INDIA_PRASHNA_CUSP_MODE_OPTIONS, showWhen: (d)=>!!d.indiaPrashnaTime },
 	{ name: 'indiaPrashnaPrimaryHouse', label: '主判宫头（1–12；空=按事项）', type: 'number', default: '', min: 1, max: 12, group: '三旗/问事', showWhen: (d)=>!!d.indiaPrashnaTime },
+	// 穿界表三项(缺省跟印占行运页保存值;没开过印占页时无头复算按这里取)
+	{ name: 'indiaTransitPlanet', label: '穿界表·星', type: 'select', default: 'all', group: '穿界表', pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.india.tables.settings.v1', 'transitPlanet', ['all', 'Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']), options: [
+		{ value: 'all', label: '七星' }, { value: 'Sun', label: '太阳' }, { value: 'Moon', label: '月亮' }, { value: 'Mercury', label: '水星' },
+		{ value: 'Venus', label: '金星' }, { value: 'Mars', label: '火星' }, { value: 'Jupiter', label: '木星' }, { value: 'Saturn', label: '土星' },
+	] },
+	{ name: 'indiaTransitKind', label: '穿界表·事件', type: 'select', default: 'sign', group: '穿界表', pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.india.tables.settings.v1', 'transitKind', ['sign', 'nakshatra', 'pada', 'kakshya']), options: [
+		{ value: 'sign', label: '入星座' }, { value: 'nakshatra', label: '入星宿' }, { value: 'pada', label: '入足' }, { value: 'kakshya', label: '入 Kakshya' },
+	] },
+	{ name: 'indiaTransitDays', label: '穿界表·范围', type: 'select', default: 90, group: '穿界表', pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.india.tables.settings.v1', 'transitDays', [30, 90, 180, 366]), options: [
+		{ value: 30, label: '30 天' }, { value: 90, label: '90 天' }, { value: 180, label: '180 天' }, { value: 366, label: '一年' },
+	] },
 ];
 
 // 主限法·表格（primarydirect）：列未来 pdYears 年全部 direction 行。方位法 + 时间换算 + 顺逆 + 映点/界 + pdYears
@@ -1451,6 +1482,9 @@ const GERMANY_FIELDS = [
 	{ name: 'mpCoord', label: '中点坐标', type: 'select', default: '', group: '量化盘', options: [
 		{ value: '', label: '随全局（默认）' }, { value: 'lon', label: '黄经' }, { value: 'ra', label: '赤经' }, { value: 'decl', label: '赤纬' },
 	] },
+	// 不放容许度两项(整体缩放 / 沿用本盘容许度):量化盘的挂载正文只取各点黄经(中点 / 盘式 / 行星图 / 映点 / 宫位框
+	// 都用量化盘自己的容许度),/germany/midpoint 回包与正文都不随星盘容许度变(倍率 2.5、逐星 30° 时回包逐字相同)
+	// —— 放上来就是两个拨了没反应的开关。techniqueMountSettings.test.js 锁住「不得出现」。
 ];
 
 
@@ -1502,6 +1536,29 @@ const MICHON_FIELDS = [
 		options: [{ value: false, label: '现代守护' }, { value: true, label: '水金互换' }] },
 	{ name: 'michonEqual', label: '宫位', type: 'select', default: MICHON_DEFAULTS.equal, group: '双黄道', normalize: DF_BOOL,
 		options: [{ value: false, label: '本盘宫制' }, { value: true, label: '等宫(上升居第一宫正中)' }] },
+];
+
+// 时主轮转:方法与各法选项,字段名 = 星运页保存键。留「随页面」时用页面保存值。
+const TL_FIELD = (name, label, key, list)=>({ name, label, type: 'select', default: TIMELORD_DEFAULTS[key], group: '时主轮转',
+	showWhen: (d)=>!d || !d.tlMethod || timeLordFieldShown(key, { method: d.tlMethod, devBasis: d.tlDevBasis }), options: list.map((o)=>({ value: o.value, label: o.label })) });
+const TIMELORD_FIELDS = [
+	...DIRECTED_TARGET_FIELDS,
+	TL_FIELD('tlMethod', '方法', 'method', TIMELORD_METHODS),
+	TL_FIELD('tlYearType', '年长', 'yearType', TIMELORD_OPTIONS.yearType),
+	TL_FIELD('tlMovingYear', '匀速点年长', 'movingYear', TIMELORD_OPTIONS.yearType),
+	TL_FIELD('tlTurnStart', '轮主起始星', 'turnStart', TIMELORD_OPTIONS.turnStart),
+	TL_FIELD('tlTurnOrder', '轮主次序', 'turnOrder', TIMELORD_OPTIONS.turnOrder),
+	TL_FIELD('tlOrbMode', '轨主走法', 'orbMode', TIMELORD_OPTIONS.orbMode),
+	TL_FIELD('tlAnnualDays', '年度分配天数表', 'annualDays', TIMELORD_OPTIONS.annualDays),
+	TL_FIELD('tlAnnualOrder', '年度分配次序', 'annualOrder', TIMELORD_OPTIONS.annualOrder),
+	TL_FIELD('tlReleaser', '月相四分释放星', 'releaser', TIMELORD_OPTIONS.releaser),
+	TL_FIELD('tlVariant', '算法', 'variant', TIMELORD_OPTIONS.variant),
+	TL_FIELD('tlNineTime', '九分主时间', 'nineTime', TIMELORD_OPTIONS.nineTime),
+	{ ...TL_FIELD('tlNineReverse', '九分主子主', 'nineReverse', TIMELORD_OPTIONS.nineReverse), normalize: DF_BOOL },
+	TL_FIELD('tlRateKind', '匀速点速率', 'rateKind', TIMELORD_OPTIONS.rateKind),
+	TL_FIELD('tlMovingStart', '匀速点起点', 'movingStart', TIMELORD_OPTIONS.movingStart),
+	TL_FIELD('tlDevBasis', '发展年龄分段', 'devBasis', TIMELORD_OPTIONS.devBasis),
+	TL_FIELD('tlDiurnalMode', '周日象限速率', 'diurnalMode', TIMELORD_OPTIONS.diurnalMode),
 ];
 
 // 推运·Balbillus：起始星 / 年制 / 距离口径。builder buildBalbillusSnapshotText(chartObj,opts) 已收 opts。
@@ -1607,7 +1664,7 @@ const PLANETARY_ARC_FIELDS = [
 	...scanRangeDatetimeFields('区间扫描'),
 ];
 
-// 推运·波斯向运（persian directed）：速率(波斯/Prophected/Naibod) + 方向(顺/逆) + 应期年数(50/90/120/150/200)。
+// 推运·波斯向运（persian directed）：速率(波斯/Prophected/Naibod/周期律) + 方向(顺/逆) + 应期年数(50/90/120/150/200) + 年长。
 // builder buildPersianDirectedSnapshotText(chartObj,opts) 加 opts。默认 persian/direct/90 === 无头现状。
 const PERSIAN_DIRECTED_FIELDS = [
 	{ name: 'rateKey', label: '向运速率', type: 'select', default: 'persian', group: '向运',
@@ -1621,6 +1678,8 @@ const PERSIAN_DIRECTED_FIELDS = [
 	// 数字型 select，prune 走字符串化比较（`90`===`90`）天然可用。
 	{ name: 'maxYears', label: '应期年数', type: 'select', default: 90, group: '向运',
 		options: [50, 90, 120, 150, 200].map((y)=>({ value: y, label: `${y} 年` })) },
+	{ name: 'persianYear', label: '年长', type: 'select', default: 'solar', group: '向运',
+		options: Object.keys(PERSIAN_YEAR_LABEL).map((k)=>({ value: k, label: PERSIAN_YEAR_LABEL[k] })) },
 ];
 
 // 推运·恒星推运（vedic）/ 赤纬推运（jayne）：目标日期 + 时刻。
@@ -1745,6 +1804,8 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	dwadasamsa: { kind: 'sectionsOnly', reason: '十二分盘取自辅盘页最近一次出盘(出盘即存快照,只认本命主);要改盘参数请到辅盘页重出,改后即自动更新。' },
 	harmonic: { kind: 'sectionsOnly', reason: '调波盘取自辅盘页最近一次出盘(出盘即存快照,只认本命主);要改谐波次数请到辅盘页重出,改后即自动更新。' },
 	draconic: { kind: 'sectionsOnly', reason: '龙盘取自辅盘页最近一次出盘(出盘即存快照,只认本命主);要改交点基准请到辅盘页重出,改后即自动更新。' },
+	transformchart: { kind: 'sectionsOnly', reason: '变换盘取自辅盘页最近一次出盘(出盘即存快照,只认本命主);辅盘页没出过这张盘时,按辅盘页保存的变换种类与选项现算。要换变换种类请到辅盘页改,改后即自动更新。' },
+	zodiacsystems: { kind: 'sectionsOnly', reason: '黄道制取自辅盘页最近一次出盘(出盘即存快照,只认本命主);辅盘页没出过这张盘时,按辅盘页保存的黄道版本现算。要换版本请到辅盘页改,改后即自动更新。' },
 	relocation: { kind: 'sectionsOnly', reason: '重置盘取自辅盘页最近一次出盘(出盘即存快照,只认本命主);要改重置地点请到辅盘页重出,改后即自动更新。' },
 	indiachart: { kind: 'record', fields: INDIA_CHART_FIELDS, emptyHint: '印度盘按出生信息起盘，可调岁差制/分宫制。',
 		// 抽屉里换流派:像页面换派那样把宫制 / 岁差(及主大运)写成该派预设(之后仍可逐项再改)
@@ -1771,11 +1832,19 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 尊贵/界主/福点/相位/空亡/燃烧/返照/推算行星/容许度等 40 个西占古典判读键对宿占正文零消费(与 egypt_* 同理)→ 一并过滤。
 	// 宿占事盘的宿法 / 起宫只存在 payload.options(记录顶层没有):基线从那里读,否则抽屉显示荀爽、选回荀爽被剪成死开关;命盘顶层带这两键,不受影响
 	// recordPayloadKeys:平铺键缺席时取存档 payload.options(宿占存案另存黄道 / 宫制 / 岁差,与 SuZhanMain SUZHAN_CASE_CHART_KEYS 同)
-	suzhan: { kind: 'record', recordPayloadKeys: ['houseStartMode', 'doubingSu28', 'zodiacal', 'hsys', 'siderealAyanamsa'], fields: [...ASTRO_CHART_FIELDS.filter((f)=>!`${f.name}`.startsWith('egypt_') && SUZHAN_DEAD_CLASSICAL_KEYS.indexOf(f.name) < 0).map((f)=>(f.name === 'siderealAyanamsa' ? SUZHAN_SIDEREAL_AYANAMSA_FIELD(f) : f)), {
+	suzhan: { kind: 'record', recordPayloadKeys: ['houseStartMode', 'doubingSu28', 'zodiacal', 'hsys', 'siderealAyanamsa'], fields: [...ASTRO_CHART_FIELDS.filter((f)=>!`${f.name}`.startsWith('egypt_') && f.group !== '盘面细节' && SUZHAN_DEAD_CLASSICAL_KEYS.indexOf(f.name) < 0).map((f)=>(f.name === 'siderealAyanamsa' ? SUZHAN_SIDEREAL_AYANAMSA_FIELD(f) : f)), {
 		name: 'houseStartMode', label: '人事十二宫', type: 'select', default: 0,
 		globalCurrent: ()=>newChartSeedRecordMissingValue('houseStartMode'),   // 与页面载入缺键同口径(并入时冻结的旧版偏好)
 		group: '排盘',
 		options: [{ value: 0, label: '八字公式起盘（默认）' }, { value: 1, label: 'ASC起盘' }],
+	}, {
+		// 上升取法(改进 = 真赤经 / 经典 = 东点黄经):宿占页设置(horosa.suzhan.settings.v1),记录里没有 → 跟页面现值;
+		// 只在 ASC 起盘时起作用(八字公式起盘不读上升赤经),无头重算经 suzhanFieldsForRecord 带进 fields.ascRaMode
+		name: 'ascRaMode', label: '上升取法', type: 'select', default: ASC_RA_MODE_DEFAULT,
+		globalCurrent: ()=>loadSuzhanAscRaMode(),
+		group: '排盘',
+		showWhen: (d)=>Number(d.houseStartMode) === 1,
+		options: ASC_RA_MODE_OPTIONS.map((o)=>({ value: o.value, label: o.value === ASC_RA_MODE_DEFAULT ? `${o.label}（默认）` : o.label })),
 	}] },
 	// 演禽/策天：经 ken 后端按出生时间起盘（纯命盘类、无事盘）。
 	// 注：禽星盘只取生辰原始时刻，ken 引擎不消费 日界/晚子时/真太阳时换算（parseFieldsDateTime 只读 date/time/zone/lat/lon）→
@@ -1983,7 +2052,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			return Object.keys(out).length ? out : null;
 		},
 		fields: [
-		// 所推之年:元会运世值卦按年而定(留空=按起课/出生年,即无头现状)。
+		// 历史年:只决定「年表」页查哪一年(元会运世与各卦按起课时间算,不随它变;留空=按起课/出生年,即无头现状)。
 		{ name: 'historyYear', label: '历史年(留空=按盘面年)', type: 'number', default: '', group: '典籍' },
 		{ name: 'classicKey', label: '经典', type: 'select', default: 'huangji_jingshi_shu', group: '典籍',
 			options: [
@@ -2041,6 +2110,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	bezzafigure: { kind: 'record', fields: BEZZA_FIELDS },
 	jayprofection: { kind: 'record', fields: JAY_FIELDS },
 	michon: { kind: 'record', fields: MICHON_FIELDS },
+	timelords: { kind: 'record', fields: TIMELORD_FIELDS },
 	// 目标时刻型 5 法：共用 buildPredictivePeriodSnapshot(chartObj,key,opts)。profection/solararc 只 4 基项；
 	// 3 返照(solarreturn/lunarreturn/givenyear)另加 异地 dirLat/dirLon。
 	profection: { kind: 'record', fields: [...PREDICTIVE_PERIOD_BASE_FIELDS, ...PROFECTION_SUMMARY_FIELDS] },   // +小限粒度/起点
@@ -2301,6 +2371,40 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		// 若日后把流月表纳入快照(需拍板:正文显著加长)再恢复此齿轮。
 		{ name: 'huangdiOffset', label: '纪年基准（黄帝纪元差，默认 2697）', type: 'number', default: 2697, min: 0, max: 16799, group: '断验' },   // 值域与页面同(0 可达)
 	] },
+	// 诸方杂术:玛雅历 / 十三月亮历前端算;人类图 / 灵名字母按出生资料请后端重算
+	// pageStoreBound:齿轮缺省 = 诸方页保存值(globalCurrent),AI 重算记录缺键时也按同一份补(fillPageBoundDefaults)。
+	// 此前只有齿轮读页面值、重算写死出厂值:页面改 584285 → 没开过诸方页的盘挂载,齿轮显示 584285、快照仍是 584283。
+	zhufang: { kind: 'record', fields: [
+		{ name: 'mayanCorrelation', label: '玛雅历·关联常数', type: 'select', default: 584283, pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.zhufang.settings.v1', 'mayanCorrelation', [584283, 584285, 584286]), options: [
+			{ value: 584283, label: '584283（默认）' },
+			{ value: 584285, label: '584285' },
+			{ value: 584286, label: '584286' },
+		] },
+		{ name: 'hdTrueNode', label: '人类图·交点', type: 'select', default: 'true', pageStoreBound: true, globalCurrent: ()=>{ const v = storedPageSetting('horosa.zhufang.settings.v1', 'hdTrueNode', [true, false]); return v === undefined ? undefined : (v ? 'true' : 'mean'); }, options: [
+			{ value: 'true', label: '真交点（默认）' },
+			{ value: 'mean', label: '平交点' },
+		] },
+		{ name: 'spiritQuadrant', label: '灵名字母·象限', type: 'select', default: 1, pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.zhufang.settings.v1', 'spiritQuadrant', [1, 2, 3]), options: [
+			{ value: 1, label: '1 · 4 · 7 · 10 宫（默认）' },
+			{ value: 2, label: '2 · 5 · 8 · 11 宫' },
+			{ value: 3, label: '3 · 6 · 9 · 12 宫' },
+		] },
+	] },
+	// 东亚诸术:纯前端按出生资料重算(易卦星盘另取本命盘);齿轮与页面左栏同两项
+	// 字段名带 dongya 前缀:fenyeVersion 是八字齿轮的平铺键,共用会互相带动;缺省跟本页左栏保存值
+	dongya: { kind: 'record', fields: [
+		{ name: 'dongyaFenyeVersion', label: '算命学·藏干表', type: 'select', default: 'common', pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.dongya.settings.v1', 'fenyeVersion', ['common', 'fajue']), options: [
+			{ value: 'common', label: '通行版（默认）' },
+			{ value: 'fajue', label: '法诀版' },
+		] },
+		{ name: 'dongyaIchingMerge', label: '易卦星盘·星卦合入', type: 'select', default: 'horizon', pageStoreBound: true, globalCurrent: ()=>storedPageSetting('horosa.dongya.settings.v1', 'ichingMerge', ['horizon', 'upper', 'lower']), options: [
+			{ value: 'horizon', label: '按地平上下（默认）' },
+			{ value: 'upper', label: '恒合上卦' },
+			{ value: 'lower', label: '恒合下卦' },
+		] },
+		// 流年(页面上的流年框不跨会话记住;挂载可在这里指定一年看,留空 = 今年)。藏占按藏历年,洛书 / 天中杀按公历年
+		{ name: 'dongyaFlowYear', label: '流年(留空 = 今年)', type: 'number', default: '', min: 1, max: 9999, group: '流年', placeholder: '空 → 今年', blankFollowsBaseline: true },
+	] },
 	yizhangjing: { kind: 'record', fields: [
 		// 一掌经只用时支不用时干:「晚子时·时柱进次日」在本技法无产物差异(差分闸 40 次零差分),撤下;日界(日柱→神煞合参层)与时间算法保留。
 		// 日界只进「神煞合参层」(一掌经本体只用时支):合参层关时隐藏、不计数不下发
@@ -2554,7 +2658,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	liurengzeri: { kind: 'sectionsOnly', reason: '六壬择日盘面口径由择日工作台冻结,快照(六壬全文+择时三段)实时产出;内容勾选照常。' },
 	sanshizeri: { kind: 'sectionsOnly', reason: '三式择日盘面口径由择日工作台冻结,快照(三式合一全文+择时三段)实时产出;内容勾选照常。' },
 	qizhengzeri: { kind: 'sectionsOnly', reason: '七政择日盘面口径由择日工作台冻结,快照(七政全文+择时三段)实时产出;内容勾选照常。' },
-	indiazeri: { kind: 'sectionsOnly', reason: '印度择日挂载=择时三段自足(印度页星盘系无独立快照槽;印度盘全文用主印度页挂载)。' },
+	indiazeri: { kind: 'sectionsOnly', reason: '印度择日盘面口径由择日工作台冻结,快照(印占全文+择时三段)实时产出;内容勾选照常。' },
 	// 通书择日:齿轮落 payload.tongshu(regenerate 读 {...defaults, ...p.tongshu} —— 该读点此前无任何写入方)
 	// 缺省 = 通书页保存的设置(页面起断读的就是它;重算的底同源,见 regenCase 'tongshu')—— 此前缺省恒董公 / 嫁娶,页面改过流派的用户 AI 按另一派断
 	tongshu: { kind: 'payload', optionsPath: 'tongshu', group: '通书择日', fields: [
@@ -2783,7 +2887,7 @@ PROGRESSION_EMPTY_KEYS.forEach((key)=>{
 // 页面上把界推运发放点改成天顶,AI 分析 / 报告里仍按上升算,而且是否读到页面口径还取决于有没有打开过那一页。
 // 键:技法 → { 齿轮字段: 星运页字段 };开关字段(交点逆移)页面存布尔、齿轮用 0/1。
 export const DIRECTION_PAGE_BOUND_FIELDS = {
-	persiandirected: { rateKey: 'persianRateKey', direction: 'persianDirection', maxYears: 'persianMaxYears' },
+	persiandirected: { rateKey: 'persianRateKey', direction: 'persianDirection', maxYears: 'persianMaxYears', persianYear: 'persianYear' },
 	decennials: { startMode: 'decennialStartMode', orderType: 'decennialOrderType', dayMethod: 'decennialDayMethod', calendarType: 'decennialCalendarType' },
 	triplicityrulers: { division: 'triplicityDivision', lifespan: 'triplicityLifespan' },
 	keypoints: { mode: 'keypointsMode' },
@@ -2801,6 +2905,7 @@ export const DIRECTION_PAGE_BOUND_FIELDS = {
 	bezzafigure: { bezzaOrb: 'bezzaOrb' },
 	jayprofection: { jayFrom: 'jayFrom' },
 	michon: { michonOrb: 'michonOrb', michonSwap: 'michonSwap', michonEqual: 'michonEqual' },
+	timelords: { tlMethod: 'tlMethod', tlYearType: 'tlYearType', tlMovingYear: 'tlMovingYear', tlTurnStart: 'tlTurnStart', tlTurnOrder: 'tlTurnOrder', tlOrbMode: 'tlOrbMode', tlAnnualDays: 'tlAnnualDays', tlAnnualOrder: 'tlAnnualOrder', tlReleaser: 'tlReleaser', tlVariant: 'tlVariant', tlNineTime: 'tlNineTime', tlNineReverse: 'tlNineReverse', tlRateKind: 'tlRateKind', tlMovingStart: 'tlMovingStart', tlDevBasis: 'tlDevBasis', tlDiurnalMode: 'tlDiurnalMode' },
 };
 
 function directionPageValue(field, pageKey){
@@ -2829,16 +2934,20 @@ Object.keys(DIRECTION_PAGE_BOUND_FIELDS).forEach((key)=>{
 	});
 });
 
-// AI 重算入口:记录里缺的星运页口径字段按星运页保存值补上(齿轮覆盖 / 记录已有的值不动)。
+// AI 重算入口:记录里缺的页面口径字段按页面保存值补上(齿轮覆盖 / 记录已有的值不动)。
+// 两类:星运族(DIRECTION_PAGE_BOUND_FIELDS → pageBoundKey)与东亚 / 诸方(字段自带 pageStoreBound,值取 globalCurrent)。
 export function fillPageBoundDefaults(key, record){
 	const map = DIRECTION_PAGE_BOUND_FIELDS[`${key || ''}`];
 	const schema = TECHNIQUE_SETTINGS_SCHEMA[`${key || ''}`];
-	if(!map || !schema || !record || typeof record !== 'object'){
+	if(!schema || !Array.isArray(schema.fields) || !record || typeof record !== 'object'){
+		return record;
+	}
+	if(!map && !schema.fields.some((f)=>f && f.pageStoreBound)){
 		return record;
 	}
 	let out = record;
 	schema.fields.forEach((field)=>{
-		if(!field.pageBoundKey || (record[field.name] !== undefined && record[field.name] !== null && record[field.name] !== '')){
+		if(!(field.pageBoundKey || field.pageStoreBound) || (record[field.name] !== undefined && record[field.name] !== null && record[field.name] !== '')){
 			return;
 		}
 		const v = fieldCurrentDefault(field);

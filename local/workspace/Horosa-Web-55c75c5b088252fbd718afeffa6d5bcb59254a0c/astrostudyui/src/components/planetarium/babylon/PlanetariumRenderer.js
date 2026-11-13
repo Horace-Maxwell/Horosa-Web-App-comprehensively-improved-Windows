@@ -3,6 +3,7 @@
 import {
 	eclipticToEquatorial, equatorialToHorizontal, galacticToEquatorial, projectedEquatorialItem, meanObliquityDeg,
 	sunEclipticLongitude, precessionMatrixJ2000ToDate, applyPrecessionMatrixInto, isJ2000Item,
+	createSkyFrame, buildSkyFrame, skySourceUnitInto, skyFrameDirection, skyFrameAltitudeDeg, skyFrameAzimuthDeg,
 } from '../planetariumProjection';
 import { nearestPointToRay, buildStarIndex, findStarByName, starDisplayLabel } from '../planetariumStarSearch';
 import { matchesUserQuery, scriptTextEquals } from '../../../utils/scriptMode';
@@ -10,6 +11,7 @@ import SANYUAN_WALLS from '../../../data/sanyuanWalls.json';
 import CONSTELLATION_LINES from '../../../data/constellationLines.json';
 import CONSTELLATION_BOUNDS from '../../../data/constellationBounds.json';
 import CHINESE_ASTERISMS from '../../../data/chineseAsterisms.json';
+import { rareSafeText } from '../../../utils/rareChars';
 import { pointerLocalRatio } from '../../../utils/zoomDomain';
 import {
 	BABYLON, SKY_RADIUS, BODY_RADIUS, STAR_RADIUS, LINE_RADIUS, OBSERVER_EYE_HEIGHT, GROUND_MIN_FOV,
@@ -27,6 +29,8 @@ import {
 	formatDeg, formatRa, starProperName, circularMidpoint, su28DisplayName, houseDisplayName,
 	preferredVisiblePoint, allAboveHorizon, shouldShowModeBoundItem, bodyName, zodiacInfoForLon, houseForLon,
 } from './itemText';
+import { labelCropRect, labelRectCovers, labelPlanePositions, isFullLabelRect } from './labelCrop';
+import { LabelUploadQueue } from './labelUploadQueue';
 import { noise2, paintSkySurface, paintHorizonMistSurface, planetTextureSize, paintPlanetSurface, paintMoonPhase } from './textures';
 
 import { planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled } from '../../../utils/perfFlags';
@@ -36,6 +40,9 @@ import { planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled } f
 //   SETTLE_MS:一次交互后维持满帧的时窗(拖动顺滑 + 覆盖惯性/收尾),之后回落到降帧。
 const PLANETARIUM_IDLE_FRAME_MS = 100;
 const PLANETARIUM_SETTLE_MS = 600;
+
+// 星官分片建造:每帧最多占这么多毫秒(一帧 16.7ms 里留足渲染 + 重投影的余量)。
+const ASTERISM_BUILD_SLICE_MS = 6;
 
 export class PlanetariumRenderer {
 	constructor(canvas, onPick, onMetrics, onInteraction){
@@ -96,7 +103,13 @@ export class PlanetariumRenderer {
 		this.starCatalog = [];
 		this.starBuildPending = false;
 		this.lastData = null;
+		// 名牌纹理画完隔两帧再上传(见 labelUploadQueue.js);渲染循环每帧 tick
+		this._labelUploads = new LabelUploadQueue();
+		this._surfaceTextures = new Map();   // 日月行星表面贴图,跨全量重建留用(见 createSurfaceTexture)
+		this._surfaceMats = [];              // 正挂着留用贴图的材质,清场前要先摘
 		this.disposed = false;
+		this._asterismBuildToken = 0;
+		this._asterismBuildJob = null;
 		this.viewMode = 'ground';
 		this.layers = {...DEFAULT_LAYERS};
 		// 星等过滤上限(默认 = 全 BSC5 上限,等价不过滤 → 零回归)。mag > magLimit 的恒星粒子 alpha=0 隐藏。
@@ -616,6 +629,9 @@ export class PlanetariumRenderer {
 	}
 
 	clearData(){
+		this.detachSurfaceTextures();
+		this._asterismsBuilt = false;
+		this.cancelChineseAsterismBuild();
 		this.pickMeshes = [];
 		this.bodyMeshes = {};
 		this.projectableMeshes = [];
@@ -815,18 +831,61 @@ export class PlanetariumRenderer {
 		return [ridge, nearRidge];
 	}
 
+	// 日月行星的表面贴图只跟「是哪颗星」有关(月亮再加月相角),和回包时刻 / 观测点无关。
+	// 每来一份全量数据(开场补全两次、改时间、换地点、回命盘时刻…)整场重建时,原先十一张贴图逐张重画重传,
+	// 占掉重建的三成多(一次约 30ms)。画过的留在渲染端复用:重建只换网格和材质,贴图原样接回去。
+	surfaceTextureKey(id, phase){
+		if(id !== 'Moon'){
+			return `${id}`;
+		}
+		const angle = Number(phase && phase.phaseAngle) || 0;
+		return `Moon@${angle.toFixed(2)}`;
+	}
+
 	createSurfaceTexture(id, phase){
+		const moonPhase = id === 'Moon' ? (phase || this.currentMoonPhase) : null;
+		const key = this.surfaceTextureKey(id, moonPhase);
+		const cached = this._surfaceTextures.get(key);
+		if(cached){
+			return cached;
+		}
 		const size = planetTextureSize(id);
 		const texture = new BABYLON.DynamicTexture(`surface-${id}-${Math.random()}`, size, this.scene, true);
 		texture.hasAlpha = id === 'Moon';
 		const ctx = texture.getContext();
 		if(id === 'Moon'){
-			paintMoonPhase(ctx, phase || this.currentMoonPhase, size.width);
+			paintMoonPhase(ctx, moonPhase, size.width);
 		}else{
 			paintPlanetSurface(ctx, id, size.width, size.height);
 		}
 		texture.update(true);
+		if(id === 'Moon'){
+			// 月相变了:旧月相的贴图不再有人用(用它的材质在上一次清场时已摘掉贴图并释放),只留当前这一张
+			this._surfaceTextures.forEach((old, oldKey)=>{
+				if(oldKey.indexOf('Moon@') === 0){
+					old.dispose();
+					this._surfaceTextures.delete(oldKey);
+				}
+			});
+		}
+		this._surfaceTextures.set(key, texture);
 		return texture;
+	}
+
+	// 清场前把留用贴图从材质上摘下来:随后 group.dispose(false, true) 会连材质带贴图一起释放,不摘就把留用的贴图也释放了。
+	detachSurfaceTextures(){
+		(this._surfaceMats || []).forEach((mat)=>{
+			mat.diffuseTexture = null;
+			mat.emissiveTexture = null;
+			mat.opacityTexture = null;
+		});
+		this._surfaceMats = [];
+	}
+
+	disposeSurfaceTextures(){
+		this.detachSurfaceTextures();
+		this._surfaceTextures.forEach((texture)=>texture.dispose());
+		this._surfaceTextures.clear();
 	}
 
 	createBodyMaterial(body){
@@ -840,6 +899,7 @@ export class PlanetariumRenderer {
 		const texture = this.createSurfaceTexture(id, id === 'Moon' ? this.currentMoonPhase : null);
 		mat.diffuseTexture = texture;
 		mat.emissiveTexture = texture;
+		this._surfaceMats.push(mat);
 		mat.diffuseColor = color.scale(id === 'Sun' ? 1.18 : 1.08);
 		mat.specularColor = id === 'Sun'
 			? new BABYLON.Color3(1, 0.62, 0.24)
@@ -888,6 +948,7 @@ export class PlanetariumRenderer {
 		mat.diffuseTexture = texture;
 		mat.emissiveTexture = texture;
 		mat.opacityTexture = texture;
+		this._surfaceMats.push(mat);
 		mat.disableLighting = true;
 		mat.useAlphaFromDiffuseTexture = true;
 		const disc = BABYLON.MeshBuilder.CreatePlane('moon-phase-disc', { width: 22, height: 22 }, this.scene);
@@ -1160,18 +1221,50 @@ export class PlanetariumRenderer {
 		}
 		const precessionMatrix = this._precessionMatrix;
 		const eqScratch = this._eqScratch || (this._eqScratch = { ra: 0, decl: 0 });
+		// 🚀 每帧只合成一次「历元坐标 → 场景方向」矩阵,星点与线条每点只剩九次乘加(与逐点公式等价,见 planetariumProjection)。
+		const skyFrame = buildSkyFrame(this._skyFrame || (this._skyFrame = createSkyFrame()), jd, observer, applyRefraction, precessionMatrix);
 		if(this.starPcs && this.starPcs.particles && this.starCatalog && this.starCatalog.length === this.starPcs.particles.length){
-			this.starCatalog.forEach((star, idx)=>{
-				const particle = this.starPcs.particles[idx];
-				if(!particle){
-					return;
+			if(skyFrame.ok){
+				const catalog = this.starCatalog;
+				const particles = this.starPcs.particles;
+				const total = catalog.length;
+				// 星表每颗星的 J2000 单位向量只算一次(星表换了才重算);播放时每星零三角函数、零分配。
+				let units = this._starUnits;
+				if(!units || this._starUnitsCatalog !== catalog || units.length !== total * 3){
+					units = this._starUnits = new Float64Array(total * 3);
+					this._starUnitsCatalog = catalog;
+					for(let idx = 0; idx < total; idx += 1){
+						const star = catalog[idx] || {};
+						const ar = degToRad(star.ra);
+						const br = degToRad(star.decl);
+						const cb = Math.cos(br);
+						units[idx * 3] = cb * Math.cos(ar);
+						units[idx * 3 + 1] = cb * Math.sin(ar);
+						units[idx * 3 + 2] = Math.sin(br);
+					}
 				}
-				// 🚀 热路径零分配:直接 equatorialToHorizontal(略过 projectedEquatorialItem 的 {...star} 整对象 spread)+ toSkyVectorInto 写入既有 particle.position
-				// (略过 new Vector3)。两处每帧各省 8404 次堆分配 → 消除周期性 major GC(连续播放卡顿根因)。星表恒带 ra/decl,位置字节级一致。
-				applyPrecessionMatrixInto(precessionMatrix, star.ra, star.decl, eqScratch);
-				const pos = equatorialToHorizontal(eqScratch.ra, eqScratch.decl, jd, observer, applyRefraction);
-				if(pos){ toSkyVectorInto(pos, STAR_RADIUS, particle.position); }
-			});
+				for(let idx = 0; idx < total; idx += 1){
+					const particle = particles[idx];
+					if(!particle){
+						continue;
+					}
+					const o = idx * 3;
+					skyFrameDirection(skyFrame, 2, units[o], units[o + 1], units[o + 2]);
+					particle.position.set(skyFrame.x * STAR_RADIUS, skyFrame.y * STAR_RADIUS, skyFrame.z * STAR_RADIUS);
+				}
+			}else{
+				this.starCatalog.forEach((star, idx)=>{
+					const particle = this.starPcs.particles[idx];
+					if(!particle){
+						return;
+					}
+					// 🚀 热路径零分配:直接 equatorialToHorizontal(略过 projectedEquatorialItem 的 {...star} 整对象 spread)+ toSkyVectorInto 写入既有 particle.position
+					// (略过 new Vector3)。两处每帧各省 8404 次堆分配 → 消除周期性 major GC(连续播放卡顿根因)。星表恒带 ra/decl,位置字节级一致。
+					applyPrecessionMatrixInto(precessionMatrix, star.ra, star.decl, eqScratch);
+					const pos = equatorialToHorizontal(eqScratch.ra, eqScratch.decl, jd, observer, applyRefraction);
+					if(pos){ toSkyVectorInto(pos, STAR_RADIUS, particle.position); }
+				});
+			}
 			this.starPcs.setParticles();
 		}
 		let sunAltAppa = null; // 太阳前端投影视高度(度):驱动天空昼夜即时同步,免随后端数据滞后
@@ -1260,6 +1353,11 @@ export class PlanetariumRenderer {
 					}
 				}
 			}
+			// 不走外推的静态源(标注 / 极点 / 亮星 / 深空天体):矩阵快路径直接写 mesh.position,不建临时对象;
+			// 认不了的数据返回 false,照旧走下面的逐点路径。
+			if(!projected && skyFrame.ok && item.mesh && this.projectMeshFast(item, skyFrame)){
+				return;
+			}
 			if(!projected){
 				projected = projectedEquatorialItem(src, jd, observer, applyRefraction);
 			}
@@ -1305,6 +1403,9 @@ export class PlanetariumRenderer {
 				if(item.mesh.isEnabled()){ item.mesh.setEnabled(false); }
 				return;
 			}
+			if(skyFrame.ok && this.projectLineFast(item, skyFrame)){
+				return;
+			}
 			let vectors = null;
 			if(item.innerRadius !== undefined && item.sources.length === 1){
 				const projected = projectedEquatorialItem(item.sources[0], jd, observer, applyRefraction);
@@ -1341,11 +1442,136 @@ export class PlanetariumRenderer {
 		return Math.round(nowMs() - started);
 	}
 
+	// 单点 mesh 重投影快路径(与逐点路径同一套显隐 / 元数据语义):位置原地写、显隐判定用的高度对象复用。
+	// 返回 false = 源数据快路径认不了,调用方走逐点路径。
+	projectMeshFast(item, frame){
+		const unit = item._unit || (item._unit = new Float64Array(6));
+		const kind = skySourceUnitInto(item.source, unit, 0);
+		if(!kind){
+			return false;
+		}
+		const mesh = item.mesh;
+		const radius = item.radius;
+		const sinAlt = skyFrameDirection(frame, kind, unit[3], unit[4], unit[5]);
+		const fx = frame.x;
+		const fz = frame.z;
+		const altitudeAppa = skyFrameAltitudeDeg(frame);
+		// 方位要趁现在读:下面逐个参照点还会复用同一个 frame,frame.x / z 会被改写。
+		const hasBody = !!(mesh.metadata && mesh.metadata.body);
+		const azimuth = hasBody ? skyFrameAzimuthDeg(frame) : 0;
+		const last = item._fastProjected || (item._fastProjected = { altitudeAppa: 0 });
+		last.altitudeAppa = altitudeAppa;
+		item.lastProjectedSource = last;
+		if(!item._ownPosition){
+			// 首次:给这个 mesh 一份独占的位置向量(建场景时可能与别的 mesh 共用同一个 Vector3),之后才原地写。
+			mesh.position = new BABYLON.Vector3(0, 0, 0);
+			item._ownPosition = true;
+		}
+		mesh.position.copyFromFloats(fx * radius, sinAlt * radius, fz * radius);
+		if(item.visibilityMode === 'allAbove' && item.visibilitySources && item.visibilitySources.length){
+			const vis = item.visibilitySources;
+			const n = vis.length;
+			let cache = item._fastVis;
+			if(!cache || cache.alts.length !== n){
+				cache = item._fastVis = { units: new Float64Array(n * 6), alts: vis.map(()=>({ altitudeAppa: 0 })) };
+			}
+			for(let i = 0; i < n; i += 1){
+				const o = i * 6;
+				const vKind = skySourceUnitInto(vis[i], cache.units, o);
+				if(!vKind){
+					// 显隐参照点认不了:这一项整体退回逐点路径(位置已写,逐点路径会按同式重写一遍,结果一致)。
+					return false;
+				}
+				const vSin = skyFrameDirection(frame, vKind, cache.units[o + 3], cache.units[o + 4], cache.units[o + 5]);
+				cache.alts[i].altitudeAppa = Math.asin(Math.max(-1, Math.min(1, vSin))) * 180 / Math.PI;
+			}
+			item.lastProjectedSources = cache.alts;
+			mesh.setEnabled(this.layerAllowsMesh(mesh) && shouldShowModeBoundItem(item, this.viewMode, this.showBelowHorizon()));
+		}else if(item.visibilityMode === 'sourceAbove'){
+			mesh.setEnabled(this.layerAllowsMesh(mesh) && shouldShowModeBoundItem(item, this.viewMode, this.showBelowHorizon()));
+		}
+		if(hasBody){
+			const visible = altitudeAppa > 0;
+			mesh.metadata.body = {
+				...mesh.metadata.body,
+				altitudeAppa,
+				azimuth,
+				visible,
+				horizonState: visible ? '可见' : '地平线下',
+			};
+		}
+		return true;
+	}
+
+	// 线条重投影快路径:每点九次乘加算出场景坐标,直接写进预分配的顶点数组再整块上传(不建 Vector3、不走 CreateLines 的逐点回调)。
+	// 返回 false = 这条线有快路径认不了的数据(或顶点数对不上),调用方照旧走逐点慢路径,行为不降级。
+	projectLineFast(item, frame){
+		let fast = item._fast;
+		if(fast === false){
+			return false;
+		}
+		const sources = item.sources;
+		const n = sources.length;
+		const radial = item.innerRadius !== undefined && n === 1;
+		const count = radial ? 2 : n;
+		if(!fast){
+			if(!item.mesh.getTotalVertices || item.mesh.getTotalVertices() !== count){
+				item._fast = false;
+				return false;
+			}
+			fast = item._fast = {
+				units: new Float64Array(n * 6),
+				positions: new Float32Array(count * 3),
+				alts: (!radial && item.visibilityMode === 'allAbove') ? sources.map(()=>({ altitudeAppa: 0 })) : null,
+			};
+		}
+		const units = fast.units;
+		const positions = fast.positions;
+		const alts = fast.alts;
+		const radius = item.radius;
+		for(let i = 0; i < n; i += 1){
+			const o = i * 6;
+			const kind = skySourceUnitInto(sources[i], units, o);
+			if(!kind){
+				return false;
+			}
+			const sinAlt = skyFrameDirection(frame, kind, units[o + 3], units[o + 4], units[o + 5]);
+			const p = i * 3;
+			positions[p] = frame.x * radius;
+			positions[p + 1] = frame.y * radius;
+			positions[p + 2] = frame.z * radius;
+			if(radial){
+				positions[3] = frame.x * item.innerRadius;
+				positions[4] = frame.y * item.innerRadius;
+				positions[5] = frame.z * item.innerRadius;
+			}
+			if(alts){
+				alts[i].altitudeAppa = Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+			}
+		}
+		if(alts){
+			item.lastProjectedSources = alts;
+			item.mesh.setEnabled(this.layerAllowsMesh(item.mesh) && shouldShowModeBoundItem(item, this.viewMode, this.showBelowHorizon()));
+		}
+		item.mesh.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions, false, false);
+		return true;
+	}
+
 	clearDynamicData(preserveStars = false){
 		// 🚀 懒构建守卫复位:本方法会 dispose 掉(除恒星外)所有动态组,故清空 _off / _asterismsBuilt,
 		// 让 _buildOffLayers / ensureChineseAsterismsBuilt 在下次 updateData 按当前开关重建已开层(并修「全量刷新后开着的层消失」潜伏 bug)。
 		this._off = {};
-		this._asterismsBuilt = false;
+		this.detachSurfaceTextures();
+		// 🚀 星官层只吃静态星表(J2000 赤道坐标 + 固定配色),位置每次重投影现算,和回包数据无关:层开着时跨全量刷新整组保留
+		// (在建的分片任务也接着建),不必每来一份全量数据就把 312 个名牌纹理 + 1153 条线拆掉重建一遍。
+		// 层关着就照旧释放(不白占显存),下次打开再懒建。调用方在 updateData 之后都会 updateProjectedTime,保留下来的组随之摆到新时刻 / 新观测点。
+		const isAsterismGroup = (group)=>!!(group && group.name && group.name.indexOf('asterism-xingguan-layer') === 0);
+		const keepAsterisms = !!this._asterismsBuilt && !!(this.layers && this.layers.xingguan) && this.groups.some(isAsterismGroup);
+		const isAsterismMesh = (mesh)=>keepAsterisms && !!mesh && isAsterismGroup(mesh.parent);
+		if(!keepAsterisms){
+			this._asterismsBuilt = false;
+			this.cancelChineseAsterismBuild();
+		}
 		if(preserveStars){
 			const isBrightStarMesh = (mesh)=>mesh && mesh.name && mesh.name.indexOf('bright-star-') === 0;
 			const retainedBodyMeshes = {};
@@ -1357,12 +1583,13 @@ export class PlanetariumRenderer {
 			});
 			this.pickMeshes = (this.pickMeshes || []).filter(isBrightStarMesh);
 			this.bodyMeshes = retainedBodyMeshes;
-			this.projectableMeshes = (this.projectableMeshes || []).filter((item)=>isBrightStarMesh(item && item.mesh));
-			this.projectableLines = [];
-			this.followMeshes = [];
+			this.projectableMeshes = (this.projectableMeshes || []).filter((item)=>isBrightStarMesh(item && item.mesh) || isAsterismMesh(item && item.mesh));
+			this.projectableLines = (this.projectableLines || []).filter((item)=>isAsterismMesh(item && item.mesh));
+			// 亮星组整组留用 → 亮星光晕的跟随登记也留着(清掉 = 光晕停在原地不跟星走,要等下一次全量回包才回位)
+			this.followMeshes = (this.followMeshes || []).filter((item)=>isBrightStarMesh(item && item.mesh));
 			const keep = [];
 			this.groups.forEach((group)=>{
-				if(group.name.indexOf('stars-layer') === 0 || group.name.indexOf('bright-stars-layer') === 0){
+				if(group.name.indexOf('stars-layer') === 0 || group.name.indexOf('bright-stars-layer') === 0 || (keepAsterisms && isAsterismGroup(group))){
 					keep.push(group);
 				}else{
 					group.dispose(false, true);
@@ -1373,12 +1600,12 @@ export class PlanetariumRenderer {
 		}
 		this.pickMeshes = [];
 		this.bodyMeshes = {};
-		this.projectableMeshes = [];
-		this.projectableLines = [];
+		this.projectableMeshes = (this.projectableMeshes || []).filter((item)=>isAsterismMesh(item && item.mesh));
+		this.projectableLines = (this.projectableLines || []).filter((item)=>isAsterismMesh(item && item.mesh));
 		this.followMeshes = [];
 		const keep = [];
 		this.groups.forEach((group)=>{
-			if(group.name.indexOf('stars-layer') === 0){
+			if(group.name.indexOf('stars-layer') === 0 || (keepAsterisms && isAsterismGroup(group))){
 				keep.push(group);
 			}else{
 				group.dispose(false, true);
@@ -1414,8 +1641,14 @@ export class PlanetariumRenderer {
 			if(!target || !target.position || !item.mesh){
 				return;
 			}
-			const offset = typeof item.offsetFactory === 'function' ? item.offsetFactory(target) : BABYLON.Vector3.Zero();
-			item.mesh.position = target.position.add(offset || BABYLON.Vector3.Zero());
+			const offset = typeof item.offsetFactory === 'function' ? item.offsetFactory(target) : null;
+			// 位置向量每个跟随者独占一份(首帧新建),之后原地写,不再每帧新建两个 Vector3。
+			if(!item._ownPosition){
+				item.mesh.position = new BABYLON.Vector3(0, 0, 0);
+				item._ownPosition = true;
+			}
+			item.mesh.position.copyFrom(target.position);
+			if(offset){ item.mesh.position.addInPlace(offset); }
 		});
 	}
 
@@ -1532,52 +1765,146 @@ export class PlanetariumRenderer {
 		const baseH = 128;
 		const texW = baseW * factor;
 		const texH = baseH * factor;
-		const texture = new BABYLON.DynamicTexture(`label-${text}-${Math.random()}`, { width: texW, height: texH }, this.scene, true);
-		texture.hasAlpha = true;
-		const ctx = texture.getContext();
+		const FULL = { x: 0, y: 0, w: texW, h: texH };
+		const hasBg = !!(bg && bg !== 'rgba(0,0,0,0)' && bg !== 'transparent');
 		// 文字用深色描边(halo)代替底板:任意背景都清晰、无方框(成熟星图做法)。
 		const fpx = Math.round(fontPx * factor);
-		const paint = ()=>{
-			ctx.clearRect(0, 0, texW, texH);
-			// 仅当显式给出不透明底板时才填(默认不填,避免难看黑框)。
-			if(bg && bg !== 'rgba(0,0,0,0)' && bg !== 'transparent'){
-				ctx.fillStyle = bg;
-				ctx.fillRect(0, 0, texW, texH);
+		const lineWidth = clamp(Math.round(fpx * 0.13), 3, 9);
+		const ty = Math.round(78 * factor);
+		const scale = Math.max(0.9, fontPx / 48);
+		const planeW = 58 * scale;
+		const planeH = 29 * scale;
+		const texName = `label-${text}-${Math.random()}`;
+		// 无底板的名牌只留字的那一块纹理(见 labelCrop.js):整幅 1024x512 一张约 2.7MB 显存,
+		// 三百多个星官名首次打开要同步建近一秒。量字与画字用同一张画布(简繁转换按画布登记,两边同一份字)。
+		// 带底板的(四方位牌)底板铺满整幅,照旧整幅建。
+		let canvas = null;
+		let measureCtx = null;
+		if(!hasBg && typeof document !== 'undefined' && typeof document.createElement === 'function'){
+			try{
+				canvas = document.createElement('canvas');
+				measureCtx = canvas.getContext('2d');
+			}catch(e){
+				measureCtx = null;
 			}
-			ctx.font = `600 ${fpx}px sans-serif`;
-			ctx.textAlign = 'left';
-			ctx.textBaseline = 'alphabetic';
-			const tw = ctx.measureText(text).width;
-			const tx = Math.max(0, (texW - tw) / 2);
-			const ty = Math.round(78 * factor);
-			ctx.lineJoin = 'round';
-			ctx.miterLimit = 2;
-			ctx.lineWidth = clamp(Math.round(fpx * 0.13), 3, 9);
-			ctx.strokeStyle = 'rgba(3,6,14,0.92)';
-			ctx.strokeText(text, tx, ty);
-			ctx.fillStyle = color || '#fff';
-			ctx.fillText(text, tx, ty);
-			texture.update(true);
-		};
-		paint();
-		// 界面简繁切换后重画(repaintTextLabels;纹理释放时摘掉)
-		if(!this._labelPainters){ this._labelPainters = new Set(); }
-		this._labelPainters.add(paint);
-		if(texture.onDisposeObservable && typeof texture.onDisposeObservable.add === 'function'){
-			texture.onDisposeObservable.add(()=>{ if(this._labelPainters){ this._labelPainters.delete(paint); } });
+			if(!measureCtx){ canvas = null; }
 		}
-		texture.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
-		texture.anisotropicFilteringLevel = 8;
+		const setFont = (c)=>{
+			c.font = `600 ${fpx}px sans-serif`;
+			c.textAlign = 'left';
+			c.textBaseline = 'alphabetic';
+		};
+
 		const mat = new BABYLON.StandardMaterial(`label-mat-${text}-${Math.random()}`, this.scene);
-		mat.diffuseTexture = texture;
-		mat.emissiveTexture = texture;
-		mat.opacityTexture = texture;
 		mat.disableLighting = true;
 		mat.useAlphaFromDiffuseTexture = true;
 		mat.disableDepthWrite = true;
 		mat.disableDepthTest = true;
-		const scale = Math.max(0.9, fontPx / 48);
-		const plane = BABYLON.MeshBuilder.CreatePlane(`label-${text}`, { width: 58 * scale, height: 29 * scale }, this.scene);
+		const plane = BABYLON.MeshBuilder.CreatePlane(`label-${text}`, {
+			width: planeW,
+			height: planeH,
+			updatable: !!canvas,
+		}, this.scene);
+		const basePositions = canvas ? Array.from(plane.getVerticesData(BABYLON.VertexBuffer.PositionKind) || []) : null;
+
+		let texture = null;
+		let ctx = null;
+		let rect = FULL;
+		if(!this._labelPainters){ this._labelPainters = new Set(); }
+		const painters = this._labelPainters;
+		const uploads = this._labelUploads;
+		let paint = null;
+		// 建(或换)这张名牌的纹理:尺寸 = 裁剪块;牌面顶点同步改到原牌面里对应的子矩形。
+		const bindTexture = (nextRect)=>{
+			const old = texture;
+			if(canvas){
+				canvas.width = nextRect.w;
+				canvas.height = nextRect.h;
+				texture = new BABYLON.DynamicTexture(texName, canvas, this.scene, true);
+			}else{
+				texture = new BABYLON.DynamicTexture(texName, { width: nextRect.w, height: nextRect.h }, this.scene, true);
+			}
+			const mine = texture;
+			texture.hasAlpha = true;
+			ctx = texture.getContext();
+			texture.updateSamplingMode(BABYLON.Texture.TRILINEAR_SAMPLINGMODE);
+			texture.anisotropicFilteringLevel = 8;
+			// 纹理释放时摘掉重画回调(换纹理时旧的那张释放不算)
+			if(texture.onDisposeObservable && typeof texture.onDisposeObservable.add === 'function'){
+				texture.onDisposeObservable.add(()=>{ uploads.drop(mine); if(texture === mine){ painters.delete(paint); } });
+			}
+			mat.diffuseTexture = texture;
+			mat.emissiveTexture = texture;
+			mat.opacityTexture = texture;
+			rect = nextRect;
+			if(basePositions && basePositions.length){
+				plane.setVerticesData(
+					BABYLON.VertexBuffer.PositionKind,
+					labelPlanePositions(basePositions, rect, texW, texH, planeW, planeH),
+					true,
+				);
+				plane.refreshBoundingInfo();
+			}
+			if(old){ old.dispose(); }
+		};
+		paint = ()=>{
+			let tw = null;
+			// 换纹理(重画时字变宽、原裁剪块盖不住)那一次当场上传:新纹理没传完之前这张名牌不画,延后会让它空两帧
+			const swapped = !!texture;
+			let rebound = false;
+			if(measureCtx){
+				// 先量再定纹理:裁剪块盖不住这次要画的字(界面简繁切换后字变宽)就换一张
+				setFont(measureCtx);
+				const m = measureCtx.measureText(text);
+				tw = m.width;
+				const crop = labelCropRect({
+					texW, texH, ty, lineWidth,
+					tx: Math.max(0, (texW - tw) / 2),
+					metrics: {
+						width: m.width,
+						asc: m.actualBoundingBoxAscent,
+						desc: m.actualBoundingBoxDescent,
+						left: m.actualBoundingBoxLeft,
+						right: m.actualBoundingBoxRight,
+					},
+				});
+				const want = crop ? crop.rect : FULL;
+				const fits = crop ? labelRectCovers(rect, crop.need, texW, texH) : isFullLabelRect(rect, texW, texH);
+				if(!texture || !fits){ bindTexture(want); rebound = swapped; }
+			}else if(!texture){
+				bindTexture(FULL);
+			}
+			ctx.clearRect(0, 0, rect.w, rect.h);
+			// 仅当显式给出不透明底板时才填(默认不填,避免难看黑框)。
+			if(hasBg){
+				ctx.fillStyle = bg;
+				ctx.fillRect(0, 0, rect.w, rect.h);
+			}
+			setFont(ctx);
+			// Use measured left-aligned text. Some WebKit glyph paths ignore textAlign=center
+			// for CJK labels, leaving the baked text offset from the billboard center.
+			if(tw === null){ tw = ctx.measureText(text).width; }
+			const tx = Math.max(0, (texW - tw) / 2) - rect.x;
+			const by = ty - rect.y;
+			// halo
+			ctx.lineJoin = 'round';
+			ctx.miterLimit = 2;
+			ctx.lineWidth = lineWidth;
+			ctx.strokeStyle = 'rgba(3,6,14,0.92)';
+			ctx.strokeText(text, tx, by);
+			// fill
+			ctx.fillStyle = color || '#fff';
+			ctx.fillText(text, tx, by);
+			// 画完不当场上传:WebKit 画布延迟栅格化,当场上传 = 主线程原地等栅格化(一张约 1ms,一次几十上百张就是一个长帧);
+			// 交给队列隔两帧再传(那时后台已栅格化好)。渲染循环还没转(含测试环境)时当场传,和原先一样。
+			const painted = texture;
+			if(rebound || !uploads.push(painted, ()=>painted.update(true))){ painted.update(true); }
+		};
+		paint();
+		// 界面简繁切换后重画(repaintTextLabels;纹理释放时摘掉)
+		painters.add(paint);
+		// TRILINEAR + anisotropy(见 bindTexture)keeps the (now higher-res) label sharp when viewed
+		// obliquely / at varying distance.
 		plane.material = mat;
 		plane.isPickable = false;
 		plane.renderingGroupId = 2;
@@ -1594,6 +1921,7 @@ export class PlanetariumRenderer {
 		// 🚀 构建期星等过滤:只建 mag ≤ 当前上限 的星(默认上限低 → 建星/纹理大减 → 开场更快;非降级,升高上限会重建补齐)。
 		stars = this.magLimit >= STAR_MAG_LIMIT_MAX ? stars : stars.filter((s)=>Number(s.mag || 5) <= this.magLimit + 1e-6);
 		this.starCatalog = stars;
+		this._starUnitsCatalog = null; // 星表换了 → 播放热路径的单位向量缓存作废
 		this.starBuiltMagLimit = this.magLimit;
 		if(this.starPcs && this.starPcs.particles && this.starPcs.particles.length === stars.length && this.starPcs.setParticles){
 			stars.forEach((star, idx)=>{
@@ -1665,9 +1993,64 @@ export class PlanetariumRenderer {
 		}catch(e){ /* 投影失败不影响建云 */ }
 	}
 
+	// 只重建某一组(不走整场清场)时,把这组网格在拾取 / 重投影 / 跟随 / 天体表里的登记一并摘掉;
+	// 不摘 = 已释放的网格留在表里,逐帧重投影白算一遍,点选还可能命中一个已经不存在的球。
+	unregisterGroupMeshes(group){
+		const meshes = group && group.getChildMeshes ? group.getChildMeshes(false) : [];
+		if(!meshes || !meshes.length){
+			return 0;
+		}
+		const gone = new Set(meshes);
+		this.pickMeshes = (this.pickMeshes || []).filter((mesh)=>!gone.has(mesh));
+		this.projectableMeshes = (this.projectableMeshes || []).filter((item)=>!gone.has(item && item.mesh));
+		this.followMeshes = (this.followMeshes || []).filter((item)=>!gone.has(item && item.mesh));
+		Object.keys(this.bodyMeshes || {}).forEach((key)=>{
+			if(gone.has(this.bodyMeshes[key])){
+				delete this.bodyMeshes[key];
+			}
+		});
+		return meshes.length;
+	}
+
+	// 后台补全完整星表的那次回包:场景里别的都没变,只换星表(按名搜索的索引 + 升高星等上限时补齐用的来源),不整场重建。
+	// 完整表按当前星等上限筛出来的星与场景里的点云逐颗相同(亮集是全表按星等排的前缀,默认上限下都是这样)
+	//   → 点云、亮星球一颗不动,只换表;随后调用方 updateProjectedTime 按新表摆位(坐标同为 J2000,位置不变)。
+	// 筛出来的不一样(多了 / 少了 / 次序不同)→ 交给 updateStars 只重建恒星。
+	// 返回耗时毫秒;场景没就绪 / 点云还在建 / 回包没带星表 → 返回 -1,调用方照旧整场重建。
+	applyStarCatalog(data){
+		const catalog = data && data.stars && data.stars.catalog;
+		if(!this.scene || this.disposed || !this.lastData || !this.starPcs || this.starBuildPending || !catalog || !catalog.length){
+			return -1;
+		}
+		const started = nowMs();
+		this.lastData = { ...this.lastData, stars: { ...(this.lastData.stars || {}), catalog } };
+		const shown = this.magLimit >= STAR_MAG_LIMIT_MAX ? catalog : catalog.filter((s)=>Number(s.mag || 5) <= this.magLimit + 1e-6);
+		const current = this.starCatalog || [];
+		const particles = this.starPcs.particles || [];
+		let same = shown.length > 0 && shown.length === current.length && particles.length === shown.length;
+		for(let i = 0; same && i < shown.length; i += 1){
+			const next = shown[i];
+			const prev = current[i];
+			if(!prev || next.id !== prev.id || Number(next.mag) !== Number(prev.mag)){
+				same = false;
+			}
+		}
+		if(same){
+			this.starFullCatalog = catalog;
+			this.starIndex = buildStarIndex(catalog);
+			this.starCatalog = shown;
+			this._starUnitsCatalog = null; // 星表对象换了 → 播放热路径的单位向量缓存按新表重算
+			this.starBuiltMagLimit = this.magLimit;
+		}else{
+			this.updateStars(catalog);
+		}
+		return Math.round(nowMs() - started);
+	}
+
 	updateBrightStars(stars){
 		const oldGroup = this.groups.find((group)=>group.name.indexOf('bright-stars-layer') === 0);
 		if(oldGroup){
+			this.unregisterGroupMeshes(oldGroup);
 			oldGroup.dispose(false, true);
 			this.groups = this.groups.filter((group)=>group !== oldGroup);
 		}
@@ -2120,24 +2503,77 @@ export class PlanetariumRenderer {
 	// (projectable 随天转),无 zodiacal/宿度制/岁差污染。按 group/symbol 四象三垣配色;每星官在其最亮星(mag 最小)
 	// 处贴名 billboard。line.metadata.layerKey='xingguan' 供 layerAllowsMesh 在重投影时门控(隐藏即跳过重建)。
 	// 星官(312)懒构建:默认关不建(省开场近半网格);开层时建一次(_asterismsBuilt 守,非降级、默认零回归)。
+	// 🚀 跨帧分片建:312 个名牌纹理 + 1153 条线一口气建要占主线程几百毫秒到一秒多(播放中表现为画面顿住、
+	// 恢复后天球往前一跳)。改成每帧只建几毫秒的量,期间整组不显示,建完一次性露出并按当前显示时刻重投影
+	// (不出现「建了一半的星官」,也不出现按旧时刻摆放的线)。没有 requestAnimationFrame 的环境(单测 / 无头)照旧同步建完。
+	// 代次号:清场 / 销毁后旧的续建回调自己退出,不往已拆掉的组里塞网格。
 	ensureChineseAsterismsBuilt(){
 		if(this._asterismsBuilt){ return; }
 		this._asterismsBuilt = true;
-		this.createChineseAsterisms((this.lastData && this.lastData.observer) || {});
-		this.applyLayerVisibility();
+		const token = (this._asterismBuildToken = (this._asterismBuildToken || 0) + 1);
+		const job = this.beginChineseAsterisms((this.lastData && this.lastData.observer) || {});
+		const raf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : null;
+		if(!raf){
+			while(this.buildChineseAsterismAt(job)){ /* 同步建完 */ }
+			this.applyLayerVisibility();
+			return;
+		}
+		this._asterismBuildJob = job;
+		job.group.setEnabled(false);
+		const pump = ()=>{
+			if(token !== this._asterismBuildToken || this.disposed || !this.scene){ return; }
+			const started = nowMs();
+			let more = true;
+			while(more && nowMs() - started < ASTERISM_BUILD_SLICE_MS){
+				more = this.buildChineseAsterismAt(job);
+			}
+			if(more){ raf(pump); return; }
+			this._asterismBuildJob = null;
+			this.applyLayerVisibility();
+			// 分片期间新建的线 / 名牌按建造起点的时刻摆放,显示时刻可能已经走开(播放中 / 单步后):露出前统一摆到当前显示时刻。
+			this.reprojectStarsToDisplayTime();
+		};
+		pump();
 	}
 
+	// 作废在途的星官分片建造(清场 / 销毁时调;已建出的网格随组一起释放)。
+	cancelChineseAsterismBuild(){
+		this._asterismBuildToken = (this._asterismBuildToken || 0) + 1;
+		this._asterismBuildJob = null;
+	}
+
+	// 同步整建(分片路径的等价物;保留给不分片的调用方)。
 	createChineseAsterisms(observer){
+		const job = this.beginChineseAsterisms(observer);
+		while(this.buildChineseAsterismAt(job)){ /* 逐星官建完 */ }
+		return job.group;
+	}
+
+	beginChineseAsterisms(observer){
 		const group = this.makeGroup('asterism-xingguan-layer');
 		const obs = observerFromData(observer);
-		const jd = (obs && obs.jd) || 2451545;
-		const refr = this.refractionActive();
 		const radius = LINE_RADIUS + 26; // 略内于三垣墙(+38),与西方星座连线(+18)分层
-		const labelRadius = radius + 8;
-		const asterisms = (CHINESE_ASTERISMS && CHINESE_ASTERISMS.asterisms) || [];
-		asterisms.forEach((item, ai)=>{
-			const stars = (item.stars || []).filter((s)=>Number.isFinite(Number(s.ra)) && Number.isFinite(Number(s.decl)));
-			if(!stars.length){ return; }
+		return {
+			group,
+			obs,
+			jd: (obs && obs.jd) || 2451545,
+			refr: this.refractionActive(),
+			radius,
+			labelRadius: radius + 8,
+			asterisms: (CHINESE_ASTERISMS && CHINESE_ASTERISMS.asterisms) || [],
+			index: 0,
+		};
+	}
+
+	// 建第 job.index 个星官(线 + 名牌),返回是否还有下一个。
+	buildChineseAsterismAt(job){
+		const { group, obs, jd, refr, radius, labelRadius, asterisms } = job;
+		if(job.index >= asterisms.length){ return false; }
+		const ai = job.index;
+		const item = asterisms[ai];
+		job.index += 1;
+		const stars = ((item && item.stars) || []).filter((s)=>Number.isFinite(Number(s.ra)) && Number.isFinite(Number(s.decl)));
+		if(stars.length){
 			const color = asterismColor(item);
 			// 连线:逐 [i,j] 连成员星(用原始 stars 索引,过滤前的下标)。
 			(item.lines || []).forEach((seg, si)=>{
@@ -2156,7 +2592,7 @@ export class PlanetariumRenderer {
 			let anchor = stars[0];
 			let minMag = Number(stars[0].mag);
 			stars.forEach((s)=>{ const m = Number(s.mag); if(Number.isFinite(m) && (!Number.isFinite(minMag) || m < minMag)){ minMag = m; anchor = s; } });
-			const name = item.name || item.pinyin || '';
+			const name = rareSafeText(item.name || item.pinyin || '');   // 名牌是画在贴图上的字:本机画不出的字换通行写法
 			if(name){
 				const labelSrc = { ra: anchor.ra, decl: anchor.decl, epoch: 'J2000' };
 				const plane = this.createTextPlane(name, 24, '#dbe6f5', 'rgba(0,0,0,0)');
@@ -2166,8 +2602,8 @@ export class PlanetariumRenderer {
 				plane.metadata = { labelKind: 'xingguan', layerKey: 'xingguan' };
 				this.registerProjectableMesh(plane, labelSrc, labelRadius);
 			}
-		});
-		return group;
+		}
+		return job.index < asterisms.length;
 	}
 
 	// 行星视运动轨迹(planetTrails)。数据来自后端 data.trails([{id,name,points:[{offsetDays,ra,decl,...}]}],
@@ -2191,6 +2627,26 @@ export class PlanetariumRenderer {
 			if(line){ line.metadata = { layerKey: 'planetTrails', body: { displayName: trail.name || trail.id } }; }
 		});
 		return group;
+	}
+
+	// 行星轨迹层刚打开时的那次重取:回包里只有 trails 是新东西,别的(星、网格、名牌、星官…)场景里都已经有了。
+	// 只把轨迹补进现有场景,不整场拆掉重建(整场重建实测 350–800ms,其中画轨迹本身只 5ms)。
+	// 返回耗时毫秒;场景还没有数据(没法只补)时返回 -1,调用方照旧整场 updateData。
+	applyPlanetTrails(data){
+		if(!this.scene || !this.lastData || !data || !Array.isArray(data.trails)){ return -1; }
+		const started = nowMs();
+		const isTrailGroup = (group)=>!!(group && group.name && group.name.indexOf('asterism-trails-layer') === 0);
+		const isTrailMesh = (mesh)=>!!mesh && isTrailGroup(mesh.parent);
+		this.projectableLines = (this.projectableLines || []).filter((item)=>!isTrailMesh(item && item.mesh));
+		this.groups = (this.groups || []).filter((group)=>{
+			if(isTrailGroup(group)){ group.dispose(false, true); return false; }
+			return true;
+		});
+		this.lastData = { ...this.lastData, trails: data.trails };
+		// 轨迹点是赤道坐标;先按回包自己的观测点 / 时刻摆,调用方随后 updateProjectedTime 统一摆到显示时刻
+		this.createPlanetTrails({ observer: data.observer || this.lastData.observer, trails: data.trails });
+		this.applyLayerVisibility();
+		return Math.round(nowMs() - started);
 	}
 
 	// 西方 88 星座连线(E2)。数据来自 src/data/constellationLines.json(待权威开放数据集);空 = 留壳。
@@ -2955,7 +3411,8 @@ export class PlanetariumRenderer {
 			}else if(group.name.indexOf('starname-layer') === 0){
 				group.setEnabled(!!this.layers.starNames);
 			}else if(group.name.indexOf('asterism-xingguan-layer') === 0){
-				group.setEnabled(!!this.layers.xingguan);
+				// 分片建造没完之前整组不露(见 ensureChineseAsterismsBuilt);建完由它再调一次本方法露出。
+				group.setEnabled(!!this.layers.xingguan && !this._asterismBuildJob);
 			}else if(group.name.indexOf('asterism-trails-layer') === 0){
 				group.setEnabled(!!this.layers.planetTrails);
 			}else if(group.name.indexOf('pole-layer') === 0){
@@ -3029,7 +3486,9 @@ export class PlanetariumRenderer {
 			const live = this._renderRequested
 				|| this._playing
 				|| (this.scene.animatables && this.scene.animatables.length > 0)
-				|| (t < this._settleUntil);
+				|| (t < this._settleUntil)
+				// 名牌上传队列按「帧」计龄、每帧只传一小片:队列未空时保持满帧,否则静止降帧会把几十张名牌拖成数秒才露齐
+				|| (this._labelUploads.size > 0);
 			if(!live){
 				if(this._lastIdleRender && (t - this._lastIdleRender) < PLANETARIUM_IDLE_FRAME_MS){
 					return;
@@ -3041,6 +3500,7 @@ export class PlanetariumRenderer {
 		this.updateGroundScenePosition();
 		this.applyLabelVisibility();
 		this.applyGridLod();
+		this._labelUploads.tick();
 		this.scene.render();
 		if(this.onMetrics){
 			// B:FPS/网格调试读数节流到 ~2Hz(getFps 本就是滚动均值,2Hz 与 60Hz 读同一值类、零精度损失)。
@@ -3092,6 +3552,7 @@ export class PlanetariumRenderer {
 		this.updateGroundScenePosition();
 		this.applyLabelVisibility();
 		this.applyGridLod();
+		this._labelUploads.tick();
 		this.scene.render();
 		this._renderRequested = false;
 		this._lastIdleRender = nowMs();
@@ -3130,6 +3591,8 @@ export class PlanetariumRenderer {
 		}
 		this.clearMeasureMeshes();
 		this.clearData();
+		this.disposeSurfaceTextures();
+		this._labelUploads.clear();
 		if(this.sky){
 			this.sky.dispose(false, true);
 		}

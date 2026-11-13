@@ -14,7 +14,7 @@ class BabylonEae extends Component{
 		// 方位角(N上/E右/S下/W左)
 		const AT = { '北': -90, '东': 0, '南': 90, '西': 180 };
 		return (
-			<svg viewBox={`0 0 ${W} ${W}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${W}`} style={{ width: '100%', height: '100%' }}>
 				<circle cx={C} cy={C} r={R} fill={dark ? 'rgba(182,147,74,0.05)' : 'rgba(154,106,37,0.05)'} stroke="rgba(122,94,48,0.35)" strokeWidth="1" />
 				<circle cx={C} cy={C} r={R * 0.42} fill="none" stroke="rgba(122,94,48,0.25)" strokeWidth="0.8" strokeDasharray="4,3" />
 				<text x={C} y={C + 4} fontSize="11" fill={ink} textAnchor="middle" opacity="0.85">月面四象限</text>

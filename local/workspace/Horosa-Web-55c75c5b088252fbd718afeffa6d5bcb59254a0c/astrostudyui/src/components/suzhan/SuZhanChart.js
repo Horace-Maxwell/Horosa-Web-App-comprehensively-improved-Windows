@@ -346,7 +346,8 @@ class SuZhanChart extends Component{
 
 		this.drawChart();
 
-			const chartClassName = isSquareChart ? 'horosa-suzhan-square-svg' : 'horosa-suzhan-circle-svg';
+			// 盘面文字不描边(svg 根的线色经继承漏到字上,圆形盘小字发糊):挂全站统一的 horosa-plain-text-board
+			const chartClassName = `${isSquareChart ? 'horosa-suzhan-square-svg' : 'horosa-suzhan-circle-svg'} horosa-plain-text-board`;
 			return (
 				<svg
 					id={this.state.chartid}

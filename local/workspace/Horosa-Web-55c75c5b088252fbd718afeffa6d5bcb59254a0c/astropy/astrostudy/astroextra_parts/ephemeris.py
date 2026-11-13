@@ -83,7 +83,8 @@ def calc_stations(start_jd, end_jd, zone, planets):
                     **date_time_from_jd(hit_jd, zone),
                     'type': 'station',
                     'body': body,
-                    'direction': 'Direct' if hit_speed >= 0 else 'Retrograde',
+                    # 留点上的速度本身约等于 0,判不了向;看留前留后:由逆转顺是顺留,由顺转逆是逆留
+                    'direction': 'Direct' if speed > prev_speed else 'Retrograde',
                     'lon': hit_lon,
                     'speed': hit_speed,
                     'sign': sign_name_from_lon(hit_lon),

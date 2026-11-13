@@ -1,11 +1,15 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import KinAstroMain from '../kinastro/KinAstroMain';
+import EastAsiaMain from '../dongya/EastAsiaMain';
+import ZhufangMain from '../zhufang/ZhufangMain';
 
 const MING_OTHER_TECHNIQUE_TABS = [
 	{ key: 'cetian', label: '策天飞星' },
 	{ key: 'xianqin', label: '演禽' },
 	{ key: 'yizhangjing', label: '一掌经' },
+	{ key: 'dongya', label: '东亚' },
+	{ key: 'zhufang', label: '诸方' },
 ];
 const MING_OTHER_TECHNIQUE_KEYS = MING_OTHER_TECHNIQUE_TABS.map((t) => t.key);
 
@@ -34,6 +38,28 @@ export default class MingOtherMain extends Component{
 	}
 
 	render(){
+		if(this.state.technique === 'zhufang'){
+			// 诸方杂术:玛雅历 / 十三月亮历前端算,人类图 / 灵名字母走 /astroextra/zhufang
+			return (
+				<ZhufangMain
+					{...this.props}
+					activeTechnique={this.state.technique}
+					techniqueTabs={MING_OTHER_TECHNIQUE_TABS}
+					onTechniqueChange={this.onTechniqueChange}
+				/>
+			);
+		}
+		if(this.state.technique === 'dongya'){
+			// 东亚诸术是前端本地计算的独立页面,不走 KinAstro 的后端管道;技法切换条同一份
+			return (
+				<EastAsiaMain
+					{...this.props}
+					activeTechnique={this.state.technique}
+					techniqueTabs={MING_OTHER_TECHNIQUE_TABS}
+					onTechniqueChange={this.onTechniqueChange}
+				/>
+			);
+		}
 		return (
 			<KinAstroMain
 				{...this.props}

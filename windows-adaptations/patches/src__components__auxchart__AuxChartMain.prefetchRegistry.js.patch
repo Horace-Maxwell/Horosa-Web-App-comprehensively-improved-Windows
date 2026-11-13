@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/auxchart/AuxChartMain.js b/astrostudyui/src/components/auxchart/AuxChartMain.js
-index 314619e6..481a69c1 100644
+index 9ba532df..d2cd19bd 100644
 --- a/astrostudyui/src/components/auxchart/AuxChartMain.js
 +++ b/astrostudyui/src/components/auxchart/AuxChartMain.js
 @@ -1,4 +1,8 @@
@@ -11,7 +11,7 @@ index 314619e6..481a69c1 100644
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { XQTabs as Tabs } from '../xq-ui';
  import QuickDockBar from '../common/QuickDockBar';
-@@ -94,9 +98,37 @@ class AuxChartMain extends Component{
+@@ -102,9 +106,37 @@ class AuxChartMain extends Component{
  			this.props.hook.fun = (fields, chartObj)=>{
  				this.callCurrentHook(fields, chartObj);
  			};
@@ -49,17 +49,17 @@ index 314619e6..481a69c1 100644
  	findTab(){
  		const tab = this.state.currentTab ? this.state.currentTab : 'germanytech';
  		return AUX_TABS.indexOf(tab) >= 0 ? tab : 'germanytech';
-@@ -158,6 +190,9 @@ class AuxChartMain extends Component{
+@@ -166,6 +198,9 @@ class AuxChartMain extends Component{
  		const childHeight = Math.max(height - 36, visualFloorPx(560));
  		const tab = this.findTab();
  
-+		// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):11 个子盘各包一层 FreezeSubTab(函数式 children)。
++		// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):每个子盘各包一层 FreezeSubTab(函数式 children;v3.14.0 新增的变换盘 / 黄道制同款)。
 +		// 未激活过 → 连元素都不建;激活过后切走 → 冻结(DOM/实例/state 全留,不卸载不重取);
 +		// 切回 → sCU 返 true,拿本轮最新 props 立刻渲一帧,零陈旧零闪烁。
  		return (
  			<div id={this.state.divId} className="horosa-auxchart-page">
  				<div className="horosa-auxchart-layout">
-@@ -169,6 +204,7 @@ class AuxChartMain extends Component{
+@@ -177,6 +212,7 @@ class AuxChartMain extends Component{
  						style={{ height: '100%' }}
  					>
  						<TabPane tab="量化盘" key="germanytech">
@@ -67,7 +67,7 @@ index 314619e6..481a69c1 100644
  							<AstroGermany
  								onChange={this.props.onChange}
  								fields={this.props.fields}
-@@ -183,9 +219,11 @@ class AuxChartMain extends Component{
+@@ -191,9 +227,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.germanytech}
  								dispatch={this.props.dispatch}
  							/>
@@ -79,7 +79,7 @@ index 314619e6..481a69c1 100644
  							<HellenAstroMain
  								planetListStyle={this.props.planetListStyle}   /* 行星列表密度透传 */
  								voidClassical={this.props.voidClassical}   /* 宿主链补传:此前断在辅盘,空亡古典义 / 仅本垣擢升互容 两档在派生盘页恒按关(会话态键,无 localStorage 兜底) */
-@@ -206,9 +244,11 @@ class AuxChartMain extends Component{
+@@ -214,9 +252,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.hellenastro}
  								dispatch={this.props.dispatch}
  							/>
@@ -91,7 +91,7 @@ index 314619e6..481a69c1 100644
  							<Dwadasamsa12Main
  								planetListStyle={this.props.planetListStyle}   /* 行星列表密度透传 */
  								voidClassical={this.props.voidClassical}   /* 宿主链补传:此前断在辅盘,空亡古典义 / 仅本垣擢升互容 两档在派生盘页恒按关(会话态键,无 localStorage 兜底) */
-@@ -228,9 +268,11 @@ class AuxChartMain extends Component{
+@@ -236,9 +276,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.dwadasamsa}
  								dispatch={this.props.dispatch}
  							/>
@@ -103,7 +103,7 @@ index 314619e6..481a69c1 100644
  							<LocAstroMain
  								value={this.props.chart}
  								onChange={this.props.onChange}
-@@ -243,9 +285,11 @@ class AuxChartMain extends Component{
+@@ -251,9 +293,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.locastro}
  								dispatch={this.props.dispatch}
  							/>
@@ -115,7 +115,7 @@ index 314619e6..481a69c1 100644
  							<AstroRelocationLab
  								value={this.props.chart}
  								fields={this.props.fields}
-@@ -261,9 +305,11 @@ class AuxChartMain extends Component{
+@@ -269,9 +313,11 @@ class AuxChartMain extends Component{
  								showAstroMeaning={this.props.showAstroMeaning}
  								dispatch={this.props.dispatch}
  							/>
@@ -127,7 +127,7 @@ index 314619e6..481a69c1 100644
  							<AstroHarmonicLab
  								value={this.props.chart}
  								fields={this.props.fields}   /* 派生快照 meta 源:缺 fields → 挂载健康核对恒 unknown(换本命也不告警) */
-@@ -275,9 +321,11 @@ class AuxChartMain extends Component{
+@@ -283,9 +329,11 @@ class AuxChartMain extends Component{
  								lotsDisplay={this.props.lotsDisplay}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>
@@ -139,7 +139,7 @@ index 314619e6..481a69c1 100644
  							<AstroDraconicLab
  								value={this.props.chart}
  								fields={this.props.fields}   /* 同上:派生快照 meta 源 */
-@@ -289,9 +337,11 @@ class AuxChartMain extends Component{
+@@ -297,9 +345,11 @@ class AuxChartMain extends Component{
  								lotsDisplay={this.props.lotsDisplay}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>
@@ -151,7 +151,7 @@ index 314619e6..481a69c1 100644
  							<OtherBuMain
  								wheelArt={this.props.wheelArt}
  								height={childHeight}
-@@ -304,9 +354,11 @@ class AuxChartMain extends Component{
+@@ -312,9 +362,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.otherbu}
  								dispatch={this.props.dispatch}
  							/>
@@ -163,7 +163,7 @@ index 314619e6..481a69c1 100644
  							<HoraryMain
  								wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
  								chartStyle={this.props.chartStyle}
-@@ -320,9 +372,11 @@ class AuxChartMain extends Component{
+@@ -328,9 +380,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.horary}
  								dispatch={this.props.dispatch}
  							/>
@@ -175,7 +175,7 @@ index 314619e6..481a69c1 100644
  							<ElectionMain
  								wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
  								chartStyle={this.props.chartStyle}
-@@ -336,9 +390,11 @@ class AuxChartMain extends Component{
+@@ -344,9 +398,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.election}
  								dispatch={this.props.dispatch}
  							/>
@@ -187,7 +187,7 @@ index 314619e6..481a69c1 100644
  							<MundaneMain
  								wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
  								chartStyle={this.props.chartStyle}
-@@ -352,9 +408,11 @@ class AuxChartMain extends Component{
+@@ -360,9 +416,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.mundane}
  								dispatch={this.props.dispatch}
  							/>
@@ -199,9 +199,33 @@ index 314619e6..481a69c1 100644
  							<BabylonMain
  								fields={this.props.fields}
  								fieldsAry={this.props.fieldsAry}
-@@ -367,6 +425,7 @@ class AuxChartMain extends Component{
+@@ -375,9 +433,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.babylon}
  								dispatch={this.props.dispatch}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 
+ 						<TabPane tab="变换盘" key="transformchart">
++							<FreezeSubTab active={tab === 'transformchart'}>{()=>(
+ 							<AstroTransformLab
+ 								value={this.props.chart}
+ 								fields={this.props.fields}   /* 同上:派生快照 meta 源 */
+@@ -389,9 +449,11 @@ class AuxChartMain extends Component{
+ 								lotsDisplay={this.props.lotsDisplay}
+ 								showAstroMeaning={this.props.showAstroMeaning}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 
+ 						<TabPane tab="黄道制" key="zodiacsystems">
++							<FreezeSubTab active={tab === 'zodiacsystems'}>{()=>(
+ 							<AstroZodiacLab
+ 								value={this.props.chart}
+ 								fields={this.props.fields}   /* 同上:派生快照 meta 源 */
+@@ -403,6 +465,7 @@ class AuxChartMain extends Component{
+ 								lotsDisplay={this.props.lotsDisplay}
+ 								showAstroMeaning={this.props.showAstroMeaning}
  							/>
 +							)}</FreezeSubTab>
  						</TabPane>

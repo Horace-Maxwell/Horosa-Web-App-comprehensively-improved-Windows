@@ -726,9 +726,34 @@ function collectLiurengEntriesFromSectionLines(lines){
 	const entries = [];
 	const src = Array.isArray(lines) ? lines : [];
 	let currentBranch = '';
+	let tableCols = null;   // 表格形态(| 序 | 地盘 | 天盘 | 贵神 |):表头定列,逐行取
+	const isBranch = (v)=>/^[子丑寅卯辰巳午未申酉戌亥]$/.test(`${v || ''}`);
 	src.forEach((line)=>{
 		const txt = `${line || ''}`.trim();
 		if(!txt){
+			return;
+		}
+		if(txt.charAt(0) === '|'){
+			const cells = txt.split('|').map((c)=>c.trim());
+			cells.shift();
+			if(cells.length && cells[cells.length - 1] === ''){ cells.pop(); }
+			if(cells.length && cells.every((c)=>/^:?-{2,}:?$/.test(c))){
+				return;
+			}
+			const di = cells.indexOf('地盘');
+			const tian = cells.indexOf('天盘');
+			const jiang = cells.indexOf('贵神');
+			if(di >= 0 && tian >= 0 && jiang >= 0){
+				tableCols = { di, tian, jiang };
+				return;
+			}
+			if(tableCols && isBranch(cells[tableCols.di]) && isBranch(cells[tableCols.tian]) && cells[tableCols.jiang]){
+				entries.push({
+					di: cells[tableCols.di],
+					tian: cells[tableCols.tian],
+					jiang: normalizeLiurengJiang(cells[tableCols.jiang]),
+				});
+			}
 			return;
 		}
 		const branchMark = txt.match(/「([子丑寅卯辰巳午未申酉戌亥])\s*[-－]/);

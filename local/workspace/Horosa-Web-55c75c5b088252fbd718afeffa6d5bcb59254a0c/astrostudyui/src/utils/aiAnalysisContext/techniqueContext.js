@@ -26,13 +26,15 @@ import {
 	ASTRO_LIKE_DERIVED_MODULES, buildAstroLikeContext, buildAstroLikeSingleContext, relativeSnapshotMatchesRecord,
 	regenerateChartTechniqueSnapshot,
 } from './regenChart';
-import { fetchClassicalAnalysisSection, buildChartContext, buildChartMetaContext, buildCaseContext, buildCaseMetaContext } from './sourceContext';
+import { fetchChartDerivedSections, buildChartContext, buildChartMetaContext, buildCaseContext, buildCaseMetaContext } from './sourceContext';
 import { normalizeTechniqueKey, getTechniqueLabel, getTechniqueAliasList } from './techniqueKey';
 import {
 	pickSnapshotCandidate, getTechniqueSnapshotFromPayload, isCacheSnapshotConfidentMatch,
 	getTechniqueSnapshotFromCache, REGENERATED_SNAPSHOT_CACHE, REGENERATED_SNAPSHOT_MAX,
 	REGENERATED_SNAPSHOT_TTL_MS, regeneratedSnapshotKey,
 } from './snapshotMatch';
+import { DERIVED_LAB_HEADLESS_KEYS, buildDerivedLabHeadless } from './derivedLabsHeadless';
+import { chartDetailSettingsFor } from '../chartDetails';
 
 async function buildTechniqueContext(source, techniqueKey, baseSourceContext){
 	const key = normalizeTechniqueKey(techniqueKey);
@@ -50,7 +52,15 @@ async function buildTechniqueContext(source, techniqueKey, baseSourceContext){
 		return buildAstroLikeContext(source, key, label);
 	}
 	if(source.sourceType === 'chart' && ASTRO_LIKE_DERIVED_MODULES.indexOf(key) >= 0){
-		return buildAstroLikeSingleContext(source, key, label);
+		const single = buildAstroLikeSingleContext(source, key, label);
+		// 变换盘 / 黄道制:辅盘页没出过这张盘时,按辅盘页保存的设置无头现算(正文与页面快照同一份构建函数)
+		if(!single.available && DERIVED_LAB_HEADLESS_KEYS.indexOf(key) >= 0 && source.record){
+			const content = `${await buildDerivedLabHeadless(source.record, key) || ''}`.trim();
+			if(content){
+				return { ...single, content, available: true, status: 'ready', meta: { derivedCharts: [key], headless: true } };
+			}
+		}
+		return single;
 	}
 	if(source.sourceType === 'chart' && key === 'astrochart'){
 		const ctx = canReuseBaseSourceContext ? baseSourceContext : await buildChartContext(source);
@@ -241,7 +251,7 @@ async function regenerateAstroChartSnapshot(record){
 	// (护卫/优势相位/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦),此前齿轮重算
 	// 路径漏拼 → 一动挂载设置该整段消失(极易被读成「重算失败」)。
 	try{
-		const analysisSection = await fetchClassicalAnalysisSection(params);
+		const analysisSection = await fetchChartDerivedSections(params, chartDetailSettingsFor(record));
 		if(analysisSection){
 			content = `${content}\n\n${analysisSection}`.trim();
 		}

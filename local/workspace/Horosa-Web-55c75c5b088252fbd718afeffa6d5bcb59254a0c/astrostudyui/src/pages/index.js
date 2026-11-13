@@ -202,7 +202,7 @@ const navigationPages = [
     { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命', keywords: '卜卦盘 择日盘 世俗盘 十三分盘 十二分盘 调波盘 谐波盘 龙盘 中点盘 量化盘 汉堡盘 占星地图 星体地图 astrocartography ACG 重置盘 骰子 卜卦 择日 巴比伦 美索不达米亚 楔文 微黄道 泥板' },
     { label: '合盘', key: 'relativechart', icon: 'composite', group: '命', keywords: '合盘 关系盘 比较盘 组合盘 影响盘 时空中点盘 马克斯盘 关系量化 中点合成 synastry composite davison marks' },
     { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命', keywords: '邵子神数 铁板神数 河洛理数 参评数 北极神数 南极神数 蠢子数 神数正传 大定神数 条文 秘数 十二辟卦 太玄玉景 起数' },
-    { label: '其他', key: 'mingother', icon: 'other', group: '命', keywords: '演禽 仙禽 策天 策天飞星 一掌经 掌经 十二星 六道 yizhangjing' },
+    { label: '其他', key: 'mingother', icon: 'other', group: '命', keywords: '演禽 仙禽 策天 策天飞星 一掌经 掌经 十二星 六道 yizhangjing 诸方 玛雅历 十三月亮历 人类图 灵名 zhufang 东亚 藏历 藏占 八卦 九宫 蒙古 算命学 九星气学 洛书 易卦星盘 dongya' },
     { label: '三式', key: 'sanshiunited', icon: 'sanshi', group: '卜', keywords: '三式合一 六壬 奇门 太乙' },
     { label: '六壬', key: 'liureng', icon: 'liureng', group: '卜', keywords: '大六壬 六壬 三传 四课 神煞 七政' },
     { label: '遁甲', key: 'dunjia', icon: 'qimen', group: '卜', keywords: '奇门遁甲 奇门 法奇门' },
@@ -761,7 +761,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         <Spin spinning={false} wrapperClassName="horosa-main-spin">
             <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
             <XQTabs
-                defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
+                defaultActiveKey="astrochart" tabPosition='left' rail={false} onChange={changeTab}
                 activeKey={activeMainTab}
                 className={`mainRootTabs horosa-nav-in-drawer horosa-unified-shell-active${isFullHeightWorkspaceTab ? ' horosa-astro-shell-active' : ''}${activeMainTab === 'bazi' ? ' horosa-bazi-shell-active' : ''}${activeMainTab === 'dunjia' ? ' horosa-dunjia-shell-active' : ''}${activeMainTab === 'sanshiunited' ? ' horosa-sanshi-shell-active' : ''}`}
                 style={{ height: rootTabsHeight }}
@@ -1481,7 +1481,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
             <Drawer
                 title='相位选择'
-                width={250}
+                width={340}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}
@@ -1495,6 +1495,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 }}        
             >
                 <AspSelector
+                    layout="drawer"
                     value={aspects}
                     dispatch={dispatch}
                 />
@@ -1502,7 +1503,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
             <Drawer
                 title='容许度设置'
-                width={280}
+                width={380}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}
@@ -1525,7 +1526,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
             <Drawer
                 title='显示星体'
-                width={250}
+                width={400}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}
@@ -1548,7 +1549,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             <Drawer
                 title='星盘设置'
                 className='horosa-chart-settings-drawer'
-                width={760}
+                width={940}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}
@@ -1562,6 +1563,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 }}        
             >
                 <ChartDisplaySelector
+                    layout="drawer"
                     value={chartDisplay}
                     showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
                     showPlanetHouseInfo={showPlanetHouseInfo}

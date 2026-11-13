@@ -216,9 +216,11 @@ describe('⑥ 全面审查修复的机械看守', ()=>{
 		expect(snap.match(/h\.index - 12\)\}/)).toBeFalsy();
 		expect(snap.includes('行星时制式')).toBe(true);
 	});
-	it('RAMC 恒星制回落不显(伪 ra 不上屏)', ()=>{
+	it('RAMC 两种黄道制都直读宫头赤经;只有缺 ra 的老响应在恒星制下跳过三角兜底', ()=>{
 		const src = read('components/astro/AstroChartCircle.js');
-		expect(src.match(/const h10 = _sid \? null : this\.getHouse\(chartObj, AstroConst\.HOUSE10\)/)).toBeTruthy();
+		// 先读天顶点赤经(= ARMC,与宫制无关),第 10 宫头只作老响应兜底
+		expect(src.match(/let ra = mcPoint && Number\.isFinite\(Number\(mcPoint\.ra\)\) \? Number\(mcPoint\.ra\) : NaN;/)).toBeTruthy();
+		expect(src.match(/const mc = !_sid \? getObject\(chartObj, AstroConst\.MC\) : null/)).toBeTruthy();
 	});
 	it('classicalBackendOverrides 双名回退(回显形 plain 的 starOrb 两键不再失明)', ()=>{
 		const src = read('utils/classicalChartGlobals.js');
@@ -226,7 +228,8 @@ describe('⑥ 全面审查修复的机械看守', ()=>{
 	});
 	it('pruneStaleClassicalParams 连删表体伴生键', ()=>{
 		const src = read('utils/classicalChartGlobals.js');
-		expect(src.match(/\['customTermsDay', 'customTermsNight'\]\.forEach/)).toBeTruthy();
+		// 自定义界表两键 + 容许度两键(改回默认后旧 state 里的值不能粘着继续发)
+		expect(src.match(/\['customTermsDay', 'customTermsNight'\]\.concat\(CHART_ORB_KEYS\)\.forEach/)).toBeTruthy();
 	});
 });
 

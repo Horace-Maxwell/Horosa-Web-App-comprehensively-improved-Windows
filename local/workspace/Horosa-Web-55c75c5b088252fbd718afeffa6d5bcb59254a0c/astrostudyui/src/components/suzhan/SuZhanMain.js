@@ -23,6 +23,7 @@ import XQIcon from '../xq-icons';
 import { visualFloorPx } from '../../utils/zoomDomain';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { ASC_RA_MODE_IMPROVED, ASC_RA_MODE_CLASSIC, loadSuzhanAscRaMode, withAscRaModeRoot, ascRaModeSnapshotLine } from '../../utils/ascRaMode';
 
 const { TabPane } = Tabs;
 
@@ -65,6 +66,15 @@ function resolveHouseStartMode(fields){
 			? SZConst.SZHouseStart_ASC : SZConst.SZHouseStart_Bazi;
 	}
 	return SZConst.SZHouseStart_Bazi;
+}
+
+// 上升取法(改进 = 真赤经 / 经典 = 东点黄经)只在「ASC 起盘」时起作用;八字公式起盘不读上升赤经定命宫 → 恒按改进。
+// fields.ascRaMode(挂载齿轮写进记录、无头重算带进来)优先,否则取宿占页的保存值(节气页内嵌宿盘同此)。
+export function suzhanAscRaModeOf(fields){
+	if(resolveHouseStartMode(fields) !== SZConst.SZHouseStart_ASC){ return ASC_RA_MODE_IMPROVED; }
+	const f = fields && fields.ascRaMode ? fields.ascRaMode.value : undefined;
+	if(f === ASC_RA_MODE_IMPROVED || f === ASC_RA_MODE_CLASSIC){ return f; }
+	return loadSuzhanAscRaMode();
 }
 
 function computeAscSignIndex(rootObj, chart, fields){
@@ -315,8 +325,11 @@ function foldHouseSuLinesToTable(suLines){
 	return out;
 }
 
-export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
+export function buildSuzhanSnapshotText(rawChartObj, fields, planetDisplay){
 	const lines = [];
+	// 上升取法换在盘数据这一层(只换上升点的 ra):宫位起宫、宫宿表与盘面同一份
+	const ascRaMode = suzhanAscRaModeOf(fields);
+	const chartObj = withAscRaModeRoot(rawChartObj, ascRaMode);
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 
 	lines.push('[起盘信息]');
@@ -340,6 +353,9 @@ export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 	}
 	if(fields && fields.houseStartMode){
 		lines.push(`人事十二宫起盘：${houseStartModeName(fields.houseStartMode.value)}`);
+	}
+	if(resolveHouseStartMode(fields) === SZConst.SZHouseStart_ASC){
+		lines.push(ascRaModeSnapshotLine(ascRaMode, chart));
 	}
 
 	lines.push('');
@@ -394,9 +410,11 @@ class SuZhanMain extends Component{
 		super(props);
 		this.state = {
 			rightPanelTab: 'overview',
+			ascRaMode: loadSuzhanAscRaMode(),   // 只用来在左栏改了上升取法后重画(取值一律经 suzhanAscRaModeOf)
 		};
 
 		this.unmounted = false;
+		this.onAscRaModeChange = this.onAscRaModeChange.bind(this);
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.restoreFromCurrentCase = this.restoreFromCurrentCase.bind(this);
@@ -576,6 +594,17 @@ class SuZhanMain extends Component{
 		}
 	}
 
+	onAscRaModeChange(mode){
+		// 左栏已落盘;这里重画盘面并按新档重存快照
+		this.setState({ ascRaMode: mode }, ()=>{
+			if(this.isEmbeddedReadOnly() || !this.props.fields){ return; }
+			const value = this.props.value;
+			const fields = this.props.fields;
+			const planetDisplay = this.props.planetDisplay;
+			saveModuleAISnapshotLazy('suzhan', ()=>buildSuzhanSnapshotText(value, fields, planetDisplay));
+		});
+	}
+
 	setRightPanelTab(key){
 		this.setState({
 			rightPanelTab: key,
@@ -595,6 +624,7 @@ class SuZhanMain extends Component{
 							fields={this.props.fields}
 							onFieldsChange={this.onFieldsChange}
 							embeddedReadOnly={this.isEmbeddedReadOnly()}
+							onAscRaModeChange={this.onAscRaModeChange}
 						/>
 					</div>
 				</XQSideSection>
@@ -617,6 +647,8 @@ class SuZhanMain extends Component{
 			['盘型', fields.szshape ? chartShapeName(fields.szshape.value) : chartShapeName(SZConst.SZChart.shape)],
 			['宿法', fields.doubingSu28 ? (SU28_MODE_LABEL[Number(fields.doubingSu28.value)] || SU28_MODE_LABEL[0]) : SU28_MODE_LABEL[0]],   // 九档同源取名(与快照「宿法：」行一致)
 			['人事十二宫', fields.houseStartMode ? houseStartModeName(fields.houseStartMode.value) : houseStartModeName(SZConst.SZChart.houseStartMode)],
+			...(resolveHouseStartMode(fields) === SZConst.SZHouseStart_ASC
+				? [['上升取法', suzhanAscRaModeOf(fields) === ASC_RA_MODE_CLASSIC ? '经典(东点黄经)' : '改进(真赤经)']] : []),
 			['宫位数', chart.houses ? chart.houses.length : '—'],
 			['星曜数', chart.objects ? chart.objects.length : '—'],
 			['二十八宿', chart.fixedStarSu28 ? chart.fixedStarSu28.length : '—'],
@@ -630,7 +662,7 @@ class SuZhanMain extends Component{
 	}
 
 	renderHouseSuRows(){
-		const chartObj = this.props.value || {};
+		const chartObj = withAscRaModeRoot(this.props.value, suzhanAscRaModeOf(this.props.fields)) || {};
 		const chart = chartObj.chart || {};
 		const lines = buildHouseSuLines(chartObj, chart, this.props.planetDisplay, this.props.fields);
 		if(!lines.length){
@@ -722,7 +754,8 @@ class SuZhanMain extends Component{
 			height = height - 20
 		}
 
-		let chartObj = this.props.value;
+		// 上升取法(ASC 起盘时):经典档只把上升点的 ra 换成东点黄经,宿盘定命宫 / 画上升随之;改进档原样
+		let chartObj = withAscRaModeRoot(this.props.value, suzhanAscRaModeOf(this.props.fields));
 		// chartObj 可能是部分态(有 params 无 chart,如 PD 先行落盘的历史脏数据)——按 .chart
 		// 存在性守卫;浅拷贝后再挂 aspects/lots,不就地改 store 里的对象。
 		let chart = (chartObj && chartObj.chart) ? { ...chartObj.chart } : {};

@@ -267,8 +267,9 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		// 节气窗算法代次(窗口包含性自愈版):参与 paramhash 缓存键,旧代次污染缓存自然失效;w5 = 交节时刻改为精确黄经
-		params.put("_v", "w5");
+		// 节气窗算法代次(窗口包含性自愈版):参与 paramhash 缓存键,旧代次污染缓存自然失效;w5 = 交节时刻改为精确黄经;
+		// w6 = 卯时「按赤经」改为太阳赤经比东点赤经(ARMC + 90°)
+		params.put("_v", "w6");
 
 		Map<String, Object> res = AstroHelper.getJieQiBirth(params);
 		return res;
@@ -288,7 +289,7 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		params.put("_v", "w5");
+		params.put("_v", "w6");
 
 		Map<String, Object> res = AstroHelper.requestNoCache(AstroHelper.JieQiBirth, params);
 		return res;

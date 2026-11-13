@@ -72,6 +72,16 @@ class GeoCoordModal extends Component{
 			rec.gpsLat = geo.lat;
 			rec.gpsLng = geo.lon;
 		}
+		// 对外一律真坐标(WGS84):GCJ-02 是高德地图的加偏坐标,只在本弹窗里给地图打点用。
+		// 此前把 GCJ 点当 lat / lng 交出去,各页拿它写命盘经纬度文本(起盘就按它算)—— 与 gpsLat / gpsLng、
+		// 与 AI 助手的地名解析(城市库即 WGS84)差几百米,取整到角分后约一半城市差 1′。
+		// 在这一个出口统一换成真坐标,二十来处 changeGeo 不用各改(新页面接这个弹窗也自然对)。
+		const gLat = Number(rec.gpsLat);
+		const gLng = Number(rec.gpsLng);
+		if(Number.isFinite(gLat) && Number.isFinite(gLng)){
+			rec.lat = gLat;
+			rec.lng = gLng;
+		}
 		// rec.zone(若用户在选择器内手改时区)随 ...record 透传给上层 changeGeo;
 		// 未改则无 zone 字段,上层走自动推断。
 		

@@ -18,6 +18,7 @@ from flatlib import angle
 from flatlib import utils
 from flatlib import const
 from flatlib.dignities import tables
+from flatlib.ephem import swe as _swe
 
 
 # === Base functions === #
@@ -117,8 +118,23 @@ class PrimaryDirections:
         self.chart = chart
         self.lat = chart.pos.lat 
         mc = self.chart.getAngle(const.MC)
-        self.mcRA = mc.eqCoords()[0]
+        # 黄→赤按本日真黄赤交角,恒星盘先加回岁差(与 sweHouses 同一换算);天顶赤经直取 ARMC(MC.ra)。
+        # 旧写法用固定 23.44°、恒星盘直接拿恒星黄经换,天顶还带过一个假黄纬(PD 缓存代次 v27)。
+        try:
+            jd = chart.date.jd
+            with chart._siderealContext():
+                self._offset = _swe.tropicalOffset(jd, getattr(chart, 'flags', 0))
+            self._eps = _swe.trueObliquity(jd)
+        except Exception:
+            self._offset, self._eps = 0.0, None
+        ra = getattr(mc, 'ra', None)
+        self.mcRA = ra if isinstance(ra, (int, float)) else self._eq(mc.lon, 0.0)[0]
         self.terms = self._buildTerms()
+
+    def _eq(self, lon, lat):
+        if self._eps is None:
+            return utils.eqCoords(lon, lat)
+        return _swe.eclipticToEquatorial(lon, lat, self._eps, self._offset)
         
     def _buildTerms(self):
         """ Builds a data structure indexing the terms
@@ -142,10 +158,10 @@ class PrimaryDirections:
         """ Creates a generic entry for an object. """
         
         # Equatorial coordinates
-        eqM = utils.eqCoords(lon, lat)
+        eqM = self._eq(lon, lat)
         eqZ = eqM
         if lat != 0:
-            eqZ = utils.eqCoords(lon, 0)
+            eqZ = self._eq(lon, 0)
         
         return {
             'id': ID,
@@ -160,6 +176,10 @@ class PrimaryDirections:
     def T(self, ID, sign):
         """ Returns the term of an object in a sign. """
         lon = self.terms[sign][ID]
+        # 星座标签相对真黄经转过的盘(南半球读法换回真黄经来算):界按标签星座取,落在真黄经 = 标签黄经 − labelTurn
+        turn = getattr(self.chart, 'labelTurn', 0.0)
+        if turn:
+            lon = (lon - turn) % 360.0
         ID = 'T_%s_%s' % (ID, sign)
         return self.G(ID, 0, lon)
         

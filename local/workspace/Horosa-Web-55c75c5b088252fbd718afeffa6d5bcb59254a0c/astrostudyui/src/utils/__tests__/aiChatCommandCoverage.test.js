@@ -51,8 +51,13 @@ it('🔴 手册真能渲染:每条内置命令名与分组名都出现在渲染�
 	const errors = [];
 	const orig = console.error;
 	console.error = (...a)=>{ errors.push(a.map((x)=>`${x}`).join(' ')); };
+	// 手册是「一技法一章」的书:只渲染当前那一章 → 逐章渲染再拼起来(命令清单在「分析页操作」那一章)
 	let html = '';
-	try{ html = renderToStaticMarkup(React.createElement(HelpDoc)); }finally{ console.error = orig; }
+	try{
+		const chapters = (HelpDoc.book.groups || []).reduce((acc, g)=>acc.concat(g.chapters || []), []);
+		expect(chapters.length).toBeGreaterThan(1);
+		html = chapters.map((ch)=>renderToStaticMarkup(React.createElement(HelpDoc, { ctx: { currentSubTab: ch.key } }))).join('\n');
+	}finally{ console.error = orig; }
 	BUILTIN_COMMANDS.forEach((c)=>expect(html).toContain(`/${c.name}`));
 	COMMAND_GROUPS.slice(0, 3).forEach((g)=>expect(html).toContain(g));
 	expect(errors.filter((e)=>e.indexOf('key') >= 0)).toEqual([]);

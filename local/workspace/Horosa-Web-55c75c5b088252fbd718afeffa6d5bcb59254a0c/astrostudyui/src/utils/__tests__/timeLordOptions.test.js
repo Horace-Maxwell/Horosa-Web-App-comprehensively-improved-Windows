@@ -12,7 +12,7 @@ const mkChart = (isDiurnal)=>({
 const NIGHT = mkChart(false);
 const DAY = mkChart(true);
 const MINOR = { Saturn: 30, Jupiter: 12, Mars: 15, Sun: 19, Venus: 8, Mercury: 20, Moon: 25 };
-const YEAR_DAYS = { solar: 365.242199, sidereal: 365.256363, hellenistic: 360, abumashar: 365.25833, mashaallah: 365.259028, bija: 366.256399 };
+const YEAR_DAYS = { solar: 365.242199, sidereal: 365.256363, hellenistic: 360, abumashar: 365.25833, mashaallah: 365.259028, bija: 365.258756, bijaClassic: 366.256399 };
 const close = (a, b, tol = 1e-6)=>expect(Math.abs(a - b)).toBeLessThan(tol);
 
 describe('129 年系统 · 选项档', ()=>{

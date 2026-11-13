@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroPersianDirected.js b/astrostudyui/src/components/astro/AstroPersianDirected.js
-index 3dc88573..d55bb1e9 100644
+index 037f0f62..ac08add7 100644
 --- a/astrostudyui/src/components/astro/AstroPersianDirected.js
 +++ b/astrostudyui/src/components/astro/AstroPersianDirected.js
-@@ -23,6 +23,7 @@ import CompactTimeField from '../comp/CompactTimeField';
+@@ -24,6 +24,7 @@ import CompactTimeField from '../comp/CompactTimeField';
  import { SideColumn, SidePanelHead, WheelSplit } from './progPageLayout';
  import { XQSelect as Select } from '../xq-ui';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
+ import { TIME_LORD_YEAR_TYPES } from '../../utils/timeLordYears';
  
  const Option = Select.Option;
- const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473 };
-@@ -308,7 +309,8 @@ class AstroPersianDirected extends Component{
+@@ -335,7 +336,8 @@ class AstroPersianDirected extends Component{
  			const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
  			if(params.dirZone){ dt.setZone(params.dirZone); }
  			if(!this._mounted) return;

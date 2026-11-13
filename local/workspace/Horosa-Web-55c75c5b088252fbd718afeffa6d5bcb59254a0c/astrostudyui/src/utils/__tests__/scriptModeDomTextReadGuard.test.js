@@ -36,6 +36,7 @@ const ALLOWED = {
 	'components/ziwei/ZWCenterHouse.js': [1, 'd3 sel.text() 同步段里先写后读拿到的是简体原文(观察者在微任务里才转),只量宽度'],
 	'utils/aiExport/output.js': [1, '读的是不挂进文档的临时 wrap(观察者看不到,永远是原文),写进打印 iframe'],
 	'utils/chartTextFloor.js': [2, '只判「这段字是不是空的」(盘面最小字号量的是字号,不读字面),简繁等价'],
+	'utils/mountAuditDebug.js': [2, '调试钩(缺省不装载):量导出 PDF 版式节点的段名与正文供核对,节点是不挂进文档的临时节点(观察者看不到,永远是原文)'],
 };
 
 

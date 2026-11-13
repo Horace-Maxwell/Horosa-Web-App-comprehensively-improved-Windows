@@ -7,6 +7,7 @@ import {splitDegree} from '../astro/AstroHelper';
 import {randomStr, detectOS, distanceInCircleAbs, creatTooltip, positionFloatingTooltip, setupFloatingTooltip} from '../../utils/helper';
 import { fillTextFromStroke, drawTextV, drawTextH} from '../graph/GraphHelper';
 import {ZiSign,} from '../suzhan/SZConst';
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 
 
 
@@ -742,7 +743,7 @@ class Su28ChartCircle {
 		let commtxts = [
 			'经度：' + params.lon.value + '， ' + '纬度：' + params.lat.value,
 			params.date.value.format('YYYY-MM-DD') + ' ' + params.time.value.format('HH:mm:ss'),
-			'时区：' + params.zone.value
+			'时区：' + (formatZoneLabel(params.zone.value) || params.zone.value)
 		];
 		if(params.zodiacal.value === AstroConst.SIDEREAL){
 			commtxts.push(AstroText.AstroTxtMsg[params.zodiacal.value]);

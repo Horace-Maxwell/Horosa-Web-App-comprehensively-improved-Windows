@@ -9,6 +9,7 @@ import AcgReferencePanel from './AcgReferencePanel';
 import request from '../../utils/request';
 import { setAcgSnapshot } from '../../utils/acgSnapshot';
 import { markPanelReady } from '../../utils/perfMark';
+import { CLIMES_MODES, CLIMES_OBLIQUITY, ECLIPSE_MODES, ECLIPSE_FILTERS } from '../../utils/acgLayers';
 import DateTimeInfo from '../comp/DateTimeInfo';
 import * as Constants from '../../utils/constants';
 import AstroLinesSelector from './AstroLinesSelector';
@@ -18,6 +19,7 @@ import { convertLatStrToDegree, convertLonStrToDegree } from '../astro/AstroHelp
 import { dstAwareZoneAt } from '../../utils/timezone';
 import * as AstroConst from '../../constants/AstroConst';
 import { XQButton, XQCheckItem, XQCheckList, XQDatePicker, XQDrawer, XQPanel, XQSegmented, XQSelect, XQSwitch } from '../xq-ui';
+import XQIcon from '../xq-icons';
 
 // 全 25 宫制(后端 HSYS_MAP 已备 23 友好名 + 单字码透传;落点报告高纬失效自动回退 Porphyry)。
 const HSYS_OPTIONS = [
@@ -144,6 +146,10 @@ export const ACG_PAGE_SETTINGS = definePageSettings('horosa.acg.settings.v1', {
 	ayanamsa: { label: '恒星黄道读数', def: '', oneOf: AYANAMSA_OPTIONS.map((o)=>o[0]) },
 	lsMode: { label: '本地空间线·线型(大圆 / 等角航线)', def: 'great', oneOf: ['great', 'rhumb'] },
 	paranMode: { label: '行星交映 Parans', def: 'off', oneOf: ['off', 'lum', 'all'] },
+	eclipse: { label: '日食路径', def: 'off', oneOf: ECLIPSE_MODES },
+	eclipseFilter: { label: '日食路径·只找中心食', def: 'any', oneOf: ECLIPSE_FILTERS },
+	climes: { label: '气候带 / 纬圈', def: 'off', oneOf: CLIMES_MODES },
+	climesObliquity: { label: '气候带·黄赤交角(改进 / 经典)', def: 'date', oneOf: CLIMES_OBLIQUITY },
 });
 
 class AstroAcg extends Component {
@@ -203,6 +209,10 @@ class AstroAcg extends Component {
 			ayanamsa: '',         // 恒星黄道读数(''=回归;选一档→面板/线加恒星度,物理线不变)
 			lsMode: 'great',      // 本地空间画法:great 大圆 / rhumb 等角航线
 			paranMode: 'off',
+			eclipse: 'off',          // 日食路径:off / prenatal 出生前最近一次 / postnatal 出生后最近一次(后端重算)
+			eclipseFilter: 'any',    // any 任何日食 / central 只找中心食(全、环、全环)
+			climes: 'off',           // 气候带图层:off / klimata 七气候带 / parallels 托勒密纬圈(纯渲染)
+			climesObliquity: 'date', // 纬度推算用的黄赤交角:date 出生时刻(改进,缺省)/ ptolemy 托勒密值(经典)
 			showLabels: true,
 			layersOpen: false,    // 「图层与设置」抽屉(3栏工作台:全部图层/流派/时间/关系盘)
 			refOpen: false,       // 含义速查抽屉(右)
@@ -284,6 +294,8 @@ class AstroAcg extends Component {
 			showLS: !!this.state.showLS,
 			showGeodetic: !!this.state.showGeodetic,
 			geodeticZero: this.state.geodeticZero || '',
+			climes: this.state.climes || 'off',
+			climesObliquity: this.state.climesObliquity || 'date',
 		};
 	}
 
@@ -321,7 +333,14 @@ class AstroAcg extends Component {
 	async requestAcg(params) {
 		// 竞态守卫:快速连切开关时,慢响应(如宫尖线 ~0.6s)可能后到;只认最后一次请求
 		const seq = (this._acgSeq = (this._acgSeq || 0) + 1);
-		const data = await request(`${Constants.ServerRoot}/location/acg`, { body: JSON.stringify(params) });
+		// 计算中角标:开日食路径首次要算食带包络(约 2 秒),此前地图没有任何动静
+		if (!this.unmounted) { this.setState({ acgLoading: true }); }
+		let data;
+		try {
+			data = await request(`${Constants.ServerRoot}/location/acg`, { body: JSON.stringify(params) });
+		} finally {
+			if (!this.unmounted && seq === this._acgSeq) { this.setState({ acgLoading: false }); }
+		}
 		if (this.unmounted || seq !== this._acgSeq) return;
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const acgData = data[Constants.ResultKey];
@@ -373,6 +392,10 @@ class AstroAcg extends Component {
 			ayanamsa: this.state.ayanamsa,
 			stars: this.state.showStars ? '1' : '0',
 		};
+		if (this.state.eclipse && this.state.eclipse !== 'off') {   // 日食路径:开了才下发(关=零回归)
+			p.eclipse = this.state.eclipse;
+			p.eclipseFilter = this.state.eclipseFilter || 'any';
+		}
 		if (this.state.ccgDate) {   // CCG 时间地图:只在设了日期时下发(未设=零回归)
 			p.ccgDate = this.state.ccgDate.format('YYYY/MM/DD');
 			if (this.state.ccgTime) p.ccgTime = this.state.ccgTime;
@@ -571,6 +594,10 @@ class AstroAcg extends Component {
 				</Row>
 				<Row style={{ flex: '1 1 0', minHeight: 0 }}>
 					<Col span={24} style={{ position: 'relative', height: '100%', minHeight: 0 }}>
+						{s.acgLoading ? (
+							<div className="horosa-acg-loading" role="status" style={{ position: 'absolute', top: 8, right: 8, zIndex: 5, padding: '2px 10px', borderRadius: 10, fontSize: 12,
+								background: 'var(--horosa-surface, rgba(0,0,0,0.6))', color: 'var(--horosa-accent, #b8860b)', border: '1px solid var(--horosa-accent, #b8860b)', pointerEvents: 'none' }}>计算中…</div>
+						) : null}
 						<AcgD3Map
 							value={s.acgData}
 							fields={fields}
@@ -594,6 +621,8 @@ class AstroAcg extends Component {
 							showStarParans={s.showStarParans}
 							showTreasure={s.showTreasure}
 							showGeodetic={s.showGeodetic}
+							climes={s.climes}
+							climesObliquity={s.climesObliquity}
 							showParans={s.paranMode !== 'off'}
 							paranAll={s.paranMode === 'all'}
 							showLabels={s.showLabels}
@@ -729,6 +758,22 @@ class AstroAcg extends Component {
 							{row('寻宝图评分热力', <XQSwitch size="small" checked={s.showTreasure} onChange={() => this.toggle('showTreasure')} />)}
 						</>
 					))}
+					{sec('日食与气候带', '日食路径取出生前后最近一次;气候带按最长昼推纬度', (
+						<>
+							{row('日食路径', seg(s.eclipse, [
+								{ value: 'off', label: '关' }, { value: 'prenatal', label: '生前' }, { value: 'postnatal', label: '生后' },
+							], (v) => this.changeCalc({ eclipse: v })))}
+							{s.eclipse !== 'off' ? row('食型', seg(s.eclipseFilter, [
+								{ value: 'any', label: '任何日食' }, { value: 'central', label: '只找中心食' },
+							], (v) => this.changeCalc({ eclipseFilter: v }))) : null}
+							{row('气候带', seg(s.climes, [
+								{ value: 'off', label: '关' }, { value: 'klimata', label: '七带' }, { value: 'parallels', label: '纬圈' },
+							], (v) => this.setState({ climes: v }, this.syncSnapshotUi)))}
+							{s.climes !== 'off' ? row('黄赤交角', seg(s.climesObliquity, [
+								{ value: 'date', label: '改进' }, { value: 'ptolemy', label: '经典' },
+							], (v) => this.setState({ climesObliquity: v }, this.syncSnapshotUi))) : null}
+						</>
+					))}
 					{sec('地理等价', '黄道度↔地理经度的时间无关映射', (
 						<>
 							{row('地理等价线', <XQSwitch size="small" checked={s.showGeodetic} onChange={() => this.toggle('showGeodetic')} />)}
@@ -765,7 +810,7 @@ class AstroAcg extends Component {
 								{ value: 'mixed', label: '混合' }, { value: 'transit', label: '全行运' }, { value: 'progressed', label: '全二推' },
 							], (v) => this.changeCcg({ ccgMix: v }))) : null}
 							{s.ccgDate ? row('时间轴', (
-								<XQButton size="small" onClick={this.toggleCcgPlay}>{s.ccgPlay ? '⏸ 暂停' : '▶ 播放(每月步进)'}</XQButton>
+								<XQButton size="small" onClick={this.toggleCcgPlay}>{s.ccgPlay ? <><XQIcon name="pause" /> 暂停</> : <><XQIcon name="play" /> 播放(每月步进)</>}</XQButton>
 							)) : null}
 							{row('世运事件', (
 								<XQSelect size="small" value="" onChange={this.pickMundane} dropdownMatchSelectWidth={false} style={{ width: 176 }}>

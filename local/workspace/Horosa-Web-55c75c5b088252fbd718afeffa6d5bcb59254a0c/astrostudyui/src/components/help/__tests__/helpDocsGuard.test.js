@@ -35,25 +35,29 @@ function collectText(node, out){
 	}
 	if(typeof node === 'object'){
 		const props = node.props || {};
+		// 帮助文档自家的纯展示部件(helpDocStyle 标 __helpPure):调用展开(选项表 / 步骤的字在 props 里)
+		if(node.type && node.type.__helpPure){
+			collectText(node.type(props), out);
+			return out;
+		}
+		// 手册外壳(HelpBook):逐章调用 render 展开(界面只建当前章,护栏要扫全书)
+		if(props.book && Array.isArray(props.book.groups)){
+			if(typeof props.book.title === 'string'){ out.push(props.book.title); }
+			props.book.groups.forEach((group)=>{
+				if(!group){ return; }
+				if(typeof group.label === 'string'){ out.push(group.label); }
+				if(typeof group.hint === 'string'){ out.push(group.hint); }
+				(group.chapters || []).forEach((c)=>{
+					if(!c){ return; }
+					if(typeof c.label === 'string'){ out.push(c.label); }
+					collectText(typeof c.render === 'function' ? c.render() : null, out);
+				});
+			});
+		}
 		// title/tab 等文本型 prop 也要扫(tab 名与 tooltip 同样是用户可见文案)
 		['tab', 'title', 'placeholder', 'alt'].forEach((k)=>{
 			if(typeof props[k] === 'string'){ out.push(props[k]); }
 		});
-		// 🔴 两层手册(HelpDocTwoLevel)把逐技法正文放在 props.groups[].items[].render 里**惰性**构建,
-		//    正文不走 children —— 不在此展开的话,下面的保密扫描/标签扫描会对这些手册整体失明,
-		//    比旧的单层结构更危险(旧结构各 TabPane 是实参、必被构造)。故在此逐项调用 render 展开。
-		if(Array.isArray(props.groups)){
-			props.groups.forEach((group)=>{
-				if(!group){ return; }
-				if(typeof group.label === 'string'){ out.push(group.label); }
-				if(typeof group.hint === 'string'){ out.push(group.hint); }
-				(group.items || []).forEach((item)=>{
-					if(!item){ return; }
-					if(typeof item.label === 'string'){ out.push(item.label); }
-					collectText(typeof item.render === 'function' ? item.render() : item.content, out);
-				});
-			});
-		}
 		if(props.children !== undefined){
 			collectText(props.children, out);
 		}
@@ -130,41 +134,34 @@ describe('帮助文档护栏', ()=>{
 		}
 		// 与注册表求交:凡是注册表里有的,必须是真实 tab(防手册挂到不存在的 key 上成死文档);
 		// 子技法级手册(挂在别的 tab 下打开)豁免登记于此白名单。
-		const SUBTECHNIQUE_DOCS = new Set(['germanytech', 'yanqin']);
+		const SUBTECHNIQUE_DOCS = new Set(['germanytech', 'yanqin', 'dongya', 'zhufang', 'yizhangjing']);
 		const orphan = KEYS.filter((k)=>!keys.has(k) && !SUBTECHNIQUE_DOCS.has(k));
 		expect(orphan).toEqual([]);
 	});
 
 	// 子技法手册此前打不开:帮助弹窗只按主 tab 取,在量化盘子页会拿到「辅盘」总手册。
-	it('子技法手册可达:子页签有专属手册时优先取它,否则回落主 tab', ()=>{
-		// 量化盘挂在辅盘下,有自己那份手册 → 必须取到它,且不等于辅盘那份
-		const sub = getTechniqueHelpDoc('auxchart', 'germanytech');
-		expect(sub).toBe(TECHNIQUE_HELP_DOCS.germanytech);
-		expect(sub).not.toBe(TECHNIQUE_HELP_DOCS.auxchart);
-		// 无专属手册的子页签 → 回落宿主页手册(不能变成 null)
+	it('一页一本手册:辅盘 / 命·其他各子技法都取本页那本,书按当前子技法停到对应章;合盘里的量化盘单给量化盘那本', ()=>{
+		const { resolveChapterKey } = require('../HelpBook');
+		expect(getTechniqueHelpDoc('auxchart', 'germanytech')).toBe(TECHNIQUE_HELP_DOCS.auxchart);
 		expect(getTechniqueHelpDoc('auxchart', 'hellenastro')).toBe(TECHNIQUE_HELP_DOCS.auxchart);
-		// 不传子页签 / 未知主 tab 的行为不变
 		expect(getTechniqueHelpDoc('auxchart')).toBe(TECHNIQUE_HELP_DOCS.auxchart);
+		expect(getTechniqueHelpDoc('relativechart', 'germanytech')).toBe(TECHNIQUE_HELP_DOCS.germanytech);
 		expect(getTechniqueHelpDoc('nope-not-a-tab')).toBe(null);
-	});
-
-	// 「命·其他」一页三技法:按页内当前技法切手册(演禽 → 演禽手册;策天 / 一掌经 → 本页手册)
-	it('命·其他:当前技法为演禽时取演禽手册,其余技法取本页手册;当前技法取自页内技法条写入的运行时口径', ()=>{
+		['xianqin', 'yizhangjing', 'cetian', 'dongya', 'zhufang'].forEach((k)=>{
+			expect(getTechniqueHelpDoc('mingother', undefined, k)).toBe(TECHNIQUE_HELP_DOCS.mingother);
+		});
+		// 当前技法取自页内技法条写入的运行时口径
 		const { currentHostTechnique } = require('../techniqueHelpRegistry');
-		expect(getTechniqueHelpDoc('mingother', undefined, 'xianqin')).toBe(TECHNIQUE_HELP_DOCS.yanqin);
-		expect(TECHNIQUE_HELP_DOCS.yanqin).not.toBe(TECHNIQUE_HELP_DOCS.mingother);
-		expect(getTechniqueHelpDoc('mingother', undefined, 'yizhangjing')).toBe(TECHNIQUE_HELP_DOCS.mingother);
-		expect(getTechniqueHelpDoc('mingother', undefined, 'cetian')).toBe(TECHNIQUE_HELP_DOCS.mingother);
-		expect(getTechniqueHelpDoc('mingother')).toBe(TECHNIQUE_HELP_DOCS.mingother);
-		// 别的页不受宿主技法影响
-		expect(getTechniqueHelpDoc('shusuan', undefined, 'xianqin')).toBe(TECHNIQUE_HELP_DOCS.shusuan);
 		window.__horosaKinAstroCurrent = { mingother: 'xianqin', technique: 'xianqin' };
 		expect(currentHostTechnique('mingother')).toBe('xianqin');
 		expect(currentHostTechnique('shusuan')).toBe('');
-		delete window.__horosaKinAstroCurrent;
+		window.__horosaKinAstroCurrent = undefined;
 		expect(currentHostTechnique('mingother')).toBe('');
+		const book = TECHNIQUE_HELP_DOCS.mingother.book;
+		expect(resolveChapterKey(book, { currentTab: 'mingother', hostTechnique: 'xianqin' })).not.toBe(resolveChapterKey(book, { currentTab: 'mingother', hostTechnique: 'cetian' }));
 		const header = fs.readFileSync(path.resolve(__dirname, '../../homepage/PageHeader.js'), 'utf8');
 		expect(header).toContain('getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab))');
+		expect(header).toContain('hostTechnique: currentHostTechnique(props.currentTab)');
 	});
 
 	// 「停在某子技法上切走再切回来被打回首档」的根因是导航层与各技法 Main 各写一份合法集。

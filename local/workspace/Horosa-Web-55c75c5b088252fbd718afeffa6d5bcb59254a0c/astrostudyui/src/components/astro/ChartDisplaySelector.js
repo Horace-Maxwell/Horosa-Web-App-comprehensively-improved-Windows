@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { XQCheckItem, XQCheckList, XQSectionTitle, XQSegmented, XQSelect, XQButton } from '../xq-ui';
+import { XQCheckItem, XQSegmented, XQSelect, XQButton, XQSwitch, XQSettingGroup, XQSettingRow } from '../xq-ui';
 import TermsEditor from './TermsEditor';
 import CustomAyanamsaManager from './CustomAyanamsaManager';
 import { setClassicalChartGlobal, classicalGlobalValue } from '../../utils/classicalChartGlobals';
@@ -9,6 +9,7 @@ import { CLASSICAL_PARAM_SPEC } from '../../utils/classicalParamSpec';
 // 日出 / 日没口径两档(档位单源 = 规格表)
 const SUNRISE_MODE_OPTIONS = ((CLASSICAL_PARAM_SPEC.find((s)=>s.key === 'sunriseMode') || {}).options || []).map((o)=>({ value: o.value, label: o.label }));
 import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
+import { pointerLocalRatio } from '../../utils/zoomDomain';
 import { getDivinationJudgeGlobals, setDivinationJudgeGlobal } from '../../utils/divinationJudgeGlobals';
 
 const Option = XQSelect.Option;
@@ -209,17 +210,164 @@ function buildDisplayGroups(C){
 	return raw.map((s)=>({ ...s, opts: s.opts.filter((o)=>o !== undefined && o !== null) }));
 }
 
+// 宽抽屉左侧导航:三段十四组;id 对应各组的 data-setting-anchor。
+const SETTING_NAV = [
+	{ title: '显示', items: [
+		{ id: 'display', title: '盘面显示' },
+		{ id: 'dignity', title: '经典尊贵显示' },
+	] },
+	{ title: '古典计算', items: [
+		{ id: 'terms', title: '界与尊贵' },
+		{ id: 'sect', title: '昼夜与区分' },
+		{ id: 'sun', title: '太阳三态' },
+		{ id: 'moon', title: '月亮与空亡' },
+		{ id: 'lots', title: '希腊点' },
+		{ id: 'aspects', title: '相位与容许度' },
+		{ id: 'stars', title: '恒星与天象' },
+		{ id: 'returns', title: '返照与推运' },
+		{ id: 'houses', title: '宫位与落宫' },
+	] },
+	{ title: '判读与扩展', items: [
+		{ id: 'judge', title: '卜卦 · 择日判读' },
+		{ id: 'esoteric', title: '灵学扩展' },
+		{ id: 'explain', title: '解释与计算' },
+	] },
+];
+
+// 「主标签（括注）」拆成主标签 + 第二行灰字说明;没有尾括注的原样返回。
+function splitSettingLabel(label){
+	const text = `${label || ''}`;
+	const m = /^(.*?)（([^（）]*)）$/.exec(text);
+	if(!m || !m[1]){
+		return { label: text, hint: null };
+	}
+	return { label: m[1], hint: m[2] };
+}
+
+// 最近的可滚动祖先(抽屉正文);找不到返回 null。
+function findScrollHost(node){
+	let el = node ? node.parentElement : null;
+	while(el && el !== document.body){
+		const oy = window.getComputedStyle(el).overflowY;
+		if((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 4){
+			return el;
+		}
+		el = el.parentElement;
+	}
+	return null;
+}
+
+// 点了左侧导航的那一组:滚动跟随高亮先让位给它,直到用户自己滚离跳到的位置。
+// 否则平滑滚动途中经过的组会把高亮抢走;靠末尾的短组根本滚不到顶(抽屉见底),「见底取最后一组」又把它改成最后一组。
+// pin = { id, target(布局 px), arrived, until(时间戳) };返回 { keep: 是否仍按点的那组高亮, pin: 更新后的 pin(null=解除) }
+export const NAV_PIN_SETTLE_MS = 1500;
+export function resolveNavPin(pin, scrollTop, maxScroll, now){
+	if(!pin){ return { keep: false, pin: null }; }
+	const reach = Math.max(0, Math.min(pin.target, maxScroll));
+	const d = Math.abs(scrollTop - reach);
+	if(!pin.arrived){
+		if(d <= 2){ return { keep: true, pin: { ...pin, arrived: true } }; }
+		// 平滑滚动还在途中:仍按点的那组;迟迟到不了(途中被用户打断)就解除
+		return now > pin.until ? { keep: false, pin: null } : { keep: true, pin };
+	}
+	return d <= 4 ? { keep: true, pin } : { keep: false, pin: null };
+}
+
 class ChartDisplaySelector extends Component{
 
 	constructor(props) {
 		super(props);
 		// 两个自定义 Modal 的开合态。
-		this.state = { termsEditorOpen: false, ayanMgrOpen: false };
+		this.state = { termsEditorOpen: false, ayanMgrOpen: false, activeNav: 'display' };
+		this.rootRef = (el)=>{ this.rootEl = el; };
+		this.scrollHost = null;
+		this.scrollRaf = 0;
+		this.onHostScroll = this.onHostScroll.bind(this);
+		this.jumpToAnchor = this.jumpToAnchor.bind(this);
 		this.changeChartOption = this.changeChartOption.bind(this);
 		this.changeVoidClassical = this.changeVoidClassical.bind(this);
 		this.changeShowPlanetHouseInfo = this.changeShowPlanetHouseInfo.bind(this);
 		this.changeShowAstroMeaning = this.changeShowAstroMeaning.bind(this);
 		this.changeOnlyRulerExaltReception = this.changeOnlyRulerExaltReception.bind(this);
+	}
+
+	componentDidMount(){
+		if(this.props.layout !== 'drawer'){ return; }
+		// 抽屉开合有动画,正文可滚高度要等一拍才稳。
+		this.bindTimer = setTimeout(()=>{
+			this.bindTimer = 0;
+			this.scrollHost = findScrollHost(this.rootEl);
+			if(this.scrollHost){
+				this.scrollHost.addEventListener('scroll', this.onHostScroll, { passive: true });
+				this.syncActiveNav();
+			}
+		}, 60);
+	}
+
+	componentWillUnmount(){
+		if(this.bindTimer){ clearTimeout(this.bindTimer); this.bindTimer = 0; }
+		if(this.scrollRaf){ window.cancelAnimationFrame(this.scrollRaf); this.scrollRaf = 0; }
+		if(this.scrollHost){
+			this.scrollHost.removeEventListener('scroll', this.onHostScroll);
+			this.scrollHost = null;
+		}
+	}
+
+	onHostScroll(){
+		if(this.scrollRaf){ return; }
+		this.scrollRaf = window.requestAnimationFrame(()=>{
+			this.scrollRaf = 0;
+			this.syncActiveNav();
+		});
+	}
+
+	// 当前组 = 顶边已越过视口顶部(留 24px 余量)的最后一组;滚到底时取最后一组。
+	syncActiveNav(){
+		const host = this.scrollHost;
+		if(!host || !this.rootEl){ return; }
+		if(this.navPin){
+			const r = resolveNavPin(this.navPin, host.scrollTop, host.scrollHeight - host.clientHeight, Date.now());
+			const id = this.navPin.id;
+			this.navPin = r.pin;
+			if(r.keep){
+				if(id !== this.state.activeNav){ this.setState({ activeNav: id }); }
+				return;
+			}
+		}
+		const top = host.getBoundingClientRect().top;
+		const nodes = this.rootEl.querySelectorAll('[data-setting-anchor]');
+		let current = null;
+		for(let i = 0; i < nodes.length; i++){
+			if(nodes[i].getBoundingClientRect().top - top <= 24){
+				current = nodes[i].getAttribute('data-setting-anchor');
+			}
+		}
+		if(nodes.length && host.scrollTop + host.clientHeight >= host.scrollHeight - 2){
+			current = nodes[nodes.length - 1].getAttribute('data-setting-anchor');
+		}
+		if(!current && nodes.length){
+			current = nodes[0].getAttribute('data-setting-anchor');
+		}
+		if(current && current !== this.state.activeNav){
+			this.setState({ activeNav: current });
+		}
+	}
+
+	jumpToAnchor(id){
+		const host = this.scrollHost || findScrollHost(this.rootEl);
+		const node = this.rootEl ? this.rootEl.querySelector(`[data-setting-anchor="${id}"]`) : null;
+		if(!host || !node){ return; }
+		// 矩形是整页缩放后的尺寸,scrollTop 是缩放前的:先折回滚动量的单位再相加(0.9 档下此前每跳都差一成,越靠后的分组差得越多)
+		const hostBox = host.getBoundingClientRect();
+		const delta = (node.getBoundingClientRect().top - hostBox.top) * pointerLocalRatio(host, hostBox).ky;
+		const top = Math.max(0, host.scrollTop + delta - 8);
+		this.navPin = { id, target: top, arrived: false, until: Date.now() + NAV_PIN_SETTLE_MS };
+		this.setState({ activeNav: id });
+		if(typeof host.scrollTo === 'function'){
+			host.scrollTo({ top, behavior: 'smooth' });
+		}else{
+			host.scrollTop = top;
+		}
 	}
 
 	changeChartOption(opt, checked){
@@ -406,314 +554,286 @@ class ChartDisplaySelector extends Component{
 		const jg = getDivinationJudgeGlobals();
 		const displayGroups = buildDisplayGroups(AstroConst);
 
+		const wide = this.props.layout === 'drawer';
+		const activeNav = this.state.activeNav;
 		const renderOpt = (opt)=>{
 			const checked = currentDisplay.includes(opt);
 			const hint = AstroText.ChartOptionHint ? AstroText.ChartOptionHint[opt + ''] : null;   // 父条件注明
 			return (
 				<XQCheckItem key={opt} checked={checked} onClick={()=>this.changeChartOption(opt, !checked)}>
-					<span className="horosa-selector-label" title={hint || undefined}>{AstroText.ChartOptionText[opt + '']}{hint ? <span style={{ color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4 }}>※</span> : null}</span>
+					<span className="horosa-selector-label" title={hint || undefined}>{AstroText.ChartOptionText[opt + '']}{hint ? <span className="horosa-selector-label-mark">{'\u2060※'}</span> : null}</span>
 				</XQCheckItem>
 			);
 		};
-		// boolItem 支持 disabled（置灰 + 拦截点击）与 hint（次级提示，如「仅校勘本生效」）。
+		// 开关行：标签左 · 开关右；支持 disabled（置灰 + 拦截）与 hint（小徽标，如「仅校勘本生效」）。
+		// 标签里的全角括注拆成第二行灰字说明（字面仍整串写在调用处，便于检索）。
 		const boolItem = (key, label, on, handler, opts)=>{
 			const { disabled = false, hint = null } = opts || {};
+			const parts = splitSettingLabel(label);
 			return (
-				<XQCheckItem
+				<XQSettingRow
 					key={key}
-					checked={on}
+					label={parts.label}
+					hint={parts.hint}
+					badge={hint}
 					disabled={disabled}
-					onClick={disabled ? undefined : (()=>handler(!on))}
-				>
-					<span className="horosa-selector-label">
-						{label}
-						{hint ? <span className="horosa-selector-label-hint">{hint}</span> : null}
-					</span>
-				</XQCheckItem>
+					control={<XQSwitch size="small" checked={!!on} disabled={disabled} onChange={(v)=>handler(v)} />}
+				/>
 			);
 		};
-		// 设置行：标签左 · 控件右（放不下时控件整体换行仍右对齐）。
-		const cell = (label, control)=>(
-			<div className="horosa-terms-cell" key={label}>
-				<span className="horosa-terms-label">{label}</span>
-				<span className="horosa-terms-control">{control}</span>
-			</div>
-		);
+		// 设置行：标签左 · 控件右。宽抽屉里分段钮按内容宽右靠；窄浮层里分段钮另起一行铺满（标签在上）。
+		const cell = (label, control)=>{
+			const parts = splitSettingLabel(label);
+			const isSeg = !!(control && control.type === XQSegmented);
+			return (
+				<XQSettingRow
+					key={label}
+					label={parts.label}
+					hint={parts.hint}
+					stacked={isSeg && !wide}
+					control={control}
+				/>
+			);
+		};
 
 		return (
-			<div className="horosa-selector-drawer">
+			<div className={`horosa-selector-drawer horosa-setting-panel ${wide ? 'horosa-setting-panel-wide' : ''}`.trim()} ref={this.rootRef}>
+				{wide ? (
+					<nav className="horosa-setting-nav" aria-label="星盘设置分组">
+						{SETTING_NAV.map((part)=>(
+							<div className="horosa-setting-nav-part" key={part.title}>
+								<div className="horosa-setting-nav-part-title">{part.title}</div>
+								{part.items.map((it)=>(
+									<button
+										type="button"
+										key={it.id}
+										className={`horosa-setting-nav-item ${activeNav === it.id ? 'horosa-setting-nav-item-active' : ''}`.trim()}
+										onClick={()=>this.jumpToAnchor(it.id)}
+									>{it.title}</button>
+								))}
+							</div>
+						))}
+					</nav>
+				) : null}
+				<div className="horosa-setting-body">
+				{/* 宿主前置组(左栏「显示与样式」浮层把「星盘样式」放进来,与下面各组同一条滚动流、同一副组卡) */}
+				{this.props.lead || null}
 				{/* ① 盘面显示 —— 四子组勾选卡 + 盘面美术(与左栏「星盘样式」卡同源,写 app model 全局生效) */}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>盘面显示</XQSectionTitle>
+				<div className="horosa-setting-part">显示</div>
+				<XQSettingGroup title="盘面显示" data-setting-anchor="display">
 					{displayGroups.map((s)=>(
-						<div className="horosa-selector-subgroup" key={s.title}>
-							<div className="horosa-selector-subtitle">{s.title}</div>
-							<XQCheckList columns={s.cols}>
+						<div className="xq-setting-block" key={s.title}>
+							<div className="xq-setting-subtitle">{s.title}</div>
+							<div className="xq-setting-checks">
 								{s.opts.map(renderOpt)}
-							</XQCheckList>
+							</div>
 						</div>
 					))}
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-inline-row">
-							<div className="horosa-selector-subtitle">行星列表密度</div>
-							<span className="horosa-selector-inline-control">
-								<XQSegmented
-									value={(this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly') ? this.props.planetListStyle : 'full'}
-									options={[{ value: 'full', label: '完整' }, { value: 'degreeOnly', label: '仅度数' }, { value: 'glyphOnly', label: '仅符号' }]}
-									onChange={(e)=>{
-										const v = e && e.target ? e.target.value : e;
-										if(this.props.dispatch){ this.props.dispatch({ type: 'app/save', payload: { planetListStyle: v } }); }
-									}} />
-							</span>
-						</div>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-inline-row">
-							<div className="horosa-selector-subtitle">盘面美术</div>
-							<span className="horosa-selector-inline-control">
-								<XQSelect
-									size="small"
-									style={{width: 200}}
-									value={AstroConst.normalizeWheelArt(this.props.wheelArt)}
-									dropdownMatchSelectWidth={false}
-									onChange={(e)=>{
-										const wheelArt = e && e.target ? e.target.value : e;
-										if(this.props.dispatch){
-											this.props.dispatch({ type: 'app/save', payload: { wheelArt } });
-										}
-									}}
-								>
-									{AstroConst.WHEEL_ART_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
-								</XQSelect>
-							</span>
-						</div>
-					</div>
-				</div>
+					{cell('行星列表密度',
+						<XQSegmented
+							value={(this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly') ? this.props.planetListStyle : 'full'}
+							options={[{ value: 'full', label: '完整' }, { value: 'degreeOnly', label: '仅度数' }, { value: 'glyphOnly', label: '仅符号' }]}
+							onChange={(e)=>{
+								const v = e && e.target ? e.target.value : e;
+								if(this.props.dispatch){ this.props.dispatch({ type: 'app/save', payload: { planetListStyle: v } }); }
+							}} />)}
+					{/* 宿主已在前置组里给了盘面美术下拉(浮层)→ 这里不再重复一行 */}
+					{this.props.hideWheelArt ? null : cell('盘面美术',
+						<XQSelect
+							size="small"
+							style={{width: 200}}
+							value={AstroConst.normalizeWheelArt(this.props.wheelArt)}
+							dropdownMatchSelectWidth={false}
+							onChange={(e)=>{
+								const wheelArt = e && e.target ? e.target.value : e;
+								if(this.props.dispatch){
+									this.props.dispatch({ type: 'app/save', payload: { wheelArt } });
+								}
+							}}
+						>
+							{AstroConst.WHEEL_ART_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+						</XQSelect>)}
+				</XQSettingGroup>
 
 				{/* ② 经典尊贵显示 —— 盘面尊贵三环 */}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>经典尊贵显示</XQSectionTitle>
-					<XQCheckList columns={2}>
-						{[AstroConst.CHART_TRIP, AstroConst.CHART_SIGNRULER, AstroConst.CHART_TERM]
-							.filter((o)=>o !== undefined && o !== null)
-							.map(renderOpt)}
-					</XQCheckList>
-				</div>
+				<XQSettingGroup title="经典尊贵显示" hint="盘面尊贵三环" data-setting-anchor="dignity">
+					<div className="xq-setting-block">
+						<div className="xq-setting-checks">
+							{[AstroConst.CHART_TRIP, AstroConst.CHART_SIGNRULER, AstroConst.CHART_TERM]
+								.filter((o)=>o !== undefined && o !== null)
+								.map(renderOpt)}
+						</div>
+					</div>
+				</XQSettingGroup>
 
 				{/* ③ 古典计算（全盘生效 · /chart 级）：写全局仓+主盘 fields,辅盘/合盘/分至盘同步透传。
 				    平铺改 8 子组(spec group 同名;照①「盘面显示」subtitle 先例)——对标战役
 				    新键按组归位,后续包只在对应组内追加 cell/boolItem。 */}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>古典计算 · 全盘生效</XQSectionTitle>
-					<div className="horosa-selector-scope-note">下列口径随排盘全局生效：主盘、星运推运、辅盘（卜卦 / 择日 / 分盘）、合盘、分至盘同步透传；卜卦盘内由流派预设绑定的键以流派为准。</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">界与尊贵</div>
-						<div className="horosa-terms-grid">
-							{cell('界系（界主 · 尊贵 · 互容接纳）',
-								<XQSegmented value={termsVariant} options={TERMS_OPTIONS} onChange={(e)=>this.applyClassicalField('termsVariant', e && e.target ? e.target.value : e, true)} />)}
-							{termsVariant === 3 ? (
-								<div className="horosa-terms-note">
-									迦勒底界系规则推演重建：仅白羊有据,余座按宽度 [8,7,6,5,4] + 元素昼序推得、夜盘土水互换,仅供参研,请审慎采用。
-								</div>
-							) : null}
-							{cell('双子界序（1647 印本两皆有据）',
-								termsVariant === 2
-									? <XQSegmented value={geminiEmended} options={GEMINI_BOUND_OPTIONS} onChange={(e)=>this.applyClassicalField('geminiBoundEmended', e && e.target ? e.target.value : e)} />
-									: <span className="horosa-selector-label-hint">仅经典传本生效</span>)}
-							{cell('自定义界表（选「自定义」档生效）',
-								<XQButton size="small" onClick={()=>this.setState({ termsEditorOpen: true })}>编辑界表…</XQButton>)}
-							{cell('三分制（triplicity 主星体系）',
-								<XQSegmented value={triplicity} options={TRIPLICITY_OPTIONS} onChange={(e)=>this.applyClassicalField('triplicity', e && e.target ? e.target.value : e)} />)}
-							{cell('游离（外来）减分（择日尊贵矩阵）',
-								<XQSegmented value={peregrineScore} options={PEREGRINE_SCORE_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('peregrineScore', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-							{cell('Almuten 三分计分',
-								<XQSegmented value={almutenTripMode} options={ALMUTEN_TRIP_OPTIONS} onChange={(e)=>this.applyClassicalField('almutenTripMode', e && e.target ? e.target.value : e)} />)}
+				<div className="horosa-setting-part">古典计算 · 全盘生效</div>
+				<div className="horosa-setting-scope">下列口径随排盘全局生效：主盘、星运推运、辅盘（卜卦 / 择日 / 分盘）、合盘、分至盘同步透传；卜卦盘内由流派预设绑定的键以流派为准。</div>
+				<XQSettingGroup title="界与尊贵" data-setting-anchor="terms">
+					{cell('界系（界主 · 尊贵 · 互容接纳）',
+						<XQSegmented value={termsVariant} options={TERMS_OPTIONS} onChange={(e)=>this.applyClassicalField('termsVariant', e && e.target ? e.target.value : e, true)} />)}
+					{termsVariant === 3 ? (
+						<div className="xq-setting-note xq-setting-note-warn">
+							迦勒底界系规则推演重建：仅白羊有据,余座按宽度 [8,7,6,5,4] + 元素昼序推得、夜盘土水互换,仅供参研,请审慎采用。
 						</div>
-						<XQCheckList columns={2}>
-							{boolItem(
-								'leobf',
-								'托勒密界 · 狮子土星优先',
-								leoBoundFirst,
-								(on)=>this.applyClassicalField('leoBoundFirst', on ? 1 : 0, true),
-								termsVariant === 1 ? null : { disabled: true, hint: '仅校勘本生效' }
-							)}
-							{boolItem('digdeb', '弱陷计负分（陷 −5 · 落 −4）', dignityDebilitiesOn, (on)=>this.applyClassicalField('dignityDebilities', on ? 1 : 0))}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">昼夜与区分</div>
-						<div className="horosa-terms-grid">
-							{cell('区分判定（昼 / 夜 · sect）',
-								<XQSegmented value={sectBuffer} options={SECT_BUFFER_OPTIONS} onChange={(e)=>this.applyClassicalField('sectBuffer', e && e.target ? e.target.value : e, true)} />)}
-							{cell('日出 / 日没口径',
-								<XQSegmented value={sunriseMode} options={SUNRISE_MODE_OPTIONS} onChange={(e)=>this.applyClassicalField('sunriseMode', e && e.target ? e.target.value : e)} />)}
-							{cell('月交点（真 / 平 · 全盘随动）',
-								<XQSegmented value={westNodeType} options={WEST_NODE_OPTIONS} onChange={(e)=>this.applyClassicalField('westNodeType', e && e.target ? e.target.value : e, true)} />)}
-							{cell('主宰主星判法（Domicile Master）',
-								<XQSegmented value={domicileMasterMethod} options={DOMICILE_MASTER_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('domicileMasterMethod', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-							{cell('有利宫位（chrematistikoi）',
-								<XQSelect size="small" style={{ width: 232 }} value={busyPlaces} dropdownMatchSelectWidth={false}
-									onChange={(val)=>{ setClassicalChartGlobal('busyPlaces', val); this.forceUpdate(); }}>
-									{BUSY_PLACES_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('行星时制式',
-								<XQSegmented value={planetaryHourMethod} options={PLANETARY_HOUR_OPTIONS} onChange={(e)=>this.applyClassicalField('planetaryHourMethod', e && e.target ? e.target.value : e)} />)}
-						</div>
-						<XQCheckList columns={2}>
-							{boolItem('nodeex', '交点入旺（北交旺双子 · 南交旺射手）', nodeExaltationOn, (on)=>this.applyClassicalField('nodeExaltation', on ? 1 : 0))}
-							{boolItem('dyndiv', '动力学区分（象限强度分区）', dynamicalDivisionsOn, (on)=>{ setClassicalChartGlobal('dynamicalDivisions', on ? 1 : 0); this.forceUpdate(); })}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">太阳三态</div>
-						<div className="horosa-terms-grid">
-							{cell('日心 cazimi',
-								<XQSegmented value={cazimiOrb} options={CAZIMI_OPTIONS} onChange={(e)=>this.applyClassicalField('cazimiOrb', e && e.target ? e.target.value : e)} />)}
-							{cell('燃烧上界',
-								<XQSegmented value={combustOrb} options={COMBUST_OPTIONS} onChange={(e)=>this.applyClassicalField('combustOrb', e && e.target ? e.target.value : e)} />)}
-							{cell('日光束外界（偕日相束级恒逐星弧）',
-								<XQSegmented value={underBeamsOrb} options={BEAMS_OPTIONS} onChange={(e)=>this.applyClassicalField('underBeamsOrb', e && e.target ? e.target.value : e)} />)}
-						</div>
-						<XQCheckList columns={2}>
-							{boolItem('ownchariot', '界内三分内免燃烧（own chariot · Porphyry）', ownChariotOn, (on)=>this.applyClassicalField('combustOwnChariotExempt', on ? 1 : 0))}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">月亮与空亡</div>
-						<div className="horosa-terms-grid">
-							{cell('空亡口径（全盘月亮空亡判定随之改）',
-								<XQSelect size="small" style={{ width: 232 }} value={vocMode} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('vocMode', val)}>
-									{VOC_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('燃烧之路边界（月亮凶区 · 全站随动）',
-								<XQSelect size="small" style={{ width: 232 }} value={viaCombustaVariant} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('viaCombustaVariant', val)}>
-									{VIA_COMBUSTA_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('黑月莉莉丝（真 / 平远地点）',
-								<XQSegmented value={westLilithType} options={WEST_LILITH_OPTIONS} onChange={(e)=>this.applyClassicalField('westLilithType', e && e.target ? e.target.value : e)} />)}
-						</div>
-						<XQCheckList columns={2}>
-							{boolItem('topomoon', '月亮站心视差修正（福点随动）', topoMoonOn, (on)=>this.applyClassicalField('topocentricMoon', on ? 1 : 0))}
-							{boolItem('voidcl', '空亡古典义（30°内，关则按本座义）', voidClassicalOn, this.changeVoidClassical)}
-							{boolItem(
-								'vocouter',
-								'空亡计三王星',
-								vocIncludeOuterOn,
-								(on)=>this.applyClassicalField('vocIncludeOuter', on ? 1 : 0),
-								// 「四座豁免」档走 1647 基判,三王星开关同样无效 → 一并置灰(并不下发)。
-								(vocMode === 'classic' || vocMode === 'exempt4') ? { disabled: true, hint: vocMode === 'exempt4' ? '四座豁免档按 1647 基判,不计三王星' : '仅非 1647 口径生效' } : null
-							)}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">希腊点</div>
-						<div className="horosa-terms-grid">
-							{cell('爱欲 · 必然构成',
-								<XQSegmented value={erosConstruction} options={EROS_CONSTRUCTION_OPTIONS} onChange={(e)=>this.applyClassicalField('erosConstruction', e && e.target ? e.target.value : e)} />)}
-							{cell('福点公式变体',
-								<XQSegmented value={lotFortuneVariant} options={LOT_FORTUNE_VARIANT_OPTIONS} onChange={(e)=>this.applyClassicalField('lotFortuneVariant', e && e.target ? e.target.value : e)} />)}
-							{cell('点度计数法',
-								<XQSegmented value={lotProjection} options={LOT_PROJECTION_OPTIONS} onChange={(e)=>this.applyClassicalField('lotProjection', e && e.target ? e.target.value : e)} />)}
-						</div>
-						<XQCheckList columns={2}>
-							{boolItem('lotrev', '福点按昼夜反转（关则恒昼式）', lotReversalOn, (on)=>this.applyClassicalField('lotReversal', on ? 1 : 0, true))}
-							{boolItem('hermrev', '六星点按昼夜反转（福点另设 · 关则恒同式 · 批判本校勘）', hermeticLotsReversalOn, (on)=>this.applyClassicalField('hermeticLotsReversal', on ? 1 : 0))}
-							{boolItem('lotsdoc', '四点文档序公式（婚·子·友·疾）', lotsDocReverseOn, (on)=>this.applyClassicalField('lotsDocReverse', on ? 1 : 0))}
-							{boolItem('fatheralt', '父点土星伏时替代式（Dorotheus 系）', lotFatherCombustAltOn, (on)=>this.applyClassicalField('lotFatherCombustAlt', on ? 1 : 0))}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">相位与容许度</div>
-						<div className="horosa-terms-grid">
-							{cell('容许度判据体系',
-								<XQSelect size="small" style={{ width: 232 }} value={orbSystem} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('orbSystem', val)}>
-									{ORB_SYSTEM_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('发光体轨加成',
-								<XQSegmented value={luminaryOrbBonus} options={LUM_BONUS_OPTIONS} onChange={(e)=>this.applyClassicalField('luminaryOrbBonus', e && e.target ? e.target.value : e)} />)}
-							{cell('行运相位容许度（推运族初值）',
-								<XQSegmented value={transitOrb} options={TRANSIT_ORB_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('transitOrb', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-							{cell('离相显示上限（相位表）',
-								<XQSegmented value={separatingOrbCap} options={SEPARATING_CAP_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('separatingOrbCap', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-							{cell('正相位 partile 判据（相位表标记 · 尊贵计分）',
-								<XQSegmented value={partileDef} options={PARTILE_OPTIONS} onChange={(e)=>this.applyClassicalField('partileDef', e && e.target ? e.target.value : e)} />)}
-							{cell('映点接触容许度',
-								<XQSelect size="small" style={{ width: 120 }} value={antisciaOrb} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('antisciaOrb', val)}>
-									{ANTISCIA_ORB_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-						</div>
-						<XQCheckList columns={2}>
-							{boolItem('onlyapp', '相位表只显入相', aspectShowOnlyApplyingOn, (on)=>{ setClassicalChartGlobal('aspectShowOnlyApplying', on ? 1 : 0); this.forceUpdate(); })}
-							{boolItem('aspcusps', '宫头参与相位（≤3°）', aspectIncludeCuspsOn, (on)=>this.applyClassicalField('aspectIncludeCusps', on ? 1 : 0))}
-							{boolItem('asplots', '希腊点参与相位（点为受体 · ≤3°）', aspectIncludeLotsOn, (on)=>this.applyClassicalField('aspectIncludeLots', on ? 1 : 0))}
-							{boolItem('aspmid', '中点参与相位（日月四轴 · 硬相 ≤1.5°）', aspectIncludeMidpointsOn, (on)=>this.applyClassicalField('aspectIncludeMidpoints', on ? 1 : 0))}
-						</XQCheckList>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">恒星与天象</div>
-						<div className="horosa-terms-grid">
-							{cell('恒星轨档（汇合恒星 · 恒星触发）',
-								<XQSegmented value={fixedStarOrbMode} options={STAR_ORB_MODE_OPTIONS} onChange={(e)=>this.applyClassicalField('fixedStarOrbMode', e && e.target ? e.target.value : e)} />)}
-							{cell('恒星平轨值',
-								<XQSelect size="small" style={{ width: 120 }} value={fixedStarOrb} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('fixedStarOrb', val)}>
-									{STAR_ORB_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('留驻判定（盘面 S·D 标）',
-								<XQSelect size="small" style={{ width: 232 }} value={stationMarking} dropdownMatchSelectWidth={false}
-									onChange={(val)=>this.applyClassicalField('stationMarking', val)}>
-									{STATION_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-								</XQSelect>)}
-							{cell('食时刻口径（星历食相表）',
-								<XQSegmented value={eclipseTimeMode} options={ECLIPSE_TIME_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('eclipseTimeMode', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-							{cell('自定义恒星黄道（黄道下拉「自定义」档）',
-								<XQButton size="small" onClick={()=>this.setState({ ayanMgrOpen: true })}>管理历元槽位…</XQButton>)}
-						</div>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">返照与推运</div>
-						<div className="horosa-terms-grid">
-							{cell('太阳返照法',
-								<XQSegmented value={solarReturnVariant} options={SOLAR_RETURN_VARIANT_OPTIONS} onChange={(e)=>this.applyClassicalField('solarReturnVariant', e && e.target ? e.target.value : e)} />)}
-							{cell('返照落宫投影',
-								<XQSegmented value={returnLatitudeMode} options={RETURN_LAT_OPTIONS} onChange={(e)=>this.applyClassicalField('returnLatitudeMode', e && e.target ? e.target.value : e)} />)}
-						</div>
-					</div>
-					<div className="horosa-selector-subgroup">
-						<div className="horosa-selector-subtitle">宫位与落宫</div>
-						<div className="horosa-terms-grid">
-							{cell('行星落宫 · 宫头前移（整宫制豁免）',
-								<XQSegmented value={houseCuspAdvance} options={HOUSE_CUSP_ADVANCE_OPTIONS} onChange={(e)=>this.applyClassicalField('houseCuspAdvance', e && e.target ? e.target.value : e)} />)}
-						</div>
-					</div>
-				</div>
+					) : null}
+					{cell('双子界序（1647 印本两皆有据）',
+						termsVariant === 2
+							? <XQSegmented value={geminiEmended} options={GEMINI_BOUND_OPTIONS} onChange={(e)=>this.applyClassicalField('geminiBoundEmended', e && e.target ? e.target.value : e)} />
+							: <span className="horosa-selector-label-hint">仅经典传本生效</span>)}
+					{cell('自定义界表（选「自定义」档生效）',
+						<XQButton size="small" onClick={()=>this.setState({ termsEditorOpen: true })}>编辑界表…</XQButton>)}
+					{cell('三分制（triplicity 主星体系）',
+						<XQSegmented value={triplicity} options={TRIPLICITY_OPTIONS} onChange={(e)=>this.applyClassicalField('triplicity', e && e.target ? e.target.value : e)} />)}
+					{cell('游离（外来）减分（择日尊贵矩阵）',
+						<XQSegmented value={peregrineScore} options={PEREGRINE_SCORE_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('peregrineScore', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+					{cell('Almuten 三分计分',
+						<XQSegmented value={almutenTripMode} options={ALMUTEN_TRIP_OPTIONS} onChange={(e)=>this.applyClassicalField('almutenTripMode', e && e.target ? e.target.value : e)} />)}
+					{boolItem(
+						'leobf',
+						'托勒密界 · 狮子土星优先',
+						leoBoundFirst,
+						(on)=>this.applyClassicalField('leoBoundFirst', on ? 1 : 0, true),
+						termsVariant === 1 ? null : { disabled: true, hint: '仅校勘本生效' }
+					)}
+					{boolItem('digdeb', '弱陷计负分（陷 −5 · 落 −4）', dignityDebilitiesOn, (on)=>this.applyClassicalField('dignityDebilities', on ? 1 : 0))}
+				</XQSettingGroup>
+				<XQSettingGroup title="昼夜与区分" data-setting-anchor="sect">
+					{cell('区分判定（昼 / 夜 · sect）',
+						<XQSegmented value={sectBuffer} options={SECT_BUFFER_OPTIONS} onChange={(e)=>this.applyClassicalField('sectBuffer', e && e.target ? e.target.value : e, true)} />)}
+					{cell('日出 / 日没口径',
+						<XQSegmented value={sunriseMode} options={SUNRISE_MODE_OPTIONS} onChange={(e)=>this.applyClassicalField('sunriseMode', e && e.target ? e.target.value : e)} />)}
+					{cell('月交点（真 / 平 · 全盘随动）',
+						<XQSegmented value={westNodeType} options={WEST_NODE_OPTIONS} onChange={(e)=>this.applyClassicalField('westNodeType', e && e.target ? e.target.value : e, true)} />)}
+					{cell('主宰主星判法（Domicile Master）',
+						<XQSegmented value={domicileMasterMethod} options={DOMICILE_MASTER_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('domicileMasterMethod', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+					{cell('有利宫位（chrematistikoi）',
+						<XQSelect size="small" style={{ width: 232 }} value={busyPlaces} dropdownMatchSelectWidth={false}
+							onChange={(val)=>{ setClassicalChartGlobal('busyPlaces', val); this.forceUpdate(); }}>
+							{BUSY_PLACES_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('行星时制式',
+						<XQSegmented value={planetaryHourMethod} options={PLANETARY_HOUR_OPTIONS} onChange={(e)=>this.applyClassicalField('planetaryHourMethod', e && e.target ? e.target.value : e)} />)}
+					{boolItem('nodeex', '交点入旺（北交旺双子 · 南交旺射手）', nodeExaltationOn, (on)=>this.applyClassicalField('nodeExaltation', on ? 1 : 0))}
+					{boolItem('dyndiv', '动力学区分（象限强度分区）', dynamicalDivisionsOn, (on)=>{ setClassicalChartGlobal('dynamicalDivisions', on ? 1 : 0); this.forceUpdate(); })}
+				</XQSettingGroup>
+				<XQSettingGroup title="太阳三态" data-setting-anchor="sun">
+					{cell('日心 cazimi',
+						<XQSegmented value={cazimiOrb} options={CAZIMI_OPTIONS} onChange={(e)=>this.applyClassicalField('cazimiOrb', e && e.target ? e.target.value : e)} />)}
+					{cell('燃烧上界',
+						<XQSegmented value={combustOrb} options={COMBUST_OPTIONS} onChange={(e)=>this.applyClassicalField('combustOrb', e && e.target ? e.target.value : e)} />)}
+					{cell('日光束外界（偕日相束级恒逐星弧）',
+						<XQSegmented value={underBeamsOrb} options={BEAMS_OPTIONS} onChange={(e)=>this.applyClassicalField('underBeamsOrb', e && e.target ? e.target.value : e)} />)}
+					{boolItem('ownchariot', '界内三分内免燃烧（own chariot · Porphyry）', ownChariotOn, (on)=>this.applyClassicalField('combustOwnChariotExempt', on ? 1 : 0))}
+				</XQSettingGroup>
+				<XQSettingGroup title="月亮与空亡" data-setting-anchor="moon">
+					{cell('空亡口径（全盘月亮空亡判定随之改）',
+						<XQSelect size="small" style={{ width: 232 }} value={vocMode} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('vocMode', val)}>
+							{VOC_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('燃烧之路边界（月亮凶区 · 全站随动）',
+						<XQSelect size="small" style={{ width: 232 }} value={viaCombustaVariant} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('viaCombustaVariant', val)}>
+							{VIA_COMBUSTA_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('黑月莉莉丝（真 / 平远地点）',
+						<XQSegmented value={westLilithType} options={WEST_LILITH_OPTIONS} onChange={(e)=>this.applyClassicalField('westLilithType', e && e.target ? e.target.value : e)} />)}
+					{boolItem('topomoon', '月亮站心视差修正（福点随动）', topoMoonOn, (on)=>this.applyClassicalField('topocentricMoon', on ? 1 : 0))}
+					{boolItem('voidcl', '空亡古典义（30°内，关则按本座义）', voidClassicalOn, this.changeVoidClassical)}
+					{boolItem(
+						'vocouter',
+						'空亡计三王星',
+						vocIncludeOuterOn,
+						(on)=>this.applyClassicalField('vocIncludeOuter', on ? 1 : 0),
+						// 「四座豁免」档走 1647 基判,三王星开关同样无效 → 一并置灰(并不下发)。
+						(vocMode === 'classic' || vocMode === 'exempt4') ? { disabled: true, hint: vocMode === 'exempt4' ? '四座豁免档按 1647 基判,不计三王星' : '仅非 1647 口径生效' } : null
+					)}
+				</XQSettingGroup>
+				<XQSettingGroup title="希腊点" data-setting-anchor="lots">
+					{cell('爱欲 · 必然构成',
+						<XQSegmented value={erosConstruction} options={EROS_CONSTRUCTION_OPTIONS} onChange={(e)=>this.applyClassicalField('erosConstruction', e && e.target ? e.target.value : e)} />)}
+					{cell('福点公式变体',
+						<XQSegmented value={lotFortuneVariant} options={LOT_FORTUNE_VARIANT_OPTIONS} onChange={(e)=>this.applyClassicalField('lotFortuneVariant', e && e.target ? e.target.value : e)} />)}
+					{cell('点度计数法',
+						<XQSegmented value={lotProjection} options={LOT_PROJECTION_OPTIONS} onChange={(e)=>this.applyClassicalField('lotProjection', e && e.target ? e.target.value : e)} />)}
+					{boolItem('lotrev', '福点按昼夜反转（关则恒昼式）', lotReversalOn, (on)=>this.applyClassicalField('lotReversal', on ? 1 : 0, true))}
+					{boolItem('hermrev', '六星点按昼夜反转（福点另设 · 关则恒同式 · 批判本校勘）', hermeticLotsReversalOn, (on)=>this.applyClassicalField('hermeticLotsReversal', on ? 1 : 0))}
+					{boolItem('lotsdoc', '四点文档序公式（婚·子·友·疾）', lotsDocReverseOn, (on)=>this.applyClassicalField('lotsDocReverse', on ? 1 : 0))}
+					{boolItem('fatheralt', '父点土星伏时替代式（Dorotheus 系）', lotFatherCombustAltOn, (on)=>this.applyClassicalField('lotFatherCombustAlt', on ? 1 : 0))}
+				</XQSettingGroup>
+				<XQSettingGroup title="相位与容许度" data-setting-anchor="aspects">
+					{cell('容许度判据体系',
+						<XQSelect size="small" style={{ width: 232 }} value={orbSystem} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('orbSystem', val)}>
+							{ORB_SYSTEM_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('发光体轨加成',
+						<XQSegmented value={luminaryOrbBonus} options={LUM_BONUS_OPTIONS} onChange={(e)=>this.applyClassicalField('luminaryOrbBonus', e && e.target ? e.target.value : e)} />)}
+					{cell('行运相位容许度（推运族初值）',
+						<XQSegmented value={transitOrb} options={TRANSIT_ORB_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('transitOrb', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+					{cell('离相显示上限（相位表）',
+						<XQSegmented value={separatingOrbCap} options={SEPARATING_CAP_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('separatingOrbCap', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+					{cell('正相位 partile 判据（相位表标记 · 尊贵计分）',
+						<XQSegmented value={partileDef} options={PARTILE_OPTIONS} onChange={(e)=>this.applyClassicalField('partileDef', e && e.target ? e.target.value : e)} />)}
+					{cell('映点接触容许度',
+						<XQSelect size="small" style={{ width: 120 }} value={antisciaOrb} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('antisciaOrb', val)}>
+							{ANTISCIA_ORB_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{boolItem('onlyapp', '相位表只显入相', aspectShowOnlyApplyingOn, (on)=>{ setClassicalChartGlobal('aspectShowOnlyApplying', on ? 1 : 0); this.forceUpdate(); })}
+					{boolItem('aspcusps', '宫头参与相位（≤3°）', aspectIncludeCuspsOn, (on)=>this.applyClassicalField('aspectIncludeCusps', on ? 1 : 0))}
+					{boolItem('asplots', '希腊点参与相位（点为受体 · ≤3°）', aspectIncludeLotsOn, (on)=>this.applyClassicalField('aspectIncludeLots', on ? 1 : 0))}
+					{boolItem('aspmid', '中点参与相位（日月四轴 · 硬相 ≤1.5°）', aspectIncludeMidpointsOn, (on)=>this.applyClassicalField('aspectIncludeMidpoints', on ? 1 : 0))}
+				</XQSettingGroup>
+				<XQSettingGroup title="恒星与天象" data-setting-anchor="stars">
+					{cell('恒星轨档（汇合恒星 · 恒星触发）',
+						<XQSegmented value={fixedStarOrbMode} options={STAR_ORB_MODE_OPTIONS} onChange={(e)=>this.applyClassicalField('fixedStarOrbMode', e && e.target ? e.target.value : e)} />)}
+					{cell('恒星平轨值',
+						<XQSelect size="small" style={{ width: 120 }} value={fixedStarOrb} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('fixedStarOrb', val)}>
+							{STAR_ORB_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('留驻判定（盘面 S·D 标）',
+						<XQSelect size="small" style={{ width: 232 }} value={stationMarking} dropdownMatchSelectWidth={false}
+							onChange={(val)=>this.applyClassicalField('stationMarking', val)}>
+							{STATION_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</XQSelect>)}
+					{cell('食时刻口径（星历食相表）',
+						<XQSegmented value={eclipseTimeMode} options={ECLIPSE_TIME_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('eclipseTimeMode', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+					{cell('自定义恒星黄道（黄道下拉「自定义」档）',
+						<XQButton size="small" onClick={()=>this.setState({ ayanMgrOpen: true })}>管理历元槽位…</XQButton>)}
+				</XQSettingGroup>
+				<XQSettingGroup title="返照与推运" data-setting-anchor="returns">
+					{cell('太阳返照法',
+						<XQSegmented value={solarReturnVariant} options={SOLAR_RETURN_VARIANT_OPTIONS} onChange={(e)=>this.applyClassicalField('solarReturnVariant', e && e.target ? e.target.value : e)} />)}
+					{cell('返照落宫投影',
+						<XQSegmented value={returnLatitudeMode} options={RETURN_LAT_OPTIONS} onChange={(e)=>this.applyClassicalField('returnLatitudeMode', e && e.target ? e.target.value : e)} />)}
+				</XQSettingGroup>
+				<XQSettingGroup title="宫位与落宫" data-setting-anchor="houses">
+					{cell('行星落宫 · 宫头前移（整宫制豁免）',
+						<XQSegmented value={houseCuspAdvance} options={HOUSE_CUSP_ADVANCE_OPTIONS} onChange={(e)=>this.applyClassicalField('houseCuspAdvance', e && e.target ? e.target.value : e)} />)}
+				</XQSettingGroup>
 
 				{/* ④ 卜卦 · 择日判读 —— divinationJudgeGlobals(纯判读两键;三态/空亡/恒星等已升上方全盘生效组) */}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>卜卦 · 择日判读</XQSectionTitle>
-					<div className="horosa-selector-scope-note">仅下列两项只作用于卜卦盘 / 择日盘的判读引擎；卜卦流派学理已绑定的项恒以流派为准。其余古典口径（落宫 / 三态 / 空亡 / 恒星 / 映点）已在上方「古典计算 · 全盘生效」组，全站排盘与显示随动。</div>
-					<XQCheckList columns={2}>
-						{boolItem('cmss', '燃烧限同座（异座不判燃烧）', !!jg.combustMitigateSameSign, (on)=>this.applyJudgeGlobal('combustMitigateSameSign', on))}
-						{boolItem('antiscia', '映点参与判读（隐合 / 隐冲）', !!jg.antiscia, (on)=>this.applyJudgeGlobal('antiscia', on))}
-					</XQCheckList>
-				</div>
+				<div className="horosa-setting-part">判读与扩展</div>
+				<XQSettingGroup title="卜卦 · 择日判读" data-setting-anchor="judge">
+					<div className="xq-setting-note">仅下列两项只作用于卜卦盘 / 择日盘的判读引擎；卜卦流派学理已绑定的项恒以流派为准。其余古典口径（落宫 / 三态 / 空亡 / 恒星 / 映点）已在上方「古典计算 · 全盘生效」组，全站排盘与显示随动。</div>
+					{boolItem('cmss', '燃烧限同座（异座不判燃烧）', !!jg.combustMitigateSameSign, (on)=>this.applyJudgeGlobal('combustMitigateSameSign', on))}
+					{boolItem('antiscia', '映点参与判读（隐合 / 隐冲）', !!jg.antiscia, (on)=>this.applyJudgeGlobal('antiscia', on))}
+				</XQSettingGroup>
 
 				{/* ⑤ 解释与计算 */}
 				{/* ⑥ 灵学扩展(近代推算体系,默认全关) */}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>灵学扩展</XQSectionTitle>
-					<div className="horosa-selector-scope-note">以下为近代灵学体系推算项，非古典文献口径；默认关闭。祝融星为推算行星（无天文实体）。</div>
-					<div className="horosa-terms-grid">
-						{cell('祝融星（推算行星）',
-							<XQSegmented value={vulcanCalc} options={VULCAN_OPTIONS} onChange={(e)=>this.applyClassicalField('vulcanCalc', e && e.target ? e.target.value : e)} />)}
-						{cell('七射线权重',
-							<XQSegmented value={rayWeighting} options={RAY_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('rayWeighting', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
-					</div>
-				</div>
+				<XQSettingGroup title="灵学扩展" data-setting-anchor="esoteric">
+					<div className="xq-setting-note">以下为近代灵学体系推算项，非古典文献口径；默认关闭。祝融星为推算行星（无天文实体）。</div>
+					{cell('祝融星（推算行星）',
+						<XQSegmented value={vulcanCalc} options={VULCAN_OPTIONS} onChange={(e)=>this.applyClassicalField('vulcanCalc', e && e.target ? e.target.value : e)} />)}
+					{cell('七射线权重',
+						<XQSegmented value={rayWeighting} options={RAY_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('rayWeighting', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
+				</XQSettingGroup>
 
 				{/* 两个自定义 Modal(常挂条件渲染;保存后 forceUpdate 刷新回显)。 */}
 				{this.state.termsEditorOpen ? (
@@ -726,13 +846,11 @@ class ChartDisplaySelector extends Component{
 						fieldsPinned={this.fieldsHaveUserAyan()}
 						onChanged={(store)=>this.onAyanSlotsChanged(store)} />
 				) : null}
-				<div className="horosa-selector-section">
-					<XQSectionTitle>解释与计算</XQSectionTitle>
-					<XQCheckList columns={3}>
-						{boolItem('phi', '星曜附带后天宫信息', this.props.showPlanetHouseInfo === 1 || this.props.showPlanetHouseInfo === true, this.changeShowPlanetHouseInfo)}
-						{boolItem('mean', '是否显示星 / 宫 / 座 / 相释义', this.props.showAstroMeaning === 1 || this.props.showAstroMeaning === true, this.changeShowAstroMeaning)}
-						{boolItem('rec', '仅按本垣擢升计算互容接纳', this.props.showOnlyRulExaltReception === 1 || this.props.showOnlyRulExaltReception === true, this.changeOnlyRulerExaltReception)}
-					</XQCheckList>
+				<XQSettingGroup title="解释与计算" data-setting-anchor="explain">
+					{boolItem('phi', '星曜附带后天宫信息', this.props.showPlanetHouseInfo === 1 || this.props.showPlanetHouseInfo === true, this.changeShowPlanetHouseInfo)}
+					{boolItem('mean', '是否显示星 / 宫 / 座 / 相释义', this.props.showAstroMeaning === 1 || this.props.showAstroMeaning === true, this.changeShowAstroMeaning)}
+					{boolItem('rec', '仅按本垣擢升计算互容接纳', this.props.showOnlyRulExaltReception === 1 || this.props.showOnlyRulExaltReception === true, this.changeOnlyRulerExaltReception)}
+				</XQSettingGroup>
 				</div>
 			</div>
 		);

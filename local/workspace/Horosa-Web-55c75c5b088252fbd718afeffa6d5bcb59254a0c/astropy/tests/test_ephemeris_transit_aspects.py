@@ -109,3 +109,24 @@ def test_build_ephemeris_reports_limits(monkeypatch):
     assert lim['rangeTruncated'] is True and lim['rangeDays'] == 732 and lim['dailyTruncated'] is True and lim['dailyDays'] == 370
     assert lim['requestedEndDate']['jd'] > long['params']['endDate']['jd']
     assert len(long['dailyPositions']) == 370
+
+
+def test_station_direction_is_the_motion_after_the_station():
+    """2024 年 4 月水星 4/1 转逆、4/25 转顺;留点上速度约等于 0,方向要看留前留后。"""
+    import swisseph
+    from astrostudy.astroextra import calc_stations
+    rows = calc_stations(swisseph.julday(2024, 3, 25, 0.0), swisseph.julday(2024, 5, 5, 0.0), '+00:00', ['Mercury'])
+    assert [(r['date'], r['direction']) for r in rows] == [('2024-04-01', 'Retrograde'), ('2024-04-25', 'Direct')]
+
+
+def test_station_direction_for_every_planet_over_a_year():
+    import swisseph
+    from astrostudy.astroextra import calc_stations
+    ids = {'Mercury': swisseph.MERCURY, 'Venus': swisseph.VENUS, 'Mars': swisseph.MARS, 'Jupiter': swisseph.JUPITER,
+           'Saturn': swisseph.SATURN, 'Uranus': swisseph.URANUS, 'Neptune': swisseph.NEPTUNE, 'Pluto': swisseph.PLUTO}
+    rows = calc_stations(swisseph.julday(2024, 1, 1, 0.0), swisseph.julday(2025, 1, 1, 0.0), '+00:00', list(ids))
+    assert len(rows) >= 14
+    for row in rows:
+        after = swisseph.calc_ut(row['jd'] + 3.0, ids[row['body']], swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)[0][3]
+        assert (after > 0) == (row['direction'] == 'Direct'), row['body']
+

@@ -568,6 +568,16 @@
         color: var(--horosa-huangji-muted);
     }
 
+    /* 中栏盘位的起盘前提示:落在舞台正中(与全站盘面空态同一位置),不贴在顶上。
+       盘宿主是可滚的纵向 flex 容器 → margin:auto 两向居中;宿主非 flex 的页由 align-self / justify-self 兜住横向。 */
+    .horosa-workspace-shell .horosa-huangji-board-host > .horosa-huangji-empty {
+        margin: auto;
+        align-self: center;
+        min-height: 160px;
+        padding: 24px;
+        box-sizing: border-box;
+    }
+
     .horosa-workspace-shell .horosa-huangji-tabs .ant-tabs-tab:hover,
     .horosa-workspace-shell .horosa-huangji-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
         color: var(--horosa-huangji-accent-strong);
@@ -1623,14 +1633,21 @@
     .horosa-workspace-shell .horosa-guice-group .horosa-guice-pair-grid .horosa-huangji-select-field + .horosa-huangji-select-field {
         margin-top: 0;
     }
-    .horosa-workspace-shell .horosa-guice-pair-grid .horosa-huangji-select-field > span {
+    .horosa-workspace-shell .horosa-guice-pair-grid .horosa-huangji-select-field > span,
+    .horosa-workspace-shell .horosa-fg-pair-grid .horosa-huangji-select-field > span {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .horosa-workspace-shell .horosa-guice-pair-grid .ant-select-selection-item {
+    .horosa-workspace-shell .horosa-guice-pair-grid .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-fg-pair-grid .ant-select-selection-item {
         white-space: nowrap !important;
         text-overflow: ellipsis;
+    }
+    /* 飞宫配对网格:格距收一点,给两格下拉多留字宽 */
+    .horosa-workspace-shell .horosa-fg-pair-grid {
+        gap: 10px 8px;
+        align-items: start;
     }
     /* 轨策开关芯片:两列描金(同六爻/塔罗显示项 house 风格);与上下留安全距 */
     .horosa-workspace-shell .horosa-guice-toggle-grid {
@@ -1638,14 +1655,4 @@
         margin: 10px 0 6px;
     }
 
-    .horosa-workspace-shell .horosa-shenyishu-redesign .xq-select .ant-select-selector {
-        height: auto !important;
-        padding-top: 2px !important;
-        padding-bottom: 2px !important;
-    }
-
-    .horosa-workspace-shell .horosa-shenyishu-redesign .xq-select .ant-select-selection-item {
-        min-height: 28px;
-        white-space: normal;
-        line-height: 1.25 !important;
-    }
+    /* 神易数下拉的选中项折行口径并入术数各页共用的那条(11-kinastro-guazhan.less:最多两行、框高恒定),这里不再单独放行。 */

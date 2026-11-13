@@ -2,6 +2,7 @@ import { scheduleStorageWrite, removeStorageNow } from './deferredStorage';
 import { pickFresherSnapshot } from './snapshotSlotRead';
 import { lazySnapshotBuildEnabled } from './perfFlags';
 import { mountCalibreSignature } from './mountCalibreSignature';
+import { pageChartOrbSignature } from './pageChartOrb';
 
 // 模块快照写入时打全局口径签名(读侧 aiAnalysisContext.getTechniqueSnapshotFromCache 比对);mountCalibreSignature 读存储失败也照样给出签名串、永不抛。
 // 模块快照存储键前缀(单一来源;读快照一律经 loadModuleAISnapshot,别处不直读这把键)
@@ -15,11 +16,19 @@ const MODULE_SNAPSHOT_GLOBAL_KEY = '__horosa_module_ai_snapshot_map';
 // 同名后写覆盖(latest-wins):连续重排只构建最后一次,旧 factory 永不执行。
 const PENDING_BUILDS = new Map();
 
+// 快照的容许度签名:写入方在 meta 里明说的(AI 挂载按自己的口径重算后写槽)优先,否则取页面当前这张盘的。
+// 读侧(aiAnalysisContext.getTechniqueSnapshotFromCache)拿它与挂载口径比,对不上就不复用。
+function snapshotOrbSignature(meta){
+	if(meta && typeof meta.orbSig === 'string'){ return meta.orbSig; }
+	try{ return pageChartOrbSignature(); }catch(e){ return '{}'; }
+}
+
 function createPendingToken(moduleName, contentFactory, meta){
 	const token = {
 		// createdAt/meta 在登记时打点:与同步版「save 时刻」语义一致,物化不重算。
 		createdAt: new Date().toISOString(),
 		calibreSig: mountCalibreSignature(),   // 登记时刻的全局口径签名
+		orbSig: snapshotOrbSignature(meta),    // 登记时刻这张盘的容许度签名
 		meta: meta || {},
 		done: false,
 		cancelled: false,   // 清槽时置位:之后的物化(空闲刷盘 / 读取)不再构建、不写内存,清掉的旧快照不会复活
@@ -36,6 +45,7 @@ function createPendingToken(moduleName, contentFactory, meta){
 						module: moduleName,
 						version: 1,
 						calibreSig: token.calibreSig,
+						orbSig: token.orbSig,
 						createdAt: token.createdAt,
 						meta: token.meta,
 						content: text,
@@ -136,6 +146,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 			module: moduleName,
 			version: 1,
 			calibreSig: mountCalibreSignature(),
+			orbSig: snapshotOrbSignature(meta),
 			createdAt: new Date().toISOString(),
 			meta: meta || {},
 			content: text,
@@ -156,6 +167,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 						module: moduleName,
 						version: 1,
 						calibreSig: mountCalibreSignature(),
+						orbSig: snapshotOrbSignature(meta),
 						createdAt: new Date().toISOString(),
 						meta: meta || {},
 						content: text,

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guazhan/GuaZhanMain.js b/astrostudyui/src/components/guazhan/GuaZhanMain.js
-index bde6e4b2..d55e478a 100644
+index 286d290b..e7e3235f 100644
 --- a/astrostudyui/src/components/guazhan/GuaZhanMain.js
 +++ b/astrostudyui/src/components/guazhan/GuaZhanMain.js
 @@ -41,6 +41,8 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';

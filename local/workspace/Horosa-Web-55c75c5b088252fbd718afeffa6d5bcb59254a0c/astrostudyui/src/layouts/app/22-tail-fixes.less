@@ -115,6 +115,22 @@
 	}
 }
 
+/* 六壬未起课的空态提示:盖在空 svg 上、落在舞台正中(盘组件不卸,起课后原地画);不接指针,不挡宿主滚动。 */
+:global {
+	.horosa-workspace-shell .horosa-liureng-chart-host {
+		position: relative;
+	}
+	.horosa-workspace-shell .horosa-liureng-chart-host > .horosa-liureng-stage-empty {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		display: flex;
+		pointer-events: none;
+	}
+}
+
 
 /* 各技法页主栅格此前写死「中列 ≥480~720px、侧栏 ≥245~400px」,
    壳放大到 1.8 时布局视口只有 960px,总和超宽 → grid overflow:hidden 从右侧裁掉右栏(数算/策天/择日/辅盘子盘/主限法盘… 真机实报同族)。
@@ -288,18 +304,22 @@
 	}
 }
 
-/* 空态提示:合盘两张盘未选齐(盘区正中,绝对定位不占版面)、八卦类象首启未选卦(顶部一行) */
+/* 空态提示:合盘两张盘未选齐(跟在「排盘」右侧、文流内一行;早先绝对定位在盘区正中,会压在子盘的表格 / 盘与相位栏的分界上)、八卦类象首启未选卦(顶部一行) */
 :global {
+	.horosa-workspace-shell .horosa-relative-action-col {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+	.horosa-workspace-shell .horosa-relative-action-col > .ant-btn { flex: 0 0 auto; }
 	.horosa-workspace-shell .horosa-relative-empty-hint {
-		position: absolute;
-		left: 50%;
-		top: 40%;
-		transform: translate(-50%, -50%);
-		z-index: 2;
-		max-width: 80%;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		color: var(--horosa-text-secondary);
-		text-align: center;
-		pointer-events: none;
 	}
 	.horosa-workspace-shell .horosa-guasym-empty-hint {
 		padding: 4px 2px 8px;
@@ -329,13 +349,15 @@
    「卡身不滚」必须同时给出新的滚动承担者:卡身是纵向 flex 定高框,内层页签吃满卡身(height 100%、min-height 0),内层内容区 flex 1 + 自己滚。
    14-page-fixes 那组通用规则对 .horosa-sanshi-liureng-tabs 及其内容区写了 height:auto / overflow:visible 且带 !important(给「整卡一起滚」的旧写法用),
    这里的覆盖必须同样 !important 且选择器严格更具体,否则内层内容区被压回 visible、内容整段落在卡身裁切框外够不着。
-   只对打了类的卡生效(太乙那组内层页签不在此列,仍由卡身滚)。 */
+   三张带内层页签的卡(太乙 / 六壬 / 遁甲)同一套:内层页签条固定在卡顶,只有它下面的内容滚。 */
 :global {
 	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card.horosa-sanshi-subtabs-card > .ant-card-body {
 		overflow-y: hidden !important;
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
+		// 卡身上方不再留白:内层页签条紧跟外层页签条(两行页签是一组,中间只隔外层那 4px)。
+		padding: 0 !important;
 	}
 	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs {
 		flex: 1 1 auto;
@@ -348,11 +370,28 @@
 		min-height: 0;
 		max-height: none !important;
 		overflow-x: hidden !important;
-		overflow-y: auto !important;
+		// 常驻滚动条槽(不用 auto):内容长短不同的子页签之间,卡片右缘不再随滚动条出没左右跳 7px。
+		overflow-y: scroll !important;
+		padding-right: 3px;
+		padding-bottom: 12px;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-nav {
+		margin: 0 10px 10px 0 !important;
 	}
 	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content,
 	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
 		height: auto !important;
+	}
+}
+
+/* 黄道星释基点单选(两列):组宽 < 160px(放大档右栏)时符号与名称折行、行高随内容;常规宽度不挂属性,一字不变。行内 style 定高,故用 !important 覆盖。 */
+:global {
+	[data-zr-narrow] .horosa-zr-base-radio.ant-radio-wrapper {
+		height: auto !important;
+		min-height: 28px;
+		line-height: 18px !important;
+		white-space: normal !important;
+		padding: 5px 0;
 	}
 }
 
@@ -473,5 +512,643 @@
 		.horosa-legacy-wrap-anywhere {
 			overflow-wrap: break-word;
 		}
+	}
+}
+
+/* 东亚诸术 / 诸方杂术中栏图等盘面:字与星座行星符号一律不描边(SVG <text> 会继承祖先的 stroke: var(--horosa-text),带一圈描边、字发糊;
+   挂 svg.horosa-plain-text-board 即生效)。只动文字,框线 / 圆环自带 stroke 属性不受影响。 */
+:global {
+	.horosa-workspace-shell svg.horosa-plain-text-board text {
+		stroke: none !important;
+		paint-order: fill;
+	}
+	/* 老盘面用「极细字重 + 同色描边」凑常规字重;描边去掉后把字重还给常规,不然成极细体 */
+	.horosa-workspace-shell svg.horosa-plain-text-board text[font-weight='100'] {
+		font-weight: 400;
+	}
+	/* 同一根因的图形版:没写 stroke 的填色图形(圆点 / 面积 / 透明的悬停感应区)同样会从祖先继承一圈文字色描边 ——
+	   圆点多一圈白边、图表外多出一个亮框。在 svg 根上把继承掐断;自带 stroke 属性的线 / 框照旧。
+	   antd 空态插图同理(它的填色图形也被描了一圈)。
+	   🔴 只掐「从外面继承来的」:svg 根自己写了 stroke 属性的老 d3 盘(宿盘 SZChart 把线色挂在根上,宫格矩形不写 stroke、靠继承画框),
+	   CSS 压过展示属性 → 整张方盘一半格子没框。根上带 stroke 属性的不动,线色照旧由根传给框线。 */
+	.horosa-workspace-shell svg.horosa-plain-text-board:not([stroke]),
+	.horosa-workspace-shell .ant-empty-image > svg {
+		stroke: none;
+	}
+}
+
+/* 辅盘实验页(变换盘 / 黄道制)右栏表格:行高放宽、表头小字淡色、悬停整行微亮;单元格内容见 auxchart/auxTableCells。
+   紧凑档(.horosa-prog-dense)的行距规则选择器更具体,照常压过这里。 */
+:global {
+	.horosa-workspace-shell .horosa-aux-table table {
+		font-size: 12.5px;
+	}
+	.horosa-workspace-shell .horosa-aux-table th {
+		padding: 8px 8px !important;
+		color: var(--horosa-text-soft, rgba(148, 163, 184, 0.9));
+		font-weight: 500;
+		font-size: 11.5px;
+		letter-spacing: 0.06em;
+	}
+	.horosa-workspace-shell .horosa-aux-table td {
+		padding: 7px 8px !important;
+		vertical-align: middle !important;
+		border-bottom-color: rgba(148, 163, 184, 0.1) !important;
+	}
+	.horosa-workspace-shell .horosa-aux-table tbody tr:hover td {
+		background: rgba(214, 167, 85, 0.07);
+	}
+	.horosa-workspace-shell .horosa-aux-table .horosa-aux-muted {
+		color: var(--horosa-text-soft, rgba(148, 163, 184, 0.9));
+	}
+	.horosa-workspace-shell .horosa-aux-table .horosa-aux-house {
+		color: var(--horosa-accent);
+		font-weight: 600;
+	}
+	/* 开关做成和下拉框同高同框的一格:左边一句当前状态,右边开关,整格可点 */
+	.horosa-workspace-shell .horosa-aux-switch-field {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		box-sizing: border-box;
+		min-height: var(--horosa-control-height, 32px);
+		padding: 0 10px 0 11px;
+		border: 1px solid var(--horosa-border);
+		border-radius: 8px;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent), var(--horosa-panel-soft);
+		color: var(--horosa-text-soft, var(--horosa-text));
+		cursor: pointer;
+		user-select: none;
+		transition: border-color 0.2s;
+	}
+	.horosa-workspace-shell .horosa-aux-switch-field:hover {
+		border-color: var(--horosa-accent);
+	}
+	.horosa-workspace-shell .horosa-aux-switch-field.is-on {
+		color: var(--horosa-text);
+	}
+	.horosa-workspace-shell .horosa-aux-switch-field .horosa-aux-switch-text {
+		font-size: 13px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}
+
+/* 操作手册外壳(components/help/HelpBook):左栏父级菜单 + 右栏单技法手册。弹窗挂在 portal 里,规则不加工作区壳前缀,颜色只用 :root 上的变量。 */
+:global {
+	.horosa-help-book {
+		display: flex;
+		min-height: 0;
+		border: 1px solid var(--horosa-border);
+		border-radius: 12px;
+		overflow: hidden;
+		background: var(--horosa-surface-solid, transparent);
+	}
+	.horosa-help-book.is-compact {
+		flex-direction: column;
+	}
+	.horosa-help-book-nav {
+		overflow-y: auto;
+		padding: 12px 8px 16px;
+		border-right: 1px solid var(--horosa-border);
+		background: var(--horosa-panel-soft);
+	}
+	.horosa-help-book-group + .horosa-help-book-group {
+		margin-top: 10px;
+	}
+	.horosa-help-book-group-label {
+		padding: 4px 10px 6px;
+		font-size: 11.5px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		color: var(--horosa-text-soft);
+	}
+	.horosa-help-book-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		width: 100%;
+		padding: 6px 10px;
+		border: none;
+		border-left: 2px solid transparent;
+		border-radius: 0 7px 7px 0;
+		background: transparent;
+		color: var(--horosa-text);
+		font-size: 13px;
+		line-height: 1.45;
+		text-align: left;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+	}
+	.horosa-help-book-item:hover {
+		background: var(--horosa-accent-soft);
+	}
+	.horosa-help-book-item:focus-visible {
+		outline: 2px solid var(--horosa-accent);
+		outline-offset: -2px;
+	}
+	.horosa-help-book-item.is-active {
+		border-left-color: var(--horosa-accent);
+		background: var(--horosa-accent-soft);
+		color: var(--horosa-accent-strong, var(--horosa-accent));
+		font-weight: 700;
+	}
+	.horosa-help-book-item-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.horosa-help-book-here {
+		flex: 0 0 auto;
+		padding: 0 6px;
+		border: 1px solid var(--horosa-accent);
+		border-radius: 9px;
+		color: var(--horosa-accent);
+		font-size: 10.5px;
+		font-weight: 600;
+		line-height: 16px;
+	}
+	.horosa-help-book-select {
+		flex: 0 0 auto;
+		padding: 10px 12px;
+		border-bottom: 1px solid var(--horosa-border);
+	}
+	.horosa-help-book-main {
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 0;
+		overflow-y: auto;
+		padding: 18px 28px 28px;
+	}
+	.horosa-help-book-crumb {
+		display: flex;
+		gap: 6px;
+		font-size: 12px;
+		color: var(--horosa-text-soft);
+		letter-spacing: 0.04em;
+	}
+	.horosa-help-book-crumb-sep {
+		color: var(--horosa-muted);
+	}
+	.horosa-help-book-title {
+		margin: 4px 0 14px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--horosa-border);
+		font-size: 21px;
+		font-weight: 700;
+		line-height: 1.35;
+		color: var(--horosa-text);
+	}
+	.horosa-help-book-body {
+		max-width: 860px;
+	}
+	.horosa-help-book-body > section:first-child > div:first-child {
+		margin-top: 4px;
+	}
+	.horosa-help-book-pager {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		max-width: 860px;
+		margin-top: 26px;
+		padding-top: 14px;
+		border-top: 1px solid var(--horosa-border);
+	}
+	.horosa-help-book-pager button {
+		padding: 6px 12px;
+		border: 1px solid var(--horosa-border);
+		border-radius: 8px;
+		background: transparent;
+		color: var(--horosa-text);
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.horosa-help-book-pager button:hover {
+		border-color: var(--horosa-accent);
+		color: var(--horosa-accent);
+	}
+}
+:global {
+	.horosa-help-book-hint {
+		margin: -6px 0 14px;
+		font-size: 12.5px;
+		line-height: 1.7;
+		color: var(--horosa-text-soft);
+	}
+}
+
+/* ============================================================================
+   antd 主色族 → 主题金(全站单一来源;壳内与挂在 body 上的弹层同一套)
+   .umirc.js 的 'root-entry-name': 'variable' 让 antd 组件样式吐 var(--ant-primary-*);
+   这里把那组变量别名到 --horosa-accent 一族 —— 亮 / 暗随主题块自动切,不新增任何主题色。
+   :root 的特异度高于 antd 自带的 html { --ant-primary-color: #1890ff },与样式表先后无关。
+   只做别名与「主色底上的前景色」两件事;各组件的版式不在这里改。
+   ============================================================================ */
+:global {
+	:root {
+		--ant-primary-color: var(--horosa-accent);
+		--ant-primary-color-hover: var(--horosa-accent-strong);
+		--ant-primary-color-active: var(--horosa-accent-strong);
+		--ant-primary-color-outline: var(--horosa-accent-soft);
+		--ant-primary-1: var(--horosa-accent-soft);
+		--ant-primary-2: var(--horosa-accent-soft);
+		--ant-primary-3: var(--horosa-border-strong);
+		--ant-primary-4: var(--horosa-border-strong);
+		--ant-primary-5: var(--horosa-accent);
+		--ant-primary-6: var(--horosa-accent);
+		--ant-primary-7: var(--horosa-accent-strong);
+		--ant-primary-color-deprecated-l-35: var(--horosa-accent-soft);
+		--ant-primary-color-deprecated-l-20: var(--horosa-border-strong);
+		--ant-primary-color-deprecated-t-20: var(--horosa-accent);
+		--ant-primary-color-deprecated-t-50: var(--horosa-border-strong);
+		--ant-primary-color-deprecated-f-12: var(--horosa-accent-soft);
+		--ant-primary-color-active-deprecated-f-30: var(--horosa-accent-soft);
+		--ant-primary-color-active-deprecated-d-02: var(--horosa-accent-soft);
+		--ant-info-color: var(--horosa-accent);
+		--ant-info-color-deprecated-bg: var(--horosa-accent-soft);
+		--ant-info-color-deprecated-border: var(--horosa-border-strong);
+		--antd-wave-shadow-color: var(--horosa-accent);
+	}
+	::selection {
+		background: var(--horosa-accent);
+		color: var(--horosa-on-accent, #fff);
+	}
+
+	/* 主色实底上的前景:antd 写死白色,暗色主题的金底上要换深色字。
+	   特异度必须与 antd 原规则持平(只靠后置取胜):壳内 `.horosa-workspace-shell .ant-btn` 把主按钮
+	   改成了中性底 + 正文色,这里一旦抬高特异度就会把前景刷成白 / 深墨、压在中性底上看不见字。
+	   危险 / 禁用主按钮在 antd 里是两类选择器,天然压过本条,不用再排除。 */
+	.ant-btn-primary,
+	.ant-btn-primary:hover,
+	.ant-btn-primary:focus,
+	.ant-btn-primary:active {
+		color: var(--horosa-on-accent, #fff);
+		text-shadow: none;
+	}
+	/* 页面内主按钮(行动号召)单一皮:金淡底 + 金边 + 金字,亮暗取同一组主题变量。
+	   各页的「输入框与按钮共用皮」多带 !important(暗色压成墨底、亮色压成纸底),主按钮在那些页里
+	   与普通钮无从分辨;没有页面皮的页则只剩中性底。此处以页面内容区的 id
+	   一并压过,全站主按钮只此一种长相。实底金留给弹层 / 抽屉里的确认钮(它们渲染在内容区之外)。
+	   例外只两类:禁用态(走各自的灰)、危险钮。 */
+	#mainContent .ant-btn.ant-btn-primary:not([disabled]):not(.ant-btn-dangerous) {
+		border-color: var(--horosa-border-strong) !important;
+		background: var(--horosa-accent-soft) !important;
+		color: var(--horosa-accent-strong) !important;
+		font-weight: 600;
+		text-shadow: none;
+		box-shadow: none;
+	}
+	#mainContent .ant-btn.ant-btn-primary:not([disabled]):not(.ant-btn-dangerous):hover,
+	#mainContent .ant-btn.ant-btn-primary:not([disabled]):not(.ant-btn-dangerous):focus {
+		border-color: var(--horosa-accent) !important;
+	}
+	/* 开关钮(XQToggle)的「开」态同一张皮:金淡底 + 金边 + 金字。各页那张带 !important 的共用皮同样会把它
+	   压成与「关」一个样(只剩字重不同,亮色下看不出开着还是关着);照主按钮的办法以内容区 id 压过。
+	   禁用的开关走各自的灰。 */
+	#mainContent .ant-btn.xq-toggle-active:not([disabled]) {
+		border-color: var(--horosa-accent) !important;
+		background: var(--horosa-accent-soft) !important;
+		color: var(--horosa-accent-strong) !important;
+		font-weight: 650;
+		text-shadow: none;
+		box-shadow: none;
+	}
+	.ant-checkbox-checked .ant-checkbox-inner::after {
+		border-color: var(--horosa-on-accent, #fff);
+	}
+	.ant-checkbox-disabled.ant-checkbox-checked .ant-checkbox-inner::after {
+		border-color: var(--horosa-text-soft);
+	}
+	.ant-radio-group-solid .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled),
+	.ant-radio-group-solid .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled):hover,
+	.ant-radio-group-solid .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled):active {
+		color: var(--horosa-on-accent, #fff);
+	}
+	.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+	.ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+	.ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner,
+	.ant-picker-time-panel-column > li.ant-picker-time-panel-cell-selected .ant-picker-time-panel-cell-inner,
+	.ant-pagination-item-active a,
+	.ant-steps-item-process > .ant-steps-item-container > .ant-steps-item-icon .ant-steps-icon,
+	.ant-badge-count {
+		text-shadow: none;
+	}
+	.ant-steps-item-process > .ant-steps-item-container > .ant-steps-item-icon .ant-steps-icon {
+		color: var(--horosa-on-accent, #fff);
+	}
+
+	/* 滑块:轨道 / 已走段 / 把手一套(antd 这里是浅蓝梯度,靠别名只能得到半透明金,显式定清楚) */
+	.ant-slider-rail {
+		background-color: var(--horosa-border);
+	}
+	.ant-slider:hover .ant-slider-rail {
+		background-color: var(--horosa-border-strong);
+	}
+	.ant-slider-track,
+	.ant-slider:hover .ant-slider-track {
+		background-color: var(--horosa-accent);
+	}
+	.ant-slider-handle,
+	.ant-slider:hover .ant-slider-handle:not(.ant-tooltip-open),
+	.ant-slider-handle.ant-tooltip-open,
+	.ant-slider-handle:focus {
+		border-color: var(--horosa-accent);
+		background-color: var(--horosa-surface-solid, #fff);
+	}
+	.ant-slider-handle:focus,
+	.ant-slider-handle-dragging.ant-slider-handle-dragging.ant-slider-handle-dragging {
+		box-shadow: 0 0 0 4px var(--horosa-accent-soft);
+	}
+	.ant-slider-dot {
+		border-color: var(--horosa-border-strong);
+		background-color: var(--horosa-surface-solid, #fff);
+	}
+	.ant-slider-dot-active {
+		border-color: var(--horosa-accent);
+	}
+	.ant-slider-disabled .ant-slider-track {
+		background-color: var(--horosa-border-strong) !important;
+	}
+	.ant-slider-mark-text {
+		color: var(--horosa-text-soft);
+	}
+	.ant-slider-mark-text-active {
+		color: var(--horosa-text);
+	}
+
+	/* 蓝 / 青 / 极客蓝 Tag:预设色是组件写死的浅蓝底,不走主色变量 —— 弹层里与壳内同一处理 */
+	.ant-tag-blue,
+	.ant-tag-geekblue,
+	.ant-tag-cyan,
+	.ant-tag-processing {
+		border-color: var(--horosa-border-strong);
+		background: var(--horosa-accent-soft);
+		color: var(--horosa-accent-strong);
+	}
+
+	/* 空态插图(antd Empty 两套缺省图):原色写死浅灰 / 白,暗色下是一块发白的图。
+	   改成只取主题变量 + 透明度,亮 / 暗 / 经典白同一套,全站所有 Empty 一处收口。 */
+	.ant-empty-img-default-ellipse,
+	.ant-empty-img-simple-ellipse {
+		fill: var(--horosa-text);
+		fill-opacity: 0.06;
+	}
+	.ant-empty-img-default-path-1 {
+		fill: var(--horosa-muted);
+		fill-opacity: 0.5;
+	}
+	.ant-empty-img-default-path-2 {
+		fill: var(--horosa-muted);
+		fill-opacity: 0.22;
+	}
+	.ant-empty-img-default-path-3,
+	.ant-empty-img-default-g {
+		fill: var(--horosa-surface-solid);
+	}
+	.ant-empty-img-default-path-4,
+	.ant-empty-img-default-path-5 {
+		fill: var(--horosa-muted);
+		fill-opacity: 0.34;
+	}
+	.ant-empty-img-simple-g {
+		stroke: var(--horosa-muted);
+		stroke-opacity: 0.55;
+	}
+	.ant-empty-img-simple-path {
+		fill: var(--horosa-surface-solid);
+		stroke: var(--horosa-muted);
+		stroke-opacity: 0.55;
+	}
+	.ant-empty-normal,
+	.ant-empty-small,
+	.ant-empty {
+		color: var(--horosa-muted);
+	}
+	// 三式盘右栏「概览 / 太乙」键值分区卡:卡片本体复用太乙页那套类(08-india-sanshi.less),
+	// 这里只管三式盘专有的三件——外层滚动框去边去底(免得卡中卡)、小标签、神煞网格。
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .ant-card.horosa-sanshi-kv-host {
+		border-color: transparent;
+		background: transparent;
+		box-shadow: none;
+	}
+	.horosa-workspace-shell .horosa-sanshi-kv-chip {
+		display: inline-block;
+		margin: 0 4px 3px 0;
+		padding: 0 6px;
+		border: 1px solid var(--horosa-border-strong);
+		border-radius: 7px;
+		color: var(--horosa-text-soft);
+		font-size: 11px;
+		font-weight: 500;
+		line-height: 1.7;
+		white-space: nowrap;
+	}
+	.horosa-workspace-shell .horosa-sanshi-kv-chip.is-key {
+		border-color: var(--horosa-accent);
+		color: var(--horosa-accent-strong);
+	}
+	.horosa-workspace-shell .horosa-sanshi-kv-chip.is-weak {
+		border-color: var(--horosa-border);
+		color: var(--horosa-muted);
+	}
+	.horosa-workspace-shell .horosa-sanshi-kv-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0;
+	}
+	// 三式盘右栏比独立太乙页窄:键列收到 92px,值列多出一截放小标签。
+	.horosa-workspace-shell .horosa-sanshi-kv-host .horosa-taiyi-info-row,
+	.horosa-workspace-shell .horosa-sanshi-kv-host .horosa-taiyi-palace-row {
+		grid-template-columns: 92px minmax(0, 1fr);
+	}
+	// 键值卡通用件(三式盘 / 遁甲页共用,组件在 components/common/KvInfoCard.js):
+	// 窄栏键列 92px、标题后的小副标、卡内说明文字、两列对照格。
+	.horosa-workspace-shell .horosa-kv-narrow .horosa-taiyi-info-row {
+		grid-template-columns: 92px minmax(0, 1fr);
+	}
+	.horosa-workspace-shell .horosa-taiyi-section-card .horosa-taiyi-info-heading em {
+		margin-left: 8px;
+		color: var(--horosa-muted);
+		font-size: 12px;
+		font-style: normal;
+		font-weight: 400;
+	}
+	.horosa-workspace-shell .horosa-kv-note {
+		color: var(--horosa-muted);
+		font-size: 12px;
+		line-height: 1.65;
+		overflow-wrap: break-word; overflow-wrap: anywhere;
+	}
+	.horosa-workspace-shell .horosa-kv-note.is-soft {
+		color: var(--horosa-text-soft);
+	}
+	.horosa-workspace-shell .horosa-kv-pair-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 5px 12px;
+		font-size: 12px;
+		line-height: 1.6;
+		> div {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0 4px;
+			align-items: baseline;
+			min-width: 0;
+			color: var(--horosa-text-soft);
+		}
+		strong {
+			font-weight: 650;
+		}
+		.horosa-kv-pair-key {
+			flex: 0 0 34px;
+			color: var(--horosa-text);
+			font-weight: 650;
+		}
+		.horosa-kv-pair-sep {
+			color: var(--horosa-muted);
+		}
+	}
+	// 「小标签 + 一句说明」逐行排(遁甲六害这类:标签只放名目,落宫明细放在后面的常规字里,不再整段包进带框标签)。
+	.horosa-workspace-shell .horosa-kv-taglines {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+	.horosa-workspace-shell .horosa-kv-tagline {
+		display: flex;
+		gap: 6px;
+		align-items: baseline;
+		min-width: 0;
+		font-weight: 400;
+		> .horosa-sanshi-kv-chip { flex: 0 0 auto; }
+		> span:last-child { min-width: 0; color: var(--horosa-text); overflow-wrap: break-word; overflow-wrap: anywhere; }
+	}
+	// 遁甲概览的小标签带宫位说明,比三式盘的长:允许折行,免得顶出右栏。
+	.horosa-workspace-shell .horosa-dunjia-overview .horosa-sanshi-kv-chip {
+		white-space: normal;
+		overflow-wrap: break-word; overflow-wrap: anywhere;
+	}
+	.horosa-workspace-shell .horosa-dunjia-overview {
+		padding: 0;
+	}
+	.horosa-workspace-shell .horosa-sanshi-kv-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+		gap: 5px 10px;
+		font-size: 12px;
+		line-height: 1.5;
+		> div {
+			display: flex;
+			gap: 5px;
+			align-items: baseline;
+			min-width: 0;
+		}
+		span {
+			flex: none;
+			color: var(--horosa-text-soft);
+		}
+		strong {
+			min-width: 0;
+			color: var(--horosa-text);
+			font-weight: 650;
+			word-break: break-word;
+		}
+	}
+}
+
+/* 三式四页(三式合一 / 太乙 / 六壬 / 遁甲)右栏安全距:卡片左右缘到面板内缘各 12px,滚动条落在右侧 12px 留白里(2 + 7 + 3)。
+   ① 装卡片的外层卡(.horosa-sanshi-kv-host / .horosa-sanshi-subtabs-card / .horosa-dunjia-tab-host)只当滚动容器,不画边不铺底 ——
+      亮色那条通用卡皮(:root[light] … .ant-card)权重更高,会把边框和实底盖回来,里面的卡就贴着外框、成了框套框;这里三套主题一起压掉。
+   ② 滚动承担者一律 overflow-y: scroll(常驻滚动条槽):内容长短不同的页签之间卡片右缘不再左右跳 7px。
+   ③ 页签条的左右留白用 margin 不用 padding(页签组件按导航自身宽度算可视区,带 padding 会裁掉溢出时的选中页签)。
+   ④ 内层子页签条(太乙 / 六壬 / 遁甲的二级页签)与下方内容留 10px,不再压住第一行。
+   ⑤ 安全距指的是左右(到面板内缘);纵向上两行页签是一组,要贴近,不另留安全距(见三式合一那组规则)。 */
+:global {
+	// —— 三式合一 ——
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs {
+		padding: 0 0 12px;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-nav {
+		margin-left: 12px !important;
+		margin-right: 12px !important;
+		// ⑤ 外层页签条下方只留 4px:带二级页签的三页,两行页签贴成一组;没有二级页签的两页在自己的滚动容器里把上留白补回 16px。
+		margin-bottom: 4px !important;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-content-holder {
+		padding-left: 12px;
+		padding-right: 2px;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-kv-host,
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card {
+		border: 0 !important;
+		border-radius: 0;
+		background: transparent !important;
+		box-shadow: none !important;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card.horosa-sanshi-kv-host > .ant-card-body {
+		overflow-x: hidden !important;
+		overflow-y: scroll !important;
+		padding: 16px 3px 12px 0 !important;
+	}
+	// 紫微四化页签:没有外层卡,根节点自己当滚动容器,留白与其它页签同一套。
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .horosa-sanshi-ziwei-sihua {
+		flex: 1 1 auto;
+		min-width: 0;
+		height: 100%;
+		box-sizing: border-box;
+		overflow-x: hidden;
+		overflow-y: scroll;
+		padding: 16px 3px 12px 0;
+	}
+
+	// —— 独立太乙 / 六壬 / 遁甲页 ——
+	.horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-info-panel,
+	.horosa-workspace-shell .horosa-liureng-redesign .horosa-liureng-info-panel,
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel {
+		padding-right: 2px !important;
+	}
+	.horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-info-panel > .horosa-side-panel-heading,
+	.horosa-workspace-shell .horosa-liureng-redesign .horosa-liureng-info-panel > .horosa-side-panel-heading,
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel > .horosa-side-panel-heading {
+		margin-right: 10px;
+	}
+	.horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-info-panel .horosa-taiyi-tabs > .ant-tabs-nav,
+	.horosa-workspace-shell .horosa-liureng-redesign .horosa-liureng-info-panel .horosa-liureng-tabs > .ant-tabs-nav,
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel .horosa-dunjia-tabs > .ant-tabs-nav {
+		margin-right: 10px !important;
+	}
+	.horosa-workspace-shell .horosa-taiyi-redesign .horosa-taiyi-info-panel .horosa-taiyi-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-liureng-redesign .horosa-liureng-info-panel .horosa-liureng-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel .horosa-dunjia-tabs > .ant-tabs-content-holder {
+		overflow-x: hidden !important;
+		overflow-y: scroll !important;
+		padding-right: 3px;
+	}
+	// 遁甲「神煞 / 八宫 / 化解 / 用神」页签的外层卡:同 ①,只当容器。
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel .ant-card.horosa-dunjia-tab-host {
+		border: 0 !important;
+		border-radius: 0;
+		background: transparent !important;
+		box-shadow: none !important;
+	}
+	.horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-info-panel .ant-card.horosa-dunjia-tab-host > .ant-card-body {
+		padding: 0 !important;
+	}
+}
+
+/* 紫微右栏「资料参考」:内层页签条(天干四化 / 宫 · 星 / 四化简述)吸在右栏滚动容器顶上 —— 放大档或小窗下内容长到要滚时,
+   页签条不跟着内容滚走(与三式合一右栏的两行页签同一口径:两行页签都留在原位,只有下面的内容滚)。
+   内层页签自身与它到滚动容器之间的各层都不裁切(overflow 可见),所以直接吸顶;底色取右栏面板色,滚上来的内容不透出。 */
+:global {
+	.horosa-workspace-shell .horosa-zw-rule-tabs > .ant-tabs-nav {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: var(--horosa-astro-panel, var(--horosa-surface-solid));
 	}
 }

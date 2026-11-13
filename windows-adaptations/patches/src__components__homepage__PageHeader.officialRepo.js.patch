@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/components/homepage/PageHeader.js b/astrostudyui/src/components/homepage/PageHeader.js
-index 54e561de..9f15bb50 100644
+index a86ceec6..76019da4 100644
 --- a/astrostudyui/src/components/homepage/PageHeader.js
 +++ b/astrostudyui/src/components/homepage/PageHeader.js
-@@ -46,7 +46,8 @@ import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../uti
- import styles from './PageHeader.less';
- import { getLayoutViewportWidth } from '../../utils/shellZoom';
+@@ -53,7 +53,8 @@ function helpModalWidth(){
+ 	return Math.min(1200, Math.round((getLayoutViewportWidth() || 1024) * 0.92));
+ }
  
 -const HOROSA_OFFICIAL_REPO = 'https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-MacOS';
 +// Windows 发行版:「关于」内的法律文档与官方下载渠道指向本平台仓库(windows-adaptations #23)。

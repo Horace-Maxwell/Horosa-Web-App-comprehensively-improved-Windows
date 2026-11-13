@@ -103,7 +103,8 @@ export default function AgentAbilityPanel(){
 		}catch(e){ setCharts([]); }
 	}
 
-	const approvalStatus = approval === 'read-only' ? <AdvStatus tone="good">只读</AdvStatus> : (approval === 'on-request' ? <AdvStatus on>每次确认</AdvStatus> : <AdvStatus tone="danger">全自动</AdvStatus>);
+	// 折叠头:短标题 + 弱色说明(文字与整句逐字相同,只是分两段上色;整句加粗的长标题读起来像一堵墙)
+	const foldHead = (title, desc)=>(<span className={styles.subHeadText}><span className={styles.subTitle}>{title}</span><span className={styles.foldDesc}>{desc}</span></span>);
 	return (
 		<AdvCard span2 id={ADV_SECTION_IDS.agent} tone="danger" icon="quickAi" title="AI 助手行动能力" status={enabled ? <AdvStatus on>已开启</AdvStatus> : <AdvStatus>默认关闭</AdvStatus>}
 			desc={agentAbilityCopyText()}
@@ -117,12 +118,10 @@ export default function AgentAbilityPanel(){
 							<Radio.Button value="on-request">每次确认</Radio.Button>
 							<Radio.Button value="read-only">只读(禁写)</Radio.Button>
 						</Radio.Group>
-						{approvalStatus}
-						<Button size="small" data-caps-reset="1" onClick={()=>{ resetToolCapabilities(); message.success('已清空模型工具能力记忆,下次对话重新探测'); }}>重新探测模型工具能力</Button>
 					</AdvRow>
 					<div data-agent-inline-collapse="1" style={{ display: 'contents' }}>
 					<Collapse ghost className={styles.collapse} onChange={(keys)=>{ if((keys || []).indexOf('trust') >= 0){ loadCharts(); } if((keys || []).indexOf('toolPolicy') >= 0 && toolOpts === null){ setToolOpts(listToolNameOptions()); } }}>
-						<Collapse.Panel header="按类别收紧审批(写入类只能比总档更严;查询/外部/反问/界面四类只认显式设置:每次确认=每次调用先问,只读=外部不出网·反问不弹·界面不动,查询照常)" key="categories">
+						<Collapse.Panel header={foldHead('按类别收紧审批', '(写入类只能比总档更严;查询/外部/反问/界面四类只认显式设置:每次确认=每次调用先问,只读=外部不出网·反问不弹·界面不动,查询照常)')} key="categories">
 							<div className={styles.catGrid}>
 								{AGENT_APPROVAL_CATEGORIES.map((c)=>(
 									<div key={c} className={styles.kv}>
@@ -133,7 +132,7 @@ export default function AgentAbilityPanel(){
 								))}
 							</div>
 						</Collapse.Panel>
-						<Collapse.Panel header="按工具名放行 / 禁用(禁用:任何档位都不执行、不进工具目录;放行:写入类免逐次确认,只读档仍拒)" key="toolPolicy">
+						<Collapse.Panel header={foldHead('按工具名放行 / 禁用', '(禁用:任何档位都不执行、不进工具目录;放行:写入类免逐次确认,只读档仍拒)')} key="toolPolicy">
 							<div className={styles.stack}>
 								<div className={styles.kv}>
 									<span className={styles.kvLabel}>禁用</span>
@@ -147,21 +146,24 @@ export default function AgentAbilityPanel(){
 								</div>
 							</div>
 						</Collapse.Panel>
-						<Collapse.Panel header="信任的档案(载入/查询免逐次确认;建档与改设置永不因信任放行)" key="trust">
+						<Collapse.Panel header={foldHead('信任的档案', '(载入/查询免逐次确认;建档与改设置永不因信任放行)')} key="trust">
 							<Select filterOption={scriptFilterBy('label')} mode="multiple" size="small" style={{ width: '100%' }} placeholder={charts === null ? '载入中…' : '选择命盘'} value={trusted}
 								options={charts || []} loading={charts === null} showSearch optionFilterProp="label" maxTagCount={6} data-trust-records="1"
 								onChange={(v)=>{ setTrusted(setTrustedRecords(v)); }} />
 						</Collapse.Panel>
 					</Collapse>
 					</div>
+					<AdvRow label="工具能力记忆" help="应用会记住每个模型支不支持原生工具调用;换了模型版本或接口后,可清空让下次对话重新探测。">
+						<Button size="small" data-caps-reset="1" onClick={()=>{ resetToolCapabilities(); message.success('已清空模型工具能力记忆,下次对话重新探测'); }}>重新探测模型工具能力</Button>
+					</AdvRow>
 					<AdvSwitchRow title="目标任务" desc="开启后 AI 可把多步长活建成目标任务在任务中心自动逐轮推进(每轮自检;预算四维封顶;写入按审批档;可暂停/纠偏/取消)。"
 						checked={goalOn} control={<Switch checked={goalOn} data-goal-switch="1" onChange={(v)=>{ setGoalEnabled(!!v); setGoalOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />}>
 						{/* 任务中心此前只有右下角铃铛一个入口(进阶页零入口);这里与定时任务行各给一个直达按钮(输入框 /任务 同效) */}
-						<Button size="small" data-open-task-center="goal" style={{ marginTop: 6 }} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建目标 / 看进度)</Button>
+						<Button size="small" data-open-task-center="goal" className={styles.gapTop} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建目标 / 看进度)</Button>
 					</AdvSwitchRow>
 					<AdvSwitchRow title="定时任务" desc="开启后可在任务中心「新建定时」(每日简报/每月月运/自定义提示词/择日到期提醒),AI 也可替你排期(可撤销);壳 60 秒心跳,错过按策略补跑。"
 						checked={schedOn} control={<Switch checked={schedOn} data-scheduler-switch="1" onChange={(v)=>{ setSchedulerEnabled(!!v); setSchedOn(!!v); desktopSetSchedulerEnabled(!!v).catch(()=>{}); }} checkedChildren="开" unCheckedChildren="关" />}>
-						<Button size="small" data-open-task-center="scheduler" style={{ marginTop: 6 }} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建定时 / 看下次运行)</Button>
+						<Button size="small" data-open-task-center="scheduler" className={styles.gapTop} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建定时 / 看下次运行)</Button>
 					</AdvSwitchRow>
 					<AdvSwitchRow title="多技法并行分析" desc={<span>开启后输入 <code>/编排 问题</code>:先拆成最多 4 个「技法 × 子问题」,每个子任务只挂该技法的排盘数据、只读不写,末轮汇总并标出分歧。</span>}
 						checked={orchOn} control={<Switch checked={orchOn} data-orchestrate-switch="1" onChange={(v)=>{ setOrchestrateEnabled(!!v); setOrchOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />

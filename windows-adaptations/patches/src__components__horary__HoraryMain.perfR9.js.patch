@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/horary/HoraryMain.js b/astrostudyui/src/components/horary/HoraryMain.js
-index e638035c..068b2c35 100644
+index 7922e4af..d4b746fe 100644
 --- a/astrostudyui/src/components/horary/HoraryMain.js
 +++ b/astrostudyui/src/components/horary/HoraryMain.js
 @@ -1,4 +1,5 @@

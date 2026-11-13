@@ -14,9 +14,14 @@
 //      反推这张盘至少要多宽,不够就加宽工作区(外层横向滚动),直到字回到 9 px 或盘回到设计宽为止。
 // 栏宽量父级的内容盒宽(两态同一口径:缩放态外框是 width:100% 的块,宽恰为父级内容宽),观察器走延帧单源(换档帧里同步重量,首帧即终值)。
 // 缩放用 transform(不改布局域,浮层定位读 rect 照常成立)。
+//   ④ fitHeight(按可用高定边长的盘才开:父级的高与盘内容无关,如地占 is-fit-height 舞台):可用高 < 设计高时也进缩放态,
+//      比例取「宽比 ∧ 高比」—— 矮窗口里整盘缩进可用高,不再按宽缩完仍比舞台高、要下滑才看全;高说了算时盘在栏里水平居中。
+//      只在 1 档与缩小档生效:放大档盘面最小字下限对缩放态的盘按「宽说了算」反推加宽量,按高缩会让加宽无效(那里照旧向下越出、由外层滚动接住);
+//      比例有下限(FIT_HEIGHT_MIN_SCALE):窗口矮到字要缩得看不清时不再硬缩,同样交给外层滚动。
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 import { HTML_DESIGN_BOX_ATTR } from '../../utils/chartTextFloor';
+import { getDeclaredZoom } from '../../utils/zoomDomain';
 
 export { HTML_DESIGN_BOX_ATTR };
 
@@ -39,20 +44,50 @@ export function contentWidthOf(el){
 	return Math.max(0, w);
 }
 
+// 父级内容盒高(布局 px):clientHeight − 上下内距
+export function contentHeightOf(el){
+	if(!el){ return 0; }
+	let h = el.clientHeight || 0;
+	try{
+		const cs = getComputedStyle(el);
+		h -= (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+	}catch(e){ /* 量不到按 clientHeight */ }
+	return Math.max(0, h);
+}
+
+// 按高缩的比例下限:再矮就不硬缩(字会小到看不清),交给外层滚动
+export const FIT_HEIGHT_MIN_SCALE = 0.7;
+
+// 纯函数:可用高 available、设计高 designHeight → 按高的等比比例(放得下 / 量不到 = 1;放不下 = 高比,不低于下限)
+export function designHeightScaleOf(available, designHeight){
+	const h = Number(available);
+	const d = Number(designHeight);
+	if(!(h > 0) || !(d > 0) || h >= d){ return 1; }
+	return Math.max(FIT_HEIGHT_MIN_SCALE, Math.floor((h / d) * 10000) / 10000);
+}
+
 // props:designWidth(必填,布局 px)· designHeight(可选:子块高度要靠父级定高的盘,缩放态按它排)·
-//        designGutter(可选,左右留白 px:盘边上有意越出盘框的字(两式方盘四角的图名)缩放态里留出位置,不被栏的裁切边吃掉)· children
-export function XQDesignScaleBox({ designWidth, designHeight, designGutter = 0, children }){
+//        designGutter(可选,左右留白 px:盘边上有意越出盘框的字(两式方盘四角的图名)缩放态里留出位置,不被栏的裁切边吃掉)·
+//        fitHeight(可选:可用高不足设计高时也按高等比缩,见文件头 ④;要求父级的高与盘内容无关)· children
+export function XQDesignScaleBox({ designWidth, designHeight, designGutter = 0, fitHeight = false, children }){
 	const outerRef = useRef(null);
 	const innerRef = useRef(null);
 	const [avail, setAvail] = useState(0);
 	const [innerH, setInnerH] = useState(0);
+	const [availH, setAvailH] = useState(0);
 	const k = designScaleOf(avail, designWidth);
-	const scaled = k < 1;
+	const kh = fitHeight ? designHeightScaleOf(availH, designHeight) : 1;
+	const scaled = k < 1 || kh < 1;
 	const read = ()=>{
 		const outer = outerRef.current;
 		if(!outer){ return; }
 		const w = contentWidthOf(outer.parentElement);
 		setAvail((prev)=>(Math.abs(prev - w) >= 0.5 ? w : prev));
+		if(fitHeight){
+			// 放大档不按高缩(记 0 = 量不到 → 比例 1)
+			const hh = getDeclaredZoom() <= 1.001 ? contentHeightOf(outer.parentElement) : 0;
+			setAvailH((prev)=>(Math.abs(prev - hh) >= 0.5 ? hh : prev));
+		}
 		const inner = innerRef.current;
 		// 子块布局高取「自身高 ∪ 越出自身的内容高」:外框按它 × 比例定高(子块自己越出的那截也要占位)
 		const h = inner ? Math.max(inner.offsetHeight || 0, inner.scrollHeight || 0) : 0;
@@ -81,15 +116,19 @@ export function XQDesignScaleBox({ designWidth, designHeight, designGutter = 0, 
 	const dh = Number(designHeight) > 0 ? Number(designHeight) : 0;
 	const g = Number(designGutter) > 0 ? Number(designGutter) : 0;
 	// 缩放态按「设计宽 + 两侧留白」整体缩到栏宽(放得下 / 放不下的分界仍按设计宽)
-	const kk = g ? Math.floor((avail / (Number(designWidth) + 2 * g)) * 10000) / 10000 : k;
+	const total = Number(designWidth) + 2 * g;
+	const kw = g ? Math.min(1, Math.floor((avail / total) * 10000) / 10000) : k;
+	const kk = Math.min(kw, kh);
 	const boxH = Math.max(dh, innerH);
+	// 高说了算时盘比栏窄:水平居中(宽说了算时恰好铺满,偏移为 0)
+	const left = Math.max(0, Math.floor((avail - total * kk) / 2));
 	return (
 		<div
 			ref={outerRef}
 			style={{ display: 'block', position: 'relative', flex: '0 0 auto', width: '100%', minWidth: 0, height: boxH ? Math.ceil(boxH * kk) : 0, maxHeight: 'none', overflow: 'visible' }}
 			{...{ [HTML_DESIGN_BOX_ATTR]: 'scaled' }}
 		>
-			<div ref={innerRef} style={{ display: 'block', position: 'absolute', left: 0, top: 0, boxSizing: 'border-box', width: Number(designWidth) + 2 * g, height: dh || undefined, padding: g ? `0 ${g}px` : undefined, transform: `scale(${kk})`, transformOrigin: '0 0' }}>
+			<div ref={innerRef} style={{ display: 'block', position: 'absolute', left, top: 0, boxSizing: 'border-box', width: total, height: dh || undefined, padding: g ? `0 ${g}px` : undefined, transform: `scale(${kk})`, transformOrigin: '0 0' }}>
 				{children}
 			</div>
 		</div>

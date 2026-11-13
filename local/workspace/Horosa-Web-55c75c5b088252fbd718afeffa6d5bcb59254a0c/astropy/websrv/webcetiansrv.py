@@ -14,6 +14,7 @@ from websrv.horosa_engine_common import (
     json_safe,
     parse_datetime,
     row,
+    format_timezone_label,
     timezone_to_float,
 )
 
@@ -309,7 +310,7 @@ def _build_sections(pan, show_wu_xing_ju=True, show_sihua=True, show_flying=True
             "title": "起盘",
             "rows": [
                 row("起盘时间", f"{pan.get('dateStr', '')} {pan.get('timeStr', '')}".strip()),
-                row("时区", f"UTC{pan.get('timezone'):+.1f}"),
+                row("时区", format_timezone_label(pan.get('timezone'))),
                 row("经度", pan.get("longitude")),
                 row("纬度", pan.get("latitude")),
                 *([row("地点", pan.get("location"))] if pan.get("location") else []),

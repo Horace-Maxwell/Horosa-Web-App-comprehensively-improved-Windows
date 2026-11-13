@@ -4,9 +4,10 @@
 // 差异仅三点:条件注册表=QIMEN_CONDITION_TYPES(本地求值);参数区=奇门 22 参数子集(死开关裁剪:
 // 仅收板面生效项);结果表多「局」列,概览浮窗=DunJiaBoard 迷你盘。
 import { useState, useEffect, useRef } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
-import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
+import { XQButton, XQSelect, XQCheckItem, XQInput } from '../xq-ui';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import ConditionParamsForm from './ConditionParamsForm';
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
@@ -25,6 +26,9 @@ import {
 import { QIMEN_ZHIRUN_LEAP_FIELD, QIMEN_YUEJIA_QIJU_FIELD, QIMEN_SHIFT_PALACE_FIELD } from './qimenWorkbenchFields';
 import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
 import { withFullDefaults } from './zeriOptionDefaults';
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
+import { ZERI_WB_TOP_STYLE, ZERI_WB_COND_BODY_STYLE } from './zeriWorkbenchLayout';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 // 排盘体例缺省 = 时家;起局法档位 / 回显随它(与奇门页、三式合一页同一判据:非时家刻家只有「本家默认 / 阴盘」)
 const paiPanOf = (o)=>(o.paiPanType === undefined || o.paiPanType === null || o.paiPanType === '' ? 3 : o.paiPanType);
@@ -52,7 +56,7 @@ const LATE_ZI_OPTIONS = [
 // 死开关裁剪:性别/盘类/封局/相关人员与扫描判定无关,不入本区。
 export const QIMEN_WORKBENCH_PARAM_FIELDS = [
 	{ key: 'paiPanType', label: '排盘', options: PAIPAN_OPTIONS },
-	{ key: 'qijuMethod', label: '起局', options: QIJU_METHOD_OPTIONS, optionsFor: (o)=>qijuMethodOptionsFor(paiPanOf(o)), valueOf: (o)=>qijuMethodSelectValue(paiPanOf(o), o.qijuMethod) },
+	{ key: 'qijuMethod', label: '起局', options: QIJU_METHOD_OPTIONS, optionsFor: (o)=>qijuMethodOptionsFor(paiPanOf(o)), selectValue: (o)=>qijuMethodSelectValue(paiPanOf(o), o.qijuMethod) },
 	// 置闰天数 / 月家起局:与三式择日工作台同一份描述(qimenWorkbenchFields)
 	QIMEN_ZHIRUN_LEAP_FIELD,
 	{ key: 'shuziReportNumber', label: '报数', kind: 'input', when: (o)=>o.qijuMethod === 'shuzi' },
@@ -67,6 +71,8 @@ export const QIMEN_WORKBENCH_PARAM_FIELDS = [
 	{ key: 'lateZiHourUseNextDay', label: '晚子时时干', options: LATE_ZI_OPTIONS },
 ];
 
+// 🔴 参数表里「显示值换算」的键叫 selectValue,不能叫 valueOf:每个对象都带原型上的 valueOf,
+//    `f.valueOf ? …` 恒真 → 下拉拿到的是字段描述对象本身,选框里显示的成了字段名而不是当前取值。
 function optionLabel(list, value){
 	const hit = (list || []).find((o)=>`${o.value}` === `${value}`);
 	return hit ? hit.label : `${value === undefined || value === null ? '—' : value}`;
@@ -89,7 +95,7 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	const ui = uiLeaves[counter.i];
 	counter.i += 1;
 	return (
-		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
+		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed var(--horosa-border)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
 				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? qimenLeafSummary(ui) : ((QIMEN_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
@@ -217,7 +223,7 @@ export default function QimenZeriWorkbench({
 	const setNodeProp = (path, patch) => onTreeChange(mapAt(tree, path, (n) => ({ ...n, ...patch })));
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
-		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
+		<div style={{ padding: '8px 10px', borderTop: '1px solid var(--horosa-border)' }}>
 			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
@@ -246,7 +252,7 @@ export default function QimenZeriWorkbench({
 		return (
 			<div key={path.join('.')}
 				style={{
-					border: isSel ? '1px solid rgba(212,175,55,.85)' : '1px solid rgba(148,163,184,.25)',
+					border: isSel ? '1px solid var(--horosa-accent)' : '1px solid var(--horosa-border)',
 					borderRadius: 8, padding: '7px 10px', marginBottom: 6, cursor: 'pointer',
 					background: node.negate ? 'rgba(229,72,77,.06)' : (isSel ? 'rgba(212,175,55,.06)' : 'transparent'),
 				}}
@@ -319,16 +325,16 @@ export default function QimenZeriWorkbench({
 				return [
 					<span key={`${f.key}_l`} style={{ fontSize: 12, opacity: 0.7, textAlign: 'right', whiteSpace: 'nowrap' }}>{f.label}</span>,
 					f.kind === 'input' ? (
-						<input key={`${f.key}_c`} value={opts[f.key] === undefined || opts[f.key] === null ? '' : opts[f.key]}
+						<XQInput size="small" key={`${f.key}_c`} value={opts[f.key] === undefined || opts[f.key] === null ? '' : opts[f.key]}
 							placeholder="如 168"
 							style={{ width: '100%', boxSizing: 'border-box' }}
 							onChange={(e) => onOptionsChange({ ...opts, [f.key]: e.target.value })} />
 					) : (
-						<XQSelect key={`${f.key}_c`} size="small" style={{ width: '100%' }} value={f.valueOf ? f.valueOf(opts) : opts[f.key]}
-							disabled={disabled} dropdownMatchSelectWidth={false}
+						<XQSelect key={`${f.key}_c`} size="small" style={{ width: '100%' }} value={f.selectValue ? f.selectValue(opts) : opts[f.key]}
+							disabled={disabled} dropdownMatchSelectWidth={false} optionLabelProp="label"
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 							onChange={(v) => onOptionsChange({ ...opts, [f.key]: v })}>
-							{(f.optionsFor ? f.optionsFor(opts) : f.options).map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
+							{(f.optionsFor ? f.optionsFor(opts) : f.options).map((o) => (<Option key={`${o.value}`} value={o.value} label={o.short || o.label}>{o.label}</Option>))}
 						</XQSelect>
 					),
 				];
@@ -344,20 +350,16 @@ export default function QimenZeriWorkbench({
 	const editView = (
 		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区,加宽):时间范围·地点·参数 / 构造条件 / 连接门 / 动作排 */}
-			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div className="horosa-zeri-wb-top" style={ZERI_WB_TOP_STYLE}>
 					<div style={{ fontWeight: 600, marginBottom: 8 }}>时间范围·地点·参数</div>
 					{/* 行1:起止时间 + 今日/3天/7天/30天 快捷档(同一行,用户规格;输入框定宽防快捷档被挤折行) */}
 					<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.startDate}
-							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
-						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.startTime}
-							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
+						<IsoDateTimeField date={cfg.startDate} time={cfg.startTime}
+							onChange={(v) => onCfgChange({ ...cfg, startDate: v.date, startTime: v.time })} />
 						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
-						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.endDate}
-							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
-						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
-							onChange={(e) => onCfgChange({ ...cfg, endTime: e.target.value })} />
+						<IsoDateTimeField date={cfg.endDate} time={cfg.endTime}
+							onChange={(v) => onCfgChange({ ...cfg, endDate: v.date, endTime: v.time })} />
 						{/* 快捷档整簇右贴边:与下行「编辑参数」右缘对齐(用户圈报右侧参差) */}
 						{/* 预设钮组:整组 nowrap+marginLeft:auto——flex:1 占位与 wrap 互斥(占位吃掉行尾宽把单钮挤成孤行,用户圈报) */}
 						<span style={{ display: 'inline-flex', gap: 6, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
@@ -371,21 +373,21 @@ export default function QimenZeriWorkbench({
 						<GeoCoordModal lat={geo && geo.gpsLat} lng={geo && geo.gpsLon} onOk={(rec) => onGeoChange(rec)}>
 							<XQButton size="small">{geoLabel}</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? (formatZoneLabel(geo.zone) || geo.zone) : '—'}</span>
 						<XQButton size="small" onClick={onReloadFromBoard} title="用左栏「起盘选项」当前值覆盖本面板的地点与参数">从主盘重载</XQButton>
 						<span style={{ flex: 1 }} />
-						<XQButton size="small" onClick={() => setParamsOpen(!paramsOpen)}>{paramsOpen ? '收起参数 ▲' : '编辑参数 ▼'}</XQButton>
+						<XQButton size="small" onClick={() => setParamsOpen(!paramsOpen)}>{paramsOpen ? '收起参数' : '编辑参数'}<XQToggleCaret open={paramsOpen} /></XQButton>
 					</div>
 					{!paramsOpen ? (
 						<div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
 							{paramChips.map((c, i) => (
-								<span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: 'rgba(148,163,184,.12)', border: '1px solid rgba(148,163,184,.3)' }}>{c}</span>
+								<span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 10, background: 'var(--horosa-panel-soft)', border: '1px solid var(--horosa-border)' }}>{c}</span>
 							))}
 						</div>
 					) : paramGrid}
 				</div>
-				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
-				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)' }}>构造条件</div>
+				<div className="horosa-zeri-wb-cond" style={ZERI_WB_COND_BODY_STYLE}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						{/* 下拉挂进 Modal 内(getPopupContainer):body 门户浮层垂出 Modal 底边悬在遮罩上,
@@ -417,7 +419,7 @@ export default function QimenZeriWorkbench({
 					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
-				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+				<div style={{ padding: 10, borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
 					<XQButton size="small" onClick={doAdd} disabled={!!draftError}>
 						添加到列表{selectedIsGroup ? '(选中组)' : ''}
 					</XQButton>
@@ -433,8 +435,8 @@ export default function QimenZeriWorkbench({
 			</div>
 			{/* 右列(收窄):已选条件链 + 方案排 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10 }}>
-				<div style={{ flex: 1, minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
-					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
+				<div style={{ flex: 1, minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
+					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
@@ -442,8 +444,8 @@ export default function QimenZeriWorkbench({
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
 					</div>
-					<div style={{ padding: '6px 10px', borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, alignItems: 'center' }}>
-						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
+					<div style={{ padding: '6px 10px', borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, alignItems: 'center' }}>
+						<XQInput size="small" placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
 							const r = qimenZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options: opts }, tree);
@@ -482,8 +484,8 @@ export default function QimenZeriWorkbench({
 					⚠ 条件/参数/时间范围已被修改:下方结果对应「上一次找局」——请重新点「找局」。
 				</div>
 			) : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
@@ -496,7 +498,7 @@ export default function QimenZeriWorkbench({
 					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的时辰。' : '尚未找局。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
-					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={i} style={{ borderBottom: '1px dashed var(--horosa-border)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
 							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段起始时刻起盘"
@@ -523,7 +525,7 @@ export default function QimenZeriWorkbench({
 											setExplainMap((mp) => ({ ...mp, [ck]: { err: (e && e.message) || '判读失败' } }));
 										});
 									}
-								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起 ▲' : '详情 ▼'}</XQButton>
+								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起' : '详情'}<XQToggleCaret open={expandKey === `${scanEpoch || 0}:${i}`} /></XQButton>
 							</span>
 							<span style={{ width: 52, textAlign: 'center' }}>
 								<XQButton size="small" onClick={() => setPreviewRow(row)}>盘</XQButton>
@@ -576,8 +578,8 @@ export default function QimenZeriWorkbench({
 				</XQButton>
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
@@ -585,10 +587,10 @@ export default function QimenZeriWorkbench({
 				</div>
 				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
-					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed var(--horosa-border)' }}>
 						{renameId === s.id ? (
 							<span style={{ flex: 1, display: 'inline-flex', gap: 6 }}>
-								<input value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
+								<XQInput size="small" value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
 								<XQButton size="small" type="primary" onClick={() => {
 									const r = qimenZeriSchemeStore.renameScheme(s.id, renameText);
 									setSchemeMsg(r.ok ? '已重命名' : r.msg);

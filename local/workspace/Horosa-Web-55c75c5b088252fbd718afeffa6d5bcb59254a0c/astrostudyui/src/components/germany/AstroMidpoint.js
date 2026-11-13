@@ -5,7 +5,7 @@ import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { signDegMin, astroMsgText as msg } from '../astro/AstroHelper';
-import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart, SA_RATE, planetHouse, rectificationHits } from '../../utils/uranianDial';
@@ -51,6 +51,7 @@ function fieldsToParams(fields){
 		pos: fields.pos.value,
 		// 古典设置单源接入(量化盘本地构参副本此前零古典键);条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
+		...chartOrbOverridesFromFields(fields),
 	};
 
 	return params;

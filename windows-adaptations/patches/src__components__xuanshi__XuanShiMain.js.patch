@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMain.js b/astrostudyui/src/components/xuanshi/XuanShiMain.js
-index c6d509b8..69eeef11 100644
+index c341150d..2f05c876 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMain.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMain.js
 @@ -6,6 +6,8 @@ import {

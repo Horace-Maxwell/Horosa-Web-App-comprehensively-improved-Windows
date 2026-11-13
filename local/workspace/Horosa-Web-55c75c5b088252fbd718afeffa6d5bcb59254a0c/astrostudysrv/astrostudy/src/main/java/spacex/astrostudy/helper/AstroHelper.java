@@ -87,6 +87,15 @@ public class AstroHelper {
 	public static final String AstroExtraBezzaFigure = PropertyPlaceholder.getProperty("astroextra.bezzafigure", "/astroextra/bezzafigure");
 	public static final String AstroExtraJayProfection = PropertyPlaceholder.getProperty("astroextra.jayprofection", "/astroextra/jayprofection");
 	public static final String AstroExtraMichon = PropertyPlaceholder.getProperty("astroextra.michon", "/astroextra/michon");
+	public static final String AstroExtraTimeLords = PropertyPlaceholder.getProperty("astroextra.timelords", "/astroextra/timelords");
+	public static final String AstroExtraChartDetails = PropertyPlaceholder.getProperty("astroextra.chartdetails", "/astroextra/chartdetails");
+	public static final String AstroExtraMundaneCycles = PropertyPlaceholder.getProperty("astroextra.mundanecycles", "/astroextra/mundanecycles");
+	public static final String AstroExtraTransformChart = PropertyPlaceholder.getProperty("astroextra.transformchart", "/astroextra/transformchart");
+	public static final String AstroExtraZodiacSystems = PropertyPlaceholder.getProperty("astroextra.zodiacsystems", "/astroextra/zodiacsystems");
+	public static final String AstroExtraZhufang = PropertyPlaceholder.getProperty("astroextra.zhufang", "/astroextra/zhufang");
+	public static final String AstroExtraBabylonTables = PropertyPlaceholder.getProperty("astroextra.babylontables", "/astroextra/babylontables");
+	public static final String AstroExtraAshtakoota = PropertyPlaceholder.getProperty("astroextra.ashtakoota", "/astroextra/ashtakoota");
+	public static final String AstroExtraTransitEvents = PropertyPlaceholder.getProperty("astroextra.transitevents", "/astroextra/transitevents");
 	public static final String AstroExtraReturns = PropertyPlaceholder.getProperty("astroextra.returns", "/astroextra/returns");
 	public static final String AstroExtraHarmonic = PropertyPlaceholder.getProperty("astroextra.harmonic", "/astroextra/harmonic");
 	public static final String AstroExtraDraconic = PropertyPlaceholder.getProperty("astroextra.draconic", "/astroextra/draconic");
@@ -243,7 +252,8 @@ public class AstroHelper {
 	public static Map<String, Object> getRelativeChart(Map<String, Object> params){
 		// 合盘参数代次盐:组合盘宫制由「恒整宫」改为按所选宫制取中点(并带宫制说明字段),
 		// 旧缓存键必须整体失效,否则升级后同 body 命中旧的整宫响应。今后合盘链语义变更时升盐。
-		params.put("_v", "r2");
+		// r3:比较盘跨盘接触容许度 = 1° × 容许度整体倍率(带了倍率的旧响应是按固定 1° 判的);组合盘 / 合盘的希腊点跟着搬点走。
+		params.put("_v", "r3");
 		return request(RelativeChart, params);
 	}
 	
@@ -251,7 +261,8 @@ public class AstroHelper {
 		// 量化盘参数代次盐:白名单扩键(davison/strictFactors 等)后旧缓存键必须整体失效,
 		// 否则升级后同 body 命中旧响应(无新字段)——paramhash 污染缓存前科(jieqi w4 同款)。
 		// 今后 germany 链参数语义变更时升盐。
-		params.put("_v", "g2");
+		// g3:赤纬接触不再列南北交这一对定义对点;恒星黄道下赤经 / 赤纬中点改读各点真赤道坐标;虚星赤纬按本日真黄赤交角。
+		params.put("_v", "g3");
 		return request(MidPoint, params);
 	}
 	
@@ -263,7 +274,8 @@ public class AstroHelper {
 	}
 
 	public static Map<String, Object> getJieQiBirth(Map<String, Object> params){
-		params.put("_v", "w5");
+		// w6:出生盘卯时「按赤经」改为太阳赤经比东点赤经(年度节气表不涉卯时,仍 w5)
+		params.put("_v", "w6");
 		return request(JieQiBirth, params);
 	}
 
@@ -273,9 +285,43 @@ public class AstroHelper {
 		return request(Nongli, params);
 	}
 	
+	// 儒略日 → 当地民用日期(1582-10-15 以前的古历日期才会走到引擎):(儒略日, 时区) 的纯函数,同一张盘里同一个值会被反复问
+	// (四柱 / 农历 / 交节各问各的;公元前的盘一次起盘几十问)。进程内记下最近问过的,同值不再走一趟回环。
+	// 只记成功结果;键 = 全部入参(键序归一)。容量有界(最近最少使用淘汰)。
+	private static final int JdnDateMemoMax = 4096;
+	private static final Map<String, String> JdnDateMemo = java.util.Collections.synchronizedMap(
+		new java.util.LinkedHashMap<String, String>(256, 0.75f, true) {
+			private static final long serialVersionUID = 1L;
+			@Override
+			protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+				return size() > JdnDateMemoMax;
+			}
+		});
+
+	static String jdnDateMemoKey(Map<String, Object> params){
+		StringBuilder sb = new StringBuilder();
+		for(Map.Entry<String, Object> e : new java.util.TreeMap<String, Object>(params).entrySet()) {
+			Object v = e.getValue();
+			// 浮点数按位取键:1.0 与 1.0000000001 是两个值,不靠字符串格式化的舍入
+			String sv = (v instanceof Double || v instanceof Float)
+				? Long.toHexString(Double.doubleToLongBits(((Number) v).doubleValue())) : String.valueOf(v);
+			sb.append(e.getKey()).append('=').append(sv).append(';');
+		}
+		return sb.toString();
+	}
+
 	public static String getJdnDate(Map<String, Object> params){
+		String key = jdnDateMemoKey(params);
+		String hit = JdnDateMemo.get(key);
+		if(hit != null) {
+			return hit;
+		}
 		Map<String, Object> res = requestNoCache(JdnDate, params);
-		return (String) res.get("date");
+		String date = (String) res.get("date");
+		if(date != null) {
+			JdnDateMemo.put(key, date);
+		}
+		return date;
 	}
 	
 	public static Map<String, Object> getAcg(Map<String, Object> params){
@@ -338,6 +384,42 @@ public class AstroHelper {
 		return request(AstroExtraJayProfection, params);
 	}
 
+	public static Map<String, Object> getAstroExtraTimeLords(Map<String, Object> params){
+		return request(AstroExtraTimeLords, params);
+	}
+
+	public static Map<String, Object> getAstroExtraTransformChart(Map<String, Object> params){
+		return request(AstroExtraTransformChart, params);
+	}
+
+	public static Map<String, Object> getAstroExtraZodiacSystems(Map<String, Object> params){
+		return request(AstroExtraZodiacSystems, params);
+	}
+
+	public static Map<String, Object> getAstroExtraZhufang(Map<String, Object> params){
+		return request(AstroExtraZhufang, params);
+	}
+
+	public static Map<String, Object> getAstroExtraBabylonTables(Map<String, Object> params){
+		return request(AstroExtraBabylonTables, params);
+	}
+
+	public static Map<String, Object> getAstroExtraMundaneCycles(Map<String, Object> params){
+		return request(AstroExtraMundaneCycles, params);
+	}
+
+	public static Map<String, Object> getAstroExtraAshtakoota(Map<String, Object> params){
+		return request(AstroExtraAshtakoota, params);
+	}
+
+	public static Map<String, Object> getAstroExtraTransitEvents(Map<String, Object> params){
+		return request(AstroExtraTransitEvents, params);
+	}
+
+	public static Map<String, Object> getAstroExtraChartDetails(Map<String, Object> params){
+		return request(AstroExtraChartDetails, params);
+	}
+
 	public static Map<String, Object> getAstroExtraMichon(Map<String, Object> params){
 		return request(AstroExtraMichon, params);
 	}
@@ -381,7 +463,8 @@ public class AstroHelper {
 	public static Map<String, Object> getAstroExtraRelative(Map<String, Object> params){
 		// 关系量化代次盐:同一跨盘相位改为只计一次、误差衰减按跨盘容许度(1°)折算 —— 请求体不变、语义变了,
 		// 旧缓存键必须整体失效(否则升级后 24 小时内同一对盘仍返回双计的旧分)。今后关系量化语义变更时升盐。
-		params.put("_v", "q2");
+		// q3:跨盘容许度随容许度整体倍率,衰减按实际上限归一。
+		params.put("_v", "q3");
 		return request(AstroExtraRelative, params);
 	}
 

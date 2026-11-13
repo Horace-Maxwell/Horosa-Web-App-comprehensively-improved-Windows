@@ -119,6 +119,8 @@ def detect_patterns(points):
                 seen.add(key)
                 patterns.append({'type': 'stellium_orb', 'label': 'Tight Stellium', 'span': cluster[-1]['lon'] - cluster[0]['lon'], 'points': list(key)})
 
+    patterns.extend(detect_basket(points))
+
     unique = []
     keys = set()
     for item in patterns:
@@ -309,6 +311,28 @@ def fixed_star_hits(perchart, orb=1.0, by_magnitude=False):
     def _rank(h):
         return (0 if h['royal'] else (1 if h['behenian'] else 2), h['orb'])
     return sorted(seen.values(), key=_rank)
+
+
+def detect_basket(points):
+    """篮形:四点沿黄道依次相隔 90、60、90、120。两两角距 60、90、90、120、150、150。"""
+    ids = [p['id'] for p in points if p['id'] in DEFAULT_EVENT_PLANETS or p['id'] in (const.ASC, const.MC)]
+    lon_of = {p['id']: p['lon'] for p in points}
+    orb_of = {asp['angle']: asp['orb'] for asp in MAJOR_ASPECTS}
+    gaps = (90, 60, 90, 120)
+    found = []
+    import itertools as _it4
+    for combo in _it4.combinations(ids, 4):
+        ring = sorted(combo, key=lambda pid: lon_of[pid])
+        for shift in range(4):
+            sides = all(find_aspect(points, ring[(shift + k) % 4], ring[(shift + k + 1) % 4], gaps[k], orb_of[gaps[k]])
+                        for k in range(4))
+            # 四条边的容许度会累加,两条对角线也要成 150°,否则形状已经走样
+            diagonals = all(find_aspect(points, ring[(shift + k) % 4], ring[(shift + k + 2) % 4], 150, orb_of[150])
+                            for k in range(2))
+            if sides and diagonals:
+                found.append({'type': 'basket', 'label': 'Basket', 'points': ring})
+                break
+    return found
 
 
 def compute_classical_patterns(perchart):

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
-index eeeda982..2ca71a55 100644
+index 96a948c2..326ce105 100644
 --- a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 +++ b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 @@ -1,5 +1,5 @@
@@ -11,11 +11,11 @@ index eeeda982..2ca71a55 100644
  	parseSnapshotSections,
 @@ -10,6 +10,8 @@ import {
  import { getPageLayoutHeight } from '../../utils/shellZoom';
- import { Divider, Tag, message } from 'antd';
+ import { Tag, message } from 'antd';
  import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
- import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+ import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQStageEmpty } from '../xq-ui';
  import XQIcon from '../xq-icons';
  import * as AstroConst from '../../constants/AstroConst';
 @@ -101,6 +103,14 @@ import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj, } from '../liureng/LRS
@@ -31,9 +31,9 @@ index eeeda982..2ca71a55 100644
 +	return memoSanshiUnitedBoard;
 +}
  import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
- import { buildQimenXiangTipObj, } from '../dunjia/QimenXiangDoc';
- import {
-@@ -1892,2771 +1902,2877 @@ export function buildOuterStarMeaningTip(star){
+ import { kvInfoCard as sanshiKvCard, splitLabelText as splitSanshiLabelText } from '../common/KvInfoCard';
+ import { LiuRengRefCard, LiuRengRefEmpty, LiuRengRefFacts, LiuRengRefGroupTitle } from '../lrzhan/LiuRengRefCard';
+@@ -1903,2802 +1913,2910 @@ export function buildOuterStarMeaningTip(star){
  	return mergeMeaningTips(base, [ptip]);
  }
  
@@ -43,7 +43,7 @@ index eeeda982..2ca71a55 100644
 -		// 上次亲手设的排盘口径 —— 只有独立三式页读;三式择日里内嵌的那份恒从出厂值 / 共享字段现值起(理由见 SANSHI_PAGE_SETTINGS 注)。
 -		const savedOnly = this.usesSavedSettings() ? SANSHI_PAGE_SETTINGS.loadSaved() : {};
 -		// 外圈两项是组件自己的 state,不在 options 里:从 options 的播种里摘出来(否则 options 里多出两个没人读的陈旧副本,还会跟着事盘存下去)
--		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ...savedOptionKeys } = savedOnly;
+-		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ascRaMode: savedAscRaMode, ...savedOptionKeys } = savedOnly;
 -		const defaultTimeAlg = normalizeTimeAlg(
 -			props
 -			&& props.fields
@@ -68,6 +68,7 @@ index eeeda982..2ca71a55 100644
 -			rightPanelTab: 'overview',
 -			outerCoord: savedOuterCoord !== undefined ? savedOuterCoord : 'ecliptic', // 外圈分宫:ecliptic(黄道,出厂值) | equatorial(赤道/赤经);上次亲手设的值
 -			showWeakSolid: savedShowWeakSolid !== undefined ? savedShowWeakSolid : true, // 外圈是否叠七政四余式「虚实」红绿点(出厂显示);上次亲手设的值
+-			ascRaMode: normalizeAscRaMode(savedAscRaMode), // 外圈赤道分宫的上升取法(出厂 = 改进 / 真赤经);上次亲手设的值
 -			liurengRefTab: 'dage',
 -			bagongSubTab: 'bagong', // 遁甲右栏内层子tab:八宫 / 用神 / 化解
 -			taiyiSubTab: 'overview', // 太乙右栏内层子tab:概览 / 十六宫 / 八门 / 断法
@@ -482,6 +483,15 @@ index eeeda982..2ca71a55 100644
 +								<Option value="equatorial">赤道</Option>
 +							</Select>
 +						</label>
++						{/* 上升取法只在外圈赤道分宫时起作用(黄道分宫按黄经,不读上升赤经) */}
++						{this.props.outerCoord === 'equatorial' ? (
++							<label className="horosa-sanshi-select-field">
++								<span>上升取法</span>
++								<Select size="small" value={this.props.ascRaMode} onChange={(v)=>this.props.onAscRaModeChange(v)} dropdownMatchSelectWidth={false}>
++									{ASC_RA_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
++								</Select>
++							</label>
++						) : null}
 +						<label className="horosa-sanshi-select-field">
 +							<span>虚实</span>
 +							<Select size="small" value={this.props.showWeakSolid ? 1 : 0} onChange={(v)=>this.props.onShowWeakSolidChange(v === 1)}>
@@ -647,8 +657,8 @@ index eeeda982..2ca71a55 100644
 +						{opt.qijuMethod === 'zhirun' && qijuMethodUsesJieqiFa(opt.paiPanType === undefined || opt.paiPanType === null || opt.paiPanType === '' ? 3 : opt.paiPanType) ? (
 +							<label className="horosa-sanshi-select-field">
 +								<span>置闰天数</span>
-+								<Select size="small" value={opt.zhirunLeapDays || 9} onChange={(v)=>this.props.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
-+									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value}>{item.label}</Option>)}
++								<Select size="small" value={opt.zhirunLeapDays || 9} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
++									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 +								</Select>
 +							</label>
 +						) : null}
@@ -704,8 +714,8 @@ index eeeda982..2ca71a55 100644
 +						{opt.paiPanType === 1 ? (
 +							<label className="horosa-sanshi-select-field">
 +								<span>月家起局</span>
-+								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
-+									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
++								<Select size="small" value={opt.yueJiaQiJuType} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
++									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 +								</Select>
 +							</label>
 +						) : null}
@@ -1039,8 +1049,8 @@ index eeeda982..2ca71a55 100644
 +					<div className="horosa-sanshi-select-grid">
 +						<label className="horosa-sanshi-select-field">
 +							<span>换将</span>
-+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} onChange={(v)=>this.props.onOptionChange('yueJiangMethod', v)}>
-+								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
++							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('yueJiangMethod', v)}>
++								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 +							</Select>
 +						</label>
 +						<label className="horosa-sanshi-select-field">
@@ -1143,7 +1153,7 @@ index eeeda982..2ca71a55 100644
 -		}
 -			// 事盘里没有的口径键回**出厂值**,而不是留着本机保存的偏好:本页口径现在跨会话保留,按出厂口径存下的旧案不带后来才有的键,
 -			// 不回出厂就会被按你现在的偏好重排(盘变了,与存档里的快照也对不上)。时间算法的出厂值 = 跨页共享字段的现值(与构造函数同一来源)。
--			const { outerCoord: _oc, showWeakSolid: _sw, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
+-			const { outerCoord: _oc, showWeakSolid: _sw, ascRaMode: _ar, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
 -			factoryOptionKeys.timeAlg = normalizeTimeAlg(this.props.fields && this.props.fields.timeAlg ? this.props.fields.timeAlg.value : 0);
 -			const options = {
 -				...(this.state.options || {}),
@@ -1233,12 +1243,6 @@ index eeeda982..2ca71a55 100644
 -				}
 -				if(payload.options.seHaiMethod){
 -					options.seHaiMethod = payload.options.seHaiMethod;
--				}
--				if(payload.options.seHaiBoundary){
--					options.seHaiBoundary = payload.options.seHaiBoundary;
--				}
--				if(payload.options.shiRuKe !== undefined){
--					options.shiRuKe = !!payload.options.shiRuKe;
 +// [S4 已收敛 v3.10.0] SanShiBoardLayer 退役:盘面单源迁至共享 SanshiUnitedBoard(上游),
 +// 渲染隔离由下方 MemoSanshiUnitedBoard(React.memo,浅比)承接 —— 语义与原 wrapperPropsEqual 等价。
 +class SanShiUnitedMain extends Component{
@@ -1247,7 +1251,7 @@ index eeeda982..2ca71a55 100644
 +		// 上次亲手设的排盘口径 —— 只有独立三式页读;三式择日里内嵌的那份恒从出厂值 / 共享字段现值起(理由见 SANSHI_PAGE_SETTINGS 注)。
 +		const savedOnly = this.usesSavedSettings() ? SANSHI_PAGE_SETTINGS.loadSaved() : {};
 +		// 外圈两项是组件自己的 state,不在 options 里:从 options 的播种里摘出来(否则 options 里多出两个没人读的陈旧副本,还会跟着事盘存下去)
-+		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ...savedOptionKeys } = savedOnly;
++		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ascRaMode: savedAscRaMode, ...savedOptionKeys } = savedOnly;
 +		const defaultTimeAlg = normalizeTimeAlg(
 +			props
 +			&& props.fields
@@ -1272,6 +1276,7 @@ index eeeda982..2ca71a55 100644
 +			rightPanelTab: 'overview',
 +			outerCoord: savedOuterCoord !== undefined ? savedOuterCoord : 'ecliptic', // 外圈分宫:ecliptic(黄道,出厂值) | equatorial(赤道/赤经);上次亲手设的值
 +			showWeakSolid: savedShowWeakSolid !== undefined ? savedShowWeakSolid : true, // 外圈是否叠七政四余式「虚实」红绿点(出厂显示);上次亲手设的值
++			ascRaMode: normalizeAscRaMode(savedAscRaMode), // 外圈赤道分宫的上升取法(出厂 = 改进 / 真赤经);上次亲手设的值
 +			liurengRefTab: 'dage',
 +			bagongSubTab: 'bagong', // 遁甲右栏内层子tab:八宫 / 用神 / 化解
 +			taiyiSubTab: 'overview', // 太乙右栏内层子tab:概览 / 十六宫 / 八门 / 断法
@@ -1392,8 +1397,8 @@ index eeeda982..2ca71a55 100644
 +				if(this.unmounted){
 +					return;
  				}
--				if(payload.options.yearShenShaSort){
--					options.yearShenShaSort = payload.options.yearShenShaSort;
+-				if(payload.options.seHaiBoundary){
+-					options.seHaiBoundary = payload.options.seHaiBoundary;
 +				this.restoreOptionsFromCurrentCase();
 +				this.handleExternalFieldsSync(fields, chartObj);
 +			};
@@ -1404,8 +1409,8 @@ index eeeda982..2ca71a55 100644
 +				if(this.unmounted){
 +					return;
  				}
--				if(payload.options.yinyangSystem){
--					options.yinyangSystem = payload.options.yinyangSystem;
+-				if(payload.options.shiRuKe !== undefined){
+-					options.shiRuKe = !!payload.options.shiRuKe;
 +				try{
 +					this.prefetchNongliForFields(flds || this.props.fields);
 +				}catch(e){ /* 预热失败无害 */ }
@@ -1423,6 +1428,12 @@ index eeeda982..2ca71a55 100644
 +				if(this.unmounted){
 +					return;
  				}
+-				if(payload.options.yearShenShaSort){
+-					options.yearShenShaSort = payload.options.yearShenShaSort;
+-				}
+-				if(payload.options.yinyangSystem){
+-					options.yinyangSystem = payload.options.yinyangSystem;
+-				}
 -				// 🔴 奇门键集驱动灌注(根治手写白名单漏新键=存档载入丢设置):
 -				// QIMEN_OPTIONS 默认表的每个键都从存档取——独立页 restore 以 Object.keys(DEFAULT_OPTIONS)
 -				// 驱动的同构范式,新增奇门键零维护自动跟随;已手写键幂等覆盖同值无害。
@@ -1448,6 +1459,26 @@ index eeeda982..2ca71a55 100644
 -		}
 -		if(options.hsys !== undefined){
 -			patchFields.hsys = { value: options.hsys };
+-		}
+-		if(options.sex !== undefined){
+-			patchFields.gender = { value: options.sex };
+-		}
+-		if(options.timeAlg !== undefined){
+-			patchFields.timeAlg = { value: normalizeTimeAlg(options.timeAlg) };
+-		}
+-		// 择日内嵌:存案那一刻的时间地点(主页载入事盘时主盘字段已是它,不用另补)
+-		const casePatch = this.props.techniqueScope ? (getKentangSavedCaseFieldsPatch(scope) || {}) : {};
+-		const nextLocalFields = {
+-			...this.getActiveFields(),
+-			...casePatch,
+-			...patchFields,
+-		};
+-		// 事盘带的时间算法只进本页 fields(同「时间算法只作用于本页」);其余随盘键照写共用字段
+-		const sharedPatch = { ...patchFields };
+-		delete sharedPatch.timeAlg;
+-		// 择日内嵌:覆盖层整个换成存案的时间地点 + 这几键(此前并进旧覆盖层、且时刻停在择日页当前,按它重排);主页照写共用字段
+-		if(!sendScopedFields(this.props, { ...casePatch, ...sharedPatch }, { replace: true }) && Object.keys(sharedPatch).length){
+-			this.onFieldsChange(sharedPatch, true);
 +				this.clickPlot();
 +			};
 +			// 择日宿主扫描前取本页奇门家全量引擎 options(暗干/暗支/八神/寄宫/移星等左栏档),
@@ -1455,45 +1486,6 @@ index eeeda982..2ca71a55 100644
 +			this.props.hook.getQimenOptions = ()=>(this.unmounted ? null : this.getQimenOptions());
 +			// 择日宿主扫描前取本页平铺 options(六壬家分昼夜 / 涉害三键、太乙家流派表):扫描与点开的盘同口径
 +			this.props.hook.getOptions = ()=>(this.unmounted ? null : JSON.parse(JSON.stringify(this.state.options || {})));
- 		}
--		if(options.sex !== undefined){
--			patchFields.gender = { value: options.sex };
-+	}
-+
-+	// 快捷栏契约:「此刻起盘」:局时=当下并立即重排。借道 clickPlot 全管道(同步/预取/兜底定时器),
-+	// 起盘瞬间临时屏蔽左栏时间草稿(timeHook)——点「此刻」语义就是 NOW,不该被旧草稿覆盖。
-+	clickPlotNow(){
-+		if(this.state.loading){
-+			return;
- 		}
--		if(options.timeAlg !== undefined){
--			patchFields.timeAlg = { value: normalizeTimeAlg(options.timeAlg) };
-+		const base = this.state.localFields || this.props.fields;
-+		if(!base){
-+			return;
- 		}
--		// 择日内嵌:存案那一刻的时间地点(主页载入事盘时主盘字段已是它,不用另补)
--		const casePatch = this.props.techniqueScope ? (getKentangSavedCaseFieldsPatch(scope) || {}) : {};
--		const nextLocalFields = {
--			...this.getActiveFields(),
--			...casePatch,
--			...patchFields,
-+		const now = new DateTime();
-+		this.pendingTimeFields = {
-+			...base,
-+			date: { value: now.clone() },
-+			time: { value: now.clone() },
-+			ad: { value: now.ad },
- 		};
--		// 事盘带的时间算法只进本页 fields(同「时间算法只作用于本页」);其余随盘键照写共用字段
--		const sharedPatch = { ...patchFields };
--		delete sharedPatch.timeAlg;
--		// 择日内嵌:覆盖层整个换成存案的时间地点 + 这几键(此前并进旧覆盖层、且时刻停在择日页当前,按它重排);主页照写共用字段
--		if(!sendScopedFields(this.props, { ...casePatch, ...sharedPatch }, { replace: true }) && Object.keys(sharedPatch).length){
--			this.onFieldsChange(sharedPatch, true);
-+		const hookGet = this.timeHook && this.timeHook.getValue;
-+		if(hookGet){
-+			this.timeHook.getValue = ()=>null;
  		}
 -		this.setState({
 -			options: normalizedOptions,
@@ -1507,30 +1499,84 @@ index eeeda982..2ca71a55 100644
 -				this.recalcByNongli(nextLocalFields, sameLessonNongli, normalizedOptions);
 -			}else{
 -				this.refreshAll(nextLocalFields, true);
+-			}
+-		});
+ 	}
+ 
+-	handleExternalFieldsSync(fields, chartObj){
+-		const nextFields = fields || this.props.fields;
+-		if(!nextFields){
++	// 快捷栏契约:「此刻起盘」:局时=当下并立即重排。借道 clickPlot 全管道(同步/预取/兜底定时器),
++	// 起盘瞬间临时屏蔽左栏时间草稿(timeHook)——点「此刻」语义就是 NOW,不该被旧草稿覆盖。
++	clickPlotNow(){
++		if(this.state.loading){
+ 			return;
+ 		}
+-		const chartKey = getOuterChartKey(castChartFor(chartObj || this.props.chartObj || this.props.chart || null, nextFields));
+-		const syncKey = `${getFieldSyncKey(nextFields)}|${chartKey}`;
+-		if(syncKey && syncKey === this.lastExternalFieldsKey && !this.awaitingChartSync){
++		const base = this.state.localFields || this.props.fields;
++		if(!base){
+ 			return;
+ 		}
+-		this.lastExternalFieldsKey = syncKey;
+-		if(this.awaitingSyncTimer){
+-			clearTimeout(this.awaitingSyncTimer);
+-			this.awaitingSyncTimer = null;
+-		}
+-		this.awaitingChartSync = false;
+-		this.pendingTimeFields = null;
+-		const currentOptions = this.state.options || {};
+-		const nextOptions = {
+-			...currentOptions,
+-		};
+-		const fieldGender = nextFields.gender ? nextFields.gender.value : null;
+-		if(fieldGender === 0 || fieldGender === 1){
+-			nextOptions.sex = fieldGender;
+-		}
+-		const shouldReplot = !!this.state.hasPlotted;
+-		const patch = {
+-			localFields: nextFields,
+-			options: nextOptions,
++		const now = new DateTime();
++		this.pendingTimeFields = {
++			...base,
++			date: { value: now.clone() },
++			time: { value: now.clone() },
++			ad: { value: now.ad },
+ 		};
+-		if(shouldReplot){
+-			patch.plottedFields = nextFields;
+-			patch.loading = true;
++		const hookGet = this.timeHook && this.timeHook.getValue;
++		if(hookGet){
++			this.timeHook.getValue = ()=>null;
+ 		}
+-		this.setState(patch, ()=>{
+-			this.prefetchNongliForFields(nextFields);
+-			this.prefetchJieqiSeedForFields(nextFields, nextOptions);
+-			if(!shouldReplot){
+-				return;
 +		try{
 +			this.clickPlot();
 +		}finally{
 +			if(hookGet){
 +				this.timeHook.getValue = hookGet;
  			}
+-			setTimeout(()=>{
+-				if(this.unmounted){
+-					return;
+-				}
+-				this.refreshAll(nextFields, true);
+-			}, 0);
 -		});
 +		}
  	}
  
--	handleExternalFieldsSync(fields, chartObj){
--		const nextFields = fields || this.props.fields;
--		if(!nextFields){
+-	syncFields(field){
+-		// 择日宿主内嵌:改动交给宿主的覆盖层(只更新显示,重排由随后的 onFieldsChange 交给宿主),不写主盘
+-		if(sendScopedFields(this.props, field, { recompute: false })){
 -			return;
--		}
--		const chartKey = getOuterChartKey(castChartFor(chartObj || this.props.chartObj || this.props.chart || null, nextFields));
--		const syncKey = `${getFieldSyncKey(nextFields)}|${chartKey}`;
--		if(syncKey && syncKey === this.lastExternalFieldsKey && !this.awaitingChartSync){
--			return;
--		}
--		this.lastExternalFieldsKey = syncKey;
--		if(this.awaitingSyncTimer){
--			clearTimeout(this.awaitingSyncTimer);
--			this.awaitingSyncTimer = null;
 +	// 快捷栏契约:右栏 tab 镜像(概览/太乙/六壬/遁甲)撤除,只留本页没有的动词。
 +	renderQuickDock(){
 +		return (
@@ -1552,61 +1598,41 @@ index eeeda982..2ca71a55 100644
 +		if(!params){
 +			return safe(primaryNongli && primaryNongli.birth, '');
  		}
--		this.awaitingChartSync = false;
--		this.pendingTimeFields = null;
--		const currentOptions = this.state.options || {};
--		const nextOptions = {
--			...currentOptions,
--		};
--		const fieldGender = nextFields.gender ? nextFields.gender.value : null;
--		if(fieldGender === 0 || fieldGender === 1){
--			nextOptions.sex = fieldGender;
+-		if(!this.props.dispatch){
+-			return;
 +		const current = safe(primaryNongli && primaryNongli.birth, '');
 +		if(normalizeTimeAlg(params.timeAlg) === 0){
 +			return current;
- 		}
--		const shouldReplot = !!this.state.hasPlotted;
--		const patch = {
--			localFields: nextFields,
--			options: nextOptions,
--		};
--		if(shouldReplot){
--			patch.plottedFields = nextFields;
--			patch.loading = true;
++		}
 +		const solarParams = buildDisplaySolarParams(params);
 +		const cachedSolar = getNongliLocalCache(solarParams);
 +		if(cachedSolar && cachedSolar.birth){
 +			return safe(cachedSolar.birth, current);
- 		}
--		this.setState(patch, ()=>{
--			this.prefetchNongliForFields(nextFields);
--			this.prefetchJieqiSeedForFields(nextFields, nextOptions);
--			if(!shouldReplot){
--				return;
++		}
 +		try{
 +			const solarNongli = await fetchPreciseNongli(solarParams);
 +			if(solarNongli){
 +				setNongliLocalCache(solarParams, solarNongli);
- 			}
--			setTimeout(()=>{
--				if(this.unmounted){
--					return;
--				}
--				this.refreshAll(nextFields, true);
--			}, 0);
--		});
++			}
 +			return safe(solarNongli && solarNongli.birth, current);
 +		}catch(e){
 +			return current;
-+		}
+ 		}
+-		const flds = {
+-			...(this.props.fields || {}),
+-			...(field || {}),
+-		};
+-		this.props.dispatch({
+-			type: 'astro/saveUserFields',
+-			payload: {
+-				fields: flds,
+-			},
+-		});
  	}
  
--	syncFields(field){
--		// 择日宿主内嵌:改动交给宿主的覆盖层(只更新显示,重排由随后的 onFieldsChange 交给宿主),不写主盘
--		if(sendScopedFields(this.props, field, { recompute: false })){
--			return;
--		}
--		if(!this.props.dispatch){
+-	onFieldsChange(field, requestMode){
+-		// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 拉底盘重排),不写主盘
+-		if(sendScopedFields(this.props, field)){
 -			return;
 +	getCachedDunJia(fields, nongli, qimenOptions, year, isDiurnal, displaySolarTime){
 +		const key = [
@@ -1621,51 +1647,6 @@ index eeeda982..2ca71a55 100644
 +		].join('|');
 +		if(this.panCache.has(key)){
 +			return this.panCache.get(key);
- 		}
--		const flds = {
--			...(this.props.fields || {}),
--			...(field || {}),
--		};
--		this.props.dispatch({
--			type: 'astro/saveUserFields',
--			payload: {
--				fields: flds,
--			},
-+		// ctx 与独立页 DunJiaMain.getContext 同构(含 displaySolarTime),否则本地年/月/日家盘与独立页分叉。
-+		const pan = calcDunJia(fields, nongli, qimenOptions, {
-+			year,
-+			jieqiYearSeeds: this.jieqiYearSeeds,
-+			isDiurnal,
-+			displaySolarTime,
- 		});
-+		this.panCache.set(key, pan);
-+		if(this.panCache.size > 48){
-+			const firstKey = this.panCache.keys().next().value;
-+			if(firstKey){
-+				this.panCache.delete(firstKey);
-+			}
-+		}
-+		return pan;
- 	}
- 
--	onFieldsChange(field, requestMode){
--		// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 拉底盘重排),不写主盘
--		if(sendScopedFields(this.props, field)){
--			return;
-+	async getKinqimenDunJia(fields, nongli, qimenOptions, year, isDiurnal, displaySolarTime){
-+		const fallbackPan = this.getCachedDunJia(fields, nongli, qimenOptions, year, isDiurnal, displaySolarTime);
-+		// 🔴 路由与独立页 DunJiaMain.getResolvedPan 完全一致(否则结果分叉=用户报的「三式合一遁甲≠独立遁甲」):
-+		//   本地 calcDunJia ← 年/月/日/刻/金函家(各家局法) 或 飞盘/混合/报数(后端不支持) 或 七组本地口径任一非缺省;
-+		//   后端 fetchQimenPan ← 时家/综合·转盘·全缺省口径(保「时家=转盘」原有行为零回归)。
-+		// 本地 calcDunJia 返回的 pan 不带 source 字段(source:'kinqimen' 仅后端合并路径有),故本地分支不校验 source。
-+		const o = qimenOptions || {};
-+		// 路由单源 isQimenLocalRoute(DunJiaCalc,与独立页/择日弹窗同判据):本地家/飞盘/混合/报数/七组本地口径任一非缺省 → 本地。
-+		const localOnly = isQimenLocalRoute(o);
-+		if(localOnly){
-+			if(!fallbackPan){
-+				throw new Error('sanshi.qimen.kinqimen_unavailable');
-+			}
-+			return this.applySanshiFaRelated(fallbackPan, o);
  		}
 -		if(this.props.dispatch){
 -			const requestOptions = (typeof requestMode === 'object' && requestMode)
@@ -1691,17 +1672,21 @@ index eeeda982..2ca71a55 100644
 -				type: 'astro/fetchByFields',
 -				payload,
 -			});
-+		const backendPan = await fetchQimenPan(fields, nongli, qimenOptions, {
++		// ctx 与独立页 DunJiaMain.getContext 同构(含 displaySolarTime),否则本地年/月/日家盘与独立页分叉。
++		const pan = calcDunJia(fields, nongli, qimenOptions, {
 +			year,
 +			jieqiYearSeeds: this.jieqiYearSeeds,
 +			isDiurnal,
 +			displaySolarTime,
 +		});
-+		const pan = normalizeKinqimenData(backendPan, fallbackPan, qimenOptions, nongli);
-+		if(!pan || pan.source !== 'kinqimen'){
-+			throw new Error('sanshi.qimen.kinqimen_unavailable');
++		this.panCache.set(key, pan);
++		if(this.panCache.size > 48){
++			const firstKey = this.panCache.keys().next().value;
++			if(firstKey){
++				this.panCache.delete(firstKey);
++			}
  		}
-+		return this.applySanshiFaRelated(pan, o);
++		return pan;
  	}
  
 -	onTimeChanged(value){
@@ -1747,16 +1732,8 @@ index eeeda982..2ca71a55 100644
 -			this.prefetchNongliForFields(localFields);
 -			this.prefetchJieqiSeedForFields(localFields);
 -		}
-+	// 三式相关人员挂 pan(与独立页 applyFaRelatedToPan 同单源语义:法奇门 DunJiaFaCalc 读 pan.faRelatedPeople 数组)。
-+	// 三式侧输入为文本(逗号/空格分隔生年天干),此处解析为十干数组;空=空数组(显式)防兜底读独立页全局残留。
-+	applySanshiFaRelated(pan, opt){
-+		if(!pan){ return pan; }
-+		const raw = `${(opt && opt.faRelatedPeople) || ''}`;
-+		const gans = raw.split(/[\s,，、]+/).map((x)=>x.trim()).filter((x)=>'甲乙丙丁戊己庚辛壬癸'.indexOf(x) >= 0);
-+		pan.faRelatedPeople = gans;
-+		return pan;
- 	}
- 
+-	}
+-
 -	onTimeAlgChange(val){
 -		const nextVal = normalizeTimeAlg(val);
 -		this.onOptionChange('timeAlg', nextVal);
@@ -1779,41 +1756,16 @@ index eeeda982..2ca71a55 100644
 -			if(this.state.hasPlotted){
 -				this.refreshAll(localFields, true);
 -			}
-+	async getKintaiyiPan(fields, nongli, options){
-+		const pan = await fetchTaiyiPan(fields, nongli, {
-+			style: options && options.taiyiStyle !== undefined ? options.taiyiStyle : 3,
-+			tn: options && options.taiyiAccum !== undefined ? options.taiyiAccum : 0,
-+			sex: options && options.sex === 0 ? '女' : '男',
-+			// 太乙时间基准:此前钉死 direct(独立太乙页却有下拉)→ 三式太乙区补同源控件 taiyiTimeBasis(缺省 direct 零回归);
-+			// 仍不随盘 timeAlg 串改(盘真太阳时只作用于奇门),用户显式选「真太阳时」才换基准。
-+			timeBasis: options && options.taiyiTimeBasis === 'trueSolar' ? 'trueSolar' : 'direct',
-+			after23NewDay: options && options.after23NewDay !== undefined ? options.after23NewDay : defaultAfter23NewDay(),
-+			lateZiHourUseNextDay: options && options.lateZiHourUseNextDay !== undefined ? options.lateZiHourUseNextDay : defaultLateZiHourUseNextDay(),
-+			// 博弈分析(去硬编码:对齐独立 TaiYiMain;默认 0=关闭,与原行为一致)。
-+			gameTheory: options && options.gameTheory === 1 ? 1 : 0,
- 		});
-+		if(!pan || pan.source !== 'kintaiyi'){
-+			throw new Error('sanshi.taiyi.kintaiyi_unavailable');
-+		}
-+		// 太乙流派覆盖层(对齐独立 TaiYiMain.recalc):以 base pan 为底按所选流派开关覆盖受影响神煞 + 几何重算主客算;
-+		// 默认全 default → applyTaiyiSchool 为空操作,字节不变(零回归)。
-+		const ov = applyTaiyiSchool(pan, options && options.taiyiSchool);
-+		return ov.pan || pan;
- 	}
- 
+-		});
+-	}
+-
 -	onGenderChange(val){
 -		this.onOptionChange('sex', val);
 -		this.onFieldsChange({
 -			gender: { value: val },
 -		}, true);
-+	// 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
-+	// 开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲(setState 恒换引用)。
-+	// 收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){ return true; }
-+		return !wrapperPropsEqual(this.props, nextProps);
- 	}
- 
+-	}
+-
 -		onOptionChange(key, value, opts){
 -			// 年/月/日家(paiPanType 0/1/2)走本地 calcDunJia 各家局法(与独立遁甲同源),不依赖后端 → 全部放行,与独立页排盘选项一致。
 -			// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
@@ -1823,19 +1775,7 @@ index eeeda982..2ca71a55 100644
 -			// v2.2.1: 时柱开关同款局部覆盖
 -			if(key === 'lateZiHourUseNextDay' && !(opts && opts.fromGlobal)){
 -				lockDayBoundary(this, 'lateZi');
-+	componentDidMount(){
-+		this.unmounted = false;
-+		this.restoreOptionsFromCurrentCase(true);
-+		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再覆盖
-+		this._lateZiHourUserOverrode = false; // v2.2.1: 同款时柱开关局部覆盖语义
-+		window.addEventListener('resize', this.handleWindowResize);
-+		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-+		this._dayBoundaryListener = (ev) => {
-+			if(dayBoundaryLockHeld(this, 'after23')) return;
-+			const v = ev && ev.detail ? ev.detail.after23NewDay : null;
-+			if(v === 0 || v === 1){
-+				this.onOptionChange('after23NewDay', v, { fromGlobal: true });
- 			}
+-			}
 -			// 用户亲手改的口径 → 落盘(全局广播带 fromGlobal,不落;非设置键会被 store 忽略)。
 -			// 太乙流派是一张表:只落这次亲手改的那个子键(opts.subKey),以库里那份为底 —— 当前 state 里的表可能刚被事盘回灌过。
 -			if(!(opts && opts.fromGlobal) && this.usesSavedSettings()){
@@ -1844,14 +1784,7 @@ index eeeda982..2ca71a55 100644
 -				}else{
 -					SANSHI_PAGE_SETTINGS.save({ [key]: value });
 -				}
-+		};
-+		window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
-+		this._lateZiHourListener = (ev) => {
-+			if(dayBoundaryLockHeld(this, 'lateZi')) return;
-+			const v = ev && ev.detail ? ev.detail.lateZiHourUseNextDay : null;
-+			if(v === 0 || v === 1){
-+				this.onOptionChange('lateZiHourUseNextDay', v, { fromGlobal: true });
- 			}
+-			}
 -			const options = normalizeKenQimenOptions({
 -				...(this.state.options || {}),
 -				[key]: value,
@@ -1865,7 +1798,186 @@ index eeeda982..2ca71a55 100644
 -				if((key === 'after23NewDay' || key === 'lateZiHourUseNextDay') && this.state.hasPlotted){
 -					this.refreshAll(flds, true);
 -				}
-+		};
+-			}
+-			// 🔴 选项改了不重算根治:以下计算型控件都已进 recalcSignature(getQimenOptions/getKintaiyiPan/六壬 layout 消费),
+-			// 但 refreshAll 的 lastKey 只含 field/sex/after23/timeAlg → 不强制重算则改值后盘面纹丝不动(用户核心诉求)。
+-			// 凡能改变任一子盘(奇门/太乙/六壬)计算结果的 key,改值即 refreshAll(force) 真重算重画;默认值时盘与改前一致(零回归)。
+-			if(this.state.hasPlotted && SANSHI_RECALC_OPTION_KEYS.has(key)){
+-				this.refreshAll(this.getActiveFields(), true);
++	async getKinqimenDunJia(fields, nongli, qimenOptions, year, isDiurnal, displaySolarTime){
++		const fallbackPan = this.getCachedDunJia(fields, nongli, qimenOptions, year, isDiurnal, displaySolarTime);
++		// 🔴 路由与独立页 DunJiaMain.getResolvedPan 完全一致(否则结果分叉=用户报的「三式合一遁甲≠独立遁甲」):
++		//   本地 calcDunJia ← 年/月/日/刻/金函家(各家局法) 或 飞盘/混合/报数(后端不支持) 或 七组本地口径任一非缺省;
++		//   后端 fetchQimenPan ← 时家/综合·转盘·全缺省口径(保「时家=转盘」原有行为零回归)。
++		// 本地 calcDunJia 返回的 pan 不带 source 字段(source:'kinqimen' 仅后端合并路径有),故本地分支不校验 source。
++		const o = qimenOptions || {};
++		// 路由单源 isQimenLocalRoute(DunJiaCalc,与独立页/择日弹窗同判据):本地家/飞盘/混合/报数/七组本地口径任一非缺省 → 本地。
++		const localOnly = isQimenLocalRoute(o);
++		if(localOnly){
++			if(!fallbackPan){
++				throw new Error('sanshi.qimen.kinqimen_unavailable');
+ 			}
++			return this.applySanshiFaRelated(fallbackPan, o);
++		}
++		const backendPan = await fetchQimenPan(fields, nongli, qimenOptions, {
++			year,
++			jieqiYearSeeds: this.jieqiYearSeeds,
++			isDiurnal,
++			displaySolarTime,
+ 		});
++		const pan = normalizeKinqimenData(backendPan, fallbackPan, qimenOptions, nongli);
++		if(!pan || pan.source !== 'kinqimen'){
++			throw new Error('sanshi.qimen.kinqimen_unavailable');
++		}
++		return this.applySanshiFaRelated(pan, o);
+ 	}
+ 
+-	onAstroFieldOptionChange(key, value){
+-		// 「新盘种子」:共享盘面字段(宫制)的亲手改动 = 新命盘缺省;三式择日内嵌不记(usesSavedSettings 同一门)
+-		if(this.usesSavedSettings()){ recordNewChartSeeds({ [key]: value }); }
+-		this.onOptionChange(key, value);
+-		this.onFieldsChange({
+-			[key]: { value },
+-		}, true);
+-		const localFields = {
+-			...this.getActiveFields(),
+-			[key]: { value },
+-		};
+-		this.setState({ localFields });
++	// 三式相关人员挂 pan(与独立页 applyFaRelatedToPan 同单源语义:法奇门 DunJiaFaCalc 读 pan.faRelatedPeople 数组)。
++	// 三式侧输入为文本(逗号/空格分隔生年天干),此处解析为十干数组;空=空数组(显式)防兜底读独立页全局残留。
++	applySanshiFaRelated(pan, opt){
++		if(!pan){ return pan; }
++		const raw = `${(opt && opt.faRelatedPeople) || ''}`;
++		const gans = raw.split(/[\s,，、]+/).map((x)=>x.trim()).filter((x)=>'甲乙丙丁戊己庚辛壬癸'.indexOf(x) >= 0);
++		pan.faRelatedPeople = gans;
++		return pan;
+ 	}
+ 
+-	// 黄道复合值(回归 / 恒星:ayanāṃśa)→ 同步 zodiacal + siderealAyanamsa,单次请求(避免连续 onOptionChange 因 setState 异步互相覆盖)。
+-	onAstroZodiacalChange(val){
+-		const parsed = AstroConst.parseZodiacSelectValue(val);
+-		if(this.usesSavedSettings()){ recordNewChartSeeds({ zodiacal: parsed.zodiacal, siderealAyanamsa: parsed.siderealAyanamsa }); }
+-		const options = normalizeKenQimenOptions({
+-			...(this.state.options || {}),
+-			zodiacal: parsed.zodiacal,
+-			siderealAyanamsa: parsed.siderealAyanamsa,
++	async getKintaiyiPan(fields, nongli, options){
++		const pan = await fetchTaiyiPan(fields, nongli, {
++			style: options && options.taiyiStyle !== undefined ? options.taiyiStyle : 3,
++			tn: options && options.taiyiAccum !== undefined ? options.taiyiAccum : 0,
++			sex: options && options.sex === 0 ? '女' : '男',
++			// 太乙时间基准:此前钉死 direct(独立太乙页却有下拉)→ 三式太乙区补同源控件 taiyiTimeBasis(缺省 direct 零回归);
++			// 仍不随盘 timeAlg 串改(盘真太阳时只作用于奇门),用户显式选「真太阳时」才换基准。
++			timeBasis: options && options.taiyiTimeBasis === 'trueSolar' ? 'trueSolar' : 'direct',
++			after23NewDay: options && options.after23NewDay !== undefined ? options.after23NewDay : defaultAfter23NewDay(),
++			lateZiHourUseNextDay: options && options.lateZiHourUseNextDay !== undefined ? options.lateZiHourUseNextDay : defaultLateZiHourUseNextDay(),
++			// 博弈分析(去硬编码:对齐独立 TaiYiMain;默认 0=关闭,与原行为一致)。
++			gameTheory: options && options.gameTheory === 1 ? 1 : 0,
+ 		});
+-		const patch = {
+-			zodiacal: { value: parsed.zodiacal },
+-			siderealAyanamsa: { value: parsed.siderealAyanamsa },
+-		};
+-		const localFields = {
+-			...this.getActiveFields(),
+-			...patch,
+-		};
+-		this.setState({ options, localFields });
+-		this.onFieldsChange(patch, true);
++		if(!pan || pan.source !== 'kintaiyi'){
++			throw new Error('sanshi.taiyi.kintaiyi_unavailable');
++		}
++		// 太乙流派覆盖层(对齐独立 TaiYiMain.recalc):以 base pan 为底按所选流派开关覆盖受影响神煞 + 几何重算主客算;
++		// 默认全 default → applyTaiyiSchool 为空操作,字节不变(零回归)。
++		const ov = applyTaiyiSchool(pan, options && options.taiyiSchool);
++		return ov.pan || pan;
+ 	}
+ 
+-	getTimeFieldsFromSelector(baseFields){
+-		if(!this.timeHook || typeof this.timeHook.getValue !== 'function'){
+-			return null;
+-		}
+-		const draft = this.timeHook.getValue();
+-		if(!draft || !draft.value || !(draft.value instanceof DateTime)){
+-			return null;
+-		}
+-		const dt = draft.value;
+-		const fallbackZone = safe(baseFields && baseFields.zone && baseFields.zone.value, '+08:00');
+-		return {
+-			...(baseFields || this.state.localFields || this.props.fields || {}),
+-			date: { value: dt.clone() },
+-			time: { value: dt.clone() },
+-			ad: { value: dt.ad },
+-			zone: { value: normalizeZoneOffset(dt.zone, fallbackZone) },
+-		};
++	// 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
++	// 开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲(setState 恒换引用)。
++	// 收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){ return true; }
++		return !wrapperPropsEqual(this.props, nextProps);
+ 	}
+ 
+-	clickPlot(){
+-		if(this.state.loading){
+-			// [连续进退不丢击](horosa_sanshi_no_drop_step_v1)重算期间的起盘请求不再静默丢弃——
+-			// 旧行为=丢击:时间控件已步进、盘不跟算,直到用户再补一击(「连续进退卡很久」的真身)。
+-			// 记队列标记+最后一击时刻,本轮重算落地后经 trailing 静默期补发
+-			// (latest-wins:pendingTimeFields 持续更新,补发恒最新;连点期间不起中间轮)。
+-			this.queuedPlotWhileLoading = true;
+-			this.lastQueuedPlotAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+-			return;
+-		}
+-		if(this.awaitingSyncTimer){
+-			clearTimeout(this.awaitingSyncTimer);
+-			this.awaitingSyncTimer = null;
+-		}
+-		// 草稿优先:onTimeChanged 每次改时间都把最新时刻写进 pendingTimeFields,而
+-		//   timeHook.getValue() 读的是注册 hook 的那个控件实例(左栏内联 / 隐藏实例)的 value —— 未起盘时
+-		//   在弹层里改完直接点「起盘」,它还是旧时刻,此前它排在前面就把草稿盖掉 = 按旧时刻起盘,
+-		//   与「首盘必须显式点确定 / 起盘」的意图相反。selector 只在没有草稿时兜底。
+-		const baseFields = this.pendingTimeFields || this.state.localFields || this.props.fields;
+-		const timeFields = this.pendingTimeFields || this.getTimeFieldsFromSelector(baseFields);
+-		const nextFields = timeFields || this.state.localFields || this.props.fields;
+-		if(!nextFields){
+-			return;
+-		}
+-		const curFields = this.props.fields || {};
+-		const patchFields = {};
+-		const patchRaw = (key)=>{
+-			if(nextFields[key] && nextFields[key].value !== undefined){
+-				patchFields[key] = { value: nextFields[key].value };
++	componentDidMount(){
++		this.unmounted = false;
++		this.restoreOptionsFromCurrentCase(true);
++		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再覆盖
++		this._lateZiHourUserOverrode = false; // v2.2.1: 同款时柱开关局部覆盖语义
++		window.addEventListener('resize', this.handleWindowResize);
++		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
++		this._dayBoundaryListener = (ev) => {
++			if(dayBoundaryLockHeld(this, 'after23')) return;
++			const v = ev && ev.detail ? ev.detail.after23NewDay : null;
++			if(v === 0 || v === 1){
++				this.onOptionChange('after23NewDay', v, { fromGlobal: true });
+ 			}
+ 		};
+-		const patchDateTime = (key)=>{
+-			if(nextFields[key] && nextFields[key].value instanceof DateTime){
+-				patchFields[key] = { value: nextFields[key].value.clone() };
++		window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
++		this._lateZiHourListener = (ev) => {
++			if(dayBoundaryLockHeld(this, 'lateZi')) return;
++			const v = ev && ev.detail ? ev.detail.lateZiHourUseNextDay : null;
++			if(v === 0 || v === 1){
++				this.onOptionChange('lateZiHourUseNextDay', v, { fromGlobal: true });
+ 			}
+ 		};
+-		const maybePatchRaw = (key)=>{
+-			const nextVal = safe(nextFields[key] && nextFields[key].value);
+-			const curVal = safe(curFields[key] && curFields[key].value);
+-			if(nextVal !== curVal){
+-				patchRaw(key);
 +		window.addEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 +		this.handleWindowResize();
 +		const activeFields = this.state.localFields || this.props.fields;
@@ -1883,29 +1995,17 @@ index eeeda982..2ca71a55 100644
 +			if(this.unmounted || !steppedFields){
 +				return [];
  			}
--			// 🔴 选项改了不重算根治:以下计算型控件都已进 recalcSignature(getQimenOptions/getKintaiyiPan/六壬 layout 消费),
--			// 但 refreshAll 的 lastKey 只含 field/sex/after23/timeAlg → 不强制重算则改值后盘面纹丝不动(用户核心诉求)。
--			// 凡能改变任一子盘(奇门/太乙/六壬)计算结果的 key,改值即 refreshAll(force) 真重算重画;默认值时盘与改前一致(零回归)。
--			if(this.state.hasPlotted && SANSHI_RECALC_OPTION_KEYS.has(key)){
--				this.refreshAll(this.getActiveFields(), true);
+-		};
+-		const maybePatchDateTime = (key, format)=>{
+-			const nextVal = nextFields[key] && nextFields[key].value instanceof DateTime ? nextFields[key].value.format(format) : '';
+-			const curVal = curFields[key] && curFields[key].value instanceof DateTime ? curFields[key].value.format(format) : '';
+-			if(nextVal !== curVal){
+-				patchDateTime(key);
 +			let params = null;
 +			try{ params = this.genParams(steppedFields); }catch(e){ params = null; }
 +			if(!params){
 +				return [];
  			}
--		});
--	}
--
--	onAstroFieldOptionChange(key, value){
--		// 「新盘种子」:共享盘面字段(宫制)的亲手改动 = 新命盘缺省;三式择日内嵌不记(usesSavedSettings 同一门)
--		if(this.usesSavedSettings()){ recordNewChartSeeds({ [key]: value }); }
--		this.onOptionChange(key, value);
--		this.onFieldsChange({
--			[key]: { value },
--		}, true);
--		const localFields = {
--			...this.getActiveFields(),
--			[key]: { value },
 +			const tasks = [{
 +				name: 'sanshi:stage1',
 +				path: '/nongli/time',
@@ -1966,146 +2066,6 @@ index eeeda982..2ca71a55 100644
 +			}catch(e){ /* 种子构参失败静默跳过 */ }
 +			return tasks;
  		};
--		this.setState({ localFields });
-+		registerStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher);
- 	}
- 
--	// 黄道复合值(回归 / 恒星:ayanāṃśa)→ 同步 zodiacal + siderealAyanamsa,单次请求(避免连续 onOptionChange 因 setState 异步互相覆盖)。
--	onAstroZodiacalChange(val){
--		const parsed = AstroConst.parseZodiacSelectValue(val);
--		if(this.usesSavedSettings()){ recordNewChartSeeds({ zodiacal: parsed.zodiacal, siderealAyanamsa: parsed.siderealAyanamsa }); }
--		const options = normalizeKenQimenOptions({
--			...(this.state.options || {}),
--			zodiacal: parsed.zodiacal,
--			siderealAyanamsa: parsed.siderealAyanamsa,
--		});
--		const patch = {
--			zodiacal: { value: parsed.zodiacal },
--			siderealAyanamsa: { value: parsed.siderealAyanamsa },
--		};
--		const localFields = {
--			...this.getActiveFields(),
--			...patch,
--		};
--		this.setState({ options, localFields });
--		this.onFieldsChange(patch, true);
--	}
--
--	getTimeFieldsFromSelector(baseFields){
--		if(!this.timeHook || typeof this.timeHook.getValue !== 'function'){
--			return null;
-+	componentDidUpdate(prevProps, prevState){
-+		// 择日宿主:本页选项变了(亲手改 / 宿主回写 / 载入存案)→ 告诉宿主,宿主按同一套过期判据重算「结果已过期」
-+		if(this.props.onPageCalibreChange && prevState && prevState.options !== this.state.options){
-+			this.props.onPageCalibreChange();
- 		}
--		const draft = this.timeHook.getValue();
--		if(!draft || !draft.value || !(draft.value instanceof DateTime)){
--			return null;
-+		this.restoreOptionsFromCurrentCase();
-+		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
-+		// 🔴 [外圈随时间校正](horosa_sanshi_outer_follow_time_v1)此处**不得**再加 awaitingChartSync 前置条件。
-+		// 病史(用户实测三次仍报「改时间盘不动」):awaitingChartSync 只在 clickPlot 的 needChartSync
-+		// 分支置起,而实时传导路径下它恒为 false —— onTimeChanged 先 syncFields 把新时间写进
-+		// state.fields,待 clickPlot 在 setState 回调里跑时 props.fields 已是新值,maybePatchDateTime
-+		// 比出「相等」⇒ patchFields 空 ⇒ needChartSync=false ⇒ 闸门没置起 ⇒ /chart 回流时这条
-+		// 校正路径整个被跳过。表现:中栏表头(走三式自己的 /nongli/time)跟着变、奇门与太乙盘也重取,
-+		// 唯独**外圈星度(顶/升/金/日/月,唯一数据源是 props.chartObj)冻在起盘那一刻**;同一时辰内
-+		// 奇门局与太乙局本就不变,于是整盘看上去「完全没动」。四分钟一档最明显(MC 每 4 分钟约走 1°)。
-+		// 安全性:refreshAll → performRecalcByNongli 内有 recalcSignature 去重,chartObj 实质没变
-+		// (同一时刻重复回流)即瞬时 no-op —— 前提是 outerChartKey 不含随机 chartId(见 getOuterChartKey)。
-+		if(this.state.hasPlotted && chartChanged){
-+			if(this.awaitingSyncTimer){
-+				clearTimeout(this.awaitingSyncTimer);
-+				this.awaitingSyncTimer = null;
-+			}
-+			const fields = this.state.localFields || this.props.fields;
-+			this.awaitingChartSync = false;
-+			this.refreshAll(fields, true);
- 		}
--		const dt = draft.value;
--		const fallbackZone = safe(baseFields && baseFields.zone && baseFields.zone.value, '+08:00');
--		return {
--			...(baseFields || this.state.localFields || this.props.fields || {}),
--			date: { value: dt.clone() },
--			time: { value: dt.clone() },
--			ad: { value: dt.ad },
--			zone: { value: normalizeZoneOffset(dt.zone, fallbackZone) },
--		};
- 	}
- 
--	clickPlot(){
--		if(this.state.loading){
--			// [连续进退不丢击](horosa_sanshi_no_drop_step_v1)重算期间的起盘请求不再静默丢弃——
--			// 旧行为=丢击:时间控件已步进、盘不跟算,直到用户再补一击(「连续进退卡很久」的真身)。
--			// 记队列标记+最后一击时刻,本轮重算落地后经 trailing 静默期补发
--			// (latest-wins:pendingTimeFields 持续更新,补发恒最新;连点期间不起中间轮)。
--			this.queuedPlotWhileLoading = true;
--			this.lastQueuedPlotAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
--			return;
-+	componentWillUnmount(){
-+		this.unmounted = true;
-+		this.clearCastChartWait();
-+		if(this._sanshiStepPrefetcher){
-+			unregisterStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher);
-+			this._sanshiStepPrefetcher = null;
-+		}
-+		window.removeEventListener('resize', this.handleWindowResize);
-+		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-+		if(this._dayBoundaryListener){
-+			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
-+		}
-+		if(this._lateZiHourListener){
-+			window.removeEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
-+		}
-+		if(this.prefetchSeedTimer){
-+			clearTimeout(this.prefetchSeedTimer);
-+			this.prefetchSeedTimer = null;
- 		}
- 		if(this.awaitingSyncTimer){
- 			clearTimeout(this.awaitingSyncTimer);
- 			this.awaitingSyncTimer = null;
- 		}
--		// 草稿优先:onTimeChanged 每次改时间都把最新时刻写进 pendingTimeFields,而
--		//   timeHook.getValue() 读的是注册 hook 的那个控件实例(左栏内联 / 隐藏实例)的 value —— 未起盘时
--		//   在弹层里改完直接点「起盘」,它还是旧时刻,此前它排在前面就把草稿盖掉 = 按旧时刻起盘,
--		//   与「首盘必须显式点确定 / 起盘」的意图相反。selector 只在没有草稿时兜底。
--		const baseFields = this.pendingTimeFields || this.state.localFields || this.props.fields;
--		const timeFields = this.pendingTimeFields || this.getTimeFieldsFromSelector(baseFields);
--		const nextFields = timeFields || this.state.localFields || this.props.fields;
--		if(!nextFields){
--			return;
-+		this.cancelPendingRecalc(false);
-+		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
-+			cancelIdleCallback(this.pendingSnapshotIdle);
-+			this.pendingSnapshotIdle = null;
- 		}
--		const curFields = this.props.fields || {};
--		const patchFields = {};
--		const patchRaw = (key)=>{
--			if(nextFields[key] && nextFields[key].value !== undefined){
--				patchFields[key] = { value: nextFields[key].value };
--			}
--		};
--		const patchDateTime = (key)=>{
--			if(nextFields[key] && nextFields[key].value instanceof DateTime){
--				patchFields[key] = { value: nextFields[key].value.clone() };
--			}
--		};
--		const maybePatchRaw = (key)=>{
--			const nextVal = safe(nextFields[key] && nextFields[key].value);
--			const curVal = safe(curFields[key] && curFields[key].value);
--			if(nextVal !== curVal){
--				patchRaw(key);
--			}
--		};
--		const maybePatchDateTime = (key, format)=>{
--			const nextVal = nextFields[key] && nextFields[key].value instanceof DateTime ? nextFields[key].value.format(format) : '';
--			const curVal = curFields[key] && curFields[key].value instanceof DateTime ? curFields[key].value.format(format) : '';
--			if(nextVal !== curVal){
--				patchDateTime(key);
--			}
--		};
 -		maybePatchDateTime('date', 'YYYY-MM-DD HH:mm:ss');
 -		maybePatchDateTime('time', 'YYYY-MM-DD HH:mm:ss');
 -		maybePatchRaw('ad');
@@ -2127,38 +2087,42 @@ index eeeda982..2ca71a55 100644
 -			this.onFieldsChange(patchFields, {
 -				silentRequest: true,
 -				nohook: true,
-+		if(this.pendingSnapshotTimer){
-+			clearTimeout(this.pendingSnapshotTimer);
-+			this.pendingSnapshotTimer = null;
-+		}
-+		if(this.resizeObserver){
-+			this.resizeObserver.disconnect();
-+			this.resizeObserver = null;
-+		}
+-			});
+-			this.awaitingChartSync = true;
++		registerStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher);
 +	}
 +
-+	captureLeftBoardHost(node){
-+		if(this.resizeObserver){
-+			this.resizeObserver.disconnect();
-+			this.resizeObserver = null;
++	componentDidUpdate(prevProps, prevState){
++		// 择日宿主:本页选项变了(亲手改 / 宿主回写 / 载入存案)→ 告诉宿主,宿主按同一套过期判据重算「结果已过期」
++		if(this.props.onPageCalibreChange && prevState && prevState.options !== this.state.options){
++			this.props.onPageCalibreChange();
 +		}
-+		this.leftBoardHost = node || null;
-+		if(this.leftBoardHost && typeof ResizeObserver !== 'undefined'){
-+			this.resizeObserver = createDeferredResizeObserver(()=>{
-+				this.handleWindowResize();
- 			});
--			this.awaitingChartSync = true;
--			if(this.awaitingSyncTimer){
--				clearTimeout(this.awaitingSyncTimer);
--				this.awaitingSyncTimer = null;
--			}
++		this.restoreOptionsFromCurrentCase();
++		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
++		// 🔴 [外圈随时间校正](horosa_sanshi_outer_follow_time_v1)此处**不得**再加 awaitingChartSync 前置条件。
++		// 病史(用户实测三次仍报「改时间盘不动」):awaitingChartSync 只在 clickPlot 的 needChartSync
++		// 分支置起,而实时传导路径下它恒为 false —— onTimeChanged 先 syncFields 把新时间写进
++		// state.fields,待 clickPlot 在 setState 回调里跑时 props.fields 已是新值,maybePatchDateTime
++		// 比出「相等」⇒ patchFields 空 ⇒ needChartSync=false ⇒ 闸门没置起 ⇒ /chart 回流时这条
++		// 校正路径整个被跳过。表现:中栏表头(走三式自己的 /nongli/time)跟着变、奇门与太乙盘也重取,
++		// 唯独**外圈星度(顶/升/金/日/月,唯一数据源是 props.chartObj)冻在起盘那一刻**;同一时辰内
++		// 奇门局与太乙局本就不变,于是整盘看上去「完全没动」。四分钟一档最明显(MC 每 4 分钟约走 1°)。
++		// 安全性:refreshAll → performRecalcByNongli 内有 recalcSignature 去重,chartObj 实质没变
++		// (同一时刻重复回流)即瞬时 no-op —— 前提是 outerChartKey 不含随机 chartId(见 getOuterChartKey)。
++		if(this.state.hasPlotted && chartChanged){
+ 			if(this.awaitingSyncTimer){
+ 				clearTimeout(this.awaitingSyncTimer);
+ 				this.awaitingSyncTimer = null;
+ 			}
 -			// [不等 /chart 回流](horosa_sanshi_no_wait_chart_v1)旧行为=等 chartObj 回流触发
 -			// didUpdate 快路径、1200ms timer 兜底——实测回流常缺席,每步硬吃满 1.2s(连续进退
 -			// 「卡很久」的最大单项)。chartObj 只供 isDiurnal(昼夜贵人)与外圈联动,不值硬等:
 -			// 立即用现值起算;回流后 didUpdate 仍会 refreshAll(force)——recalcSignature 含
 -			// isDiurnal/outerChartKey,没变=签名去重瞬时 no-op,真变(跨昼夜界/外圈)=自动校正重算。
 -			this.refreshAll(nextFields, true);
-+			this.resizeObserver.observe(this.leftBoardHost);
++			const fields = this.state.localFields || this.props.fields;
++			this.awaitingChartSync = false;
++			this.refreshAll(fields, true);
  		}
 -		this.setState({
 -			hasPlotted: true,
@@ -2172,7 +2136,6 @@ index eeeda982..2ca71a55 100644
 -			}
 -			this.refreshAll(nextFields, true);
 -		});
-+		this.handleWindowResize();
  	}
  
 -	changeGeo(rec){
@@ -2192,32 +2155,41 @@ index eeeda982..2ca71a55 100644
 -			geoPatch.zone = { value: z };
 -			if(dDt && dDt.clone){ const nd = dDt.clone(); nd.setZone(z); geoPatch.date = { value: nd }; geoPatch.ad = { value: nd.ad }; }
 -			if(tDt && tDt.clone){ const nt = tDt.clone(); nt.setZone(z); geoPatch.time = { value: nt }; }
-+	captureRightPanel(node){
-+		this.rightPanelHost = node || null;
-+		this.handleWindowResize();
-+	}
-+
-+	handleWindowResize(){
-+		const viewportHeight = getViewportHeight();
-+		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
-+		const leftBoardHeight = this.leftBoardHost ? this.leftBoardHost.clientHeight : 0;
-+		// rect.top 属视觉域,与布局域 viewportHeight 相减前先除回布局域(标准化 zoom 引擎下 rect 已×z)。
-+		const rightTop = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top / (getEffectiveScale() || 1) : 0;
-+		const fallbackPanelHeight = Math.max(visualFloorPx(420), viewportHeight - 120);
-+		const rightPanelHeight = rightTop > 0
-+			? Math.max(220, viewportHeight - rightTop - 8)
-+			: fallbackPanelHeight;
-+		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
-+			|| Math.abs((this.state.leftBoardHeight || 0) - leftBoardHeight) >= 2
-+			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
-+			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
-+		if(changed){
-+			this.setState({
-+				leftBoardWidth,
-+				leftBoardHeight,
-+				viewportHeight,
-+				rightPanelHeight,
-+			});
++	componentWillUnmount(){
++		this.unmounted = true;
++		this.clearCastChartWait();
++		if(this._sanshiStepPrefetcher){
++			unregisterStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher);
++			this._sanshiStepPrefetcher = null;
++		}
++		window.removeEventListener('resize', this.handleWindowResize);
++		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
++		if(this._dayBoundaryListener){
++			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
++		}
++		if(this._lateZiHourListener){
++			window.removeEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
++		}
++		if(this.prefetchSeedTimer){
++			clearTimeout(this.prefetchSeedTimer);
++			this.prefetchSeedTimer = null;
++		}
++		if(this.awaitingSyncTimer){
++			clearTimeout(this.awaitingSyncTimer);
++			this.awaitingSyncTimer = null;
++		}
++		this.cancelPendingRecalc(false);
++		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
++			cancelIdleCallback(this.pendingSnapshotIdle);
++			this.pendingSnapshotIdle = null;
++		}
++		if(this.pendingSnapshotTimer){
++			clearTimeout(this.pendingSnapshotTimer);
++			this.pendingSnapshotTimer = null;
++		}
++		if(this.resizeObserver){
++			this.resizeObserver.disconnect();
++			this.resizeObserver = null;
  		}
 -		// 🔑 刷新左栏显示(localFields)+ 实时重算(silent fetchByFields):改地点/时区即重排三式
 -		Object.assign(geoPatch, geoNameFieldPatch(rec));
@@ -2229,40 +2201,14 @@ index eeeda982..2ca71a55 100644
 -		if(!this.state.hasPlotted || !this.state.dunjia){
 -			message.warning('请先起盘后再保存');
 -			return;
-+	getActiveFields(){
-+		return this.state.localFields || this.props.fields || {};
-+	}
-+
-+	// 紫微四化页的时空基准:时间算法取本页的(options.timeAlg),不取共享字段 —— 本页时间算法只作用本页、不写共享字段,
-+	// 共享字段里的可能是别的页的口径;两者不同时四化盘会按另一个时辰排
-+	getZiweiSihuaFields(){
-+		const opt = this.state.options || {};
-+		return { ...this.getActiveFields(), timeAlg: { value: normalizeTimeAlg(opt.timeAlg) } };
-+	}
-+
-+	// 起课参照盘:只认与 flds 同一起课时刻地点的那张(castChartFor);主盘在途 / 取失败 / 宿主还没取到这一刻时 → null
-+	castChartOf(flds){
-+		return castChartFor(this.props.chartObj || this.props.chart || null, flds);
-+	}
-+
-+	// 精确历法取不到时的兜底农历:只拿同一起课时刻的参照盘上的(上一刻的底盘农历不顶这一课)
-+	getChartNongliFallback(flds){
-+		const chartWrap = this.castChartOf(flds);
-+		const chart = chartWrap && chartWrap.chart ? chartWrap.chart : chartWrap;
-+		if(!chart || !chart.nongli){
-+			return null;
- 		}
+-		}
 -		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
 -		if(!flds){
 -			return;
-+		return {
-+			...chart.nongli,
-+		};
-+	}
-+
-+	parseCasePayload(raw){
-+		if(!raw){
-+			return null;
++	captureLeftBoardHost(node){
++		if(this.resizeObserver){
++			this.resizeObserver.disconnect();
++			this.resizeObserver = null;
  		}
 -		if((this.state.options || {}).mode === 'ming'){
 -			// 命局存为命盘:与独立奇门页同口径代填起局时间(作生时)、经纬度 / 地名 / 时区与性别(此前开空白新建框)
@@ -2286,13 +2232,14 @@ index eeeda982..2ca71a55 100644
 -						},
 -					},
 -				});
-+		if(typeof raw === 'string'){
-+			try{
-+				return JSON.parse(raw);
-+			}catch(e){
-+				return null;
- 			}
+-			}
 -			return;
++		this.leftBoardHost = node || null;
++		if(this.leftBoardHost && typeof ResizeObserver !== 'undefined'){
++			this.resizeObserver = createDeferredResizeObserver(()=>{
++				this.handleWindowResize();
++			});
++			this.resizeObserver.observe(this.leftBoardHost);
  		}
 -		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
 -		// 存档即写格式化快照(与导出/挂载同源 buildSanShiUnitedSnapshotText)。否则挂载该 case 走
@@ -2363,24 +2310,43 @@ index eeeda982..2ca71a55 100644
 -						sourceModule: ssScope,
 -					},
 -				},
--			});
-+		if(typeof raw === 'object'){
-+			return raw;
++		this.handleWindowResize();
++	}
++
++	captureRightPanel(node){
++		this.rightPanelHost = node || null;
++		this.handleWindowResize();
++	}
++
++	handleWindowResize(){
++		const viewportHeight = getViewportHeight();
++		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
++		const leftBoardHeight = this.leftBoardHost ? this.leftBoardHost.clientHeight : 0;
++		// rect.top 属视觉域,与布局域 viewportHeight 相减前先除回布局域(标准化 zoom 引擎下 rect 已×z)。
++		const rightTop = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top / (getEffectiveScale() || 1) : 0;
++		const fallbackPanelHeight = Math.max(visualFloorPx(420), viewportHeight - 120);
++		const rightPanelHeight = rightTop > 0
++			? Math.max(220, viewportHeight - rightTop - 8)
++			: fallbackPanelHeight;
++		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
++			|| Math.abs((this.state.leftBoardHeight || 0) - leftBoardHeight) >= 2
++			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
++			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
++		if(changed){
++			this.setState({
++				leftBoardWidth,
++				leftBoardHeight,
++				viewportHeight,
++				rightPanelHeight,
+ 			});
  		}
-+		return null;
  	}
  
 -	genParams(fields, overrideOptions){
 -		const flds = fields || this.state.localFields || this.props.fields;
 -		if(!flds){
 -			return null;
-+	restoreOptionsFromCurrentCase(force){
-+		const store = getStore();
-+		const userState = store && store.user ? store.user : null;
-+		const currentCase = userState && userState.currentCase ? userState.currentCase : null;
-+		if(!currentCase || !currentCase.cid || !currentCase.cid.value){
-+			return;
- 		}
+-		}
 -		const opt = {
 -			...(this.state.options || {}),
 -			...(overrideOptions || {}),
@@ -2406,21 +2372,15 @@ index eeeda982..2ca71a55 100644
 -			// v2.2.1: 透传时柱开关给后端 /nongli/time。
 -			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
 -		};
--	}
--
++	getActiveFields(){
++		return this.state.localFields || this.props.fields || {};
+ 	}
+ 
 -	genJieqiParams(fields, year, overrideOptions){
 -		const flds = fields || this.state.localFields || this.props.fields;
 -		if(!flds){
 -			return null;
-+		// 🔴 按本实例 scope 判(曾硬编码 'sanshiunited':择日宿主实例也吃主三式事盘——
-+		// 初始盘被劫持,审查实抓;DunJiaMain scope 判同律)
-+		const scope = this.props.techniqueScope || 'sanshiunited';
-+		// 读档去重键走共用件(kentangCaseSave.caseRestoreKey,只认显式载入):同一条记录再载入一次必换键;
-+		// 编辑 / 存为事盘 / 保存编辑换掉的当前事盘不是载入 → null,不还原(存下的就是所见那张盘,择日里也不换内嵌页覆盖层)。禁另拼一份。
-+		const caseVersion = caseRestoreKey(scope, userState);
-+		if(!caseVersion){
-+			return;
- 		}
+-		}
 -		const opt = {
 -			...(this.state.options || {}),
 -			...(overrideOptions || {}),
@@ -2444,8 +2404,13 @@ index eeeda982..2ca71a55 100644
 -			siderealAyanamsa: '',
 -			doubingSu28: false,
 -		};
--	}
--
++	// 紫微四化页的时空基准:时间算法取本页的(options.timeAlg),不取共享字段 —— 本页时间算法只作用本页、不写共享字段,
++	// 共享字段里的可能是别的页的口径;两者不同时四化盘会按另一个时辰排
++	getZiweiSihuaFields(){
++		const opt = this.state.options || {};
++		return { ...this.getActiveFields(), timeAlg: { value: normalizeTimeAlg(opt.timeAlg) } };
+ 	}
+ 
 -	getQimenOptions(overrideOptions){
 -		const opt = {
 -			...(this.state.options || {}),
@@ -2500,29 +2465,47 @@ index eeeda982..2ca71a55 100644
 -			// v2.2.1: 透传时柱开关给奇门后端引擎。
 -			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
 -		};
--	}
--
++	// 起课参照盘:只认与 flds 同一起课时刻地点的那张(castChartFor);主盘在途 / 取失败 / 宿主还没取到这一刻时 → null
++	castChartOf(flds){
++		return castChartFor(this.props.chartObj || this.props.chart || null, flds);
+ 	}
+ 
 -	// 结掉队列里此刻全部的调用方(取消 / 卸载用);某一次重算只结它自己开跑时取走的那一批(settleRecalcResolvers)
 -	resolvePendingRecalc(result){
 -		const resolvers = (this.pendingRecalcResolvers || []).slice();
 -		this.pendingRecalcResolvers = [];
 -		this.settleRecalcResolvers(resolvers, result);
--	}
--
++	// 精确历法取不到时的兜底农历:只拿同一起课时刻的参照盘上的(上一刻的底盘农历不顶这一课)
++	getChartNongliFallback(flds){
++		const chartWrap = this.castChartOf(flds);
++		const chart = chartWrap && chartWrap.chart ? chartWrap.chart : chartWrap;
++		if(!chart || !chart.nongli){
++			return null;
++		}
++		return {
++			...chart.nongli,
++		};
+ 	}
+ 
 -	// 只结给定这一批调用方。一次重算在定时器触发、开跑那一刻把队列取走,回包后只结这一批:被作废的旧那次(回包为 false)
 -	// 不得把开跑之后才入队、属于后发那次的调用方一起定成 false —— 否则后发那次还在途,调用方就收起加载态、放行排队的起盘补发
 -	settleRecalcResolvers(list, result){
 -		const resolvers = Array.isArray(list) ? list : [];
 -		if(resolvers.length === 0){
-+		if(!force && caseVersion === this.lastRestoredCaseId){
- 			return;
+-			return;
++	parseCasePayload(raw){
++		if(!raw){
++			return null;
  		}
 -		resolvers.forEach((fn)=>{
--			try{
++		if(typeof raw === 'string'){
+ 			try{
 -				fn(result);
--			}catch(e){
++				return JSON.parse(raw);
+ 			}catch(e){
 -				return;
--			}
++				return null;
+ 			}
 -		});
 -		// [连续进退不丢击] 重算落地 → 期间被队列化的起盘请求经 trailing 静默期补发:
 -		// 距最后一击 <180ms 说明用户还在连点,推迟再查——连点期间不起中间轮
@@ -2532,6 +2515,82 @@ index eeeda982..2ca71a55 100644
 -			const tryFlush = ()=>{
 -				if(this.unmounted || !this.queuedPlotWhileLoading){
 -					return;
+-				}
+-				if(this.state.loading){
+-					return;
+-				}
+-				const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+-				if(this.lastQueuedPlotAt && nowTs - this.lastQueuedPlotAt < 180){
+-					setTimeout(tryFlush, 120);
+-					return;
+-				}
+-				this.queuedPlotWhileLoading = false;
+-				this.clickPlot();
+-			};
+-			setTimeout(tryFlush, 0);
+ 		}
++		if(typeof raw === 'object'){
++			return raw;
++		}
++		return null;
+ 	}
+ 
+-	cancelPendingRecalc(result = false){
+-		if(this.pendingRecalcTimer){
+-			clearTimeout(this.pendingRecalcTimer);
+-			this.pendingRecalcTimer = null;
++	restoreOptionsFromCurrentCase(force){
++		const store = getStore();
++		const userState = store && store.user ? store.user : null;
++		const currentCase = userState && userState.currentCase ? userState.currentCase : null;
++		if(!currentCase || !currentCase.cid || !currentCase.cid.value){
++			return;
+ 		}
+-		this.pendingRecalcPayload = null;
+-		this.resolvePendingRecalc(result);
+-	}
+-
+-	scheduleSnapshotSave(snapshotPayload, snapshotMeta){
+-		// 留底最近一次 payload/meta:紫微四化 tab 的盘经异步归来时(上报点
+-		// handleZiweiSihuaSnapshotState)据此换键补拍——重算路径按值捕获,四化后到不补则挂载恒缺段。
+-		this._lastSnapshotPayload = snapshotPayload;
+-		this._lastSnapshotMeta = snapshotMeta;
+-		if(this.pendingSnapshotTimer){
+-			clearTimeout(this.pendingSnapshotTimer);
+-			this.pendingSnapshotTimer = null;
++		// 🔴 按本实例 scope 判(曾硬编码 'sanshiunited':择日宿主实例也吃主三式事盘——
++		// 初始盘被劫持,审查实抓;DunJiaMain scope 判同律)
++		const scope = this.props.techniqueScope || 'sanshiunited';
++		// 读档去重键走共用件(kentangCaseSave.caseRestoreKey,只认显式载入):同一条记录再载入一次必换键;
++		// 编辑 / 存为事盘 / 保存编辑换掉的当前事盘不是载入 → null,不还原(存下的就是所见那张盘,择日里也不换内嵌页覆盖层)。禁另拼一份。
++		const caseVersion = caseRestoreKey(scope, userState);
++		if(!caseVersion){
++			return;
+ 		}
+-		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
+-			cancelIdleCallback(this.pendingSnapshotIdle);
+-			this.pendingSnapshotIdle = null;
++		if(!force && caseVersion === this.lastRestoredCaseId){
++			return;
+ 		}
+-		// [连击不被快照顶住](horosa_sanshi_snapshot_idle_v1)buildSanShiUnitedSnapshotText 是
+-		// 三盘全家文本化的同步大构建(实测 ~950ms 长任务)。原 setTimeout(120) 让它恰好插进
+-		// 「上一步落地 → 下一步 recalc 28ms timer」之间,把下一步顶住近一秒——连续进退
+-		// 「每步都慢」的隐藏大头。改 requestIdleCallback:主线程空闲才构建,连击期间被上面的
+-		// cancel 逐次作废(latest-wins,只有停手后最后一份真跑);timeout 兜底保「AI 挂载最新」。
+-		const buildAndSave = ()=>{
+-			this.pendingSnapshotIdle = null;
+-			this.pendingSnapshotTimer = null;
+-			if(this.unmounted){
+-				return;
+-			}
+-			let snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
+-			if(!snapshotText){
+-				return;
+-			}
+-			// 择日宿主 scope 化:独立快照槽+composeAiSnapshot 拼接择时三段(主页零影响)
+-			if(typeof this.props.composeAiSnapshot === 'function'){
+-				try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
 +		const sourceModule = currentCase.sourceModule ? currentCase.sourceModule.value : null;
 +		const caseType = currentCase.caseType ? currentCase.caseType.value : null;
 +		if(sourceModule !== scope && caseType !== scope){
@@ -2543,7 +2602,7 @@ index eeeda982..2ca71a55 100644
 +		}
 +			// 事盘里没有的口径键回**出厂值**,而不是留着本机保存的偏好:本页口径现在跨会话保留,按出厂口径存下的旧案不带后来才有的键,
 +			// 不回出厂就会被按你现在的偏好重排(盘变了,与存档里的快照也对不上)。时间算法的出厂值 = 跨页共享字段的现值(与构造函数同一来源)。
-+			const { outerCoord: _oc, showWeakSolid: _sw, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
++			const { outerCoord: _oc, showWeakSolid: _sw, ascRaMode: _ar, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
 +			factoryOptionKeys.timeAlg = normalizeTimeAlg(this.props.fields && this.props.fields.timeAlg ? this.props.fields.timeAlg.value : 0);
 +			const options = {
 +				...(this.state.options || {}),
@@ -2552,23 +2611,13 @@ index eeeda982..2ca71a55 100644
 +			if(payload.options && typeof payload.options === 'object'){
 +				if(payload.options.mode === 'ming' || payload.options.mode === 'shi'){
 +					options.mode = payload.options.mode;
- 				}
--				if(this.state.loading){
--					return;
++				}
 +				if(payload.options.timeAlg === 0 || payload.options.timeAlg === 1){
 +					options.timeAlg = payload.options.timeAlg;
- 				}
--				const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
--				if(this.lastQueuedPlotAt && nowTs - this.lastQueuedPlotAt < 180){
--					setTimeout(tryFlush, 120);
--					return;
++				}
 +				if(payload.options.sex === 0 || payload.options.sex === 1){
 +					options.sex = payload.options.sex;
- 				}
--				this.queuedPlotWhileLoading = false;
--				this.clickPlot();
--			};
--			setTimeout(tryFlush, 0);
++				}
 +				if(payload.options.guireng >= 0 && payload.options.guireng <= 4){
 +					options.guireng = payload.options.guireng;
 +				}
@@ -2667,7 +2716,8 @@ index eeeda982..2ca71a55 100644
 +				if(payload.options.tuWangShuai){
 +					options.tuWangShuai = payload.options.tuWangShuai;
 +				}
-+			}
+ 			}
+-			saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
 +		const normalizedOptions = normalizeKenQimenOptions(options);
 +		this.lastRestoredCaseId = caseVersion;
 +		// 择日内嵌:记下哪些锁定项是由存案复原成非扫描口径的(显式标记,见 zeriLockProps 第四参)
@@ -2675,57 +2725,16 @@ index eeeda982..2ca71a55 100644
 +		const patchFields = {};
 +		if(options.zodiacal !== undefined){
 +			patchFields.zodiacal = { value: options.zodiacal };
- 		}
--	}
--
--	cancelPendingRecalc(result = false){
--		if(this.pendingRecalcTimer){
--			clearTimeout(this.pendingRecalcTimer);
--			this.pendingRecalcTimer = null;
++		}
 +		if(options.siderealAyanamsa !== undefined){
 +			patchFields.siderealAyanamsa = { value: options.siderealAyanamsa };
- 		}
--		this.pendingRecalcPayload = null;
--		this.resolvePendingRecalc(result);
--	}
--
--	scheduleSnapshotSave(snapshotPayload, snapshotMeta){
--		// 留底最近一次 payload/meta:紫微四化 tab 的盘经异步归来时(上报点
--		// handleZiweiSihuaSnapshotState)据此换键补拍——重算路径按值捕获,四化后到不补则挂载恒缺段。
--		this._lastSnapshotPayload = snapshotPayload;
--		this._lastSnapshotMeta = snapshotMeta;
--		if(this.pendingSnapshotTimer){
--			clearTimeout(this.pendingSnapshotTimer);
--			this.pendingSnapshotTimer = null;
++		}
 +		if(options.hsys !== undefined){
 +			patchFields.hsys = { value: options.hsys };
- 		}
--		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
--			cancelIdleCallback(this.pendingSnapshotIdle);
--			this.pendingSnapshotIdle = null;
++		}
 +		if(options.sex !== undefined){
 +			patchFields.gender = { value: options.sex };
- 		}
--		// [连击不被快照顶住](horosa_sanshi_snapshot_idle_v1)buildSanShiUnitedSnapshotText 是
--		// 三盘全家文本化的同步大构建(实测 ~950ms 长任务)。原 setTimeout(120) 让它恰好插进
--		// 「上一步落地 → 下一步 recalc 28ms timer」之间,把下一步顶住近一秒——连续进退
--		// 「每步都慢」的隐藏大头。改 requestIdleCallback:主线程空闲才构建,连击期间被上面的
--		// cancel 逐次作废(latest-wins,只有停手后最后一份真跑);timeout 兜底保「AI 挂载最新」。
--		const buildAndSave = ()=>{
--			this.pendingSnapshotIdle = null;
--			this.pendingSnapshotTimer = null;
--			if(this.unmounted){
--				return;
--			}
--			let snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
--			if(!snapshotText){
--				return;
--			}
--			// 择日宿主 scope 化:独立快照槽+composeAiSnapshot 拼接择时三段(主页零影响)
--			if(typeof this.props.composeAiSnapshot === 'function'){
--				try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
--			}
--			saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
++		}
 +		if(options.timeAlg !== undefined){
 +			patchFields.timeAlg = { value: normalizeTimeAlg(options.timeAlg) };
 +		}
@@ -2788,7 +2797,7 @@ index eeeda982..2ca71a55 100644
 -		return (
 -			<>
 -				{yearList.length ? (
--					<Card size='small' style={{ marginBottom: 8 }}>
+-					<Card size='small' style={{ marginBottom: 10 }}>
 -						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 -							<span style={{ fontWeight: 600 }}>年神</span>
 -							<Tag color='gold'>{sort === 'suigui' ? '太岁排轮' : '四利三元序'}</Tag>
@@ -2806,7 +2815,7 @@ index eeeda982..2ca71a55 100644
 -					</Card>
 -				) : null}
 -				{wsList.length ? (
--					<Card size='small' style={{ marginBottom: 8 }}>
+-					<Card size='small' style={{ marginBottom: 10 }}>
 -						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 -							<span style={{ fontWeight: 600 }}>三传旺衰</span>
 -							<Tag color='gold'>以月令</Tag>
@@ -2823,7 +2832,7 @@ index eeeda982..2ca71a55 100644
 -					</Card>
 -				) : null}
 -				{kongList.length ? (
--					<Card size='small' style={{ marginBottom: 8 }}>
+-					<Card size='small' style={{ marginBottom: 10 }}>
 -						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 -							<span style={{ fontWeight: 600 }}>空亡真假</span>
 -							<Tag color='gold'>旬空{kongList.map((k)=>k.zhi).join('')}</Tag>
@@ -2845,11 +2854,34 @@ index eeeda982..2ca71a55 100644
 -	// 在不在,而重建只发生在 performRecalcByNongli 内、且重算签名不含 outerCoord(点「起盘」也被去重拦下)
 -	// → 切到赤道后,存档与导出刷新拿的还是黄道那份,「星盘:」行不带「(赤经)」且地支与中栏不符。
 -	currentOuterData(astroChart){
--		const coord = this.state.outerCoord || 'ecliptic';
+-		const coord = this.outerCoordCacheKey();   // 赤道分宫另带上升取法
 -		if(this.outerDataCache && this.outerDataCache.data && this.outerDataCache.coord === coord){
 -			return this.outerDataCache.data;
--		}
--		return buildOuterData(astroChart, coord);
++	handleExternalFieldsSync(fields, chartObj){
++		const nextFields = fields || this.props.fields;
++		if(!nextFields){
++			return;
+ 		}
+-		return buildOuterData(astroChart, this.state.outerCoord || 'ecliptic', this.state.ascRaMode);
+-	}
+-
+-	// 外圈缓存键:赤道分宫另带上升取法(两档地支可能不同);黄道不读上升赤经,键与旧版同
+-	outerCoordCacheKey(){
+-		const coord = this.state.outerCoord || 'ecliptic';
+-		return coord === 'equatorial' ? `${coord}:${normalizeAscRaMode(this.state.ascRaMode)}` : coord;
+-	}
+-
+-	onAscRaModeChange(mode){
+-		const m = normalizeAscRaMode(mode);
+-		if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ ascRaMode: m }); }
+-		this.setState({ ascRaMode: m }, ()=>{
+-			if(!this._lastSnapshotPayload){ return; }
+-			const chartWrap = this.state.castChart;
+-			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
+-			const outerData = this.currentOuterData(astroChart);
+-			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
+-			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
+-		});
 -	}
 -
 -	// 只有独立三式页读写保存值;三式择日里内嵌的那份(techniqueScope='sanshizeri')不读不写(理由见 SANSHI_PAGE_SETTINGS 注)。
@@ -2866,7 +2898,7 @@ index eeeda982..2ca71a55 100644
 -			const chartWrap = this.state.castChart;
 -			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 -			const outerData = this.currentOuterData(astroChart);
--			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.state.outerCoord || 'ecliptic', data: outerData };
+-			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
 -			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
 -		});
 -	}
@@ -2880,15 +2912,56 @@ index eeeda982..2ca71a55 100644
 -		// [紫微四化] 段——而导出刷新路径实时读实例字段反而有,两路径不同构。
 -		if(payload && this._lastSnapshotPayload){
 -			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, ziweiSihua: payload }, this._lastSnapshotMeta);
--		}
--	}
--
++		const chartKey = getOuterChartKey(castChartFor(chartObj || this.props.chartObj || this.props.chart || null, nextFields));
++		const syncKey = `${getFieldSyncKey(nextFields)}|${chartKey}`;
++		if(syncKey && syncKey === this.lastExternalFieldsKey && !this.awaitingChartSync){
++			return;
++		}
++		this.lastExternalFieldsKey = syncKey;
++		if(this.awaitingSyncTimer){
++			clearTimeout(this.awaitingSyncTimer);
++			this.awaitingSyncTimer = null;
++		}
++		this.awaitingChartSync = false;
++		this.pendingTimeFields = null;
++		const currentOptions = this.state.options || {};
++		const nextOptions = {
++			...currentOptions,
++		};
++		const fieldGender = nextFields.gender ? nextFields.gender.value : null;
++		if(fieldGender === 0 || fieldGender === 1){
++			nextOptions.sex = fieldGender;
++		}
++		const shouldReplot = !!this.state.hasPlotted;
++		const patch = {
++			localFields: nextFields,
++			options: nextOptions,
++		};
++		if(shouldReplot){
++			patch.plottedFields = nextFields;
++			patch.loading = true;
+ 		}
++		this.setState(patch, ()=>{
++			this.prefetchNongliForFields(nextFields);
++			this.prefetchJieqiSeedForFields(nextFields, nextOptions);
++			if(!shouldReplot){
++				return;
++			}
++			setTimeout(()=>{
++				if(this.unmounted){
++					return;
++				}
++				this.refreshAll(nextFields, true);
++			}, 0);
++		});
+ 	}
+ 
 -	handleSnapshotRefreshRequest(evt){
 -		const moduleName = evt && evt.detail ? evt.detail.module : '';
 -		if(moduleName !== (this.props.techniqueScope || 'sanshiunited')){
-+	handleExternalFieldsSync(fields, chartObj){
-+		const nextFields = fields || this.props.fields;
-+		if(!nextFields){
++	syncFields(field){
++		// 择日宿主内嵌:改动交给宿主的覆盖层(只更新显示,重排由随后的 onFieldsChange 交给宿主),不写主盘
++		if(sendScopedFields(this.props, field, { recompute: false })){
  			return;
  		}
 -		// 导出刷新必须与左侧当前“已起盘”展示保持一致，优先使用 plottedFields。
@@ -2921,9 +2994,7 @@ index eeeda982..2ca71a55 100644
 -		};
 -		let snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
 -		if(!snapshotText){
-+		const chartKey = getOuterChartKey(castChartFor(chartObj || this.props.chartObj || this.props.chart || null, nextFields));
-+		const syncKey = `${getFieldSyncKey(nextFields)}|${chartKey}`;
-+		if(syncKey && syncKey === this.lastExternalFieldsKey && !this.awaitingChartSync){
++		if(!this.props.dispatch){
  			return;
  		}
 -		const snapshotMeta = {
@@ -2932,410 +3003,28 @@ index eeeda982..2ca71a55 100644
 -			zone: fields && fields.zone ? fields.zone.value : '',
 -			lon: fields && fields.lon ? fields.lon.value : '',
 -			lat: fields && fields.lat ? fields.lat.value : '',
--		};
--		if(typeof this.props.composeAiSnapshot === 'function'){
--			try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
--		}
--		saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
--		if(evt && evt.detail && typeof evt.detail === 'object'){
--			evt.detail.snapshotText = snapshotText;
-+		this.lastExternalFieldsKey = syncKey;
-+		if(this.awaitingSyncTimer){
-+			clearTimeout(this.awaitingSyncTimer);
-+			this.awaitingSyncTimer = null;
- 		}
--	}
--
--	recalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
--		const flds = fields || this.state.localFields || this.props.fields;
--		if(!flds || !nongli){
--			return Promise.resolve(false);
-+		this.awaitingChartSync = false;
-+		this.pendingTimeFields = null;
-+		const currentOptions = this.state.options || {};
-+		const nextOptions = {
-+			...currentOptions,
-+		};
-+		const fieldGender = nextFields.gender ? nextFields.gender.value : null;
-+		if(fieldGender === 0 || fieldGender === 1){
-+			nextOptions.sex = fieldGender;
- 		}
--		// commitPatch:调用方要与盘结果【同帧】提交的 state 补丁(loading:false/
--		// displaySolarTime)。防抖窗内 payload 被覆盖时合并保留旧补丁(refined/seed 补算不带补丁,
--		// 不得把主链的 loading:false 冲掉)。
--		this.pendingRecalcPayload = {
--			fields: flds,
--			nongli,
--			overrideOptions,
--			displaySolarTime,
--			commitPatch: {
--				...(this.pendingRecalcPayload && this.pendingRecalcPayload.commitPatch),
--				...commitPatch,
--			},
-+		const shouldReplot = !!this.state.hasPlotted;
-+		const patch = {
-+			localFields: nextFields,
-+			options: nextOptions,
- 		};
--		if(this.pendingRecalcTimer){
--			clearTimeout(this.pendingRecalcTimer);
--			this.pendingRecalcTimer = null;
-+		if(shouldReplot){
-+			patch.plottedFields = nextFields;
-+			patch.loading = true;
- 		}
--		return new Promise((resolve)=>{
--			this.pendingRecalcResolvers.push(resolve);
--			this.pendingRecalcTimer = setTimeout(()=>{
--				this.pendingRecalcTimer = null;
-+		this.setState(patch, ()=>{
-+			this.prefetchNongliForFields(nextFields);
-+			this.prefetchJieqiSeedForFields(nextFields, nextOptions);
-+			if(!shouldReplot){
-+				return;
-+			}
-+			setTimeout(()=>{
- 				if(this.unmounted){
--					this.cancelPendingRecalc(false);
- 					return;
- 				}
--				const payload = this.pendingRecalcPayload;
--				this.pendingRecalcPayload = null;
--				// 这一次运行的调用方 = 此刻队列里的全部(防抖合并进来的都按这一次的结果);之后入队的留给下一次
--				const mine = this.pendingRecalcResolvers.splice(0);
--					if(!payload){
--						this.settleRecalcResolvers(mine, false);
--						return;
--					}
--					try{
--						this.lastRecalcError = null;
--						Promise.resolve(this.performRecalcByNongli(
--							payload.fields,
--							payload.nongli,
--							payload.overrideOptions,
--							payload.displaySolarTime,
--							payload.commitPatch
--						)).then((changed)=>{
--							this.settleRecalcResolvers(mine, changed);
--						}).catch((e)=>{
--							this.lastRecalcError = e;
--							if(!this.unmounted){
--								this.setState({ loading: false });
--								console.error('[SanShiUnited] performRecalcByNongli failed', e);
--							}
--							this.settleRecalcResolvers(mine, false);
--						});
--					}catch(e){
--						this.lastRecalcError = e;
--						if(!this.unmounted){
--							this.setState({ loading: false });
--							console.error('[SanShiUnited] performRecalcByNongli failed', e);
--						}
--						this.settleRecalcResolvers(mine, false);
--					}
--				}, SANSHI_RECALC_DEFER_MS);
--			});
--		}
-+				this.refreshAll(nextFields, true);
-+			}, 0);
-+		});
-+	}
- 
--	async performRecalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
--		const flds = fields || this.state.localFields || this.props.fields;
--		if(!flds || !nongli){
--			return false;
-+	syncFields(field){
-+		// 择日宿主内嵌:改动交给宿主的覆盖层(只更新显示,重排由随后的 onFieldsChange 交给宿主),不写主盘
-+		if(sendScopedFields(this.props, field, { recompute: false })){
-+			return;
- 		}
--		// 只认最后一次开始的重算(防抖只合并还没开始的那次;已在途的奇门 / 太乙后端取盘先发后回会盖掉后发)。
--		// 取号在签名去重之前:去重命中说明屏上就是最新意图,在途的旧那次回来也不得再落屏。
--		const seq = ++this._recalcSeq;
--		const stateOptions = this.state.options || {};
--		// 合并 state + override 为单一真值源(签名/缓存键/各子盘计算同源,避免漂移)。
--		const mergedOptions = {
--			...stateOptions,
--			...(overrideOptions || {}),
-+		if(!this.props.dispatch){
-+			return;
-+		}
 +		const flds = {
 +			...(this.props.fields || {}),
 +			...(field || {}),
  		};
--		const guirengType = mergedOptions.guireng;
--		const qimenOptions = this.getQimenOptions(overrideOptions);
--		// 参照盘只认与这一课同一起课时刻地点的那张。手上的参照盘是别的时刻的(主盘 / 宿主底盘还在途):这一课先不落 ——
--		// 屏上仍是上一课的整套(更新中),这一刻的参照盘到了(componentDidUpdate → refreshAll)再落;等不到(取失败)
--		// 就按「没有参照盘」落(月将 / 外圈留空、昼夜本地算),绝不拿上一刻的底盘定这一课
--		const chartWrap = this.castChartOf(flds);
--		const castKey = castSourceKey(flds);
--		if(!chartWrap && castSourceKey(this.props.chartObj || this.props.chart || null) && this._castChartGaveUp !== castKey){
--			this.armCastChartWait(flds);
--			if(!this.state.loading){ this.setState({ loading: true }); }
--			return SANSHI_RECALC_HELD;
--		}
--		const isDiurnal = castIsDiurnal(chartWrap, flds);
--		const outerChartKey = getOuterChartKey(chartWrap);
--		// 大六壬流派覆盖(换将/分昼夜/涉害/昼夜阳阴);默认全 default → null(零回归,与原本固定月将一致)。
--		const lrCastOverride = chartWrap && chartWrap.chart ? buildSanshiLiuRengCastOverride({
--			...chartWrap.chart,
--			nongli: nongli,
--		}, mergedOptions) : null;
--		const lrCastKey = lrCastOverride ? [
--			safe(lrCastOverride.yue),
--			`${safe(lrCastOverride.isDiurnal, '')}`,
--			safe(lrCastOverride.yinyangSystem),
--			lrCastOverride.seHaiOpts ? `${safe(lrCastOverride.seHaiOpts.method)}-${safe(lrCastOverride.seHaiOpts.boundary)}-${lrCastOverride.seHaiOpts.shiRuKe ? 1 : 0}` : '',
--		].join('~') : '';
--		const recalcSignature = [
--			getFieldKey(flds),
--			getNongliKey(nongli),
--			getQimenOptionsKey(qimenOptions),
--			`${guirengType}`,
--			`${safe(mergedOptions.taiyiStyle)}`,
--			`${safe(mergedOptions.taiyiAccum)}`,
--			`${safe(mergedOptions.gameTheory)}`,
--			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
--			`${safe(mergedOptions.taiyiTimeBasis)}`,   // 曾漏:改太乙时间基准签名不变 → 去重直接不重算
--			lrCastKey,
--			`${safe(mergedOptions.yearShenShaSort)}`,
--			`${safe(mergedOptions.tuWangShuai)}`,
--			`${safe(mergedOptions.after23NewDay)}`,
--			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
--			`${safe(normalizeTimeAlg(mergedOptions.timeAlg))}`,
--			safe(flds && flds.zodiacal && flds.zodiacal.value),
--			safe(flds && flds.hsys && flds.hsys.value),
--			`${safe(isDiurnal, '')}`,
--			outerChartKey,
--			`${this.state.outerCoord || 'ecliptic'}`,   // 外圈坐标进签名:否则切了坐标再起盘被去重拦下
--			jieqiSeedSignature(this.jieqiYearSeeds),   // 种子到达后签名变 → 去重不吞掉带种子的重算
--		].join('|');
--		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
--			return false;
--		}
--		const year = parseInt(flds.date.value.format('YYYY'), 10);
--		// 奇门(getKinqimenDunJia)与太乙(getKintaiyiPan)两后端取盘相互独立(太乙仅吃 flds/nongli/mergedOptions,
--		// 不依赖奇门结果),原为串行 await(网络往返叠加)。改并行:先各自起 promise,再 Promise.all 等齐;
--		// 太乙命中本地缓存则不发请求(promise=已解析的缓存值),仅缓存未命中才真并发。结果/快照 byte-perfect 不变。
--		const taiyiCacheKey = [
--			getFieldKey(flds),
--			getNongliKey(nongli),
--			`${safe(mergedOptions.taiyiStyle)}`,
--			`${safe(mergedOptions.taiyiAccum)}`,
--			`${safe(mergedOptions.sex)}`,
--			`${safe(mergedOptions.gameTheory)}`,
--			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
--			// getKintaiyiPan 读的键须全入(时间基准曾漏 → 切「真太阳时」命中旧盘;换日两项同理补齐)
--			`${safe(mergedOptions.taiyiTimeBasis)}`,
--			`${safe(mergedOptions.after23NewDay)}`,
--			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
--		].join('|');
--		const taiyiCached = this.taiyiCache.get(taiyiCacheKey);
--		const dunjiaPromise = this.getKinqimenDunJia(
--			flds,
--			nongli,
--			qimenOptions,
--			year,
--			isDiurnal,
--			displaySolarTime || this.state.displaySolarTime
--		);
--		const taiyiPromise = taiyiCached
--			? Promise.resolve(taiyiCached)
--			: this.getKintaiyiPan(flds, nongli, mergedOptions);
--		const [dunjia, taiyiResolved] = await Promise.all([dunjiaPromise, taiyiPromise]);
--		if(this.unmounted || seq !== this._recalcSeq){
--			return false;
--		}
--		// 太乙缓存未命中 → 落缓存(LRU 上限 48);命中则 taiyiResolved===缓存值,无需重写。
--		const taiyi = taiyiResolved;
--		if(!taiyiCached){
--			this.taiyiCache.set(taiyiCacheKey, taiyi);
--			if(this.taiyiCache.size > 48){
--				const firstKey = this.taiyiCache.keys().next().value;
--				if(firstKey){
--					this.taiyiCache.delete(firstKey);
--				}
--			}
--		}
--		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
--		const lrNongli = buildLrNongli(nongli, dunjia);
--		const nianMing = safe(lrNongli && lrNongli.runyear, '')
--			|| ((dunjia && dunjia.ganzhi && dunjia.ganzhi.year) ? dunjia.ganzhi.year.substring(1, 2) : '');
--		const chartForLr = astroChart ? {
--			...astroChart,
--			nongli: lrNongli,
--		} : null;
--		const lrCacheKey = [
--			getChartYue(astroChart),
--			safe(lrNongli.dayGanZi),
--			safe(lrNongli.time),
--			`${guirengType}`,
--			// 昼夜:缺省「晨昏分昼夜」时覆盖为 null、lrCastKey 不含昼夜,而贵人取昼/夜贵读 chartObj.isDiurnal →
--			// 同一时辰内跨日出/日没命中旧缓存,十二天将整环沿用旧昼夜(重算签名含昼夜会重算,六壬层却命中旧包)。
--			`${safe(chartForLr && chartForLr.isDiurnal, '')}`,
--			lrCastKey,
--		].join('|');
--		let lrBundle = this.lrBundleCache[lrCacheKey];
--		if(!lrBundle){
--			const lrLayout = buildLiuRengLayout(chartForLr, guirengType, lrCastOverride);
--			const keData = buildKeData(lrLayout, chartForLr);
--			const sanChuan = buildSanChuan(lrLayout, keData.raw, chartForLr, lrCastOverride);
--			lrBundle = {
--				lrLayout,
--				keData,
--				sanChuan,
--				yue: lrLayout ? lrLayout.yue : '',
--				timezi: lrLayout ? lrLayout.timezi : '',
--				guizi: lrLayout ? lrLayout.guizi : '',
--			};
--			this.lrBundleCache[lrCacheKey] = lrBundle;
--			const cacheKeys = Object.keys(this.lrBundleCache);
--			if(cacheKeys.length > 36){
--				delete this.lrBundleCache[cacheKeys[0]];
--			}
--		}
--		const liureng = {
--			nongli: lrNongli,
--			nianMing: nianMing,
--			yue: lrBundle.yue,
--			timezi: lrBundle.timezi,
--			guizi: lrBundle.guizi,
--			fourColumns: {
--				year: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.year || '') : '',
--				month: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.month || '') : '',
--				day: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.day || '') : '',
--				time: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.time || '') : '',
--			},
--		};
--		let liurengRefBundle = null;
--		const runYearRef = lrNongli && lrNongli.runyear ? { year: lrNongli.runyear } : null;
--		try{
--			liurengRefBundle = buildLiuRengReferenceBundle(liureng, chartForLr, guirengType, runYearRef, lrCastOverride);
--		}catch(e){
--			liurengRefBundle = null;
--		}
--		// 六壬断卦层快照入参(供 buildSanShiUnitedSnapshotText 复用独立 buildLiuRengSnapshotText);
--		// 随快照各路径(recalc/存档/还原)同源传递,故落 state 让 state 派生的两处 payload 也带得上。
--		const liurengSnapshotInput = {
--			guirengType,
--			chartForLr,
--			lrCastOverride,
--			// 断卦层要的是 castOpts 形态(yueJiangMethod/fenZhouYe/涉害/年神/土旺/占类…),override 对象另带;
--			// 此前把 lrCastOverride 当第 8 参 castOpts 传 → 键名全不匹配 → 12 个断卦段按默认盘重算。
--			lrCastOpts: pickSanshiLiurengCastOpts(mergedOptions, lrNongli),
--			runYearRef,
--		};
--		// 太乙 taiyi 已在 dunjia 前并行取得并落缓存(见上方 Promise.all)。
--		let outerData = this.outerDataCache.data;
--		const outerCoordKey = this.state.outerCoord || 'ecliptic';
--		if(this.outerDataCache.chartKey !== outerChartKey || this.outerDataCache.coord !== outerCoordKey){
--			outerData = buildOuterData(astroChart, this.state.outerCoord);
--			this.outerDataCache = {
--				chartKey: outerChartKey,
--				coord: outerCoordKey,
--				data: outerData,
--			};
--		}
--			const snapshotPayload = {
+-		if(typeof this.props.composeAiSnapshot === 'function'){
+-			try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
 +		this.props.dispatch({
 +			type: 'astro/saveUserFields',
 +			payload: {
- 				fields: flds,
--				options: mergedOptions,
--				nongli,
--				displaySolarTime: this.state.displaySolarTime,
--				liureng,
--				dunjia,
--				taiyi,
--				liurengRefBundle,
--			keData: lrBundle.keData,
--			sanChuan: lrBundle.sanChuan,
--			lrLayout: lrBundle.lrLayout,
--			outerData,
--			guirengType: liurengSnapshotInput.guirengType,
--			liurengChartForLr: liurengSnapshotInput.chartForLr,
--			lrCastOverride: liurengSnapshotInput.lrCastOverride,
--			lrCastOpts: liurengSnapshotInput.lrCastOpts,
--			liurengRunYear: liurengSnapshotInput.runYearRef,
--			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
--		};
--		const snapshotMeta = {
--			date: flds && flds.date ? flds.date.value.format('YYYY-MM-DD') : '',
--			time: flds && flds.time ? flds.time.value.format('HH:mm:ss') : '',
--			zone: flds && flds.zone ? flds.zone.value : '',
--			lon: flds && flds.lon ? flds.lon.value : '',
--			lat: flds && flds.lat ? flds.lat.value : '',
--		};
--		this.lastRecalcSignature = recalcSignature;
--		this.clearCastChartWait();
--		// 双提交合一:盘结果与调用方补丁(loading:false/displaySolarTime)同一次
--		// setState 落地 —— 旧形态先渲「新盘 + loading 还挂着」一帧再渲去转圈一帧,肉眼即闪帧。
--		this.setState({
--			nongli,
--			liureng,
--			dunjia,
--			taiyi,
--			castChart: chartWrap,
--			lessonSig: castKey,
--			liurengRefBundle,
--			liurengSnapshotInput,
--			lrLayout: lrBundle.lrLayout,
--			keData: lrBundle.keData,
--			sanChuan: lrBundle.sanChuan,
--			...(commitPatch || null),
--		}, ()=>{
--			this.scheduleSnapshotSave(snapshotPayload, snapshotMeta);
--		});
--		return true;
--	}
--
--	async ensureJieqiSeed(fields, year){
--		if(!year || Number.isNaN(year)){
--			return null;
--		}
--		if(this.jieqiYearSeeds[year]){
--			return this.jieqiYearSeeds[year];
--		}
--		if(this.jieqiSeedPromises[year]){
--			return this.jieqiSeedPromises[year];
--		}
--		const params = this.genJieqiParams(fields, year);
--		if(!params){
--			return null;
--		}
--		this.jieqiSeedPromises[year] = Promise.resolve().then(async()=>{
--			const seed = await fetchPreciseJieqiSeed(params);
--			if(seed){
--				this.jieqiYearSeeds[year] = seed;
--			}
--			return seed;
--		}).finally(()=>{
--			delete this.jieqiSeedPromises[year];
++				fields: flds,
 +			},
- 		});
--		// 预加载失败静默：旁路 catch 防 unhandledrejection，不改变调用方拿到的 promise 语义
--		this.jieqiSeedPromises[year].catch(()=>{});
--		return this.jieqiSeedPromises[year];
- 	}
- 
--	prefetchJieqiSeedForFields(fields, overrideOptions){
--		const flds = fields || this.state.localFields || this.props.fields;
--		if(!flds || !flds.date || !flds.date.value){
++		});
++	}
++
 +	onFieldsChange(field, requestMode){
 +		// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 拉底盘重排),不写主盘
 +		if(sendScopedFields(this.props, field)){
- 			return;
++			return;
  		}
--		const qimenOptions = this.getQimenOptions(overrideOptions);
--		if(!needJieqiYearSeed(qimenOptions)){
--			return;
--		}
--		const year = parseInt(flds.date.value.format('YYYY'), 10);
--		if(!year || Number.isNaN(year)){
--			return;
+-		saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
+-		if(evt && evt.detail && typeof evt.detail === 'object'){
+-			evt.detail.snapshotText = snapshotText;
 +		if(this.props.dispatch){
 +			const requestOptions = (typeof requestMode === 'object' && requestMode)
 +				? requestMode
@@ -3361,18 +3050,29 @@ index eeeda982..2ca71a55 100644
 +				payload,
 +			});
  		}
--		// 种子年份集单源 jieqiSeedYears(日家/金函 y-1,y,y+1;其余 y-1,y)。
--		Promise.all(jieqiSeedYears(qimenOptions, year).map((yy)=>this.ensureJieqiSeed(flds, yy))).catch(()=>null);
  	}
  
--	prefetchNongliForFields(fields){
+-	recalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
 -		const flds = fields || this.state.localFields || this.props.fields;
--		if(!flds){
--			return;
+-		if(!flds || !nongli){
+-			return Promise.resolve(false);
 -		}
--		const params = this.genParams(flds);
--		if(!params){
--			return;
+-		// commitPatch:调用方要与盘结果【同帧】提交的 state 补丁(loading:false/
+-		// displaySolarTime)。防抖窗内 payload 被覆盖时合并保留旧补丁(refined/seed 补算不带补丁,
+-		// 不得把主链的 loading:false 冲掉)。
+-		this.pendingRecalcPayload = {
+-			fields: flds,
+-			nongli,
+-			overrideOptions,
+-			displaySolarTime,
+-			commitPatch: {
+-				...(this.pendingRecalcPayload && this.pendingRecalcPayload.commitPatch),
+-				...commitPatch,
+-			},
+-		};
+-		if(this.pendingRecalcTimer){
+-			clearTimeout(this.pendingRecalcTimer);
+-			this.pendingRecalcTimer = null;
 +	onTimeChanged(value){
 +		const dt = value.time;
 +		const confirmed = !!value.confirmed;
@@ -3416,21 +3116,15 @@ index eeeda982..2ca71a55 100644
 +			this.prefetchNongliForFields(localFields);
 +			this.prefetchJieqiSeedForFields(localFields);
  		}
--		fetchPreciseNongli(params).then((result)=>{
--			if(result){
--				setNongliLocalCache(params, result);
--			}
--		}).catch(()=>null);
- 	}
- 
--	// 起课取失败:与屏上那一课同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那一课是上一课,
--	// 清掉(连同本页 AI 快照槽),不让上一课顶着新时刻显示 / 交给 AI
--	settleCastFailure(fields){
--		if(castFailureKeeps(this.state.lessonSig, castSourceKey(fields))){
--			this.setState({ loading: false });
--			return;
--		}
--		this.clearCastChartWait();
+-		return new Promise((resolve)=>{
+-			this.pendingRecalcResolvers.push(resolve);
+-			this.pendingRecalcTimer = setTimeout(()=>{
+-				this.pendingRecalcTimer = null;
+-				if(this.unmounted){
+-					this.cancelPendingRecalc(false);
+-					return;
++	}
++
 +	onTimeAlgChange(val){
 +		const nextVal = normalizeTimeAlg(val);
 +		this.onOptionChange('timeAlg', nextVal);
@@ -3438,11 +3132,7 @@ index eeeda982..2ca71a55 100644
 +		this.jieqiSeedPromises = {};
 +		this.panCache.clear();
 +		this.taiyiCache.clear();
- 		this.lastRecalcSignature = '';
--		this._lastSnapshotPayload = null;
--		this.setState({
--			loading: false, nongli: null, liureng: null, dunjia: null, taiyi: null, castChart: null, lessonSig: '',
--			liurengRefBundle: null, liurengSnapshotInput: null, lrLayout: null, keData: null, sanChuan: null,
++		this.lastRecalcSignature = '';
 +		this.lastKey = '';
 +		// 时间算法只作用于本页(与六壬 / 八字覆盖层同):不写共用字段 —— 此前写进 fields.timeAlg,
 +		// 紫微 / 七政本次会话跟着变,重开又回到新盘缺省
@@ -3457,36 +3147,16 @@ index eeeda982..2ca71a55 100644
 +			if(this.state.hasPlotted){
 +				this.refreshAll(localFields, true);
 +			}
- 		});
--		clearModuleAISnapshot(this.props.techniqueScope || 'sanshiunited');
- 	}
- 
--	// 等这一刻的参照盘:到了由 componentDidUpdate 照常 refreshAll;超时就按「没有参照盘」落这一课
--	armCastChartWait(flds){
--		const key = castSourceKey(flds);
--		if(this._castChartWait && this._castChartWait.key === key){ return; }
--		this.clearCastChartWait();
--		const timer = setTimeout(()=>{
--			if(this.unmounted || !this._castChartWait || this._castChartWait.key !== key){ return; }
--			this._castChartWait = null;
--			const cur = this.state.plottedFields || this.state.localFields || this.props.fields;
--			if(castSourceKey(cur) !== key){ return; }
--			this._castChartGaveUp = key;
--			this.refreshAll(cur, true);
--		}, SANSHI_CAST_CHART_WAIT_MS);
--		this._castChartWait = { key, timer };
++		});
++	}
++
 +	onGenderChange(val){
 +		this.onOptionChange('sex', val);
 +		this.onFieldsChange({
 +			gender: { value: val },
 +		}, true);
- 	}
- 
--	clearCastChartWait(){
--		if(this._castChartWait){
--			clearTimeout(this._castChartWait.timer);
--			this._castChartWait = null;
--		}
++	}
++
 +		onOptionChange(key, value, opts){
 +			// 年/月/日家(paiPanType 0/1/2)走本地 calcDunJia 各家局法(与独立遁甲同源),不依赖后端 → 全部放行,与独立页排盘选项一致。
 +			// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
@@ -3504,12 +3174,48 @@ index eeeda982..2ca71a55 100644
 +					SANSHI_PAGE_SETTINGS.saveMapEntry('taiyiSchool', opts.subKey, (value || {})[opts.subKey]);
 +				}else{
 +					SANSHI_PAGE_SETTINGS.save({ [key]: value });
-+				}
+ 				}
+-				const payload = this.pendingRecalcPayload;
+-				this.pendingRecalcPayload = null;
+-				// 这一次运行的调用方 = 此刻队列里的全部(防抖合并进来的都按这一次的结果);之后入队的留给下一次
+-				const mine = this.pendingRecalcResolvers.splice(0);
+-					if(!payload){
+-						this.settleRecalcResolvers(mine, false);
+-						return;
+-					}
+-					try{
+-						this.lastRecalcError = null;
+-						Promise.resolve(this.performRecalcByNongli(
+-							payload.fields,
+-							payload.nongli,
+-							payload.overrideOptions,
+-							payload.displaySolarTime,
+-							payload.commitPatch
+-						)).then((changed)=>{
+-							this.settleRecalcResolvers(mine, changed);
+-						}).catch((e)=>{
+-							this.lastRecalcError = e;
+-							if(!this.unmounted){
+-								this.setState({ loading: false });
+-								console.error('[SanShiUnited] performRecalcByNongli failed', e);
+-							}
+-							this.settleRecalcResolvers(mine, false);
+-						});
+-					}catch(e){
+-						this.lastRecalcError = e;
+-						if(!this.unmounted){
+-							this.setState({ loading: false });
+-							console.error('[SanShiUnited] performRecalcByNongli failed', e);
+-						}
+-						this.settleRecalcResolvers(mine, false);
+-					}
+-				}, SANSHI_RECALC_DEFER_MS);
 +			}
 +			const options = normalizeKenQimenOptions({
 +				...(this.state.options || {}),
 +				[key]: value,
-+			});
+ 			});
+-		}
 +		this.setState({ options }, ()=>{
 +			if(key === 'after23NewDay' || key === 'lateZiHourUseNextDay' || key === 'paiPanType' || key === 'qijuMethod'){
 +				const flds = this.getActiveFields();
@@ -3527,11 +3233,12 @@ index eeeda982..2ca71a55 100644
 +				this.refreshAll(this.getActiveFields(), true);
 +			}
 +		});
- 	}
++	}
  
--	async refreshAll(fields, force){
--		if(!fields){
--			return;
+-	async performRecalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
+-		const flds = fields || this.state.localFields || this.props.fields;
+-		if(!flds || !nongli){
+-			return false;
 +	onAstroFieldOptionChange(key, value){
 +		// 「新盘种子」:共享盘面字段(宫制)的亲手改动 = 新命盘缺省;三式择日内嵌不记(usesSavedSettings 同一门)
 +		if(this.usesSavedSettings()){ recordNewChartSeeds({ [key]: value }); }
@@ -3571,15 +3278,18 @@ index eeeda982..2ca71a55 100644
 +		if(!this.timeHook || typeof this.timeHook.getValue !== 'function'){
 +			return null;
  		}
+-		// 只认最后一次开始的重算(防抖只合并还没开始的那次;已在途的奇门 / 太乙后端取盘先发后回会盖掉后发)。
+-		// 取号在签名去重之前:去重命中说明屏上就是最新意图,在途的旧那次回来也不得再落屏。
+-		const seq = ++this._recalcSeq;
 -		const stateOptions = this.state.options || {};
--		const key = `${getFieldKey(fields)}|${safe(stateOptions.sex)}|${safe(stateOptions.after23NewDay)}|${normalizeTimeAlg(stateOptions.timeAlg)}`;
--		if(this.pendingRefresh && this.pendingRefresh.key === key){
--			return this.pendingRefresh.promise;
+-		// 合并 state + override 为单一真值源(签名/缓存键/各子盘计算同源,避免漂移)。
+-		const mergedOptions = {
+-			...stateOptions,
+-			...(overrideOptions || {}),
 +		const draft = this.timeHook.getValue();
 +		if(!draft || !draft.value || !(draft.value instanceof DateTime)){
 +			return null;
- 		}
--		if(!force && key === this.lastKey){
++		}
 +		const dt = draft.value;
 +		const fallbackZone = safe(baseFields && baseFields.zone && baseFields.zone.value, '+08:00');
 +		return {
@@ -3588,7 +3298,18 @@ index eeeda982..2ca71a55 100644
 +			time: { value: dt.clone() },
 +			ad: { value: dt.ad },
 +			zone: { value: normalizeZoneOffset(dt.zone, fallbackZone) },
-+		};
+ 		};
+-		const guirengType = mergedOptions.guireng;
+-		const qimenOptions = this.getQimenOptions(overrideOptions);
+-		// 参照盘只认与这一课同一起课时刻地点的那张。手上的参照盘是别的时刻的(主盘 / 宿主底盘还在途):这一课先不落 ——
+-		// 屏上仍是上一课的整套(更新中),这一刻的参照盘到了(componentDidUpdate → refreshAll)再落;等不到(取失败)
+-		// 就按「没有参照盘」落(月将 / 外圈留空、昼夜本地算),绝不拿上一刻的底盘定这一课
+-		const chartWrap = this.castChartOf(flds);
+-		const castKey = castSourceKey(flds);
+-		if(!chartWrap && castSourceKey(this.props.chartObj || this.props.chart || null) && this._castChartGaveUp !== castKey){
+-			this.armCastChartWait(flds);
+-			if(!this.state.loading){ this.setState({ loading: true }); }
+-			return SANSHI_RECALC_HELD;
 +	}
 +
 +	clickPlot(){
@@ -3599,15 +3320,94 @@ index eeeda982..2ca71a55 100644
 +			// (latest-wins:pendingTimeFields 持续更新,补发恒最新;连点期间不起中间轮)。
 +			this.queuedPlotWhileLoading = true;
 +			this.lastQueuedPlotAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
- 			return;
++			return;
  		}
--		this.lastKey = key;
--		const params = this.genParams(fields);
--		if(!params){
+-		const isDiurnal = castIsDiurnal(chartWrap, flds);
+-		const outerChartKey = getOuterChartKey(chartWrap);
+-		// 大六壬流派覆盖(换将/分昼夜/涉害/昼夜阳阴);默认全 default → null(零回归,与原本固定月将一致)。
+-		const lrCastOverride = chartWrap && chartWrap.chart ? buildSanshiLiuRengCastOverride({
+-			...chartWrap.chart,
+-			nongli: nongli,
+-		}, mergedOptions) : null;
+-		const lrCastKey = lrCastOverride ? [
+-			safe(lrCastOverride.yue),
+-			`${safe(lrCastOverride.isDiurnal, '')}`,
+-			safe(lrCastOverride.yinyangSystem),
+-			lrCastOverride.seHaiOpts ? `${safe(lrCastOverride.seHaiOpts.method)}-${safe(lrCastOverride.seHaiOpts.boundary)}-${lrCastOverride.seHaiOpts.shiRuKe ? 1 : 0}` : '',
+-		].join('~') : '';
+-		const recalcSignature = [
+-			getFieldKey(flds),
+-			getNongliKey(nongli),
+-			getQimenOptionsKey(qimenOptions),
+-			`${guirengType}`,
+-			`${safe(mergedOptions.taiyiStyle)}`,
+-			`${safe(mergedOptions.taiyiAccum)}`,
+-			`${safe(mergedOptions.gameTheory)}`,
+-			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+-			`${safe(mergedOptions.taiyiTimeBasis)}`,   // 曾漏:改太乙时间基准签名不变 → 去重直接不重算
+-			lrCastKey,
+-			`${safe(mergedOptions.yearShenShaSort)}`,
+-			`${safe(mergedOptions.tuWangShuai)}`,
+-			`${safe(mergedOptions.after23NewDay)}`,
+-			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
+-			`${safe(normalizeTimeAlg(mergedOptions.timeAlg))}`,
+-			safe(flds && flds.zodiacal && flds.zodiacal.value),
+-			safe(flds && flds.hsys && flds.hsys.value),
+-			`${safe(isDiurnal, '')}`,
+-			outerChartKey,
+-			`${this.state.outerCoord || 'ecliptic'}`,   // 外圈坐标进签名:否则切了坐标再起盘被去重拦下
+-			`${this.outerCoordCacheKey()}`,   // 赤道分宫另带上升取法(切了取法再起盘同样不被去重拦下)
+-			jieqiSeedSignature(this.jieqiYearSeeds),   // 种子到达后签名变 → 去重不吞掉带种子的重算
+-		].join('|');
+-		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
+-			return false;
+-		}
+-		const year = parseInt(flds.date.value.format('YYYY'), 10);
+-		// 奇门(getKinqimenDunJia)与太乙(getKintaiyiPan)两后端取盘相互独立(太乙仅吃 flds/nongli/mergedOptions,
+-		// 不依赖奇门结果),原为串行 await(网络往返叠加)。改并行:先各自起 promise,再 Promise.all 等齐;
+-		// 太乙命中本地缓存则不发请求(promise=已解析的缓存值),仅缓存未命中才真并发。结果/快照 byte-perfect 不变。
+-		const taiyiCacheKey = [
+-			getFieldKey(flds),
+-			getNongliKey(nongli),
+-			`${safe(mergedOptions.taiyiStyle)}`,
+-			`${safe(mergedOptions.taiyiAccum)}`,
+-			`${safe(mergedOptions.sex)}`,
+-			`${safe(mergedOptions.gameTheory)}`,
+-			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+-			// getKintaiyiPan 读的键须全入(时间基准曾漏 → 切「真太阳时」命中旧盘;换日两项同理补齐)
+-			`${safe(mergedOptions.taiyiTimeBasis)}`,
+-			`${safe(mergedOptions.after23NewDay)}`,
+-			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
+-		].join('|');
+-		const taiyiCached = this.taiyiCache.get(taiyiCacheKey);
+-		const dunjiaPromise = this.getKinqimenDunJia(
+-			flds,
+-			nongli,
+-			qimenOptions,
+-			year,
+-			isDiurnal,
+-			displaySolarTime || this.state.displaySolarTime
+-		);
+-		const taiyiPromise = taiyiCached
+-			? Promise.resolve(taiyiCached)
+-			: this.getKintaiyiPan(flds, nongli, mergedOptions);
+-		const [dunjia, taiyiResolved] = await Promise.all([dunjiaPromise, taiyiPromise]);
+-		if(this.unmounted || seq !== this._recalcSeq){
+-			return false;
 +		if(this.awaitingSyncTimer){
 +			clearTimeout(this.awaitingSyncTimer);
 +			this.awaitingSyncTimer = null;
-+		}
+ 		}
+-		// 太乙缓存未命中 → 落缓存(LRU 上限 48);命中则 taiyiResolved===缓存值,无需重写。
+-		const taiyi = taiyiResolved;
+-		if(!taiyiCached){
+-			this.taiyiCache.set(taiyiCacheKey, taiyi);
+-			if(this.taiyiCache.size > 48){
+-				const firstKey = this.taiyiCache.keys().next().value;
+-				if(firstKey){
+-					this.taiyiCache.delete(firstKey);
+-				}
+-			}
 +		// 草稿优先:onTimeChanged 每次改时间都把最新时刻写进 pendingTimeFields,而
 +		//   timeHook.getValue() 读的是注册 hook 的那个控件实例(左栏内联 / 隐藏实例)的 value —— 未起盘时
 +		//   在弹层里改完直接点「起盘」,它还是旧时刻,此前它排在前面就把草稿盖掉 = 按旧时刻起盘,
@@ -3616,13 +3416,564 @@ index eeeda982..2ca71a55 100644
 +		const timeFields = this.pendingTimeFields || this.getTimeFieldsFromSelector(baseFields);
 +		const nextFields = timeFields || this.state.localFields || this.props.fields;
 +		if(!nextFields){
++			return;
+ 		}
+-		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
+-		const lrNongli = buildLrNongli(nongli, dunjia);
+-		const nianMing = safe(lrNongli && lrNongli.runyear, '')
+-			|| ((dunjia && dunjia.ganzhi && dunjia.ganzhi.year) ? dunjia.ganzhi.year.substring(1, 2) : '');
+-		const chartForLr = astroChart ? {
+-			...astroChart,
+-			nongli: lrNongli,
+-		} : null;
+-		const lrCacheKey = [
+-			getChartYue(astroChart),
+-			safe(lrNongli.dayGanZi),
+-			safe(lrNongli.time),
+-			`${guirengType}`,
+-			// 昼夜:缺省「晨昏分昼夜」时覆盖为 null、lrCastKey 不含昼夜,而贵人取昼/夜贵读 chartObj.isDiurnal →
+-			// 同一时辰内跨日出/日没命中旧缓存,十二天将整环沿用旧昼夜(重算签名含昼夜会重算,六壬层却命中旧包)。
+-			`${safe(chartForLr && chartForLr.isDiurnal, '')}`,
+-			lrCastKey,
+-		].join('|');
+-		let lrBundle = this.lrBundleCache[lrCacheKey];
+-		if(!lrBundle){
+-			const lrLayout = buildLiuRengLayout(chartForLr, guirengType, lrCastOverride);
+-			const keData = buildKeData(lrLayout, chartForLr);
+-			const sanChuan = buildSanChuan(lrLayout, keData.raw, chartForLr, lrCastOverride);
+-			lrBundle = {
+-				lrLayout,
+-				keData,
+-				sanChuan,
+-				yue: lrLayout ? lrLayout.yue : '',
+-				timezi: lrLayout ? lrLayout.timezi : '',
+-				guizi: lrLayout ? lrLayout.guizi : '',
+-			};
+-			this.lrBundleCache[lrCacheKey] = lrBundle;
+-			const cacheKeys = Object.keys(this.lrBundleCache);
+-			if(cacheKeys.length > 36){
+-				delete this.lrBundleCache[cacheKeys[0]];
++		const curFields = this.props.fields || {};
++		const patchFields = {};
++		const patchRaw = (key)=>{
++			if(nextFields[key] && nextFields[key].value !== undefined){
++				patchFields[key] = { value: nextFields[key].value };
+ 			}
+-		}
+-		const liureng = {
+-			nongli: lrNongli,
+-			nianMing: nianMing,
+-			yue: lrBundle.yue,
+-			timezi: lrBundle.timezi,
+-			guizi: lrBundle.guizi,
+-			fourColumns: {
+-				year: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.year || '') : '',
+-				month: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.month || '') : '',
+-				day: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.day || '') : '',
+-				time: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.time || '') : '',
+-			},
+ 		};
+-		let liurengRefBundle = null;
+-		const runYearRef = lrNongli && lrNongli.runyear ? { year: lrNongli.runyear } : null;
+-		try{
+-			liurengRefBundle = buildLiuRengReferenceBundle(liureng, chartForLr, guirengType, runYearRef, lrCastOverride);
+-		}catch(e){
+-			liurengRefBundle = null;
+-		}
+-		// 六壬断卦层快照入参(供 buildSanShiUnitedSnapshotText 复用独立 buildLiuRengSnapshotText);
+-		// 随快照各路径(recalc/存档/还原)同源传递,故落 state 让 state 派生的两处 payload 也带得上。
+-		const liurengSnapshotInput = {
+-			guirengType,
+-			chartForLr,
+-			lrCastOverride,
+-			// 断卦层要的是 castOpts 形态(yueJiangMethod/fenZhouYe/涉害/年神/土旺/占类…),override 对象另带;
+-			// 此前把 lrCastOverride 当第 8 参 castOpts 传 → 键名全不匹配 → 12 个断卦段按默认盘重算。
+-			lrCastOpts: pickSanshiLiurengCastOpts(mergedOptions, lrNongli),
+-			runYearRef,
++		const patchDateTime = (key)=>{
++			if(nextFields[key] && nextFields[key].value instanceof DateTime){
++				patchFields[key] = { value: nextFields[key].value.clone() };
++			}
+ 		};
+-		// 太乙 taiyi 已在 dunjia 前并行取得并落缓存(见上方 Promise.all)。
+-		let outerData = this.outerDataCache.data;
+-		const outerCoordKey = this.outerCoordCacheKey();
+-		if(this.outerDataCache.chartKey !== outerChartKey || this.outerDataCache.coord !== outerCoordKey){
+-			outerData = buildOuterData(astroChart, this.state.outerCoord, this.state.ascRaMode);
+-			this.outerDataCache = {
+-				chartKey: outerChartKey,
+-				coord: outerCoordKey,
+-				data: outerData,
+-			};
+-		}
+-			const snapshotPayload = {
+-				fields: flds,
+-				options: mergedOptions,
+-				nongli,
+-				displaySolarTime: this.state.displaySolarTime,
+-				liureng,
+-				dunjia,
+-				taiyi,
+-				liurengRefBundle,
+-			keData: lrBundle.keData,
+-			sanChuan: lrBundle.sanChuan,
+-			lrLayout: lrBundle.lrLayout,
+-			outerData,
+-			guirengType: liurengSnapshotInput.guirengType,
+-			liurengChartForLr: liurengSnapshotInput.chartForLr,
+-			lrCastOverride: liurengSnapshotInput.lrCastOverride,
+-			lrCastOpts: liurengSnapshotInput.lrCastOpts,
+-			liurengRunYear: liurengSnapshotInput.runYearRef,
+-			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
++		const maybePatchRaw = (key)=>{
++			const nextVal = safe(nextFields[key] && nextFields[key].value);
++			const curVal = safe(curFields[key] && curFields[key].value);
++			if(nextVal !== curVal){
++				patchRaw(key);
++			}
+ 		};
+-		const snapshotMeta = {
+-			date: flds && flds.date ? flds.date.value.format('YYYY-MM-DD') : '',
+-			time: flds && flds.time ? flds.time.value.format('HH:mm:ss') : '',
+-			zone: flds && flds.zone ? flds.zone.value : '',
+-			lon: flds && flds.lon ? flds.lon.value : '',
+-			lat: flds && flds.lat ? flds.lat.value : '',
++		const maybePatchDateTime = (key, format)=>{
++			const nextVal = nextFields[key] && nextFields[key].value instanceof DateTime ? nextFields[key].value.format(format) : '';
++			const curVal = curFields[key] && curFields[key].value instanceof DateTime ? curFields[key].value.format(format) : '';
++			if(nextVal !== curVal){
++				patchDateTime(key);
++			}
+ 		};
+-		this.lastRecalcSignature = recalcSignature;
+-		this.clearCastChartWait();
+-		// 双提交合一:盘结果与调用方补丁(loading:false/displaySolarTime)同一次
+-		// setState 落地 —— 旧形态先渲「新盘 + loading 还挂着」一帧再渲去转圈一帧,肉眼即闪帧。
++		maybePatchDateTime('date', 'YYYY-MM-DD HH:mm:ss');
++		maybePatchDateTime('time', 'YYYY-MM-DD HH:mm:ss');
++		maybePatchRaw('ad');
++		maybePatchRaw('zone');
++		maybePatchRaw('lon');
++		maybePatchRaw('lat');
++		maybePatchRaw('gpsLon');
++		maybePatchRaw('gpsLat');
++		maybePatchRaw('zodiacal');
++		maybePatchRaw('hsys');
++		maybePatchRaw('gender');
++		// 时间算法只作用于本页(本页计算读 options / 本页 fields 里的 timeAlg):不写共用字段,否则紫微 / 七政等跟着变
++		const needChartSync = Object.keys(patchFields).length > 0;
++		this.prefetchNongliForFields(nextFields);
++		this.prefetchJieqiSeedForFields(nextFields);
++		this.awaitingChartSync = false;
++		if(needChartSync){
++			this.syncFields(patchFields);
++			this.onFieldsChange(patchFields, {
++				silentRequest: true,
++				nohook: true,
++			});
++			this.awaitingChartSync = true;
++			if(this.awaitingSyncTimer){
++				clearTimeout(this.awaitingSyncTimer);
++				this.awaitingSyncTimer = null;
++			}
++			// [不等 /chart 回流](horosa_sanshi_no_wait_chart_v1)旧行为=等 chartObj 回流触发
++			// didUpdate 快路径、1200ms timer 兜底——实测回流常缺席,每步硬吃满 1.2s(连续进退
++			// 「卡很久」的最大单项)。chartObj 只供 isDiurnal(昼夜贵人)与外圈联动,不值硬等:
++			// 立即用现值起算;回流后 didUpdate 仍会 refreshAll(force)——recalcSignature 含
++			// isDiurnal/outerChartKey,没变=签名去重瞬时 no-op,真变(跨昼夜界/外圈)=自动校正重算。
++			this.refreshAll(nextFields, true);
++		}
+ 		this.setState({
+-			nongli,
+-			liureng,
+-			dunjia,
+-			taiyi,
+-			castChart: chartWrap,
+-			lessonSig: castKey,
+-			liurengRefBundle,
+-			liurengSnapshotInput,
+-			lrLayout: lrBundle.lrLayout,
+-			keData: lrBundle.keData,
+-			sanChuan: lrBundle.sanChuan,
+-			...(commitPatch || null),
+-		}, ()=>{
+-			this.scheduleSnapshotSave(snapshotPayload, snapshotMeta);
++			hasPlotted: true,
++			localFields: nextFields,
++			plottedFields: nextFields,
++			loading: needChartSync ? true : this.state.loading,
++		}, ()=>{
++			this.pendingTimeFields = null;
++			if(needChartSync){
++				return;
++			}
++			this.refreshAll(nextFields, true);
+ 		});
+-		return true;
+ 	}
+ 
+-	async ensureJieqiSeed(fields, year){
+-		if(!year || Number.isNaN(year)){
+-			return null;
+-		}
+-		if(this.jieqiYearSeeds[year]){
+-			return this.jieqiYearSeeds[year];
+-		}
+-		if(this.jieqiSeedPromises[year]){
+-			return this.jieqiSeedPromises[year];
+-		}
+-		const params = this.genJieqiParams(fields, year);
+-		if(!params){
+-			return null;
++	changeGeo(rec){
++		const base = this.state.localFields || this.props.fields || {};
++		const dDt = base.date && base.date.value;
++		const tDt = base.time && base.time.value;
++		const ds = (dDt && dDt.format) ? dDt.format('YYYY-MM-DD') : null;
++		// 选地点 → 时区自动校正 + 重锚 date/time 到新时区(保留钟面时刻、瞬时随之偏移);手动改过时区则沿用 rec.zone。
++		const z = resolveGeoZone(rec, ds);
++		const geoPatch = {
++			lon: { value: convertLonToStr(rec.lng) },
++			lat: { value: convertLatToStr(rec.lat) },
++			gpsLon: { value: rec.gpsLng },
++			gpsLat: { value: rec.gpsLat },
++		};
++		if(z){
++			geoPatch.zone = { value: z };
++			if(dDt && dDt.clone){ const nd = dDt.clone(); nd.setZone(z); geoPatch.date = { value: nd }; geoPatch.ad = { value: nd.ad }; }
++			if(tDt && tDt.clone){ const nt = tDt.clone(); nt.setZone(z); geoPatch.time = { value: nt }; }
+ 		}
+-		this.jieqiSeedPromises[year] = Promise.resolve().then(async()=>{
+-			const seed = await fetchPreciseJieqiSeed(params);
+-			if(seed){
+-				this.jieqiYearSeeds[year] = seed;
+-			}
+-			return seed;
+-		}).finally(()=>{
+-			delete this.jieqiSeedPromises[year];
+-		});
+-		// 预加载失败静默：旁路 catch 防 unhandledrejection，不改变调用方拿到的 promise 语义
+-		this.jieqiSeedPromises[year].catch(()=>{});
+-		return this.jieqiSeedPromises[year];
++		// 🔑 刷新左栏显示(localFields)+ 实时重算(silent fetchByFields):改地点/时区即重排三式
++		Object.assign(geoPatch, geoNameFieldPatch(rec));
++		this.setState({ localFields: { ...base, ...geoPatch } });
++		this.onFieldsChange(geoPatch, true);
+ 	}
+ 
+-	prefetchJieqiSeedForFields(fields, overrideOptions){
+-		const flds = fields || this.state.localFields || this.props.fields;
+-		if(!flds || !flds.date || !flds.date.value){
++	clickSave(){
++		if(!this.state.hasPlotted || !this.state.dunjia){
++			message.warning('请先起盘后再保存');
+ 			return;
+ 		}
+-		const qimenOptions = this.getQimenOptions(overrideOptions);
+-		if(!needJieqiYearSeed(qimenOptions)){
++		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
++		if(!flds){
+ 			return;
+ 		}
+-		const year = parseInt(flds.date.value.format('YYYY'), 10);
+-		if(!year || Number.isNaN(year)){
++		if((this.state.options || {}).mode === 'ming'){
++			// 命局存为命盘:与独立奇门页同口径代填起局时间(作生时)、经纬度 / 地名 / 时区与性别(此前开空白新建框)
++			if(this.props.dispatch){
++				const opt = this.state.options || {};
++				const birthStr = flds.date && flds.time && flds.date.value && flds.time.value
++					? `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}` : undefined;
++				this.props.dispatch({
++					type: 'astro/openDrawer',
++					payload: {
++						key: 'chartadd',
++						record: {
++							birth: birthStr,
++							zone: flds.zone ? flds.zone.value : undefined,
++							lat: flds.lat ? flds.lat.value : undefined,
++							lon: flds.lon ? flds.lon.value : undefined,
++							gpsLat: flds.gpsLat ? flds.gpsLat.value : undefined,
++							gpsLon: flds.gpsLon ? flds.gpsLon.value : undefined,
++							pos: flds.pos ? flds.pos.value : undefined,
++							gender: opt.sex === 0 || opt.sex === 1 ? opt.sex : undefined,
++						},
++					},
++				});
++			}
+ 			return;
+ 		}
+-		// 种子年份集单源 jieqiSeedYears(日家/金函 y-1,y,y+1;其余 y-1,y)。
+-		Promise.all(jieqiSeedYears(qimenOptions, year).map((yy)=>this.ensureJieqiSeed(flds, yy))).catch(()=>null);
++		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
++		// 存档即写格式化快照(与导出/挂载同源 buildSanShiUnitedSnapshotText)。否则挂载该 case 走
++		// buildSanshiUnifiedFallbackSnapshot 兜底,产出[奇门遁甲]等不在 sanshiunited preset 的段名,
++		// 自定义过导出段的用户会被静默删。对齐 sixyao/mundane「存档带 snapshot」范式(extractCaseSnapshotText 直读 payload.snapshot)。
++		const chartWrap = this.state.castChart;   // 这一课所用的参照盘(与课同一次落定)
++		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
++		const outerData = this.currentOuterData(astroChart);
++		const lrSnapInput = this.state.liurengSnapshotInput || {};
++		const snapshotText = buildSanShiUnitedSnapshotText({
++			fields: flds,
++			options: this.state.options || {},
++			nongli: this.state.nongli,
++			displaySolarTime: this.state.displaySolarTime,
++			liureng: this.state.liureng,
++			dunjia: this.state.dunjia,
++			taiyi: this.state.taiyi,
++			keData: this.state.keData,
++			sanChuan: this.state.sanChuan,
++			lrLayout: this.state.lrLayout,
++			liurengRefBundle: this.state.liurengRefBundle,
++			outerData,
++			guirengType: lrSnapInput.guirengType,
++			liurengChartForLr: lrSnapInput.chartForLr,
++			lrCastOverride: lrSnapInput.lrCastOverride,
++			lrCastOpts: lrSnapInput.lrCastOpts,
++			liurengRunYear: lrSnapInput.runYearRef,
++			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
++		});
++			// 择日宿主内按宿主键(sanshizeri)存档;快照取宿主槽(含择时段),缺则用本页快照。
++			const ssScope = this.props.techniqueScope || 'sanshiunited';
++			// 先请本页按此刻所见重存再读(宿主刚出的择时结果经 composeAiSnapshot 并入;直读槽 = 扫描前的旧文)
++			const ssScopeSnap = ssScope !== 'sanshiunited' ? loadFreshModuleAISnapshot(ssScope) : null;
++			const payload = {
++				module: ssScope,
++				snapshot: (ssScopeSnap && ssScopeSnap.content) ? ssScopeSnap.content : (snapshotText || ''),
++				options: {
++					...(this.state.options || {}),
++				},
++			result: {
++				nongli: this.state.nongli,
++				liureng: this.state.liureng,
++				dunjia: this.state.dunjia,
++				taiyi: this.state.taiyi,
++				keData: this.state.keData,
++				sanChuan: this.state.sanChuan,
++			},
++		};
++		if(this.props.dispatch){
++			this.props.dispatch({
++				type: 'astro/openDrawer',
++				payload: {
++					key: 'caseadd',
++					record: {
++						event: `${ssScope === 'sanshizeri' ? '三式择日' : '三式合一占断'} ${divTime}`,
++						caseType: ssScope,
++						divTime: divTime,
++						zone: flds.zone.value,
++						lat: flds.lat.value,
++						lon: flds.lon.value,
++						gpsLat: flds.gpsLat.value,
++						gpsLon: flds.gpsLon.value,
++						pos: flds.pos ? flds.pos.value : '',
++						gender: caseGenderValue(flds),
++						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
++						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
++						payload: { ...payload, fieldSnapshot: caseFieldSnapshot(flds) },
++						sourceModule: ssScope,
++					},
++				},
++			});
++		}
+ 	}
+ 
+-	prefetchNongliForFields(fields){
++	genParams(fields, overrideOptions){
+ 		const flds = fields || this.state.localFields || this.props.fields;
+ 		if(!flds){
+-			return;
+-		}
+-		const params = this.genParams(flds);
+-		if(!params){
+-			return;
++			return null;
+ 		}
+-		fetchPreciseNongli(params).then((result)=>{
+-			if(result){
+-				setNongliLocalCache(params, result);
+-			}
+-		}).catch(()=>null);
++		const opt = {
++			...(this.state.options || {}),
++			...(overrideOptions || {}),
++		};
++		const calcGeo = resolveCalcGeo(flds, opt);
++		const zoneValue = normalizeZoneOffset(safe(flds.zone && flds.zone.value, ''), '+08:00');
++		const adRaw = (flds.ad && flds.ad.value !== undefined && flds.ad.value !== null)
++			? flds.ad.value
++			: 1;
++		const adValue = normalizeAdValue(adRaw, 1);
++		return {
++			date: flds.date.value.format('YYYY-MM-DD'),
++			time: flds.time.value.format('HH:mm:ss'),
++			zone: zoneValue,
++			lon: calcGeo.lon,
++			lat: calcGeo.lat,
++			gpsLat: calcGeo.gpsLat,
++			gpsLon: calcGeo.gpsLon,
++			ad: adValue,
++			gender: opt.sex,
++			timeAlg: normalizeTimeAlg(opt.timeAlg),
++			after23NewDay: resolveAfter23NewDay(opt.after23NewDay),
++			// v2.2.1: 透传时柱开关给后端 /nongli/time。
++			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
++		};
+ 	}
+ 
+-	// 起课取失败:与屏上那一课同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那一课是上一课,
+-	// 清掉(连同本页 AI 快照槽),不让上一课顶着新时刻显示 / 交给 AI
+-	settleCastFailure(fields){
+-		if(castFailureKeeps(this.state.lessonSig, castSourceKey(fields))){
+-			this.setState({ loading: false });
+-			return;
++	genJieqiParams(fields, year, overrideOptions){
++		const flds = fields || this.state.localFields || this.props.fields;
++		if(!flds){
++			return null;
+ 		}
+-		this.clearCastChartWait();
+-		this.lastRecalcSignature = '';
+-		this._lastSnapshotPayload = null;
+-		this.setState({
+-			loading: false, nongli: null, liureng: null, dunjia: null, taiyi: null, castChart: null, lessonSig: '',
+-			liurengRefBundle: null, liurengSnapshotInput: null, lrLayout: null, keData: null, sanChuan: null,
+-		});
+-		clearModuleAISnapshot(this.props.techniqueScope || 'sanshiunited');
++		const opt = {
++			...(this.state.options || {}),
++			...(overrideOptions || {}),
++		};
++		const calcGeo = resolveCalcGeo(flds, opt);
++		const zoneValue = normalizeZoneOffset(safe(flds.zone && flds.zone.value, ''), '+08:00');
++		const adRaw = (flds.ad && flds.ad.value !== undefined && flds.ad.value !== null)
++			? flds.ad.value
++			: 1;
++		return {
++			year: `${year}`,
++			ad: normalizeAdValue(adRaw, 1),
++			zone: zoneValue,
++			lon: calcGeo.lon,
++			lat: calcGeo.lat,
++			gpsLat: calcGeo.gpsLat,
++			gpsLon: calcGeo.gpsLon,
++			timeAlg: normalizeTimeAlg(opt.timeAlg),
++			hsys: 0,
++			zodiacal: 0,
++			siderealAyanamsa: '',
++			doubingSu28: false,
++		};
+ 	}
+ 
+-	// 等这一刻的参照盘:到了由 componentDidUpdate 照常 refreshAll;超时就按「没有参照盘」落这一课
+-	armCastChartWait(flds){
+-		const key = castSourceKey(flds);
+-		if(this._castChartWait && this._castChartWait.key === key){ return; }
+-		this.clearCastChartWait();
+-		const timer = setTimeout(()=>{
+-			if(this.unmounted || !this._castChartWait || this._castChartWait.key !== key){ return; }
+-			this._castChartWait = null;
+-			const cur = this.state.plottedFields || this.state.localFields || this.props.fields;
+-			if(castSourceKey(cur) !== key){ return; }
+-			this._castChartGaveUp = key;
+-			this.refreshAll(cur, true);
+-		}, SANSHI_CAST_CHART_WAIT_MS);
+-		this._castChartWait = { key, timer };
++	getQimenOptions(overrideOptions){
++		const opt = {
++			...(this.state.options || {}),
++			...(overrideOptions || {}),
++		};
++		return {
++			...QIMEN_OPTIONS,
++			sex: opt.sex,
++			timeAlg: normalizeTimeAlg(opt.timeAlg),
++			paiPanType: opt.paiPanType,
++			zhiShiType: opt.zhiShiType,
++			yueJiaQiJuType: opt.yueJiaQiJuType,
++			qijuMethod: opt.qijuMethod,
++			kongMode: opt.kongMode,
++			yimaMode: opt.yimaMode,
++			shiftPalace: opt.shiftPalace,
++			// 奇门流派/起局补充(对齐独立 DunJiaMain):盘式(转盘/飞盘/混合) + 阴盘报数定局 + 封局 + 置闰天数。
++			school: opt.school !== undefined ? opt.school : '转盘',
++			shuziReportNumber: opt.shuziReportNumber !== undefined ? opt.shuziReportNumber : '',
++			fengJu: !!opt.fengJu,
++			zhirunLeapDays: opt.zhirunLeapDays !== undefined ? opt.zhirunLeapDays : 9,
++			// 三式缺口补齐:盘类+相关人员透传(与独立页同语义;默认=事局/空=零回归)
++			chartCategory: opt.chartCategory !== undefined ? opt.chartCategory : 'shi',
++			faRelatedPeople: opt.faRelatedPeople !== undefined ? opt.faRelatedPeople : '',
++			godsPreset: opt.godsPreset !== undefined ? opt.godsPreset : 'baihu_xuanwu',
++			anGanMode: opt.anGanMode !== undefined ? opt.anGanMode : 'off',
++			showAnZhi: !!opt.showAnZhi,
++			jiGongMode: opt.jiGongMode || 'kun',
++			feiXingShun: !!opt.feiXingShun,
++			feiMenShun: !!opt.feiMenShun,
++			feiShenShun: !!opt.feiShenShun,
++			feiMenZhongCan: opt.feiMenZhongCan !== false,
++			feiMenZhongShow: !!opt.feiMenZhongShow,
++			mixTian: opt.mixTian || '',
++			mixXing: opt.mixXing || '',
++			mixMen: opt.mixMen || '',
++			mixShen: opt.mixShen || '',
++			kongMarkBoth: !!opt.kongMarkBoth,
++			showAllKong: !!opt.showAllKong,
++			shiftZhiFuMode: opt.shiftZhiFuMode === 'recalc' ? 'recalc' : 'follow',
++			dayJiaJu: opt.dayJiaJu || 'yiyuan',
++			keJiaFenDun: opt.keJiaFenDun || 'zihou',
++			keZiZhengHuanShi: !!opt.keZiZhengHuanShi,
++			jinhanMenPai: opt.jinhanMenPai === 'shun' ? 'shun' : 'book',
++			yearJiaJu: opt.yearJiaJu === 'yinian' ? 'yinian' : 'sanyuan',
++			// 三式合一统一按“交接时刻”计算，避免日级近似切换。
++			jieQiType: 1,
++			yearGanZhiType: 2,
++			monthGanZhiType: 1,
++			dayGanZhiType: 1,
++			after23NewDay: resolveAfter23NewDay(opt.after23NewDay),
++			// v2.2.1: 透传时柱开关给奇门后端引擎。
++			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
++		};
+ 	}
+ 
+-	clearCastChartWait(){
+-		if(this._castChartWait){
+-			clearTimeout(this._castChartWait.timer);
+-			this._castChartWait = null;
+-		}
++	// 结掉队列里此刻全部的调用方(取消 / 卸载用);某一次重算只结它自己开跑时取走的那一批(settleRecalcResolvers)
++	resolvePendingRecalc(result){
++		const resolvers = (this.pendingRecalcResolvers || []).slice();
++		this.pendingRecalcResolvers = [];
++		this.settleRecalcResolvers(resolvers, result);
+ 	}
+ 
+-	async refreshAll(fields, force){
+-		if(!fields){
+-			return;
+-		}
+-		const stateOptions = this.state.options || {};
+-		const key = `${getFieldKey(fields)}|${safe(stateOptions.sex)}|${safe(stateOptions.after23NewDay)}|${normalizeTimeAlg(stateOptions.timeAlg)}`;
+-		if(this.pendingRefresh && this.pendingRefresh.key === key){
+-			return this.pendingRefresh.promise;
+-		}
+-		if(!force && key === this.lastKey){
+-			return;
+-		}
+-		this.lastKey = key;
+-		const params = this.genParams(fields);
+-		if(!params){
++	// 只结给定这一批调用方。一次重算在定时器触发、开跑那一刻把队列取走,回包后只结这一批:被作废的旧那次(回包为 false)
++	// 不得把开跑之后才入队、属于后发那次的调用方一起定成 false —— 否则后发那次还在途,调用方就收起加载态、放行排队的起盘补发
++	settleRecalcResolvers(list, result){
++		const resolvers = Array.isArray(list) ? list : [];
++		if(resolvers.length === 0){
  			return;
  		}
 -		const seq = ++this.refreshSeq;
 -		const refreshPromise = (async ()=>{
 -			const qimenOptions = this.getQimenOptions();
 -			const shouldWaitSeed = needJieqiYearSeed(qimenOptions);
--			try{
++		resolvers.forEach((fn)=>{
+ 			try{
 -				const year = parseInt(fields.date.value.format('YYYY'), 10);
 -				const waitSeed = !!(year && shouldWaitSeed);
 -				// 种子年份集单源 jieqiSeedYears(日家/金函含 y+1);缺任一年即 missingSeed → 种子到齐后 recalcByNongli 重算。
@@ -3670,7 +4021,20 @@ index eeeda982..2ca71a55 100644
 -					if(preciseHit){
 -						setNongliLocalCache(params, nongli);
 -					}
--				}
++				fn(result);
++			}catch(e){
++				return;
++			}
++		});
++		// [连续进退不丢击] 重算落地 → 期间被队列化的起盘请求经 trailing 静默期补发:
++		// 距最后一击 <180ms 说明用户还在连点,推迟再查——连点期间不起中间轮
++		// (旧「resolve 即补」= 每 ~600ms 一轮全算,6 连击串行 3-4 轮;现=停手后一轮定稿)。
++		// loading 已随 commitPatch 同帧清掉;若又有新一轮在途则本次跳过,由那一轮 resolve 接力。
++		if(this.queuedPlotWhileLoading){
++			const tryFlush = ()=>{
++				if(this.unmounted || !this.queuedPlotWhileLoading){
++					return;
+ 				}
 -					const displaySolarTime = await this.resolveDisplaySolarTime(params, nongli);
 -						if(this.unmounted || seq !== this.refreshSeq){
 -							return;
@@ -3750,85 +4114,27 @@ index eeeda982..2ca71a55 100644
 -				}finally{
 -				if(this.pendingRefresh && this.pendingRefresh.seq === seq){
 -					this.pendingRefresh = null;
--				}
-+		const curFields = this.props.fields || {};
-+		const patchFields = {};
-+		const patchRaw = (key)=>{
-+			if(nextFields[key] && nextFields[key].value !== undefined){
-+				patchFields[key] = { value: nextFields[key].value };
- 			}
++				if(this.state.loading){
++					return;
+ 				}
+-			}
 -		})();
 -		this.pendingRefresh = {
 -			key,
 -			seq,
 -			promise: refreshPromise,
- 		};
+-		};
 -		return refreshPromise;
-+		const patchDateTime = (key)=>{
-+			if(nextFields[key] && nextFields[key].value instanceof DateTime){
-+				patchFields[key] = { value: nextFields[key].value.clone() };
-+			}
-+		};
-+		const maybePatchRaw = (key)=>{
-+			const nextVal = safe(nextFields[key] && nextFields[key].value);
-+			const curVal = safe(curFields[key] && curFields[key].value);
-+			if(nextVal !== curVal){
-+				patchRaw(key);
-+			}
-+		};
-+		const maybePatchDateTime = (key, format)=>{
-+			const nextVal = nextFields[key] && nextFields[key].value instanceof DateTime ? nextFields[key].value.format(format) : '';
-+			const curVal = curFields[key] && curFields[key].value instanceof DateTime ? curFields[key].value.format(format) : '';
-+			if(nextVal !== curVal){
-+				patchDateTime(key);
-+			}
-+		};
-+		maybePatchDateTime('date', 'YYYY-MM-DD HH:mm:ss');
-+		maybePatchDateTime('time', 'YYYY-MM-DD HH:mm:ss');
-+		maybePatchRaw('ad');
-+		maybePatchRaw('zone');
-+		maybePatchRaw('lon');
-+		maybePatchRaw('lat');
-+		maybePatchRaw('gpsLon');
-+		maybePatchRaw('gpsLat');
-+		maybePatchRaw('zodiacal');
-+		maybePatchRaw('hsys');
-+		maybePatchRaw('gender');
-+		// 时间算法只作用于本页(本页计算读 options / 本页 fields 里的 timeAlg):不写共用字段,否则紫微 / 七政等跟着变
-+		const needChartSync = Object.keys(patchFields).length > 0;
-+		this.prefetchNongliForFields(nextFields);
-+		this.prefetchJieqiSeedForFields(nextFields);
-+		this.awaitingChartSync = false;
-+		if(needChartSync){
-+			this.syncFields(patchFields);
-+			this.onFieldsChange(patchFields, {
-+				silentRequest: true,
-+				nohook: true,
-+			});
-+			this.awaitingChartSync = true;
-+			if(this.awaitingSyncTimer){
-+				clearTimeout(this.awaitingSyncTimer);
-+				this.awaitingSyncTimer = null;
-+			}
-+			// [不等 /chart 回流](horosa_sanshi_no_wait_chart_v1)旧行为=等 chartObj 回流触发
-+			// didUpdate 快路径、1200ms timer 兜底——实测回流常缺席,每步硬吃满 1.2s(连续进退
-+			// 「卡很久」的最大单项)。chartObj 只供 isDiurnal(昼夜贵人)与外圈联动,不值硬等:
-+			// 立即用现值起算;回流后 didUpdate 仍会 refreshAll(force)——recalcSignature 含
-+			// isDiurnal/outerChartKey,没变=签名去重瞬时 no-op,真变(跨昼夜界/外圈)=自动校正重算。
-+			this.refreshAll(nextFields, true);
++				const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
++				if(this.lastQueuedPlotAt && nowTs - this.lastQueuedPlotAt < 180){
++					setTimeout(tryFlush, 120);
++					return;
++				}
++				this.queuedPlotWhileLoading = false;
++				this.clickPlot();
++			};
++			setTimeout(tryFlush, 0);
 +		}
-+		this.setState({
-+			hasPlotted: true,
-+			localFields: nextFields,
-+			plottedFields: nextFields,
-+			loading: needChartSync ? true : this.state.loading,
-+		}, ()=>{
-+			this.pendingTimeFields = null;
-+			if(needChartSync){
-+				return;
-+			}
-+			this.refreshAll(nextFields, true);
-+		});
  	}
  
 -	calcBoardSize(height){
@@ -3843,45 +4149,60 @@ index eeeda982..2ca71a55 100644
 -		let target = hCap;
 -		if(Number.isFinite(wCap) && wCap > 0){
 -			target = Math.min(target, wCap);
-+	changeGeo(rec){
-+		const base = this.state.localFields || this.props.fields || {};
-+		const dDt = base.date && base.date.value;
-+		const tDt = base.time && base.time.value;
-+		const ds = (dDt && dDt.format) ? dDt.format('YYYY-MM-DD') : null;
-+		// 选地点 → 时区自动校正 + 重锚 date/time 到新时区(保留钟面时刻、瞬时随之偏移);手动改过时区则沿用 rec.zone。
-+		const z = resolveGeoZone(rec, ds);
-+		const geoPatch = {
-+			lon: { value: convertLonToStr(rec.lng) },
-+			lat: { value: convertLatToStr(rec.lat) },
-+			gpsLon: { value: rec.gpsLng },
-+			gpsLat: { value: rec.gpsLat },
-+		};
-+		if(z){
-+			geoPatch.zone = { value: z };
-+			if(dDt && dDt.clone){ const nd = dDt.clone(); nd.setZone(z); geoPatch.date = { value: nd }; geoPatch.ad = { value: nd.ad }; }
-+			if(tDt && tDt.clone){ const nt = tDt.clone(); nt.setZone(z); geoPatch.time = { value: nt }; }
++	cancelPendingRecalc(result = false){
++		if(this.pendingRecalcTimer){
++			clearTimeout(this.pendingRecalcTimer);
++			this.pendingRecalcTimer = null;
  		}
 -		return clamp(Math.round(target), boardMin, SANSHI_BOARD_MAX);
-+		// 🔑 刷新左栏显示(localFields)+ 实时重算(silent fetchByFields):改地点/时区即重排三式
-+		Object.assign(geoPatch, geoNameFieldPatch(rec));
-+		this.setState({ localFields: { ...base, ...geoPatch } });
-+		this.onFieldsChange(geoPatch, true);
++		this.pendingRecalcPayload = null;
++		this.resolvePendingRecalc(result);
  	}
  
 -
 -	renderLeftBoard(height){
 -		if(!this.state.hasPlotted){
--			return <Card bordered={false}>点击左侧“起盘”后显示三式合一盘</Card>;
-+	clickSave(){
-+		if(!this.state.hasPlotted || !this.state.dunjia){
-+			message.warning('请先起盘后再保存');
-+			return;
+-			return <XQStageEmpty>点击左侧“起盘”后显示三式合一盘</XQStageEmpty>;
++	scheduleSnapshotSave(snapshotPayload, snapshotMeta){
++		// 留底最近一次 payload/meta:紫微四化 tab 的盘经异步归来时(上报点
++		// handleZiweiSihuaSnapshotState)据此换键补拍——重算路径按值捕获,四化后到不补则挂载恒缺段。
++		this._lastSnapshotPayload = snapshotPayload;
++		this._lastSnapshotMeta = snapshotMeta;
++		if(this.pendingSnapshotTimer){
++			clearTimeout(this.pendingSnapshotTimer);
++			this.pendingSnapshotTimer = null;
  		}
 -		if(!this.state.dunjia){
--			return <Card bordered={false}>暂无三式合一数据</Card>;
-+		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
-+		if(!flds){
-+			return;
+-			return <XQStageEmpty>暂无三式合一数据</XQStageEmpty>;
++		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
++			cancelIdleCallback(this.pendingSnapshotIdle);
++			this.pendingSnapshotIdle = null;
++		}
++		// [连击不被快照顶住](horosa_sanshi_snapshot_idle_v1)buildSanShiUnitedSnapshotText 是
++		// 三盘全家文本化的同步大构建(实测 ~950ms 长任务)。原 setTimeout(120) 让它恰好插进
++		// 「上一步落地 → 下一步 recalc 28ms timer」之间,把下一步顶住近一秒——连续进退
++		// 「每步都慢」的隐藏大头。改 requestIdleCallback:主线程空闲才构建,连击期间被上面的
++		// cancel 逐次作废(latest-wins,只有停手后最后一份真跑);timeout 兜底保「AI 挂载最新」。
++		const buildAndSave = ()=>{
++			this.pendingSnapshotIdle = null;
++			this.pendingSnapshotTimer = null;
++			if(this.unmounted){
++				return;
++			}
++			let snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
++			if(!snapshotText){
++				return;
++			}
++			// 择日宿主 scope 化:独立快照槽+composeAiSnapshot 拼接择时三段(主页零影响)
++			if(typeof this.props.composeAiSnapshot === 'function'){
++				try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
++			}
++			saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
++		};
++		if(typeof requestIdleCallback === 'function'){
++			this.pendingSnapshotIdle = requestIdleCallback(buildAndSave, { timeout: 4000 });
++		}else{
++			this.pendingSnapshotTimer = setTimeout(buildAndSave, SANSHI_SNAPSHOT_DEFER_MS);
  		}
 -		const boardSize = this.calcBoardSize(height);
 -		// 盘面绘制单源迁至 SanshiUnitedBoard(择日概览共享);此壳只装配实例态,JSX 与迁出前逐节点等价。
@@ -3902,47 +4223,46 @@ index eeeda982..2ca71a55 100644
 -				fields={boardFields}
 -				displaySolarTime={this.state.displaySolarTime}
 -				outerCoord={this.state.outerCoord}
+-				ascRaMode={this.state.ascRaMode}
 -				showWeakSolid={this.state.showWeakSolid}
 -				showAstroMeaning={this.props.showAstroMeaning}
 -			/>
 -		);
--	}
--
+ 	}
+ 
 -	renderInputPanel(){
 -		const fields = this.getActiveFields();
--		const opt = this.state.options || {};
++	// 六壬层「年神排序 / 土旺衰」的页面落点(与独立六壬页同源函数:computeYearShenSha /
++	// liurengWangXiang / judgeKongWang)。此前两档只进 AI 快照断卦层,页面拨了 DOM 一个字节都不变。
++	renderLiuRengShenShaWangShuai(refContext){
++		const ctx = refContext || {};
++		if(!ctx.dayGan){ return null; }
+ 		const opt = this.state.options || {};
 -		let datetm = new DateTime();
 -		if(fields.date && fields.time){
 -			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
 -			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
 -			if(fields.zone){
 -				datetm.setZone(fields.zone.value);
-+		if((this.state.options || {}).mode === 'ming'){
-+			// 命局存为命盘:与独立奇门页同口径代填起局时间(作生时)、经纬度 / 地名 / 时区与性别(此前开空白新建框)
-+			if(this.props.dispatch){
-+				const opt = this.state.options || {};
-+				const birthStr = flds.date && flds.time && flds.date.value && flds.time.value
-+					? `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}` : undefined;
-+				this.props.dispatch({
-+					type: 'astro/openDrawer',
-+					payload: {
-+						key: 'chartadd',
-+						record: {
-+							birth: birthStr,
-+							zone: flds.zone ? flds.zone.value : undefined,
-+							lat: flds.lat ? flds.lat.value : undefined,
-+							lon: flds.lon ? flds.lon.value : undefined,
-+							gpsLat: flds.gpsLat ? flds.gpsLat.value : undefined,
-+							gpsLon: flds.gpsLon ? flds.gpsLon.value : undefined,
-+							pos: flds.pos ? flds.pos.value : undefined,
-+							gender: opt.sex === 0 || opt.sex === 1 ? opt.sex : undefined,
-+						},
-+					},
-+				});
- 			}
-+			return;
- 		}
--		return (
+-			}
+-		}
++		const sort = opt.yearShenShaSort || 'sanyuan';
++		const tuWs = opt.tuWangShuai || 'siji';
++		const wxOf = (z)=>(LRConst.GanZiWuXing[`${z || ''}`.trim().substring(0, 1)] || '');
++		const yearList = ctx.yearBranch ? computeYearShenSha(ctx.yearBranch, sort, ctx.courseBranches || []) : [];
++		const wsList = (ctx.sanChuanBranches || []).map((z, i)=>{
++			const wx = wxOf(z);
++			return { pos: ['初传', '中传', '末传'][i] || '', zhi: z, wx, ws: liurengWangXiang(wx, ctx.monthBranch, tuWs) };
++		}).filter((x)=>x.ws);
++		const kongList = (ctx.xunKongBranches || []).map((z)=>{
++			const wx = wxOf(z);
++			const j = judgeKongWang(wx, ctx.monthBranch, tuWs);
++			return j ? { zhi: z, wx, kind: j.kind, ws: j.ws, basis: j.basis, inSanChuan: (ctx.sanChuanBranches || []).indexOf(z) >= 0 } : null;
++		}).filter(Boolean);
++		if(!yearList.length && !wsList.length && !kongList.length){ return null; }
++		const WS_COLOR = { 旺: 'var(--horosa-jx-ji, #3fa45b)', 相: 'var(--horosa-jx-he, #5fae6f)', 休: 'var(--horosa-muted,#9a8f7d)', 囚: 'var(--horosa-jx-other, #d08a3a)', 死: 'var(--horosa-jx-xiong, #e2574c)' };
++		const cellBase = { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 2px', borderRadius: 8, background: 'var(--horosa-panel-soft, rgba(255,255,255,0.03))', border: '1px solid var(--horosa-border, rgba(255,255,255,0.08))' };
+ 		return (
 -			<div className="horosa-sanshi-input-stack">
 -				<div className="horosa-side-panel-heading">
 -					<div>
@@ -4029,6 +4349,15 @@ index eeeda982..2ca71a55 100644
 -								<Option value="equatorial">赤道</Option>
 -							</Select>
 -						</label>
+-						{/* 上升取法只在外圈赤道分宫时起作用(黄道分宫按黄经,不读上升赤经) */}
+-						{this.state.outerCoord === 'equatorial' ? (
+-							<label className="horosa-sanshi-select-field">
+-								<span>上升取法</span>
+-								<Select size="small" value={this.state.ascRaMode} onChange={(v)=>this.onAscRaModeChange(v)} dropdownMatchSelectWidth={false}>
+-									{ASC_RA_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+-								</Select>
+-							</label>
+-						) : null}
 -						<label className="horosa-sanshi-select-field">
 -							<span>虚实</span>
 -							<Select size="small" value={this.state.showWeakSolid ? 1 : 0} onChange={(v)=>{ if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ showWeakSolid: v === 1 }); } this.setState({ showWeakSolid: v === 1 }); }}>
@@ -4037,110 +4366,61 @@ index eeeda982..2ca71a55 100644
 -							</Select>
 -						</label>
 -					</div>
-+		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
-+		// 存档即写格式化快照(与导出/挂载同源 buildSanShiUnitedSnapshotText)。否则挂载该 case 走
-+		// buildSanshiUnifiedFallbackSnapshot 兜底,产出[奇门遁甲]等不在 sanshiunited preset 的段名,
-+		// 自定义过导出段的用户会被静默删。对齐 sixyao/mundane「存档带 snapshot」范式(extractCaseSnapshotText 直读 payload.snapshot)。
-+		const chartWrap = this.state.castChart;   // 这一课所用的参照盘(与课同一次落定)
-+		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
-+		const outerData = this.currentOuterData(astroChart);
-+		const lrSnapInput = this.state.liurengSnapshotInput || {};
-+		const snapshotText = buildSanShiUnitedSnapshotText({
-+			fields: flds,
-+			options: this.state.options || {},
-+			nongli: this.state.nongli,
-+			displaySolarTime: this.state.displaySolarTime,
-+			liureng: this.state.liureng,
-+			dunjia: this.state.dunjia,
-+			taiyi: this.state.taiyi,
-+			keData: this.state.keData,
-+			sanChuan: this.state.sanChuan,
-+			lrLayout: this.state.lrLayout,
-+			liurengRefBundle: this.state.liurengRefBundle,
-+			outerData,
-+			guirengType: lrSnapInput.guirengType,
-+			liurengChartForLr: lrSnapInput.chartForLr,
-+			lrCastOverride: lrSnapInput.lrCastOverride,
-+			lrCastOpts: lrSnapInput.lrCastOpts,
-+			liurengRunYear: lrSnapInput.runYearRef,
-+			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
-+		});
-+			// 择日宿主内按宿主键(sanshizeri)存档;快照取宿主槽(含择时段),缺则用本页快照。
-+			const ssScope = this.props.techniqueScope || 'sanshiunited';
-+			// 先请本页按此刻所见重存再读(宿主刚出的择时结果经 composeAiSnapshot 并入;直读槽 = 扫描前的旧文)
-+			const ssScopeSnap = ssScope !== 'sanshiunited' ? loadFreshModuleAISnapshot(ssScope) : null;
-+			const payload = {
-+				module: ssScope,
-+				snapshot: (ssScopeSnap && ssScopeSnap.content) ? ssScopeSnap.content : (snapshotText || ''),
-+				options: {
-+					...(this.state.options || {}),
-+				},
-+			result: {
-+				nongli: this.state.nongli,
-+				liureng: this.state.liureng,
-+				dunjia: this.state.dunjia,
-+				taiyi: this.state.taiyi,
-+				keData: this.state.keData,
-+				sanChuan: this.state.sanChuan,
-+			},
-+		};
-+		if(this.props.dispatch){
-+			this.props.dispatch({
-+				type: 'astro/openDrawer',
-+				payload: {
-+					key: 'caseadd',
-+					record: {
-+						event: `${ssScope === 'sanshizeri' ? '三式择日' : '三式合一占断'} ${divTime}`,
-+						caseType: ssScope,
-+						divTime: divTime,
-+						zone: flds.zone.value,
-+						lat: flds.lat.value,
-+						lon: flds.lon.value,
-+						gpsLat: flds.gpsLat.value,
-+						gpsLon: flds.gpsLon.value,
-+						pos: flds.pos ? flds.pos.value : '',
-+						gender: caseGenderValue(flds),
-+						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
-+						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
-+						payload: { ...payload, fieldSnapshot: caseFieldSnapshot(flds) },
-+						sourceModule: ssScope,
-+					},
-+				},
-+			});
-+		}
-+	}
- 
+-
 -				</XQSideSection>
-+	genParams(fields, overrideOptions){
-+		const flds = fields || this.state.localFields || this.props.fields;
-+		if(!flds){
-+			return null;
-+		}
-+		const opt = {
-+			...(this.state.options || {}),
-+			...(overrideOptions || {}),
-+		};
-+		const calcGeo = resolveCalcGeo(flds, opt);
-+		const zoneValue = normalizeZoneOffset(safe(flds.zone && flds.zone.value, ''), '+08:00');
-+		const adRaw = (flds.ad && flds.ad.value !== undefined && flds.ad.value !== null)
-+			? flds.ad.value
-+			: 1;
-+		const adValue = normalizeAdValue(adRaw, 1);
-+		return {
-+			date: flds.date.value.format('YYYY-MM-DD'),
-+			time: flds.time.value.format('HH:mm:ss'),
-+			zone: zoneValue,
-+			lon: calcGeo.lon,
-+			lat: calcGeo.lat,
-+			gpsLat: calcGeo.gpsLat,
-+			gpsLon: calcGeo.gpsLon,
-+			ad: adValue,
-+			gender: opt.sex,
-+			timeAlg: normalizeTimeAlg(opt.timeAlg),
-+			after23NewDay: resolveAfter23NewDay(opt.after23NewDay),
-+			// v2.2.1: 透传时柱开关给后端 /nongli/time。
-+			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
-+		};
++			<>
++				{yearList.length ? (
++					<Card size='small' style={{ marginBottom: 10 }}>
++						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
++							<span style={{ fontWeight: 600 }}>年神</span>
++							<Tag color='gold'>{sort === 'suigui' ? '太岁排轮' : '四利三元序'}</Tag>
++						</div>
++						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6 }}>
++							{yearList.map((sInfo)=>(
++								<div key={sInfo.name} title={`${sInfo.brief || ''}（起例所临：${sInfo.branch}）`}
++									style={{ ...cellBase, background: sInfo.inCourse ? 'rgba(212,160,23,0.12)' : cellBase.background, border: sInfo.inCourse ? '1px solid var(--horosa-accent, #d4a017)' : cellBase.border }}>
++									<span style={{ fontSize: 12, color: sInfo.color, fontWeight: 600 }}>{sInfo.name}</span>
++									<span style={{ fontSize: 16, fontWeight: 700, color: 'var(--horosa-text, #d8d2c7)' }}>{sInfo.branch}</span>
++								</div>
++							))}
++						</div>
++						<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>排列起点按左栏「年神排序」;入课传者高亮。</div>
++					</Card>
++				) : null}
++				{wsList.length ? (
++					<Card size='small' style={{ marginBottom: 10 }}>
++						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
++							<span style={{ fontWeight: 600 }}>三传旺衰</span>
++							<Tag color='gold'>以月令</Tag>
++						</div>
++						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
++							{wsList.map((w)=>(
++								<div key={w.pos} style={cellBase}>
++									<span style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)' }}>{w.pos}·{w.zhi}{w.wx}</span>
++									<span style={{ fontSize: 16, fontWeight: 700, color: WS_COLOR[w.ws] || 'var(--horosa-text,#d8d2c7)' }}>{w.ws}</span>
++								</div>
++							))}
++						</div>
++						<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>旺相=得令、休囚死=失令;土旺衰按左栏「土旺衰」。</div>
++					</Card>
++				) : null}
++				{kongList.length ? (
++					<Card size='small' style={{ marginBottom: 10 }}>
++						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
++							<span style={{ fontWeight: 600 }}>空亡真假</span>
++							<Tag color='gold'>旬空{kongList.map((k)=>k.zhi).join('')}</Tag>
++						</div>
++						{kongList.map((k)=>(
++							<div key={k.zhi} style={{ lineHeight: '20px' }}>
++								<span style={{ color: k.kind === '真空' ? 'var(--horosa-jx-xiong, #e2574c)' : 'var(--horosa-jx-ji, #3fa45b)', fontWeight: 600 }}>{k.zhi}{k.wx}·{k.kind}</span>
++								<span style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>（{k.ws}{k.inSanChuan ? '·入传' : ''}）</span>
++								<span style={{ color: 'var(--horosa-text-soft, #595959)' }}>　{k.basis}</span>
++							</div>
++						))}
++					</Card>
++				) : null}
++			</>
++		);
 +	}
  
 -				{/* 奇门遁甲流派/起局补充(对齐独立·默认零回归):盘式 + 阴盘报数 + 封局 + 置闰天数 */}
@@ -4202,8 +4482,8 @@ index eeeda982..2ca71a55 100644
 -						{opt.qijuMethod === 'zhirun' && qijuMethodUsesJieqiFa(opt.paiPanType === undefined || opt.paiPanType === null || opt.paiPanType === '' ? 3 : opt.paiPanType) ? (
 -							<label className="horosa-sanshi-select-field">
 -								<span>置闰天数</span>
--								<Select size="small" value={opt.zhirunLeapDays || 9} onChange={(v)=>this.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
--									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value}>{item.label}</Option>)}
+-								<Select size="small" value={opt.zhirunLeapDays || 9} optionLabelProp="label" onChange={(v)=>this.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
+-									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 -								</Select>
 -							</label>
 -						) : null}
@@ -4252,8 +4532,8 @@ index eeeda982..2ca71a55 100644
 -						{opt.paiPanType === 1 ? (
 -							<label className="horosa-sanshi-select-field">
 -								<span>月家起局</span>
--								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
--									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
+-								<Select size="small" value={opt.yueJiaQiJuType} optionLabelProp="label" onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
+-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 -								</Select>
 -							</label>
 -						) : null}
@@ -4401,274 +4681,34 @@ index eeeda982..2ca71a55 100644
 -							/>
 -						</label>
 -					</div>
-+	genJieqiParams(fields, year, overrideOptions){
-+		const flds = fields || this.state.localFields || this.props.fields;
-+		if(!flds){
-+			return null;
-+		}
-+		const opt = {
-+			...(this.state.options || {}),
-+			...(overrideOptions || {}),
-+		};
-+		const calcGeo = resolveCalcGeo(flds, opt);
-+		const zoneValue = normalizeZoneOffset(safe(flds.zone && flds.zone.value, ''), '+08:00');
-+		const adRaw = (flds.ad && flds.ad.value !== undefined && flds.ad.value !== null)
-+			? flds.ad.value
-+			: 1;
-+		return {
-+			year: `${year}`,
-+			ad: normalizeAdValue(adRaw, 1),
-+			zone: zoneValue,
-+			lon: calcGeo.lon,
-+			lat: calcGeo.lat,
-+			gpsLat: calcGeo.gpsLat,
-+			gpsLon: calcGeo.gpsLon,
-+			timeAlg: normalizeTimeAlg(opt.timeAlg),
-+			hsys: 0,
-+			zodiacal: 0,
-+			siderealAyanamsa: '',
-+			doubingSu28: false,
-+		};
-+	}
-+
-+	getQimenOptions(overrideOptions){
-+		const opt = {
-+			...(this.state.options || {}),
-+			...(overrideOptions || {}),
-+		};
-+		return {
-+			...QIMEN_OPTIONS,
-+			sex: opt.sex,
-+			timeAlg: normalizeTimeAlg(opt.timeAlg),
-+			paiPanType: opt.paiPanType,
-+			zhiShiType: opt.zhiShiType,
-+			yueJiaQiJuType: opt.yueJiaQiJuType,
-+			qijuMethod: opt.qijuMethod,
-+			kongMode: opt.kongMode,
-+			yimaMode: opt.yimaMode,
-+			shiftPalace: opt.shiftPalace,
-+			// 奇门流派/起局补充(对齐独立 DunJiaMain):盘式(转盘/飞盘/混合) + 阴盘报数定局 + 封局 + 置闰天数。
-+			school: opt.school !== undefined ? opt.school : '转盘',
-+			shuziReportNumber: opt.shuziReportNumber !== undefined ? opt.shuziReportNumber : '',
-+			fengJu: !!opt.fengJu,
-+			zhirunLeapDays: opt.zhirunLeapDays !== undefined ? opt.zhirunLeapDays : 9,
-+			// 三式缺口补齐:盘类+相关人员透传(与独立页同语义;默认=事局/空=零回归)
-+			chartCategory: opt.chartCategory !== undefined ? opt.chartCategory : 'shi',
-+			faRelatedPeople: opt.faRelatedPeople !== undefined ? opt.faRelatedPeople : '',
-+			godsPreset: opt.godsPreset !== undefined ? opt.godsPreset : 'baihu_xuanwu',
-+			anGanMode: opt.anGanMode !== undefined ? opt.anGanMode : 'off',
-+			showAnZhi: !!opt.showAnZhi,
-+			jiGongMode: opt.jiGongMode || 'kun',
-+			feiXingShun: !!opt.feiXingShun,
-+			feiMenShun: !!opt.feiMenShun,
-+			feiShenShun: !!opt.feiShenShun,
-+			feiMenZhongCan: opt.feiMenZhongCan !== false,
-+			feiMenZhongShow: !!opt.feiMenZhongShow,
-+			mixTian: opt.mixTian || '',
-+			mixXing: opt.mixXing || '',
-+			mixMen: opt.mixMen || '',
-+			mixShen: opt.mixShen || '',
-+			kongMarkBoth: !!opt.kongMarkBoth,
-+			showAllKong: !!opt.showAllKong,
-+			shiftZhiFuMode: opt.shiftZhiFuMode === 'recalc' ? 'recalc' : 'follow',
-+			dayJiaJu: opt.dayJiaJu || 'yiyuan',
-+			keJiaFenDun: opt.keJiaFenDun || 'zihou',
-+			keZiZhengHuanShi: !!opt.keZiZhengHuanShi,
-+			jinhanMenPai: opt.jinhanMenPai === 'shun' ? 'shun' : 'book',
-+			yearJiaJu: opt.yearJiaJu === 'yinian' ? 'yinian' : 'sanyuan',
-+			// 三式合一统一按“交接时刻”计算，避免日级近似切换。
-+			jieQiType: 1,
-+			yearGanZhiType: 2,
-+			monthGanZhiType: 1,
-+			dayGanZhiType: 1,
-+			after23NewDay: resolveAfter23NewDay(opt.after23NewDay),
-+			// v2.2.1: 透传时柱开关给奇门后端引擎。
-+			lateZiHourUseNextDay: resolveLateZiHourUseNextDay(opt.lateZiHourUseNextDay),
-+		};
-+	}
-+
-+	// 结掉队列里此刻全部的调用方(取消 / 卸载用);某一次重算只结它自己开跑时取走的那一批(settleRecalcResolvers)
-+	resolvePendingRecalc(result){
-+		const resolvers = (this.pendingRecalcResolvers || []).slice();
-+		this.pendingRecalcResolvers = [];
-+		this.settleRecalcResolvers(resolvers, result);
-+	}
-+
-+	// 只结给定这一批调用方。一次重算在定时器触发、开跑那一刻把队列取走,回包后只结这一批:被作废的旧那次(回包为 false)
-+	// 不得把开跑之后才入队、属于后发那次的调用方一起定成 false —— 否则后发那次还在途,调用方就收起加载态、放行排队的起盘补发
-+	settleRecalcResolvers(list, result){
-+		const resolvers = Array.isArray(list) ? list : [];
-+		if(resolvers.length === 0){
-+			return;
-+		}
-+		resolvers.forEach((fn)=>{
-+			try{
-+				fn(result);
-+			}catch(e){
-+				return;
-+			}
-+		});
-+		// [连续进退不丢击] 重算落地 → 期间被队列化的起盘请求经 trailing 静默期补发:
-+		// 距最后一击 <180ms 说明用户还在连点,推迟再查——连点期间不起中间轮
-+		// (旧「resolve 即补」= 每 ~600ms 一轮全算,6 连击串行 3-4 轮;现=停手后一轮定稿)。
-+		// loading 已随 commitPatch 同帧清掉;若又有新一轮在途则本次跳过,由那一轮 resolve 接力。
-+		if(this.queuedPlotWhileLoading){
-+			const tryFlush = ()=>{
-+				if(this.unmounted || !this.queuedPlotWhileLoading){
-+					return;
-+				}
-+				if(this.state.loading){
-+					return;
-+				}
-+				const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-+				if(this.lastQueuedPlotAt && nowTs - this.lastQueuedPlotAt < 180){
-+					setTimeout(tryFlush, 120);
-+					return;
-+				}
-+				this.queuedPlotWhileLoading = false;
-+				this.clickPlot();
-+			};
-+			setTimeout(tryFlush, 0);
-+		}
-+	}
-+
-+	cancelPendingRecalc(result = false){
-+		if(this.pendingRecalcTimer){
-+			clearTimeout(this.pendingRecalcTimer);
-+			this.pendingRecalcTimer = null;
-+		}
-+		this.pendingRecalcPayload = null;
-+		this.resolvePendingRecalc(result);
-+	}
-+
-+	scheduleSnapshotSave(snapshotPayload, snapshotMeta){
-+		// 留底最近一次 payload/meta:紫微四化 tab 的盘经异步归来时(上报点
-+		// handleZiweiSihuaSnapshotState)据此换键补拍——重算路径按值捕获,四化后到不补则挂载恒缺段。
-+		this._lastSnapshotPayload = snapshotPayload;
-+		this._lastSnapshotMeta = snapshotMeta;
-+		if(this.pendingSnapshotTimer){
-+			clearTimeout(this.pendingSnapshotTimer);
-+			this.pendingSnapshotTimer = null;
-+		}
-+		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
-+			cancelIdleCallback(this.pendingSnapshotIdle);
-+			this.pendingSnapshotIdle = null;
-+		}
-+		// [连击不被快照顶住](horosa_sanshi_snapshot_idle_v1)buildSanShiUnitedSnapshotText 是
-+		// 三盘全家文本化的同步大构建(实测 ~950ms 长任务)。原 setTimeout(120) 让它恰好插进
-+		// 「上一步落地 → 下一步 recalc 28ms timer」之间,把下一步顶住近一秒——连续进退
-+		// 「每步都慢」的隐藏大头。改 requestIdleCallback:主线程空闲才构建,连击期间被上面的
-+		// cancel 逐次作废(latest-wins,只有停手后最后一份真跑);timeout 兜底保「AI 挂载最新」。
-+		const buildAndSave = ()=>{
-+			this.pendingSnapshotIdle = null;
-+			this.pendingSnapshotTimer = null;
-+			if(this.unmounted){
-+				return;
-+			}
-+			let snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
-+			if(!snapshotText){
-+				return;
-+			}
-+			// 择日宿主 scope 化:独立快照槽+composeAiSnapshot 拼接择时三段(主页零影响)
-+			if(typeof this.props.composeAiSnapshot === 'function'){
-+				try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
-+			}
-+			saveModuleAISnapshot(this.props.techniqueScope || 'sanshiunited', snapshotText, snapshotMeta);
-+		};
-+		if(typeof requestIdleCallback === 'function'){
-+			this.pendingSnapshotIdle = requestIdleCallback(buildAndSave, { timeout: 4000 });
-+		}else{
-+			this.pendingSnapshotTimer = setTimeout(buildAndSave, SANSHI_SNAPSHOT_DEFER_MS);
-+		}
-+	}
-+
-+	// 六壬层「年神排序 / 土旺衰」的页面落点(与独立六壬页同源函数:computeYearShenSha /
-+	// liurengWangXiang / judgeKongWang)。此前两档只进 AI 快照断卦层,页面拨了 DOM 一个字节都不变。
-+	renderLiuRengShenShaWangShuai(refContext){
-+		const ctx = refContext || {};
-+		if(!ctx.dayGan){ return null; }
-+		const opt = this.state.options || {};
-+		const sort = opt.yearShenShaSort || 'sanyuan';
-+		const tuWs = opt.tuWangShuai || 'siji';
-+		const wxOf = (z)=>(LRConst.GanZiWuXing[`${z || ''}`.trim().substring(0, 1)] || '');
-+		const yearList = ctx.yearBranch ? computeYearShenSha(ctx.yearBranch, sort, ctx.courseBranches || []) : [];
-+		const wsList = (ctx.sanChuanBranches || []).map((z, i)=>{
-+			const wx = wxOf(z);
-+			return { pos: ['初传', '中传', '末传'][i] || '', zhi: z, wx, ws: liurengWangXiang(wx, ctx.monthBranch, tuWs) };
-+		}).filter((x)=>x.ws);
-+		const kongList = (ctx.xunKongBranches || []).map((z)=>{
-+			const wx = wxOf(z);
-+			const j = judgeKongWang(wx, ctx.monthBranch, tuWs);
-+			return j ? { zhi: z, wx, kind: j.kind, ws: j.ws, basis: j.basis, inSanChuan: (ctx.sanChuanBranches || []).indexOf(z) >= 0 } : null;
-+		}).filter(Boolean);
-+		if(!yearList.length && !wsList.length && !kongList.length){ return null; }
-+		const WS_COLOR = { 旺: 'var(--horosa-jx-ji, #3fa45b)', 相: 'var(--horosa-jx-he, #5fae6f)', 休: 'var(--horosa-muted,#9a8f7d)', 囚: 'var(--horosa-jx-other, #d08a3a)', 死: 'var(--horosa-jx-xiong, #e2574c)' };
-+		const cellBase = { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 2px', borderRadius: 8, background: 'var(--horosa-panel-soft, rgba(255,255,255,0.03))', border: '1px solid var(--horosa-border, rgba(255,255,255,0.08))' };
-+		return (
-+			<>
-+				{yearList.length ? (
-+					<Card size='small' style={{ marginBottom: 8 }}>
-+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-+							<span style={{ fontWeight: 600 }}>年神</span>
-+							<Tag color='gold'>{sort === 'suigui' ? '太岁排轮' : '四利三元序'}</Tag>
-+						</div>
-+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6 }}>
-+							{yearList.map((sInfo)=>(
-+								<div key={sInfo.name} title={`${sInfo.brief || ''}（起例所临：${sInfo.branch}）`}
-+									style={{ ...cellBase, background: sInfo.inCourse ? 'rgba(212,160,23,0.12)' : cellBase.background, border: sInfo.inCourse ? '1px solid var(--horosa-accent, #d4a017)' : cellBase.border }}>
-+									<span style={{ fontSize: 12, color: sInfo.color, fontWeight: 600 }}>{sInfo.name}</span>
-+									<span style={{ fontSize: 16, fontWeight: 700, color: 'var(--horosa-text, #d8d2c7)' }}>{sInfo.branch}</span>
-+								</div>
-+							))}
-+						</div>
-+						<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>排列起点按左栏「年神排序」;入课传者高亮。</div>
-+					</Card>
-+				) : null}
-+				{wsList.length ? (
-+					<Card size='small' style={{ marginBottom: 8 }}>
-+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-+							<span style={{ fontWeight: 600 }}>三传旺衰</span>
-+							<Tag color='gold'>以月令</Tag>
-+						</div>
-+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-+							{wsList.map((w)=>(
-+								<div key={w.pos} style={cellBase}>
-+									<span style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)' }}>{w.pos}·{w.zhi}{w.wx}</span>
-+									<span style={{ fontSize: 16, fontWeight: 700, color: WS_COLOR[w.ws] || 'var(--horosa-text,#d8d2c7)' }}>{w.ws}</span>
-+								</div>
-+							))}
-+						</div>
-+						<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>旺相=得令、休囚死=失令;土旺衰按左栏「土旺衰」。</div>
-+					</Card>
-+				) : null}
-+				{kongList.length ? (
-+					<Card size='small' style={{ marginBottom: 8 }}>
-+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-+							<span style={{ fontWeight: 600 }}>空亡真假</span>
-+							<Tag color='gold'>旬空{kongList.map((k)=>k.zhi).join('')}</Tag>
-+						</div>
-+						{kongList.map((k)=>(
-+							<div key={k.zhi} style={{ lineHeight: '20px' }}>
-+								<span style={{ color: k.kind === '真空' ? 'var(--horosa-jx-xiong, #e2574c)' : 'var(--horosa-jx-ji, #3fa45b)', fontWeight: 600 }}>{k.zhi}{k.wx}·{k.kind}</span>
-+								<span style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>（{k.ws}{k.inSanChuan ? '·入传' : ''}）</span>
-+								<span style={{ color: 'var(--horosa-text-soft, #595959)' }}>　{k.basis}</span>
-+							</div>
-+						))}
-+					</Card>
-+				) : null}
-+			</>
-+		);
-+	}
-+
 +	// 外圈坐标缓存必须按「当前所选坐标」校验:此前三条快照路径只看 `outerDataCache.data`
 +	// 在不在,而重建只发生在 performRecalcByNongli 内、且重算签名不含 outerCoord(点「起盘」也被去重拦下)
 +	// → 切到赤道后,存档与导出刷新拿的还是黄道那份,「星盘:」行不带「(赤经)」且地支与中栏不符。
 +	currentOuterData(astroChart){
-+		const coord = this.state.outerCoord || 'ecliptic';
++		const coord = this.outerCoordCacheKey();   // 赤道分宫另带上升取法
 +		if(this.outerDataCache && this.outerDataCache.data && this.outerDataCache.coord === coord){
 +			return this.outerDataCache.data;
 +		}
-+		return buildOuterData(astroChart, coord);
++		return buildOuterData(astroChart, this.state.outerCoord || 'ecliptic', this.state.ascRaMode);
++	}
++
++	// 外圈缓存键:赤道分宫另带上升取法(两档地支可能不同);黄道不读上升赤经,键与旧版同
++	outerCoordCacheKey(){
++		const coord = this.state.outerCoord || 'ecliptic';
++		return coord === 'equatorial' ? `${coord}:${normalizeAscRaMode(this.state.ascRaMode)}` : coord;
++	}
++
++	onAscRaModeChange(mode){
++		const m = normalizeAscRaMode(mode);
++		if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ ascRaMode: m }); }
++		this.setState({ ascRaMode: m }, ()=>{
++			if(!this._lastSnapshotPayload){ return; }
++			const chartWrap = this.state.castChart;
++			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
++			const outerData = this.currentOuterData(astroChart);
++			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
++			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
++		});
 +	}
 +
 +	// 只有独立三式页读写保存值;三式择日里内嵌的那份(techniqueScope='sanshizeri')不读不写(理由见 SANSHI_PAGE_SETTINGS 注)。
@@ -4685,7 +4725,7 @@ index eeeda982..2ca71a55 100644
 +			const chartWrap = this.state.castChart;
 +			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 +			const outerData = this.currentOuterData(astroChart);
-+			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.state.outerCoord || 'ecliptic', data: outerData };
++			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
 +			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
 +		});
 +	}
@@ -4884,6 +4924,7 @@ index eeeda982..2ca71a55 100644
 +			`${safe(isDiurnal, '')}`,
 +			outerChartKey,
 +			`${this.state.outerCoord || 'ecliptic'}`,   // 外圈坐标进签名:否则切了坐标再起盘被去重拦下
++			`${this.outerCoordCacheKey()}`,   // 赤道分宫另带上升取法(切了取法再起盘同样不被去重拦下)
 +			jieqiSeedSignature(this.jieqiYearSeeds),   // 种子到达后签名变 → 去重不吞掉带种子的重算
 +		].join('|');
 +		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
@@ -5003,9 +5044,9 @@ index eeeda982..2ca71a55 100644
 +		};
 +		// 太乙 taiyi 已在 dunjia 前并行取得并落缓存(见上方 Promise.all)。
 +		let outerData = this.outerDataCache.data;
-+		const outerCoordKey = this.state.outerCoord || 'ecliptic';
++		const outerCoordKey = this.outerCoordCacheKey();
 +		if(this.outerDataCache.chartKey !== outerChartKey || this.outerDataCache.coord !== outerCoordKey){
-+			outerData = buildOuterData(astroChart, this.state.outerCoord);
++			outerData = buildOuterData(astroChart, this.state.outerCoord, this.state.ascRaMode);
 +			this.outerDataCache = {
 +				chartKey: outerChartKey,
 +				coord: outerCoordKey,
@@ -5405,8 +5446,8 @@ index eeeda982..2ca71a55 100644
 -					<div className="horosa-sanshi-select-grid">
 -						<label className="horosa-sanshi-select-field">
 -							<span>换将</span>
--							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} onChange={(v)=>this.onOptionChange('yueJiangMethod', v)}>
--								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} optionLabelProp="label" onChange={(v)=>this.onOptionChange('yueJiangMethod', v)}>
+-								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 -							</Select>
 -						</label>
 -						<label className="horosa-sanshi-select-field">
@@ -5456,10 +5497,10 @@ index eeeda982..2ca71a55 100644
 -				</XQSideSection>
 +	renderLeftBoard(height){
 +		if(!this.state.hasPlotted){
-+			return <Card bordered={false}>点击左侧“起盘”后显示三式合一盘</Card>;
++			return <XQStageEmpty>点击左侧“起盘”后显示三式合一盘</XQStageEmpty>;
 +		}
 +		if(!this.state.dunjia){
-+			return <Card bordered={false}>暂无三式合一数据</Card>;
++			return <XQStageEmpty>暂无三式合一数据</XQStageEmpty>;
 +		}
 +		const boardSize = this.calcBoardSize(height);
 +		// 盘面绘制单源迁至 SanshiUnitedBoard(择日概览共享);此壳只装配实例态,JSX 与迁出前逐节点等价。
@@ -5481,6 +5522,7 @@ index eeeda982..2ca71a55 100644
 +				fields={boardFields}
 +				displaySolarTime={this.state.displaySolarTime}
 +				outerCoord={this.state.outerCoord}
++				ascRaMode={this.state.ascRaMode}
 +				showWeakSolid={this.state.showWeakSolid}
 +				showAstroMeaning={this.props.showAstroMeaning}
 +			/>
@@ -5503,6 +5545,7 @@ index eeeda982..2ca71a55 100644
 +				fields={this.getActiveFields()}
 +				options={this.state.options}
 +				outerCoord={this.state.outerCoord}
++				ascRaMode={this.state.ascRaMode}
 +				showWeakSolid={this.state.showWeakSolid}
 +				loading={this.state.loading}
 +				hasPlotted={this.state.hasPlotted}
@@ -5518,6 +5561,7 @@ index eeeda982..2ca71a55 100644
 +				onAstroZodiacalChange={(v)=>this.onAstroZodiacalChange(v)}
 +				onAstroFieldOptionChange={this.onAstroFieldOptionChange}
 +				onOuterCoordChange={this.onOuterCoordChange}
++				onAscRaModeChange={(mode)=>this.onAscRaModeChange(mode)}
 +				onShowWeakSolidChange={(flag)=>{ if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ showWeakSolid: flag }); } this.setState({ showWeakSolid: flag }); }}
 +				clickPlot={this.clickPlot}
 +				clickSave={this.clickSave}
@@ -5525,7 +5569,7 @@ index eeeda982..2ca71a55 100644
  		);
  	}
  
-@@ -4860,14 +4976,6 @@ class SanShiUnitedMain extends Component{
+@@ -4902,14 +5020,6 @@ class SanShiUnitedMain extends Component{
  		const topHeight = 0;
  		const tabBodyHeight = Math.max(0, panelHeight - topHeight - 74);
  		const nestedTabBodyHeight = Math.max(140, tabBodyHeight - 110);
@@ -5540,7 +5584,7 @@ index eeeda982..2ca71a55 100644
  		return (
  			<div ref={this.captureRightPanel} className="horosa-sanshi-right-shell" style={{ display: 'flex', flexDirection: 'column', height: panelHeight, overflow: 'hidden' }}>
  				{/* 原此处有一整块 display:none 的旧右栏控件(模式/时间算法/性别/贵人/排盘/日界/值使/月家/
-@@ -4876,6 +4984,7 @@ class SanShiUnitedMain extends Component{
+@@ -4918,6 +5028,7 @@ class SanShiUnitedMain extends Component{
  				    ② 与左栏共用 this.timeHook,隐藏实例把左栏实例的注册顶掉,起盘读到的是隐藏控件的旧时刻;
  				    ③ 污染死开关审计指纹(取 innerHTML,隐藏子树照样计入)→ 快轮「有反应」全是这块的假活。
  				    整块已删;三档改由左栏可见控件承接(太乙流派节的「盘式 / 古法公式」、选项节的「宫制」)。 */}
@@ -5548,7 +5592,7 @@ index eeeda982..2ca71a55 100644
  				<Tabs
  					activeKey={rightPanelTab}
  					onChange={(key)=>this.setState({ rightPanelTab: key })}
-@@ -4884,7 +4993,15 @@ class SanShiUnitedMain extends Component{
+@@ -4926,7 +5037,15 @@ class SanShiUnitedMain extends Component{
  					className="horosa-sanshi-right-tabs"
  					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
  				>
@@ -5561,32 +5605,32 @@ index eeeda982..2ca71a55 100644
 +					    内容与旧行为逐字一致(冻结≠卸载,与 destroyInactiveTabPane 的既有卸载语义互不干涉)。 */}
  					<TabPane tab="概览" key="overview">
 +						<FreezeSubTab active={rightPanelTab === 'overview'}>{()=>(
- 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
- 							<div style={{ lineHeight: '26px' }}>
- 								<div>局数：{pan ? pan.juText : '—'}</div>
-@@ -4911,8 +5028,10 @@ class SanShiUnitedMain extends Component{
- 								</>
- 							) : null}
+ 						<Card bordered={false} bodyStyle={{ padding: '16px 3px 12px 0' }} className="horosa-sanshi-kv-host">
+ 							<div className="horosa-taiyi-overview-stack">
+ 								{sanshiKvCard('局与旬', [
+@@ -4955,8 +5074,10 @@ class SanShiUnitedMain extends Component{
+ 								)) : null}
+ 							</div>
  						</Card>
 +						)}</FreezeSubTab>
  					</TabPane>
  					<TabPane tab="太乙" key="taiyi">
 +						<FreezeSubTab active={rightPanelTab === 'taiyi'}>{()=>(
- 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
- 							<div style={{ lineHeight: '24px' }}>
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
  								{this.state.taiyi ? (()=>{
-@@ -5000,8 +5119,10 @@ class SanShiUnitedMain extends Component{
+ 									// 太乙数理/格局/胜负/分野/诸神之算 纯派生(据 kintaiyi pan,零碰后端 golden;与独立 TaiYiMain 同款 compute*)。
+@@ -5075,8 +5196,10 @@ class SanShiUnitedMain extends Component{
+ 									<div className="horosa-taiyi-empty">暂无太乙数据</div>
  								)}
- 							</div>
  						</Card>
 +						)}</FreezeSubTab>
  					</TabPane>
  					<TabPane tab="六壬" key="liureng">
 +						<FreezeSubTab active={rightPanelTab === 'liureng'}>{()=>(
- 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
  							<Tabs
  								activeKey={this.state.liurengRefTab}
-@@ -5145,8 +5266,10 @@ class SanShiUnitedMain extends Component{
+@@ -5199,8 +5322,10 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>
@@ -5594,10 +5638,10 @@ index eeeda982..2ca71a55 100644
  					</TabPane>
  					<TabPane tab="遁甲" key="bagong">
 +						<FreezeSubTab active={rightPanelTab === 'bagong'}>{()=>(
- 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
  							<Tabs
  								activeKey={this.state.bagongSubTab}
-@@ -5250,10 +5373,16 @@ class SanShiUnitedMain extends Component{
+@@ -5304,10 +5429,16 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>

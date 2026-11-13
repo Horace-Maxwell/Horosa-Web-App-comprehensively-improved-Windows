@@ -15,6 +15,7 @@ const SRC = path.resolve(__dirname, '..', '..');
 const COMPONENTS = path.join(SRC, 'components');
 // 豁免(理由必须仍成立:本测试会验证豁免文件确实不含 watchChartAppearance,且理由里点名的特征仍在)
 const ALLOW = {
+	'components/planetarium/PlanetariumBabylon.js': { why: '天文馆是纯天文星空,配色不随界面主题(不读调色板 / 主题属性);2D 画布只是离屏量名牌字宽(measureCtx),不作画', needle: 'measureCtx = canvas.getContext(' },
 	'components/lrzhan/LiuRengMain.js': { why: 'new ChuangChart 只用来算三传(owner:null,不 draw 到 svg);页面 DOM 走 CSS 变量', needle: 'owner: null' },
 	'components/sanshi/SanShiUnitedMain.js': { why: 'new ChuangChart 只用来算三传(owner:null,不 draw 到 svg);页面 DOM 走 CSS 变量', needle: 'owner: null' },
 	'components/xuanshi/XuanShiPersons.js': { why: 'd3 力导图颜色全走 var(--horosa-*)(SVG 属性随 CSS 变量即时变色,无烘焙)', needle: 'var(--horosa' },

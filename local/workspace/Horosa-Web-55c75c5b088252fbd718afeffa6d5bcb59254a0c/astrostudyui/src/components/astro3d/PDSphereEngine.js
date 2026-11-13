@@ -672,6 +672,8 @@ class PDSphereEngine{
 			AstroConst.LEO, AstroConst.VIRGO, AstroConst.LIBRA, AstroConst.SCORPIO,
 			AstroConst.SAGITTARIUS, AstroConst.CAPRICORN, AstroConst.AQUARIUS, AstroConst.PISCES,
 		].map((id)=>`${AstroText.AstroMsg[id] || ''}`);
+		// 南半球读法:天球上各点画的是真位置,星座标签相对真黄经转了 labelTurn 度(回包给;普通盘没有这一项 = 0)
+		const labelTurnSigns = ((Math.round((Number(this.res && this.res.labelTurn) || 0) / 30) % 12) + 12) % 12;
 		for(let k = 0; k < 12; k += 1){
 			const lam0 = k * 30;
 			const pIn = eclPoint(lam0, R * 0.985);
@@ -684,7 +686,7 @@ class PDSphereEngine{
 				new THREE.LineBasicMaterial({ color: PD_COLOR.ecliptic, transparent: true, opacity: 0.8 })
 			);
 			gEcl.grp.add(tick);
-			const gl = makeTextSprite(SIGN_GLYPHS[k], { worldSize: Math.max(5.5, R * 0.04), color: '#d8ab52', minLuma: 0.55, fontFamily: 'ywastrochart' });
+			const gl = makeTextSprite(SIGN_GLYPHS[(k + labelTurnSigns) % 12], { worldSize: Math.max(5.5, R * 0.04), color: '#d8ab52', minLuma: 0.55, fontFamily: 'ywastrochart' });
 			const gp = eclPoint(lam0 + 15, R * 1.05);
 			gl.position.set(gp.x, gp.y, gp.z);
 			gEcl.labelSub.add(gl);
@@ -1564,7 +1566,9 @@ class PDSphereEngine{
 				if(m >= 60){ m = 0; d += 1; } // 分四舍五入至 60 → 进位入度,免出现 …°60′
 				return `${v < 0 ? '-' : ''}${d}°${m < 10 ? '0' : ''}${m}′`;
 			};
-			const coordTxt = `λ=${_fmtDeg(((Number(promPt.lon) % 360) + 360) % 360)} β=${_fmtDeg(Number(promPt.lat) || 0)} · α=${_fmtDeg(promEff.ra)} δ=${_fmtDeg(promEff.decl)}`;
+			// 南半球读法:球上画的是真位置,黄经读数与表、盘一样按读法转 labelTurn 度(普通盘 = 0)
+			const _labelTurn = Number(this.res && this.res.labelTurn) || 0;
+			const coordTxt = `λ=${_fmtDeg((((Number(promPt.lon) + _labelTurn) % 360) + 360) % 360)} β=${_fmtDeg(Number(promPt.lat) || 0)} · α=${_fmtDeg(promEff.ra)} δ=${_fmtDeg(promEff.decl)}`;
 			const coordCard = makeTextSprite(coordTxt, {
 				worldSize: Math.max(5.2, R * 0.036), color: dirColor, minLuma: 0.55,
 			});

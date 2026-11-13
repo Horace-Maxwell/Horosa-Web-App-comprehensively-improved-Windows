@@ -8,11 +8,11 @@ import {
 	SANSHI_LIURENG_DUANGUA_SECTIONS,
 } from './sanshiSnapshotSections';
 import { getPageLayoutHeight } from '../../utils/shellZoom';
-import { Divider, Tag, message } from 'antd';
+import { Tag, message } from 'antd';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQStageEmpty } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -112,6 +112,8 @@ function getMemoSanshiUnitedBoard(){
 	return memoSanshiUnitedBoard;
 }
 import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
+import { kvInfoCard as sanshiKvCard, splitLabelText as splitSanshiLabelText } from '../common/KvInfoCard';
+import { LiuRengRefCard, LiuRengRefEmpty, LiuRengRefFacts, LiuRengRefGroupTitle } from '../lrzhan/LiuRengRefCard';
 import { buildQimenXiangTipObj, } from '../dunjia/QimenXiangDoc';
 import {
 	buildLiuRengReferenceBundle,
@@ -163,6 +165,7 @@ import { QIMEN_HARM_COLOR, tint } from '../dunjia/qimenHarmColors';
 import { zeriLockProps, zeriRestoredLockMarks, clearZeriLockMarks } from '../../divination/zeri/zeriPageCalibre';
 import { resolveAfter23NewDay, resolveLateZiHourUseNextDay } from '../../utils/dayBoundaryResolve';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { ASC_RA_MODE_DEFAULT, ASC_RA_MODE_OPTIONS, normalizeAscRaMode, withAscRaMode, ascRaModeSnapshotLine } from '../../utils/ascRaMode';
 export { clamp, safe };
 
 const { Option, OptGroup } = Select;
@@ -374,7 +377,7 @@ const GUIRENG_OPTIONS = [
 const LR_YUEJIANG_OPTIONS = [
 	{ value: 'zhongqi', label: '中气过宫（默认）' },
 	{ value: 'jieqi', label: '节气换将' },
-	{ value: 'richan', label: '太阳过宫·日躔（含岁差）' },
+	{ value: 'richan', label: '太阳过宫·日躔（含岁差）', short: '日躔（含岁差）' },
 ];
 const LR_FENZHOUYE_OPTIONS = [
 	{ value: 'chenhun', label: '晨昏分昼夜（默认）' },
@@ -478,6 +481,8 @@ export const SANSHI_PAGE_SETTINGS = definePageSettings('horosa.sanshi.settings.v
 	// 外圈两项不在 options 里,是组件自己的 state(控件直接绑 this.state.X)
 	outerCoord: { label: '外圈', def: 'ecliptic', oneOf: ['ecliptic', 'equatorial'] },
 	showWeakSolid: { label: '虚实', def: true },
+	// 外圈赤道分宫时上升点取哪一个赤经(改进 = 真赤经 / 经典 = 旧版取的东点黄经);只在外圈 = 赤道时起作用、才显示
+	ascRaMode: { label: '上升取法', def: ASC_RA_MODE_DEFAULT, oneOf: ASC_RA_MODE_OPTIONS.map((o)=>o.value) },
 });
 
 // 🔴 改值即强制重算的「计算型」option key 全集(三式合一各子盘的盘面计算输入)。
@@ -1173,7 +1178,10 @@ export function computeSanshiXun(pan){
 	return { xunShou, xunYi, benXun, riKong, shiKong };
 }
 
-export function buildOuterData(chartObj, coord){
+// ascRaMode:外圈赤道分宫时上升点的取法(经典档只把上升点 ra 换成东点黄经;黄道分宫不读上升赤经,恒原样)
+export function buildOuterData(rawChartObj, coord, ascRaMode){
+	const equatorial = coord === 'equatorial';
+	const chartObj = equatorial ? withAscRaMode(rawChartObj, ascRaMode) : rawChartObj;
 	const housesByBranch = {};
 	const starsByBranch = {};
 	const starsByBranchFull = {};
@@ -1187,6 +1195,8 @@ export function buildOuterData(chartObj, coord){
 	if(!chartObj){
 		return { housesByBranch, starsByBranch, starsByBranchFull, starsByBranchMeta };
 	}
+	// 快照在第 1 宫那一支写明上升取法(只赤道分宫有这一行;黄道逐字现状)
+	const ascRaLine = equatorial ? ascRaModeSnapshotLine(ascRaMode, chartObj) : '';
 	const objs = chartObj.objects || [];
 	let ascBranch = '';
 	for(let i=0; i<objs.length; i++){
@@ -1257,7 +1267,7 @@ export function buildOuterData(chartObj, coord){
 			objId: item.objId,
 		}));
 	});
-	return { housesByBranch, starsByBranch, starsByBranchFull, starsByBranchMeta };
+	return { housesByBranch, starsByBranch, starsByBranchFull, starsByBranchMeta, ...(ascRaLine ? { ascRaLine } : {}) };
 }
 
 export function buildShenShaMap(dunjia){
@@ -1521,6 +1531,7 @@ export function buildSanShiUnitedSnapshotText(data){
 			//   AI 看不到盘上最显眼的两层标注。此处逐支补齐(无数据不产行,缺省字节零变化)。
 			const houseNos = outerData && outerData.housesByBranch && Array.isArray(outerData.housesByBranch[branch]) ? outerData.housesByBranch[branch] : [];
 			if(houseNos.length){ body.push(`人事宫位：第 ${houseNos.join('、')} 宫`); }
+			if(houseNos.indexOf('1') >= 0 && outerData && outerData.ascRaLine){ body.push(outerData.ascRaLine); }
 			const ws = weakSolidMap ? weakSolidMap[branch] : null;
 			if(ws && (ws.solid || ws.weak)){
 				const parts = [];
@@ -2015,6 +2026,15 @@ class SanShiInputPanel extends Component{
 								<Option value="equatorial">赤道</Option>
 							</Select>
 						</label>
+						{/* 上升取法只在外圈赤道分宫时起作用(黄道分宫按黄经,不读上升赤经) */}
+						{this.props.outerCoord === 'equatorial' ? (
+							<label className="horosa-sanshi-select-field">
+								<span>上升取法</span>
+								<Select size="small" value={this.props.ascRaMode} onChange={(v)=>this.props.onAscRaModeChange(v)} dropdownMatchSelectWidth={false}>
+									{ASC_RA_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+								</Select>
+							</label>
+						) : null}
 						<label className="horosa-sanshi-select-field">
 							<span>虚实</span>
 							<Select size="small" value={this.props.showWeakSolid ? 1 : 0} onChange={(v)=>this.props.onShowWeakSolidChange(v === 1)}>
@@ -2085,8 +2105,8 @@ class SanShiInputPanel extends Component{
 						{opt.qijuMethod === 'zhirun' && qijuMethodUsesJieqiFa(opt.paiPanType === undefined || opt.paiPanType === null || opt.paiPanType === '' ? 3 : opt.paiPanType) ? (
 							<label className="horosa-sanshi-select-field">
 								<span>置闰天数</span>
-								<Select size="small" value={opt.zhirunLeapDays || 9} onChange={(v)=>this.props.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
-									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value}>{item.label}</Option>)}
+								<Select size="small" value={opt.zhirunLeapDays || 9} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
+									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 								</Select>
 							</label>
 						) : null}
@@ -2142,8 +2162,8 @@ class SanShiInputPanel extends Component{
 						{opt.paiPanType === 1 ? (
 							<label className="horosa-sanshi-select-field">
 								<span>月家起局</span>
-								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								<Select size="small" value={opt.yueJiaQiJuType} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
+									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 								</Select>
 							</label>
 						) : null}
@@ -2343,8 +2363,8 @@ class SanShiInputPanel extends Component{
 					<div className="horosa-sanshi-select-grid">
 						<label className="horosa-sanshi-select-field">
 							<span>换将</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} onChange={(v)=>this.props.onOptionChange('yueJiangMethod', v)}>
-								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} optionLabelProp="label" onChange={(v)=>this.props.onOptionChange('yueJiangMethod', v)}>
+								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value} label={item.short || item.label}>{item.label}</Option>)}
 							</Select>
 						</label>
 						<label className="horosa-sanshi-select-field">
@@ -2410,7 +2430,7 @@ class SanShiUnitedMain extends Component{
 		// 上次亲手设的排盘口径 —— 只有独立三式页读;三式择日里内嵌的那份恒从出厂值 / 共享字段现值起(理由见 SANSHI_PAGE_SETTINGS 注)。
 		const savedOnly = this.usesSavedSettings() ? SANSHI_PAGE_SETTINGS.loadSaved() : {};
 		// 外圈两项是组件自己的 state,不在 options 里:从 options 的播种里摘出来(否则 options 里多出两个没人读的陈旧副本,还会跟着事盘存下去)
-		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ...savedOptionKeys } = savedOnly;
+		const { outerCoord: savedOuterCoord, showWeakSolid: savedShowWeakSolid, ascRaMode: savedAscRaMode, ...savedOptionKeys } = savedOnly;
 		const defaultTimeAlg = normalizeTimeAlg(
 			props
 			&& props.fields
@@ -2435,6 +2455,7 @@ class SanShiUnitedMain extends Component{
 			rightPanelTab: 'overview',
 			outerCoord: savedOuterCoord !== undefined ? savedOuterCoord : 'ecliptic', // 外圈分宫:ecliptic(黄道,出厂值) | equatorial(赤道/赤经);上次亲手设的值
 			showWeakSolid: savedShowWeakSolid !== undefined ? savedShowWeakSolid : true, // 外圈是否叠七政四余式「虚实」红绿点(出厂显示);上次亲手设的值
+			ascRaMode: normalizeAscRaMode(savedAscRaMode), // 外圈赤道分宫的上升取法(出厂 = 改进 / 真赤经);上次亲手设的值
 			liurengRefTab: 'dage',
 			bagongSubTab: 'bagong', // 遁甲右栏内层子tab:八宫 / 用神 / 化解
 			taiyiSubTab: 'overview', // 太乙右栏内层子tab:概览 / 十六宫 / 八门 / 断法
@@ -3054,7 +3075,7 @@ class SanShiUnitedMain extends Component{
 		}
 			// 事盘里没有的口径键回**出厂值**,而不是留着本机保存的偏好:本页口径现在跨会话保留,按出厂口径存下的旧案不带后来才有的键,
 			// 不回出厂就会被按你现在的偏好重排(盘变了,与存档里的快照也对不上)。时间算法的出厂值 = 跨页共享字段的现值(与构造函数同一来源)。
-			const { outerCoord: _oc, showWeakSolid: _sw, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
+			const { outerCoord: _oc, showWeakSolid: _sw, ascRaMode: _ar, ...factoryOptionKeys } = SANSHI_PAGE_SETTINGS.defaults();
 			factoryOptionKeys.timeAlg = normalizeTimeAlg(this.props.fields && this.props.fields.timeAlg ? this.props.fields.timeAlg.value : 0);
 			const options = {
 				...(this.state.options || {}),
@@ -3960,7 +3981,7 @@ class SanShiUnitedMain extends Component{
 		return (
 			<>
 				{yearList.length ? (
-					<Card size='small' style={{ marginBottom: 8 }}>
+					<Card size='small' style={{ marginBottom: 10 }}>
 						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 							<span style={{ fontWeight: 600 }}>年神</span>
 							<Tag color='gold'>{sort === 'suigui' ? '太岁排轮' : '四利三元序'}</Tag>
@@ -3978,7 +3999,7 @@ class SanShiUnitedMain extends Component{
 					</Card>
 				) : null}
 				{wsList.length ? (
-					<Card size='small' style={{ marginBottom: 8 }}>
+					<Card size='small' style={{ marginBottom: 10 }}>
 						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 							<span style={{ fontWeight: 600 }}>三传旺衰</span>
 							<Tag color='gold'>以月令</Tag>
@@ -3995,7 +4016,7 @@ class SanShiUnitedMain extends Component{
 					</Card>
 				) : null}
 				{kongList.length ? (
-					<Card size='small' style={{ marginBottom: 8 }}>
+					<Card size='small' style={{ marginBottom: 10 }}>
 						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 							<span style={{ fontWeight: 600 }}>空亡真假</span>
 							<Tag color='gold'>旬空{kongList.map((k)=>k.zhi).join('')}</Tag>
@@ -4017,11 +4038,30 @@ class SanShiUnitedMain extends Component{
 	// 在不在,而重建只发生在 performRecalcByNongli 内、且重算签名不含 outerCoord(点「起盘」也被去重拦下)
 	// → 切到赤道后,存档与导出刷新拿的还是黄道那份,「星盘:」行不带「(赤经)」且地支与中栏不符。
 	currentOuterData(astroChart){
-		const coord = this.state.outerCoord || 'ecliptic';
+		const coord = this.outerCoordCacheKey();   // 赤道分宫另带上升取法
 		if(this.outerDataCache && this.outerDataCache.data && this.outerDataCache.coord === coord){
 			return this.outerDataCache.data;
 		}
-		return buildOuterData(astroChart, coord);
+		return buildOuterData(astroChart, this.state.outerCoord || 'ecliptic', this.state.ascRaMode);
+	}
+
+	// 外圈缓存键:赤道分宫另带上升取法(两档地支可能不同);黄道不读上升赤经,键与旧版同
+	outerCoordCacheKey(){
+		const coord = this.state.outerCoord || 'ecliptic';
+		return coord === 'equatorial' ? `${coord}:${normalizeAscRaMode(this.state.ascRaMode)}` : coord;
+	}
+
+	onAscRaModeChange(mode){
+		const m = normalizeAscRaMode(mode);
+		if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ ascRaMode: m }); }
+		this.setState({ ascRaMode: m }, ()=>{
+			if(!this._lastSnapshotPayload){ return; }
+			const chartWrap = this.state.castChart;
+			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
+			const outerData = this.currentOuterData(astroChart);
+			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
+			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
+		});
 	}
 
 	// 只有独立三式页读写保存值;三式择日里内嵌的那份(techniqueScope='sanshizeri')不读不写(理由见 SANSHI_PAGE_SETTINGS 注)。
@@ -4038,7 +4078,7 @@ class SanShiUnitedMain extends Component{
 			const chartWrap = this.state.castChart;
 			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 			const outerData = this.currentOuterData(astroChart);
-			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.state.outerCoord || 'ecliptic', data: outerData };
+			this.outerDataCache = { ...(this.outerDataCache || {}), coord: this.outerCoordCacheKey(), data: outerData };
 			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, outerData }, this._lastSnapshotMeta);
 		});
 	}
@@ -4237,6 +4277,7 @@ class SanShiUnitedMain extends Component{
 			`${safe(isDiurnal, '')}`,
 			outerChartKey,
 			`${this.state.outerCoord || 'ecliptic'}`,   // 外圈坐标进签名:否则切了坐标再起盘被去重拦下
+			`${this.outerCoordCacheKey()}`,   // 赤道分宫另带上升取法(切了取法再起盘同样不被去重拦下)
 			jieqiSeedSignature(this.jieqiYearSeeds),   // 种子到达后签名变 → 去重不吞掉带种子的重算
 		].join('|');
 		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
@@ -4356,9 +4397,9 @@ class SanShiUnitedMain extends Component{
 		};
 		// 太乙 taiyi 已在 dunjia 前并行取得并落缓存(见上方 Promise.all)。
 		let outerData = this.outerDataCache.data;
-		const outerCoordKey = this.state.outerCoord || 'ecliptic';
+		const outerCoordKey = this.outerCoordCacheKey();
 		if(this.outerDataCache.chartKey !== outerChartKey || this.outerDataCache.coord !== outerCoordKey){
-			outerData = buildOuterData(astroChart, this.state.outerCoord);
+			outerData = buildOuterData(astroChart, this.state.outerCoord, this.state.ascRaMode);
 			this.outerDataCache = {
 				chartKey: outerChartKey,
 				coord: outerCoordKey,
@@ -4712,10 +4753,10 @@ class SanShiUnitedMain extends Component{
 
 	renderLeftBoard(height){
 		if(!this.state.hasPlotted){
-			return <Card bordered={false}>点击左侧“起盘”后显示三式合一盘</Card>;
+			return <XQStageEmpty>点击左侧“起盘”后显示三式合一盘</XQStageEmpty>;
 		}
 		if(!this.state.dunjia){
-			return <Card bordered={false}>暂无三式合一数据</Card>;
+			return <XQStageEmpty>暂无三式合一数据</XQStageEmpty>;
 		}
 		const boardSize = this.calcBoardSize(height);
 		// 盘面绘制单源迁至 SanshiUnitedBoard(择日概览共享);此壳只装配实例态,JSX 与迁出前逐节点等价。
@@ -4737,6 +4778,7 @@ class SanShiUnitedMain extends Component{
 				fields={boardFields}
 				displaySolarTime={this.state.displaySolarTime}
 				outerCoord={this.state.outerCoord}
+				ascRaMode={this.state.ascRaMode}
 				showWeakSolid={this.state.showWeakSolid}
 				showAstroMeaning={this.props.showAstroMeaning}
 			/>
@@ -4754,6 +4796,7 @@ class SanShiUnitedMain extends Component{
 				fields={this.getActiveFields()}
 				options={this.state.options}
 				outerCoord={this.state.outerCoord}
+				ascRaMode={this.state.ascRaMode}
 				showWeakSolid={this.state.showWeakSolid}
 				loading={this.state.loading}
 				hasPlotted={this.state.hasPlotted}
@@ -4769,6 +4812,7 @@ class SanShiUnitedMain extends Component{
 				onAstroZodiacalChange={(v)=>this.onAstroZodiacalChange(v)}
 				onAstroFieldOptionChange={this.onAstroFieldOptionChange}
 				onOuterCoordChange={this.onOuterCoordChange}
+				onAscRaModeChange={(mode)=>this.onAscRaModeChange(mode)}
 				onShowWeakSolidChange={(flag)=>{ if(this.usesSavedSettings()){ SANSHI_PAGE_SETTINGS.save({ showWeakSolid: flag }); } this.setState({ showWeakSolid: flag }); }}
 				clickPlot={this.clickPlot}
 				clickSave={this.clickSave}
@@ -4803,7 +4847,7 @@ class SanShiUnitedMain extends Component{
 				return <Card size='small'><div style={{ color: muted }}>当前盘暂无用神数据。</div></Card>;
 			}
 			const yongShenCard = (
-				<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+				<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
 					<div style={{ fontWeight: 600, marginBottom: 6 }}>用神定位</div>
 					<div style={{ color: soft, lineHeight: '22px', marginBottom: 6 }}>{ys.yongShenText}</div>
 					{locLine('日干·内心/实质', ys.dayGan)}
@@ -4815,7 +4859,7 @@ class SanShiUnitedMain extends Component{
 				</Card>
 			);
 			const guGuaCard = guGua.length ? (
-				<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+				<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
 					<div style={{ fontWeight: 600, marginBottom: 6 }}>解孤辰寡宿</div>
 					<div style={{ color: soft, lineHeight: '24px' }}>
 						{guGua.map((g, i)=>(<div key={`ssu_gg_${i}`}>{g.name}（{g.zhi}）：{g.jie}</div>))}
@@ -4889,7 +4933,7 @@ class SanShiUnitedMain extends Component{
 						const worst = (c.dangers[0] && c.dangers[0].type) || '';
 						const col = DANGER_DOT[worst] || 'var(--horosa-border-strong, #d9d9d9)';
 						return (
-							<Card size='small' style={{ marginBottom: 8, borderRadius: 8, borderLeft: `3px solid ${col}` }} key={`ssu_jh_${i}`}>
+							<Card size='small' style={{ marginBottom: 10, borderRadius: 8, borderLeft: `3px solid ${col}` }} key={`ssu_jh_${i}`}>
 								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
 									<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
 										{c.dangers.map((d, k)=>(<span key={`ssu_db_${k}`} style={{ display: 'inline-flex' }}>{badge(d.oneChar, DANGER_DOT[d.type])}</span>))}
@@ -4914,13 +4958,13 @@ class SanShiUnitedMain extends Component{
 							</Card>
 						);
 					})}
-					<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
 						<div style={{ fontWeight: 600, marginBottom: 6 }}>解局三法（逆天程度递增）</div>
 						<div style={{ color: soft, lineHeight: '22px' }}>
 							{SAN_FA_TEXT.map((f, i)=>(<div key={`ssu_sf_${i}`}><span style={{ fontWeight: 600 }}>{f.name}</span><span style={{ color: muted }}>（{f.scope}）</span>　{f.desc}</div>))}
 						</div>
 					</Card>
-					<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
 						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 							<span style={{ fontWeight: 600 }}>八门化气大阵 · 必护天干</span>
 							<Tag color='geekblue' style={{ marginRight: 0 }}>{protect.filter((r)=>r.palaceNum && !r.ok).length} 处需护</Tag>
@@ -4939,7 +4983,7 @@ class SanShiUnitedMain extends Component{
 							{BU_ZHEN_TIPS.map((t, i)=>(<div key={`ssu_bz_${i}`}>· {t}</div>))}
 						</div>
 					</Card>
-					<Card size='small' style={{ marginBottom: 8, borderRadius: 8 }}>
+					<Card size='small' style={{ marginBottom: 10, borderRadius: 8 }}>
 						<div style={{ fontWeight: 600, marginBottom: 6 }}>干支形象表（造象参考）</div>
 						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 12, rowGap: 2, color: soft, lineHeight: '22px', fontSize: 13 }}>
 							{Object.keys(GAN_XIANG).map((g)=>(<span key={`ssu_gx_${g}`}><span style={{ fontWeight: 600 }}>{g}</span>　{GAN_XIANG[g].color}·{GAN_XIANG[g].material}（{GAN_XIANG[g].branch}{ZHI_ZODIAC[GAN_XIANG[g].branch]}）</span>))}
@@ -5002,38 +5046,39 @@ class SanShiUnitedMain extends Component{
 					    内容与旧行为逐字一致(冻结≠卸载,与 destroyInactiveTabPane 的既有卸载语义互不干涉)。 */}
 					<TabPane tab="概览" key="overview">
 						<FreezeSubTab active={rightPanelTab === 'overview'}>{()=>(
-						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
-							<div style={{ lineHeight: '26px' }}>
-								<div>局数：{pan ? pan.juText : '—'}</div>
-								<div>旬首：{pan ? ovXun.xunShou : '—'}</div>
-								<div>旬仪：{pan ? ovXun.xunYi : '—'}</div>
-								<div>值符：{pan ? pan.zhiFu : '—'}</div>
-								<div>值使：{pan ? pan.zhiShi : '—'}</div>
-								<div>本旬：{pan ? ovXun.benXun : '—'}</div>
-								<div>旬空：{pan ? ovXun.riKong : '—'}</div>
-								<div>时空：{pan ? ovXun.shiKong : '—'}</div>
-								<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
-								<div>阴阳遁：{pan ? pan.yinYangDun : '—'}</div>
-								<div>时间算法：{getTimeAlgLabel(opt.timeAlg)}{this.state.nongli && this.state.nongli.__trueSolarFallback ? SANSHI_TRUE_SOLAR_FALLBACK_NOTE : ''}</div>
-								<div>换日：{opt.after23NewDay === 1 ? '23点算第二天' : '24点算第二天'}</div>
-								<div>月将：{this.state.lrLayout ? this.state.lrLayout.yue : '—'}</div>
-							</div>
-							{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length ? (
-								<>
-									<Divider style={{ margin: '10px 0 8px' }} />
-									<div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--horosa-text, #262626)' }}>神煞</div>
-									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 10, rowGap: 6, lineHeight: '22px' }}>
-										{pan.shenSha.allItems.map((item)=>(<div key={`ss_item_${item.name}`} style={{ fontSize: 12 }}><span style={{ color: 'var(--horosa-text, #262626)' }}>{item.name}</span><span style={{ color: 'var(--horosa-muted, #8c8c8c)', marginLeft: 2 }}>{item.value}</span></div>))}
+						<Card bordered={false} bodyStyle={{ padding: '16px 3px 12px 0' }} className="horosa-sanshi-kv-host">
+							<div className="horosa-taiyi-overview-stack">
+								{sanshiKvCard('局与旬', [
+									['局数', pan ? pan.juText : '—'],
+									['阴阳遁', pan ? pan.yinYangDun : '—'],
+									['旬首', pan ? ovXun.xunShou : '—'],
+									['旬仪', pan ? ovXun.xunYi : '—'],
+									['本旬', pan ? ovXun.benXun : '—'],
+									['旬空', pan ? ovXun.riKong : '—'],
+									['时空', pan ? ovXun.shiKong : '—'],
+									splitSanshiLabelText(pan && pan.yiMa ? pan.yiMa.text : '日马：无'),
+								])}
+								{sanshiKvCard('值符 · 值使 · 月将', [
+									['值符', pan ? pan.zhiFu : '—'],
+									['值使', pan ? pan.zhiShi : '—'],
+									['月将', this.state.lrLayout ? this.state.lrLayout.yue : '—'],
+								])}
+								{sanshiKvCard('起盘口径', [
+									['时间算法', `${getTimeAlgLabel(opt.timeAlg)}${this.state.nongli && this.state.nongli.__trueSolarFallback ? SANSHI_TRUE_SOLAR_FALLBACK_NOTE : ''}`],
+									['换日', opt.after23NewDay === 1 ? '23点算第二天' : '24点算第二天'],
+								])}
+								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length ? sanshiKvCard('神煞', [], (
+									<div className="horosa-sanshi-kv-grid">
+										{pan.shenSha.allItems.map((item)=>(<div key={`ss_item_${item.name}`}><span>{item.name}</span><strong>{item.value}</strong></div>))}
 									</div>
-								</>
-							) : null}
+								)) : null}
+							</div>
 						</Card>
 						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="太乙" key="taiyi">
 						<FreezeSubTab active={rightPanelTab === 'taiyi'}>{()=>(
-						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
-							<div style={{ lineHeight: '24px' }}>
+						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
 								{this.state.taiyi ? (()=>{
 									// 太乙数理/格局/胜负/分野/诸神之算 纯派生(据 kintaiyi pan,零碰后端 golden;与独立 TaiYiMain 同款 compute*)。
 									const tpan = this.state.taiyi;
@@ -5050,11 +5095,14 @@ class SanShiUnitedMain extends Component{
 									const nayin = computeTaiyiNayin(tpan);
 									const shijing = computeShiJing(tpan);
 									const wuziyuan = computeWuziyuan(tpan);
+									const dash = (v)=>(v === undefined || v === null || v === '' ? '—' : v);
 									const calTags = (tags)=>(tags || []).map((t, i)=>{
 										const tone = shuliTone(t);
 										const color = tone === 'bad' ? 'var(--horosa-danger, #c0563a)' : tone === 'good' ? 'var(--horosa-accent, #d7ad69)' : 'var(--horosa-muted, #8c8c8c)';
-										return <span key={i} style={{ display: 'inline-block', fontSize: 11, lineHeight: 1.5, padding: '0 5px', marginLeft: 4, borderRadius: 7, border: `1px solid ${color}`, color }}>{t}</span>;
+										return <span key={i} className="horosa-sanshi-kv-chip" style={{ borderColor: color, color }}>{t}</span>;
 									});
+									const calCell = (num, tags)=>(<span><span style={{ marginRight: 6 }}>{dash(num)}</span>{calTags(tags)}</span>);
+									const tagsOnly = (tags)=>((tags || []).length ? <span>{calTags(tags)}</span> : '—');
 									return (
 									<Tabs
 										activeKey={this.state.taiyiSubTab}
@@ -5064,66 +5112,95 @@ class SanShiUnitedMain extends Component{
 										className="horosa-sanshi-liureng-tabs"
 									>
 										<TabPane tab="概览" key="overview">
-											<div style={{ lineHeight: '24px', paddingRight: 4 }}>
-												<div>盘式：{tpan.options ? tpan.options.styleLabel : '—'}</div>
-												<div>古法公式：{tpan.options ? tpan.options.accumLabel : '—'}</div>
-												<div>流派：{tpan._schoolNote ? (<span style={{ color: 'var(--horosa-astro-blue, #7fa8d8)' }} title="左栏「太乙流派」非默认;被覆盖神煞与主客算据古法重算">{tpan._schoolNote}</span>) : '默认(从盘)'}</div>
-												<div>博弈：{tpan.options ? tpan.options.gameTheoryLabel : '—'}</div>
-												<div>局式：{tpan.kook ? tpan.kook.text : '—'}</div>
-												<div>积数：{tpan.accNum}{sanyuan ? `（${sanyuan}）` : ''}{wuziyuan ? ` · ${wuziyuan}` : ''}</div>
-												<div>太乙：{tpan.taiyiPalace}宫（数{tpan.taiyiNum}）</div>
-												<div>文昌：{tpan.skyeyes} 始击：{tpan.sf}{nayin ? ` · 纳音${nayin.ganzhi}·${nayin.nayin}` : ''}</div>
-												<div>太岁：{tpan.taishui}{taisuiAlias ? `（${taisuiAlias}）` : ''} 合神：{tpan.hegod} 计神：{tpan.jigod}</div>
-												<div>定目：{tpan.se || '—'}</div>
-												{shijing ? (<div>十精：{shijing.map((it, i)=>(<span key={i} style={{ marginRight: 6 }}>{it.name}·{it.at}</span>))}</div>) : null}
-												<div>主算：{tpan.homeCal}{calTags(shuli && shuli.home)} 客算：{tpan.awayCal}{calTags(shuli && shuli.away)} 定算：{tpan.setCal}{calTags(shuli && shuli.set)}</div>
-												<Divider style={{ margin: '8px 0' }} />
-												<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
-												<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
-												<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
-												<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
-												<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
-												<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
+											<div className="horosa-taiyi-overview-stack">
+												{sanshiKvCard('起局', [
+													['盘式', tpan.options ? tpan.options.styleLabel : '—'],
+													['古法公式', tpan.options ? tpan.options.accumLabel : '—'],
+													['流派', tpan._schoolNote ? (<span style={{ color: 'var(--horosa-accent-strong, #d7ad69)' }} title="左栏「太乙流派」非默认;被覆盖神煞与主客算据古法重算">{tpan._schoolNote}</span>) : '默认(从盘)'],
+													['博弈', tpan.options ? tpan.options.gameTheoryLabel : '—'],
+													['局式', tpan.kook ? tpan.kook.text : '—'],
+													['积数', `${dash(tpan.accNum)}${sanyuan ? `（${sanyuan}）` : ''}${wuziyuan ? ` · ${wuziyuan}` : ''}`],
+												])}
+												{sanshiKvCard('三算', [
+													['主算', calCell(tpan.homeCal, shuli && shuli.home)],
+													['客算', calCell(tpan.awayCal, shuli && shuli.away)],
+													['定算', calCell(tpan.setCal, shuli && shuli.set)],
+												])}
+												{sanshiKvCard('盘面要素', [
+													['太乙', `${dash(tpan.taiyiPalace)}宫（数${dash(tpan.taiyiNum)}）`],
+													['文昌', tpan.skyeyes],
+													['始击', tpan.sf],
+													nayin ? ['纳音', `${nayin.ganzhi}·${nayin.nayin}`] : null,
+													['太岁', `${dash(tpan.taishui)}${taisuiAlias ? `（${taisuiAlias}）` : ''}`],
+													['合神', tpan.hegod],
+													['计神', tpan.jigod],
+													['定目', tpan.se],
+												])}
+												{shijing && shijing.length ? sanshiKvCard('十精（二目 · 八将）', [], (
+													<div className="horosa-sanshi-kv-chips">
+														{shijing.map((it, i)=>(<span key={i} className={`horosa-sanshi-kv-chip${it.role === '目' ? ' is-key' : it.role === '将' ? '' : ' is-weak'}`}>{it.name}·{it.at}</span>))}
+													</div>
+												)) : null}
+												{sanshiKvCard('将神与基', [
+													['君基/臣基/民基', `${dash(tpan.kingbase)}/${dash(tpan.officerbase)}/${dash(tpan.pplbase)}`],
+													['四神/天乙/地乙', `${dash(tpan.fgd)}/${dash(tpan.skyyi)}/${dash(tpan.earthyi)}`],
+													['直符/飞符', `${dash(tpan.zhifu)}/${dash(tpan.flyfu)}`],
+													['五福/帝符/太尊', `${dash(tpan.wufuPalace)}/${dash(tpan.kingfu)}/${dash(tpan.taijun)}`],
+												])}
+												{sanshiKvCard('风游', [
+													['飞鸟', tpan.flybird],
+													['三风/五风/八风', `${dash(tpan.threewindPalace)}/${dash(tpan.fivewindPalace)}/${dash(tpan.eightwindPalace)}`],
+													['大游/小游', `${dash(tpan.bigyoPalace)}/${dash(tpan.smyoPalace)}`],
+												])}
 											</div>
 										</TabPane>
 										<TabPane tab="十六宫" key="palace16">
-											<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 8, rowGap: 4, paddingRight: 4 }}>
-												{this.state.taiyi.palace16 && this.state.taiyi.palace16.map((item)=>(
-													<div key={`ty_p16_${item.palace}`}>
-														<span style={{ color: 'var(--horosa-text, #262626)' }}>{item.palace}-</span>
-														<span style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>{item.items && item.items.length ? item.items.join('、') : '—'}</span>
+											<div className="horosa-taiyi-palace-list">
+												{tpan.palace16 && tpan.palace16.length ? tpan.palace16.map((item)=>(
+													<div className="horosa-taiyi-palace-row" key={`ty_p16_${item.palace}`}>
+														<strong>{item.palace}</strong>
+														<span>{item.items && item.items.length ? item.items.join('、') : '—'}</span>
 													</div>
-												))}
+												)) : (<div className="horosa-taiyi-empty">暂无十六宫数据</div>)}
 											</div>
 										</TabPane>
 										<TabPane tab="八门" key="bamen">
-											<div style={{ lineHeight: '24px', paddingRight: 4 }}>
-												<div>值使门：{doorJx ? `${doorJx.door}门·${doorJx.jixiong}` : '—'}</div>
-												<div>厄会：{ehui.length ? (<span style={{ color: 'var(--horosa-danger, #c0563a)' }}>{ehui.join('、')}</span>) : '无'}</div>
+											<div className="horosa-taiyi-overview-stack">
+												{sanshiKvCard('八门', [
+													['值使门', doorJx ? `${doorJx.door}门·${doorJx.jixiong}` : '—'],
+													['厄会', ehui.length ? (<span style={{ color: 'var(--horosa-danger, #c0563a)' }}>{ehui.join('、')}</span>) : '无'],
+												])}
 											</div>
 										</TabPane>
 										<TabPane tab="断法" key="duanfa">
-											<div style={{ lineHeight: '24px', paddingRight: 4 }}>
-												<div>胜负：{victory ? (<span style={{ fontWeight: 640, color: victory.side === '主胜' ? 'var(--horosa-accent, #d7ad69)' : victory.side === '客胜' ? 'var(--horosa-danger, #c0563a)' : 'var(--horosa-muted, #8c8c8c)' }} title={(victory.reasons || []).join('\n')}>{victory.side}</span>) : '—'}</div>
-												<div>格局：{geju.length ? geju.map((g, i)=>(<span key={i} title={g.text} style={{ display: 'inline-block', marginRight: 5, marginBottom: 2, padding: '0 6px', borderRadius: 7, fontSize: 11, lineHeight: 1.6, border: '1px solid var(--horosa-danger, #c0563a)', color: 'var(--horosa-danger, #c0563a)' }}>{g.name}</span>)) : '无显著掩迫囚格对'}</div>
-												<div>数理：主算{calTags(shuli && shuli.home)} 客算{calTags(shuli && shuli.away)} 定算{calTags(shuli && shuli.set)}</div>
-												<div>分野：{fenye && fenye.taiyi ? `太乙临${fenye.taiyi.gong}${fenye.taiyi.gua}·${fenye.taiyi.zhou}(${fenye.taiyi.men}·${fenye.taiyi.qi})·${fenye.taiyi.omen}${fenye.shiji ? `；始击临${fenye.shiji.gong}${fenye.shiji.gua}·${fenye.shiji.zhou}` : ''}` : '—'}</div>
-												<div>诸神之算：{shenSuan ? Object.keys(shenSuan).map((k, i)=>(shenSuan[k] ? (<span key={i} title={(shenSuan[k].tags || []).join('、')} style={{ marginRight: 8 }}>{k}<strong style={{ color: 'var(--horosa-accent, #d7ad69)' }}>{shenSuan[k].value}</strong></span>) : null)) : '—'}</div>
-												<div>限运：{limitYun ? `大限太乙临${limitYun.daxian.at}(${limitYun.daxian.span})·小限文昌临${limitYun.xiaoxian.at}(${limitYun.xiaoxian.span})` : '—'}</div>
+											<div className="horosa-taiyi-overview-stack">
+												{sanshiKvCard('胜负 · 格局', [
+													['胜负', victory ? (<span style={{ fontWeight: 640, color: victory.side === '主胜' ? 'var(--horosa-accent, #d7ad69)' : victory.side === '客胜' ? 'var(--horosa-danger, #c0563a)' : 'var(--horosa-muted, #8c8c8c)' }} title={(victory.reasons || []).join('\n')}>{victory.side}</span>) : '—'],
+													['格局', geju.length ? (<span>{geju.map((g, i)=>(<span key={i} title={g.text} className="horosa-sanshi-kv-chip" style={{ borderColor: 'var(--horosa-danger, #c0563a)', color: 'var(--horosa-danger, #c0563a)' }}>{g.name}</span>))}</span>) : '无显著掩迫囚格对'],
+												])}
+												{sanshiKvCard('数理', [
+													['主算', tagsOnly(shuli && shuli.home)],
+													['客算', tagsOnly(shuli && shuli.away)],
+													['定算', tagsOnly(shuli && shuli.set)],
+												])}
+												{sanshiKvCard('分野 · 诸神 · 限运', [
+													['分野', fenye && fenye.taiyi ? `太乙临${fenye.taiyi.gong}${fenye.taiyi.gua}·${fenye.taiyi.zhou}(${fenye.taiyi.men}·${fenye.taiyi.qi})·${fenye.taiyi.omen}${fenye.shiji ? `；始击临${fenye.shiji.gong}${fenye.shiji.gua}·${fenye.shiji.zhou}` : ''}` : '—'],
+													['诸神之算', shenSuan ? (<span>{Object.keys(shenSuan).map((k, i)=>(shenSuan[k] ? (<span key={i} title={(shenSuan[k].tags || []).join('、')} style={{ display: 'inline-block', marginRight: 8 }}>{k}<b style={{ color: 'var(--horosa-accent, #d7ad69)', marginLeft: 2 }}>{shenSuan[k].value}</b></span>) : null))}</span>) : '—'],
+													['限运', limitYun ? `大限太乙临${limitYun.daxian.at}(${limitYun.daxian.span})·小限文昌临${limitYun.xiaoxian.at}(${limitYun.xiaoxian.span})` : '—'],
+												])}
 											</div>
 										</TabPane>
 									</Tabs>
 									);
 								})() : (
-									<div>暂无太乙数据</div>
+									<div className="horosa-taiyi-empty">暂无太乙数据</div>
 								)}
-							</div>
 						</Card>
 						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="六壬" key="liureng">
 						<FreezeSubTab active={rightPanelTab === 'liureng'}>{()=>(
-						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
+						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
 							<Tabs
 								activeKey={this.state.liurengRefTab}
 								onChange={(key)=>this.setState({ liurengRefTab: key })}
@@ -5132,64 +5209,54 @@ class SanShiUnitedMain extends Component{
 								className="horosa-sanshi-liureng-tabs"
 							>
 								<TabPane tab="大格" key="dage">
-									<div style={{ paddingRight: 4 }}>
-										{refSummary ? (
-											<Card size='small' style={{ marginBottom: 8 }}>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)' }}>{refSummary}</div>
-											</Card>
-										) : null}
+									<div className="horosa-liureng-reference-tab-body">
+										{refSummary ? <LiuRengRefFacts text={refSummary} /> : null}
 										{refBundle.dage && refBundle.dage.length ? refBundle.dage.map((item)=>(
-											<Card key={`ssu_lr_dage_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-													<span style={{ fontWeight: 600 }}>{item.name}</span>
-													<Tag color='blue'>{item.categoryName || '大格'}</Tag>
-												</div>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-													{buildReferenceDocumentText(item, 'dage')}
-												</div>
-												{item.evidence && item.evidence.length ? (
-													<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-												) : null}
-											</Card>
+											<LiuRengRefCard
+												key={`ssu_lr_dage_${item.key}`}
+												name={item.name}
+												tag={item.categoryName || '大格'}
+												text={buildReferenceDocumentText(item, 'dage')}
+												evidence={item.evidence}
+											/>
 										)) : (
-											<Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘未命中已收录的大格条件。</div></Card>
+											<LiuRengRefEmpty>当前盘未命中已收录的大格条件。</LiuRengRefEmpty>
 										)}
 									</div>
 								</TabPane>
 								<TabPane tab="小局" key="xiaoju">
-									<div style={{ paddingRight: 4 }}>
+									<div className="horosa-liureng-reference-tab-body">
 										{xiaojuMainItems.length ? xiaojuMainItems.map((item)=>(
-											<Card key={`ssu_lr_xiaoju_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-													<span style={{ fontWeight: 600 }}>{item.name}</span>
-													<Tag color='purple'>{item.categoryName || '小局'}</Tag>
-												</div>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-													{buildReferenceDocumentText(item, 'xiaoju')}
-												</div>
-												{item.evidence && item.evidence.length ? (
-													<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-												) : null}
-											</Card>
+											<LiuRengRefCard
+												key={`ssu_lr_xiaoju_${item.key}`}
+												name={item.name}
+												tag={item.categoryName || '小局'}
+												text={buildReferenceDocumentText(item, 'xiaoju')}
+												evidence={item.evidence}
+											/>
 										)) : (
-											<Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘暂未命中已收录的小局条件。</div></Card>
+											<LiuRengRefEmpty>当前盘暂未命中已收录的小局条件。</LiuRengRefEmpty>
 										)}
 									</div>
 								</TabPane>
 								<TabPane tab="毕法" key="bifa">
-									<div style={{ paddingRight: 4 }}>
-										<div style={{ fontWeight: 600, margin: '2px 0 6px' }}>已命中</div>
-										{(()=>{ const hits = matchBiFa(refContext); return hits.length ? hits.map((item)=>(
-											<Card key={`ssu_bf_hit_${item.no}`} size='small' style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-													<span style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}</span>
-													<Tag color='volcano'>毕法</Tag>
-												</div>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' }}>{item.explain}</div>
-												{item.evidence && item.evidence.length ? (<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 4 }}>依据：{item.evidence.join('；')}</div>) : null}
-											</Card>
-										)) : (<Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>本盘暂未机械命中可判定之毕法（仅高置信条目自动命中）。</div></Card>); })()}
-										<div style={{ fontWeight: 600, margin: '12px 0 6px' }}>{`全部毕法（${BIFA_LIST.length} 条）`}</div>
+									<div className="horosa-liureng-reference-tab-body">
+										{(()=>{ const hits = matchBiFa(refContext); return (
+											<>
+												<LiuRengRefGroupTitle extra={hits.length ? `${hits.length} 条` : ''}>已命中</LiuRengRefGroupTitle>
+												{hits.length ? hits.map((item)=>(
+													<LiuRengRefCard
+														key={`ssu_bf_hit_${item.no}`}
+														name={`${item.no}. ${item.name}`}
+														tag="毕法"
+														text={item.explain}
+														evidence={item.evidence}
+													/>
+												)) : (<LiuRengRefEmpty>本盘暂未机械命中可判定之毕法（仅高置信条目自动命中）。</LiuRengRefEmpty>)}
+												<div className="horosa-divi-note" data-sanshi-bifa-benming-note="1">本页不录问事人生年：涉及「年命 / 本命」的毕法条目只按本局行年判，不计问事人本命；要按本人本命判，请到大六壬页填卜卦人生年后起课。</div>
+											</>
+										); })()}
+										<LiuRengRefGroupTitle extra={`${BIFA_LIST.length} 条`}>全部毕法</LiuRengRefGroupTitle>
 										{BIFA_LIST.map((item)=>(
 											<div key={`ssu_bf_${item.no}`} style={{ padding: '6px 0', borderBottom: '1px solid var(--horosa-border, rgba(255,255,255,0.06))' }}>
 												<div style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}</div>
@@ -5199,50 +5266,39 @@ class SanShiUnitedMain extends Component{
 									</div>
 								</TabPane>
 								<TabPane tab="参考" key="reference">
-									<div style={{ paddingRight: 4 }}>
+									<div className="horosa-liureng-reference-tab-body">
 										{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
-											<Card key={`ssu_lr_ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-													<span style={{ fontWeight: 600 }}>{item.name}</span>
-													<Tag color='gold'>参考</Tag>
-												</div>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-													{buildReferenceDocumentText(item, 'xiaoju')}
-												</div>
-												{item.evidence && item.evidence.length ? (
-													<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-												) : null}
-											</Card>
+											<LiuRengRefCard
+												key={`ssu_lr_ref_${item.key}`}
+												name={item.name}
+												tag="参考"
+												tone="weak"
+												text={buildReferenceDocumentText(item, 'xiaoju')}
+												evidence={item.evidence}
+											/>
 										)) : (
-											<Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘暂无可展示的参考条目。</div></Card>
+											<LiuRengRefEmpty>当前盘暂无可展示的参考条目。</LiuRengRefEmpty>
 										)}
 									</div>
 								</TabPane>
 								<TabPane tab="概览" key="overview">
-									<div style={{ paddingRight: 4 }}>
+									<div className="horosa-liureng-reference-tab-body">
 										{this.renderLiuRengShenShaWangShuai(refContext)}
 										{overviewItems.length ? overviewItems.map((item, idx)=>(
-											<Card key={`ssu_lr_overview_${item.key}_${idx}`} size='small' style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-													<span style={{ fontWeight: 600 }}>{item.name}</span>
-													<Tag color={item.group === 'laiyi' ? 'cyan' : 'magenta'}>
-														{item.group === 'laiyi' ? '天将发用来意诀' : '天将杂主吉凶'}
-													</Tag>
-												</div>
-												<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-													{buildOverviewReferenceText(item)}
-												</div>
-												{item.evidence && item.evidence.length ? (
-													<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-												) : null}
-											</Card>
+											<LiuRengRefCard
+												key={`ssu_lr_overview_${item.key}_${idx}`}
+												name={item.name}
+												tag={item.group === 'laiyi' ? '天将发用来意诀' : '天将杂主吉凶'}
+												text={buildOverviewReferenceText(item)}
+												evidence={item.evidence}
+											/>
 										)) : (
-											<Card size='small'><div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘未命中“天将发用来意诀/天将杂主吉凶”条目。</div></Card>
+											<LiuRengRefEmpty>当前盘未命中“天将发用来意诀/天将杂主吉凶”条目。</LiuRengRefEmpty>
 										)}
 									</div>
 								</TabPane>
 								<TabPane tab="七政" key="qizheng">
-									<div style={{ paddingRight: 4 }}>
+									<div>
 										{(()=>{ const cw = this.state.castChart; const ac = cw && cw.chart ? cw.chart : cw; const qz = buildQiZhengItems(ac); return qz && qz.length ? (
 											<Card size='small'>
 												<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 8 }}>
@@ -5270,7 +5326,7 @@ class SanShiUnitedMain extends Component{
 					</TabPane>
 					<TabPane tab="遁甲" key="bagong">
 						<FreezeSubTab active={rightPanelTab === 'bagong'}>{()=>(
-						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
+						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
 							<Tabs
 								activeKey={this.state.bagongSubTab}
 								onChange={(key)=>this.setState({ bagongSubTab: key })}
@@ -5279,7 +5335,7 @@ class SanShiUnitedMain extends Component{
 								className="horosa-sanshi-liureng-tabs"
 							>
 								<TabPane tab="八宫" key="bagong">
-							<div style={{ paddingRight: 4 }}>
+							<div>
 								<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
 									{BAGONG_PALACE_ORDER.map((num)=>(
 										<Button
@@ -5296,7 +5352,7 @@ class SanShiUnitedMain extends Component{
 								</div>
 								{pan ? (
 									<>
-										<Card size='small' style={{ marginBottom: 8 }}>
+										<Card size='small' style={{ marginBottom: 10 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 												<span style={{ fontWeight: 600 }}>奇门吉格</span>
 												<Tag color='green'>{bagongData.jiPatterns.length}项</Tag>
@@ -5307,7 +5363,7 @@ class SanShiUnitedMain extends Component{
 													: '未命中'}
 											</div>
 										</Card>
-										<Card size='small' style={{ marginBottom: 8 }}>
+										<Card size='small' style={{ marginBottom: 10 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 												<span style={{ fontWeight: 600 }}>奇门凶格</span>
 												<Tag color='volcano'>{bagongData.xiongPatterns.length}项</Tag>
@@ -5318,7 +5374,7 @@ class SanShiUnitedMain extends Component{
 													: '未命中'}
 											</div>
 										</Card>
-										<Card size='small' style={{ marginBottom: 8 }}>
+										<Card size='small' style={{ marginBottom: 10 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 												<span style={{ fontWeight: 600 }}>十干克应</span>
 												<Tag color='blue'>天{bagongData.tianGan || '—'} / 地{bagongData.diGan || '—'}</Tag>
@@ -5327,7 +5383,7 @@ class SanShiUnitedMain extends Component{
 												天{bagongData.tianGan || '—'}加地{bagongData.diGan || '—'}：{bagongData.tenGanText}
 											</div>
 										</Card>
-										<Card size='small' style={{ marginBottom: 8 }}>
+										<Card size='small' style={{ marginBottom: 10 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 												<span style={{ fontWeight: 600 }}>八门克应和奇仪主应</span>
 												<Tag color='purple'>人{bagongData.renDoor || '—'}</Tag>
@@ -5337,7 +5393,7 @@ class SanShiUnitedMain extends Component{
 												<div style={{ marginTop: 4 }}>人{bagongData.renDoor || '—'}加天{bagongData.tianGan || '—'}：{bagongData.doorTianText}</div>
 											</div>
 										</Card>
-										<Card size='small' style={{ marginBottom: 8 }}>
+										<Card size='small' style={{ marginBottom: 10 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
 												<span style={{ fontWeight: 600 }}>八神加八门</span>
 												<Tag color='geekblue'>{bagongData.godFull || '—'}</Tag>
@@ -5362,12 +5418,12 @@ class SanShiUnitedMain extends Component{
 							</div>
 								</TabPane>
 								<TabPane tab="用神" key="yongshen">
-									<div style={{ paddingRight: 4 }}>
+									<div>
 										{this.renderSanshiYongShenStatic(pan)}
 									</div>
 								</TabPane>
 								<TabPane tab="化解" key="jiehua">
-									<div style={{ paddingRight: 4 }}>
+									<div>
 										{this.renderSanshiJieHuaStatic(pan)}
 									</div>
 								</TabPane>

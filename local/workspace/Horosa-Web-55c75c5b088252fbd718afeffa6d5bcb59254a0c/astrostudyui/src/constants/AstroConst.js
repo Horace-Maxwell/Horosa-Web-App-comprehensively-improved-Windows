@@ -1552,7 +1552,7 @@ export const INDIA_SCHOOL_DEFAULTS = {
     // primaryTab:切派后落地主场 tab;positioning:一句定位(选择器 tooltip+摘要,五支手册定位表)。
     parashari: { ayanamsa: 'lahiri', hsys: 0, aspectParadigm: 'graha', dashaFocus: 'vimshottari', primaryTab: '3',
         positioning: '全局本命·性格·事业·财富·整体人生',
-        tabs: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'] },
+        tabs: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'] },
     jaimini: { ayanamsa: 'lahiri', hsys: 0, aspectParadigm: 'rasi', dashaFocus: 'chara', primaryTab: '9',
         positioning: '寿命·出身·灵性·事件本质(星座逻辑)',
         tabs: ['1', '2', '3', '4', '7', '9', '13', '15'] },

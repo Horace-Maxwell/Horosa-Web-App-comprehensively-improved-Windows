@@ -6,6 +6,7 @@
 """
 
 import random
+import re
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from numbers import Integral, Real
@@ -246,16 +247,78 @@ DISPLAY_REPLACEMENTS = {
 }
 
 
+# 繁→简的单一出口。转换库按「乾燥」读法把词表外的「乾」一律写成「干」(乾宫→干宫、戌乾亥→戌干亥、单字乾→干),
+# 五音的「徵」一律写成「征」(宮商角徵羽→宫商角征羽);这两个字在术数里是卦名 / 宫位 / 方位 / 音名,简体里照旧写「乾」「徵」。
+#   乾:默认保留,只有干燥 / 天干义的词放行给转换库(下表 + 「天乾」后接地支 / 十干)。
+#   徵:默认照转(象徵→象征、徵兆→征兆),只保留五音语境(与宫商角羽并举、少徵 / 徵音之类、独立单字)。
+# 做法 = 转换前把要保留的字换成私用区占位符,转完换回;文本里没有这两个字时直接转(热路径不多花)。
+_QIAN_DRY_WORDS = (
+    "乾燥", "乾淨", "乾净", "乾旱", "乾枯", "乾涸", "乾渴", "乾脆", "乾糧", "乾粮", "乾杯", "餅乾", "饼乾",
+    "乾草", "乾柴", "乾裂", "乾癟", "乾咳", "乾嘔", "乾洗", "乾貨", "乾货", "乾果", "乾濕", "乾湿", "乾爽", "乾澀",
+    "曬乾", "晒乾", "烘乾", "晾乾", "擦乾", "未乾", "乾又濕", "口乾舌", "口乾渴", "乾薑", "乾姜", "外強中乾", "乾支",
+    "乾癬", "乾飯", "乾糙", "乾硬", "乾瘦", "乾屍", "乾笑", "乾等", "乾着急", "乾著急", "乾兒", "乾爹", "乾媽", "乾娘",
+    "陰乾", "阴乾", "乾料", "乾電", "乾冰",
+)
+_QIAN_DRY_RE = re.compile(
+    "|".join(sorted(map(re.escape, _QIAN_DRY_WORDS), key=len, reverse=True))
+    + "|口乾(?![坎艮震巽離离坤兌兑宮宫])|天乾(?=地支|物燥|[甲乙丙丁戊己庚辛壬癸])"
+)
+# 「徵」的征兆 / 征收义词:与五音判据撞上时这些词优先(宮徵兆星 → 徵兆,可變徵象星 → 徵象,象徵音樂 → 象徵)。
+_ZHI_SIGN_WORDS = (
+    "象徵", "特徵", "表徵", "病徵", "體徵", "体徵", "性徵", "應徵", "应徵", "明徵", "吉徵", "凶徵", "休徵", "咎徵", "瑞徵", "庶徵",
+    "徵兆", "徵象", "徵候", "徵狀", "徵状", "徵驗", "徵验", "徵應", "徵应", "徵明", "徵求", "徵收", "徵召", "徵集", "徵用",
+    "徵稅", "徵税", "徵兵", "徵調", "徵调", "徵發", "徵发", "徵聘", "徵信", "徵文", "徵詢", "徵询", "徵引", "徵日本",
+)
+_ZHI_TONE_RE = re.compile(
+    "(?P<sign>" + "|".join(sorted(map(re.escape, _ZHI_SIGN_WORDS), key=len, reverse=True)) + ")"
+    "|(?<![\u4e00-\u9fff])徵(?![\u4e00-\u9fff])"
+    "|(?<=[宮宫商角羽])徵|(?<=[宮宫商角羽][、,，\\s])徵|徵(?=[、,，\\s]?[宮宫商角羽])"
+    "|(?<=[少太正比陽阳陰阴變变清])徵|(?<=[為为]重)徵|(?<=[時时]加)徵"
+    "|徵(?=[音聲声日姓來来])|徵(?=[為为]重)"
+)
+
+
+def _keep_zhi(m):
+    return m.group(0) if m.group("sign") else _KEEP_ZHI
+
+
+_KEEP_QIAN = "\ue000"
+_KEEP_ZHI = "\ue001"
+
+
+def _keep_qian(text):
+    out, pos = [], 0
+    for m in _QIAN_DRY_RE.finditer(text):
+        out.append(text[pos:m.start()].replace("乾", _KEEP_QIAN))
+        out.append(m.group(0))
+        pos = m.end()
+    out.append(text[pos:].replace("乾", _KEEP_QIAN))
+    return "".join(out)
+
+
+def simplify_text(text):
+    """繁→简(显示用)。转换库缺失或失败时原样返回。"""
+    if not zh_convert:
+        return text
+    try:
+        has_qian = "乾" in text
+        has_zhi = "徵" in text
+        if not has_qian and not has_zhi:
+            return zh_convert(text, "zh-cn")
+        work = _keep_qian(text) if has_qian else text
+        if has_zhi:
+            work = _ZHI_TONE_RE.sub(_keep_zhi, work)
+        return zh_convert(work, "zh-cn").replace(_KEEP_QIAN, "乾").replace(_KEEP_ZHI, "徵")
+    except Exception:
+        pass
+    return text
+
+
 def display_text(value):
     text = clean_text(value)
     for old, new in DISPLAY_REPLACEMENTS.items():
         text = text.replace(old, new)
-    if zh_convert:
-        try:
-            text = zh_convert(text, "zh-cn")
-        except Exception:
-            pass
-    return text.replace("None", "无")
+    return simplify_text(text).replace("None", "无")
 
 
 def format_value(value):
@@ -435,6 +498,24 @@ def timezone_to_float(value, default=8.0):
         h, m = text.split(":", 1)
         return sign * (to_float(h, default) + to_float(m, 0) / 60.0)
     return sign * to_float(text, default)
+
+
+def format_timezone_label(value, default=8.0):
+    """时区的显示文本:一律「UTC±HH:MM」。
+
+    只管显示,不参与计算。历史盘的地方平时(如 +00:53)、半点 / 三刻时区(+05:30、+05:45)
+    换算成小时是无限小数,原样拼进界面就是一长串数字;四舍五入到一位小数又会把 +00:53 写成 +0.9。
+    """
+    hours = timezone_to_float(value, default)
+    try:
+        hours = float(hours)
+    except Exception:
+        hours = float(default)
+    if hours != hours or hours in (float("inf"), float("-inf")):
+        hours = float(default)
+    total = int(round(abs(hours) * 60))
+    sign = "-" if (hours < 0 and total > 0) else "+"
+    return f"UTC{sign}{total // 60:02d}:{total % 60:02d}"
 
 
 def coord_to_float(value, default=0.0):

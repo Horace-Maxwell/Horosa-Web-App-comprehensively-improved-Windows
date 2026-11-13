@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
-index 3bb7a86d..babd1137 100644
+index a67ebcad..a52a19e9 100644
 --- a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 @@ -28,22 +28,49 @@ const EXEMPT = [
@@ -97,7 +97,7 @@ index 3bb7a86d..babd1137 100644
  	});
  	return files;
  }
-@@ -230,8 +262,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
+@@ -237,8 +269,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
  	});
  
  	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {

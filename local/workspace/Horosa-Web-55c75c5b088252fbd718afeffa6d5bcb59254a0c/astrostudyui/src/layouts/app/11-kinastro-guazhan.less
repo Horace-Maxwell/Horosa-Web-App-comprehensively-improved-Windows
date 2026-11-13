@@ -2,7 +2,7 @@
 // 由 layouts/app.less 在它的 `:global { … }` 里按原顺序 @import:本文件的规则全在 :global 作用域内(不要再包一层 :global)。
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-grid.has-technique-rail {
-        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(86px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(96px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-huangji-redesign-layout {
@@ -168,44 +168,64 @@
         width: 100%;
     }
 
+    /* 技法导轨(命 · 其他 / 数算 / 东亚 / 诸方):与全站右侧竖页签(xq-tabs-rail)同一副样子——
+       贴右一条细线分隔、无盒边;项 = 居中文字 + 透明占位边,选中 = 浅金底 + 金边 + 右缘金条。 */
     .horosa-workspace-shell .horosa-kinastro-technique-rail {
         display: flex;
         min-height: 0;
         flex-direction: column;
-        gap: 8px;
-        padding: 12px;
-        border: 1px solid var(--horosa-astro-line);
-        border-radius: 7px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%), var(--horosa-astro-panel);
+        gap: 0;
+        box-sizing: border-box;
+        padding: 10px 5px;
+        border: 0;
+        border-left: 1px solid rgba(215, 173, 105, 0.18);
+        border-radius: 0;
+        background: #090b0e;
         overflow-y: auto;
     }
 
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-kinastro-technique-rail {
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.72)), var(--horosa-astro-panel);
+        border-left-color: var(--horosa-border);
+        background: var(--horosa-surface-raised);
     }
 
-    /* 纵向导轨的子项不许被压:导轨被工作区下限压矮时 flex-shrink 会把钮缩回 min-height,两三行的技法名越出钮框压到下一个钮上
-       (导轨自身 overflow-y:auto,放不下就滚) */
+    /* 纵向导轨的子项不许被压:按钮的 flex-shrink 默认 1、min-height 又不是 flex 下限,项数多 / 缩放放大时会被压扁,
+       文字溢出按钮盒叠到相邻项上(导轨自身 overflow-y:auto,放不下就滚) */
     .horosa-workspace-shell .horosa-kinastro-technique-rail button {
         flex: 0 0 auto;
+        box-sizing: border-box;
         width: 100%;
-        min-height: 38px;
-        border: 1px solid var(--horosa-huangji-line);
+        min-height: 34px;
+        margin: 2px 0;
+        padding: 0 4px;
+        border: 1px solid transparent;
         border-radius: 7px;
         background: transparent;
         color: var(--horosa-huangji-muted);
-        font-size: 13px;
-        font-weight: 700;
+        font-size: 14px;
+        font-weight: 650;
+        line-height: 22px;
+        text-align: center;
+        white-space: nowrap;
         cursor: pointer;
-        text-align: left;
-        padding-left: 14px;
+        transition: color var(--horosa-tab-motion) var(--horosa-tab-ease), background var(--horosa-tab-motion) var(--horosa-tab-ease), border-color var(--horosa-tab-motion) var(--horosa-tab-ease);
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-technique-rail button:hover {
+        color: var(--horosa-tab-hover-text);
+        background: var(--horosa-tab-hover-bg);
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-technique-rail button:focus-visible {
+        outline: 2px solid var(--horosa-tab-focus-ring);
+        outline-offset: -2px;
     }
 
     .horosa-workspace-shell .horosa-kinastro-technique-rail button.is-active {
-        border-color: rgba(242, 207, 145, 0.76);
-        background: rgba(215, 173, 105, 0.14);
-        color: var(--horosa-huangji-accent-strong);
-        box-shadow: inset 3px 0 0 var(--horosa-huangji-accent);
+        border-color: rgba(231, 189, 117, 0.42);
+        background: rgba(231, 189, 117, 0.10);
+        color: var(--horosa-tab-active-text);
+        box-shadow: inset -3px 0 0 #e7bd75;
     }
 
     .horosa-workspace-shell .horosa-kinastro-muted-note {
@@ -874,9 +894,7 @@
         font-weight: 720;
     }
 
-    .horosa-workspace-shell .horosa-kinastro-quick-actions {
-        grid-template-columns: repeat(9, minmax(64px, 1fr));
-    }
+    /* 快捷栏按实际动作数铺满整行(基础规则的自动列);原先写死 9 列,动作不足 9 个时右侧留空 */
 
     @media (max-width: 1180px) {
         .horosa-workspace-shell .horosa-wuzhao-meta-grid,
@@ -952,12 +970,20 @@
         .horosa-workspace-shell .horosa-kinastro-technique-rail {
             min-height: auto;
             flex-direction: row;
+            gap: 4px;
+            border-left: 0;
             overflow-x: auto;
             overflow-y: hidden;
         }
 
         .horosa-workspace-shell .horosa-kinastro-technique-rail button {
+            width: auto;
             min-width: 110px;
+            margin: 0;
+        }
+
+        .horosa-workspace-shell .horosa-kinastro-technique-rail button.is-active {
+            box-shadow: inset 0 -3px 0 #e7bd75;
         }
 
         .horosa-workspace-shell .horosa-kinastro-board {
@@ -1275,8 +1301,8 @@
         border-color: rgba(184, 134, 11, 0.3);
         border-top-color: var(--horosa-accent, #b6852f);
     }
-    @keyframes horosa-updating-spin { to { transform: rotate(360deg); } }
-    @keyframes horosa-updating-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 0.96; transform: translateY(0); } }
+    @keyframes ~":global(horosa-updating-spin)" { to { transform: rotate(360deg); } }
+    @keyframes ~":global(horosa-updating-in)" { from { opacity: 0; transform: translateY(-4px); } to { opacity: 0.96; transform: translateY(0); } }
 
     /* [L·摇卦录入重排] 每种起卦法一个 method 块:金标题分隔 + 行内输入对齐 + 逐掷选中态描金。 */
     .horosa-workspace-shell .horosa-castpad-method {
@@ -1755,8 +1781,9 @@
         .horosa-suzhan-redesign,
         .horosa-guolao-redesign
     ) .ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
-        height: auto !important;
+        height: 36px !important;
         min-height: 36px !important;
+        align-items: center;
         padding-right: 22px !important;
         overflow: hidden;
     }
@@ -1777,11 +1804,18 @@
         .horosa-suzhan-redesign,
         .horosa-guolao-redesign
     ) .ant-select-single .ant-select-selector :is(.ant-select-selection-item, .ant-select-selection-placeholder) {
-        display: flex;
-        align-items: center;
+        /* 选中项最多折两行:两行 13px × 1.28 ≈ 33px,正好落在 36px 的框里,所以框高恒定、不被长选项撑大;
+           再长的截断加省略号(悬停看全文,下拉里是全文)。 */
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        align-self: center;
+        flex: 1 1 auto;
         min-width: 0;
         max-width: 100%;
-        min-height: 34px;
+        /* 高度随行数走(一行就一行高),由 align-self 在框里垂直居中;别处有条规则给了 height:100%,这里显式收回 */
+        height: auto;
+        max-height: 2.56em;
         padding-right: 0;
         overflow: hidden;
         color: inherit;

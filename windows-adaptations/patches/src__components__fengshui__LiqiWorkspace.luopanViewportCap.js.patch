@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/fengshui/LiqiWorkspace.js b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
-index 65831fb7..358152a7 100644
+index b53a35b8..cc52cdda 100644
 --- a/astrostudyui/src/components/fengshui/LiqiWorkspace.js
 +++ b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
-@@ -2,6 +2,7 @@
- // 与户型图两法(canvas)互斥;选纯前端流派时由 FengShuiMain 渲染本组件。
- import React, { useEffect, useMemo, useRef, useState } from 'react';
- import { XQSelect, XQSegmented } from '../xq-ui';
+@@ -5,6 +5,7 @@ import { XQSelect, XQSegmented, XQInputNumber } from '../xq-ui';
+ import { XQCurrentMark } from '../xq-icons';
+ import CompactTimeField from '../comp/CompactTimeField';
+ import DateTime from '../comp/DateTime';
 +import { getLayoutViewportHeight } from '../../utils/shellZoom';   // horosa_luopan_dial_viewport_cap_v1:罗盘直径按可视高度封顶
  import LuoshuGrid from './charts/LuoshuGrid';
  import TwentyFourShanRing from './charts/TwentyFourShanRing';
  import EightPalaceDisk from './charts/EightPalaceDisk';
-@@ -625,9 +626,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
+@@ -652,9 +653,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
  		}
  		if (school === 'zeri') { return renderZeriChart(); }
  		if (school === 'luopan') {

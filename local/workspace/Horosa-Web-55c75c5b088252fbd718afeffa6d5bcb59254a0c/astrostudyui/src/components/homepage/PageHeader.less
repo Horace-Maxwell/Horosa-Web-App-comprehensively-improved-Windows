@@ -197,56 +197,29 @@
   white-space: nowrap;
 }
 
+// 设置弹窗正文:组卡之间的间距由 horosa-setting-body 给(与星盘设置抽屉同一副骨架),这里只留作用域钩子。
 .aiSettingModal {
-  display: grid;
-  gap: 16px;
+  min-width: 0;
 }
 
-.aiSettingActions {
-  justify-content: flex-end;
-  padding-bottom: 2px;
-}
-
+// 导出分段的勾选区:段多的技法在组内自己滚,弹窗高度稳定、底部「保存设置」始终够得着。
 .aiSettingChecks {
-  max-height: 260px;
+  max-height: 300px;
   overflow: auto;
-  padding-right: 3px;
+  padding-top: 4px;
+  border-top: 1px solid var(--horosa-border);
 }
 
-// [YE] 厚技法(印占/三式)导出分段的两级分组小标题:暗为基色 + light 覆写(左栏新控件暗黑先例)。
-.aiSettingGroupTitle {
-  margin: 8px 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--horosa-text-soft);
-  border-left: 3px solid var(--horosa-accent);
-  padding-left: 8px;
-  line-height: 1.5;
-}
-
-// v2.2.1 偏好设置·说明卡:左侧强调条 + 柔和底,排版更像成熟桌面端。
-.aiSettingEmpty {
-  min-height: 40px;
-  padding: 11px 13px 11px 14px;
-  border: 1px solid var(--horosa-border);
-  border-left: 3px solid var(--horosa-accent);
-  border-radius: 9px;
-  background: var(--horosa-panel-soft);
-  color: var(--horosa-text-soft);
+// 数值框旁的单位字(段 / 前)。
+.settingUnit {
+  color: var(--horosa-muted);
   font-size: 12.5px;
-  line-height: 1.62;
-  letter-spacing: 0.1px;
+  white-space: nowrap;
 }
 
 .aiSettingFooter {
   justify-content: flex-end;
   gap: 8px;
-}
-
-// v2.2.1 偏好设置·分组:每组「段标题 + 控件 + 说明」更清晰。
-.settingsGroup {
-  display: grid;
-  gap: 9px;
 }
 
 // 关于弹窗

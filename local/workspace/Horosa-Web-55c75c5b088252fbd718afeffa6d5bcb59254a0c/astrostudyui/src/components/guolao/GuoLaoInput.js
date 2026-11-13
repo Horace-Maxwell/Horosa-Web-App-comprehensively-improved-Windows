@@ -16,6 +16,7 @@ import { MOIRA_PLANET_DEFS, MOIRA_ASPECT_DEFS, MOIRA_BIRTH_GOD_ORDER, MOIRA_TRAN
 import { parseMagneticDms, formatMagneticDms } from './electionGeomag';
 import GuoLaoStarSectDoc from './GuoLaoStarSectDoc';
 import { guolaoPlanetaryHourMethod } from './main/params';
+import { GUOLAO_ASC_SETTINGS, ASC_RA_MODE_OPTIONS, normalizeAscRaMode } from '../../utils/ascRaMode';
 
 // 恒星岁差下拉:盘上空档、按本机记住的那档起盘时,如实显示「随本机（档名）」(此前直接显示那档的名字,看不出是空档跟本机)
 export const GUOLAO_AYAN_FOLLOW_LOCAL = '__follow_local__';
@@ -32,6 +33,7 @@ function guolaoAyanamsaLabel(v){
 import XQIcon from '../xq-icons';
 import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, resolveGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_DEFAULT_SU28_MODE, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
 import { SU28_MODE_GROUPS, TUIBIAN_METHOD_OPTIONS, GUFA_PRECESS_OPTIONS, EQ_TROPICAL_ANCHOR_OPTIONS, TRUE_SOLAR_TIME_OPTIONS, NODE_TYPE_OPTIONS, LILITH_TYPE_OPTIONS, BODY_MODE_OPTIONS, LIFE_MODE_OPTIONS, LIFE_MASTER_MODE_OPTIONS, MINOR_LIMIT_TYPE_OPTIONS, TONGXIAN_BASE_OPTIONS, SCHOOL_PRESET_OPTIONS, LIFE_CUSTOM_ZHI_OPTIONS, BODY_CUSTOM_ZHI_OPTIONS, HSYS_OPTIONS } from './guolaoData';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 // 古宿岁差(用制 6)显示取值单源:字段值存在(含 0 / '0')即为权威,只有缺省才回落全局仓。
 export function gufaPrecessDisplayValue(fields){
@@ -43,6 +45,9 @@ export function gufaPrecessDisplayValue(fields){
 
 const {Option, OptGroup} = Select;
 
+// 赤仪(按赤经置宿)的宿度制取值:与宿度制下拉同源(SU28_MODE_GROUPS 的「赤仪」组)
+const GUOLAO_EQUATORIAL_SU28_MODES = ((SU28_MODE_GROUPS.find((g)=>`${g.header}`.indexOf('赤仪') === 0) || {}).options || []).map((o)=>Number(o.value));
+
 class GuoLaoInput extends Component{
 	
 	constructor(props) {
@@ -50,7 +55,10 @@ class GuoLaoInput extends Component{
 
 		this.state = {
 			displayFilterOpen: false,
+			// 赤仪上升取法:上次亲手选的,没存过 = 改进(真赤经)
+			ascRaMode: normalizeAscRaMode(GUOLAO_ASC_SETTINGS.load().ascRaMode),
 		};
+		this.onAscRaModeChange = this.onAscRaModeChange.bind(this);
 
         this.tmHook = {
             getValue: null,
@@ -163,6 +171,14 @@ class GuoLaoInput extends Component{
 	// 否则择日里的工作口径会变成七政页 / 宿占页的偏好(新盘播种、空岁差字段读仓都会带上)。缺省 = 写(主页零回归)。
 	persistsPrefs(){
 		return this.props.persistPrefs !== false;
+	}
+
+	onAscRaModeChange(val){
+		const mode = normalizeAscRaMode(val);
+		// 只有七政主页显示这个下拉;防御起见择日内嵌实例也不落盘
+		if(this.persistsPrefs()){ GUOLAO_ASC_SETTINGS.save({ ascRaMode: mode }); }
+		this.setState({ ascRaMode: mode });
+		if(this.props.onAscRaModeChange){ this.props.onAscRaModeChange(mode); }
 	}
 
 	onChartShapeChange(val){
@@ -663,26 +679,11 @@ class GuoLaoInput extends Component{
 						</label>
 						{kinTransitMode === 'custom' ? (
 						<>
-							<label className="horosa-guolao-select-field">
-								<span>流时日期</span>
-								<input
-									className="horosa-guolao-mini-input"
-									type="date"
-									value={kinTransitDate}
-									onChange={(event)=>this.onKinastroOptionChange('transitDate', event.currentTarget.value)}
-									onInput={(event)=>this.onKinastroOptionChange('transitDate', event.currentTarget.value)}
-								/>
-							</label>
-							<label className="horosa-guolao-select-field">
-								<span>流时时间</span>
-								<input
-									className="horosa-guolao-mini-input"
-									type="time"
-									value={kinTransitTime}
-									onChange={(event)=>this.onKinastroOptionChange('transitTime', event.currentTarget.value)}
-									onInput={(event)=>this.onKinastroOptionChange('transitTime', event.currentTarget.value)}
-								/>
-							</label>
+							<div className="horosa-guolao-select-field">
+								<span>流时日期时间</span>
+								<IsoDateTimeField date={kinTransitDate} time={kinTransitTime} placeholder="未设"
+									onChange={(v)=>this.onKinastroOptionChange({ transitDate: v.date, transitTime: v.time })} />
+							</div>
 						</>
 						) : null}
 						<label className="horosa-guolao-select-field">
@@ -696,16 +697,11 @@ class GuoLaoInput extends Component{
 								onChange={(event)=>this.onKinastroOptionChange('currentYear', event.currentTarget.value)}
 							/>
 						</label>
-						<label className="horosa-guolao-select-field">
+						<div className="horosa-guolao-select-field">
 							<span>择日起日</span>
-							<input
-								className="horosa-guolao-mini-input"
-								type="date"
-								value={kinElectionalStartDate}
-								onChange={(event)=>this.onKinastroOptionChange('electionalStartDate', event.currentTarget.value)}
-								onInput={(event)=>this.onKinastroOptionChange('electionalStartDate', event.currentTarget.value)}
-							/>
-						</label>
+							<IsoDateTimeField showTime={false} date={kinElectionalStartDate} placeholder="空 = 出生日"
+								onChange={(v)=>this.onKinastroOptionChange('electionalStartDate', v.date)} />
+						</div>
 						<label className="horosa-guolao-select-field">
 							<span>择日用途</span>
 							<Select value={kinElectionalCriteria} onChange={(val)=>this.onKinastroOptionChange('electionalCriteria', val)} size='small' dropdownMatchSelectWidth={false}>
@@ -771,6 +767,15 @@ class GuoLaoInput extends Component{
 								))}
 							</Select>
 						</label>
+						{/* 上升取法只在赤仪(按赤经置宿)时起作用:黄仪各环取黄经,不读上升赤经。择日内嵌的七政盘跟随七政页的设置,不显示 */}
+						{GUOLAO_EQUATORIAL_SU28_MODES.indexOf(Number(fields.doubingSu28.value)) >= 0 && this.persistsPrefs() ? (
+							<label className="horosa-guolao-select-field" title="上升取法:改进 = 上升点真赤经,与行星、宫头同一坐标;经典 = 旧版取的东点黄经">
+								<span>上升取法</span>
+								<Select value={this.state.ascRaMode} onChange={this.onAscRaModeChange} size='small' dropdownMatchSelectWidth={false}>
+									{ASC_RA_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+								</Select>
+							</label>
+						) : null}
 						<label className="horosa-guolao-select-field">
 							<span>命度</span>
 							<Select value={lifeMode} onChange={this.onLifeModeChange} size='small' dropdownMatchSelectWidth={false}>
@@ -837,8 +842,8 @@ class GuoLaoInput extends Component{
 							? '行星时制式是「日出起算 · 等长时」:出生与日出同加太阳时偏移、差值不变,真太阳时 / 平太阳时 / 钟表时三档结果相同,故置灰;到星盘设置把「行星时制式」改成昼夜不等时或廿四时等分后,这一项才生效'
 							: '按星盘设置里的「行星时制式」取行星时;太阳时校正改变出生所落的时,三档结果会不同'}>
 							<span>报时星</span>
-							<Select value={(fields.guolaoTrueSolarTime && fields.guolaoTrueSolarTime.value) || getStoredGuolaoTrueSolarTime()} onChange={this.onTrueSolarTimeChange} size='small' dropdownMatchSelectWidth={false} disabled={guolaoPlanetaryHourMethod(fields) === 'sunrise'}>
-								{TRUE_SOLAR_TIME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+							<Select value={(fields.guolaoTrueSolarTime && fields.guolaoTrueSolarTime.value) || getStoredGuolaoTrueSolarTime()} optionLabelProp="label" onChange={this.onTrueSolarTimeChange} size='small' dropdownMatchSelectWidth={false} disabled={guolaoPlanetaryHourMethod(fields) === 'sunrise'}>
+								{TRUE_SOLAR_TIME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
@@ -890,10 +895,10 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>大限年界</span>
-							<Select value={display.limitYearBoundary || 'gregorian'} onChange={(v)=>this.onGuolaoDisplaySelect('limitYearBoundary', v)} size='small' dropdownMatchSelectWidth={false}>
-								<Option value="gregorian">公历元旦(Moira默认)</Option>
-								<Option value="lichun">立春起</Option>
-								<Option value="dongzhi">冬至起</Option>
+							<Select value={display.limitYearBoundary || 'gregorian'} optionLabelProp="label" onChange={(v)=>this.onGuolaoDisplaySelect('limitYearBoundary', v)} size='small' dropdownMatchSelectWidth={false}>
+								<Option value="gregorian" label="公历元旦(默认)">公历元旦(Moira默认)</Option>
+								<Option value="lichun" label="立春起">立春起</Option>
+								<Option value="dongzhi" label="冬至起">冬至起</Option>
 							</Select>
 						</label>
 						<label className="horosa-guolao-select-field">
@@ -901,10 +906,10 @@ class GuoLaoInput extends Component{
 							{/* 「自定」不是一个可套用的档,而是「当前开关组合不等于任何预设」的状态显示:
 							    此前它照常出现在列表里、点了却什么都不发生(onChange 直接忽略)。改为置灰只读 + title 说明,
 							    并给整个下拉一个「怎么回到自定」的提示(逐项微调即回落)。 */}
-							<Select value={this.schoolPresetValue()} onChange={(v)=>{ if(v !== 'custom'){ this.onSchoolPresetChange(v); } }} size='small' dropdownMatchSelectWidth={false}
+							<Select value={this.schoolPresetValue()} optionLabelProp="label" onChange={(v)=>{ if(v !== 'custom'){ this.onSchoolPresetChange(v); } }} size='small' dropdownMatchSelectWidth={false}
 								title="选一派=一键套该派开关组合;「自定」是状态显示(当前组合不合任何一派),不能直接选——微调下方任一相关开关即回落自定">
 								{SCHOOL_PRESET_OPTIONS.map((o)=>(
-									<Option key={o.value} value={o.value} disabled={o.value === 'custom'}
+									<Option key={o.value} value={o.value} disabled={o.value === 'custom'} label={o.value === 'custom' ? '自定' : o.label}
 										title={o.value === 'custom' ? '状态显示:当前开关组合不等于任何预设;微调任一相关开关即回此态' : undefined}>
 										{o.value === 'custom' ? '自定（当前组合，非预设）' : o.label}
 									</Option>

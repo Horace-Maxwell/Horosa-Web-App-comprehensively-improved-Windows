@@ -365,6 +365,10 @@ def getChartObjects(chart):
     return objs
 
 
+# 太阳返照按「所选年份的生日」求根时,种子往前退的天数(见 getSolarReturnByDate)
+SR_SEED_BACK_DAYS = 2.0
+
+
 def dateSolarReturn(datetime, lon, zodiacal=const.TROPICAL):
     flags = swe.SEDEFAULT_FLAG
     if zodiacal == const.SIDEREAL:
@@ -448,9 +452,60 @@ class PerPredict:
             res.append(asp)
         return res
 
+    # —— 南半球读法 × 主限法 / 界推运 ——
+    def _pdLabelTurn(self):
+        """本盘的星座标签相对真黄经转了多少度:普通盘 0;南半球读法的盘换回真黄经来算时是 180(见 _pdTrue)。"""
+        return float(getattr(self.perchart, 'pdLabelTurn', 0.0) or 0.0)
+
+    def _pdTrue(self):
+        """主限法与界推运算的是天球上的弧,只认真位置。南半球读法把全盘黄经整体 +180°(只换星座标签,天上的位置没动);
+        直接拿标签黄经去换赤道坐标、配真实的天顶赤经与地理纬度,算出来的是另一片天。
+        这里换回真黄经的盘(同一份请求,去掉南半球读法)再算,返回那张盘上的 PerPredict;普通盘返回 None,原路照走。
+        与星座标签有关的只有界:界点仍按标签星座取,落在真黄经 = 标签黄经 − 180°(_pdTermBoundaries 等处认 pdLabelTurn)。
+        相位点、映点对整体转 180° 是协变的,不用另管。"""
+        if hasattr(self, '_pdTrueCache'):
+            return self._pdTrueCache
+        twin = None
+        chart = getattr(self.perchart, 'chart', None)
+        data = getattr(self.perchart, 'data', None)
+        if getattr(chart, 'halfTurned', False) and isinstance(data, dict):
+            tdata = copy.deepcopy(data)
+            tdata['southchart'] = False
+            pc = self.perchart.__class__(tdata)
+            pc.pdLabelTurn = 180.0
+            pc.chart.labelTurn = 180.0
+            twin = PerPredict(pc)
+        self._pdTrueCache = twin
+        return twin
+
+    def _pdTermBoundaries(self):
+        """界点表 [(界主, 星座序, 黄经)]:界系随盘。南半球读法换回真黄经算时,界按标签星座取 ——
+        标签黄经 L 的界点在真黄经 L − 180°(界主与星座名不变)。普通盘原表直出。"""
+        from astrostudy import pd_engine as _pde
+        rows = _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0))
+        turn = self._pdLabelTurn()
+        if not turn:
+            return rows
+        return sorted(((r, sg, (float(lon) - turn) % 360.0) for r, sg, lon in rows), key=lambda t: t[2])
+
+    def _pdRelabel(self, payload):
+        """真黄经盘上算出的点 → 标签黄经(+ pdLabelTurn);赤经赤纬是天上的真值,不动。"""
+        turn = self._pdLabelTurn()
+        if not turn or not isinstance(payload, dict) or payload.get('lon') is None:
+            return payload
+        value = (float(payload['lon']) + turn) % 360.0
+        payload['lon'] = value
+        payload['sign'] = const.LIST_SIGNS[int(value / 30.0) % 12]
+        payload['signlon'] = value % 30.0
+        return payload
+
     def getTermDirection(self, clockwise):
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getTermDirection(clockwise)
         chart = self.perchart.getChart()
-        td = TermDirection(chart, clockwise, terms_variant=getattr(self.perchart, 'termsVariant', 0))
+        td = TermDirection(chart, clockwise, terms_variant=getattr(self.perchart, 'termsVariant', 0),
+                           label_turn=self._pdLabelTurn())
         tdlist = td.getList(self.perchart.pdaspects)
         self.appendDateStr(tdlist, False)
         return tdlist
@@ -462,6 +517,13 @@ class PerPredict:
         与伙伴星期 partners。"""
         from astrostudy import distributions as _dist
         from astrostudy.astroextra_parts.common import date_time_from_jd
+        _t = self._pdTrue()
+        if _t is not None:
+            # 南半球读法:路程与上升时间按真黄经算,界按标签星座取;回显的黄经换回标签
+            res = _t.getDistributions()
+            self._distSettings, self._distPartners = _t.getDistributionsMeta()
+            return res
+        turn = self._pdLabelTurn()
         data = self.perchart.data if isinstance(getattr(self.perchart, 'data', None), dict) else {}
         st = _dist.normalize(data)
         chart = self.perchart.getChart()
@@ -473,7 +535,8 @@ class PerPredict:
             partners.append((pid, float(chart.get(pid).lon)))
         phi = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
         eps = float(swisseph.calc_ut(chart.date.jd, swisseph.ECL_NUT)[0][1])   # 当日平黄赤交角
-        dists, periods = _dist.compute(start_lon, partners, st, phi, eps, getattr(self.perchart, 'termsVariant', 0))
+        dists, periods = _dist.compute(start_lon, partners, st, phi, eps, getattr(self.perchart, 'termsVariant', 0),
+                                       label_turn=turn)
         jd0 = float(chart.date.jd)
         zone = getattr(self.perchart, 'zone', '+00:00')
         year_days = _dist.YEAR_DAYS[st['distYear']]
@@ -485,7 +548,7 @@ class PerPredict:
         partner_rows = []
         for p in periods:
             partner_rows.append({
-                'planet': p['planet'], 'aspect': p['aspect'], 'side': p['side'], 'lon': round(p['lon'], 4),
+                'planet': p['planet'], 'aspect': p['aspect'], 'side': p['side'], 'lon': round((p['lon'] + turn) % 360.0, 4),
                 'startYears': round(p['y0'], 4), 'years': round(p['y1'] - p['y0'], 4),
                 'startDate': stamp(p['y0']), 'endDate': stamp(p['y1']),
             })
@@ -500,7 +563,7 @@ class PerPredict:
                 'participants': [p['planet'] for p in inside],
                 'partnerDetail': [{'planet': p['planet'], 'aspect': p['aspect'], 'side': p['side']} for p in inside],
             })
-        self._distSettings = dict(st, releaserLon=round(start_lon, 4))
+        self._distSettings = dict(st, releaserLon=round((start_lon + turn) % 360.0, 4))
         self._distPartners = partner_rows
         return res
 
@@ -537,6 +600,9 @@ class PerPredict:
     def getPrimaryDirection(self):
         # 框架维:aspect=相位主限(默认,零回归)/bounds=界行(ASC×界分界线)/
         # release=释放(S=hyleg 自动定,P=anareta;强制免责,不出寿命年数)。
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getPrimaryDirection()
         framework = getattr(self.perchart, 'pdFramework', 'aspect') or 'aspect'
         if framework == 'release':
             return self.getPrimaryDirectionRelease()
@@ -761,6 +827,9 @@ class PerPredict:
         """Pole 高级输出:当前 S 集逐应星极点(随 resolved projection)。
         行 shape 5 元锁死不扩 → 独立元信息,前端 Pole 列按应星 join。"""
         from astrostudy import pd_engine
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getPdPoles()
         proj, _frame = self._pdResolveProjectionFrame()
         chart = self.perchart.getChart()
         geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
@@ -809,7 +878,11 @@ class PerPredict:
     def getPdReleaseInfo(self):
         """释放框架元信息(前端右栏/AI 快照用):hyleg 选定轨迹 + 免责。"""
         from astrostudy import pd_release
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getPdReleaseInfo()
         sel, proms, chart = self._pdReleaseContext()
+        turn = self._pdLabelTurn()
         alcocoden = None
         hyleg = sel.get('hyleg')
         if hyleg:
@@ -817,7 +890,11 @@ class PerPredict:
                 from astrostudy.astroextra import DIGNITY_SCORES
                 from flatlib.dignities import essential
                 ho = chart.get(hyleg['name']) if hyleg['name'] != 'Syzygy' else None
-                if ho is not None:
+                if turn:
+                    # 南半球读法:选定走的是真位置与真宫位,尊贵(界主 / 庙旺 / 三分 / 外观)按标签星座取
+                    _lab = (float(hyleg['lon']) + turn) % 360.0
+                    h_sign, h_signlon = const.LIST_SIGNS[int(_lab // 30) % 12], _lab % 30.0
+                elif ho is not None:
                     h_sign, h_signlon = ho.sign, float(ho.signlon)
                 else:
                     h_sign = const.LIST_SIGNS[int(float(hyleg['lon']) // 30) % 12]
@@ -833,6 +910,12 @@ class PerPredict:
                     essential.getInfo(h_sign, h_signlon), DIGNITY_SCORES)
             except Exception:
                 alcocoden = None
+        if turn:
+            # 回显的黄经换回标签(与盘面读数一致)
+            if hyleg and hyleg.get('lon') is not None:
+                hyleg = dict(hyleg, lon=(float(hyleg['lon']) + turn) % 360.0)
+            sel = dict(sel, candidates=[dict(c, lon=round((float(c['lon']) + turn) % 360.0, 4)) if c.get('lon') is not None else c
+                                        for c in (sel.get('candidates') or [])])
         return {
             'hyleg': hyleg,
             'candidates': sel.get('candidates'),
@@ -901,7 +984,7 @@ class PerPredict:
         armc = float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][2])
         max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
         pdlist = []
-        for ruler, sgn_idx, lon in pd_engine.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+        for ruler, sgn_idx, lon in self._pdTermBoundaries():
             prom_pt = {'lon': float(lon), 'lat': 0.0}
             arc = pd_engine.arc_to_angle(prom_pt, armc, geo_lat, eps, 'ASC', zodiacal=True)
             if arc is None or abs(arc) < 1e-9 or abs(arc) > max_arc:
@@ -934,6 +1017,9 @@ class PerPredict:
         # frame 只进盘面宫始点(_pdChartHouseSystem),二者正交。
         # 任何未知组合一律回落 ptolemy → getPrimaryDirectionByZCoreKernel,
         # 护住默认 Alcabitius+Ptolemy 路径字节级一致。
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getPrimaryDirectionByZ()
         proj, _frame = self._pdResolveProjectionFrame()
         handler_name = _PD_PROJECTION_REGISTRY.get(proj) or _PD_PROJECTION_REGISTRY['ptolemy']
         handler = getattr(self, handler_name)
@@ -1044,7 +1130,7 @@ class PerPredict:
                 include_terms=include_terms,
                 include_parallels=include_parallels, include_rapt=include_rapt,
                 terms_variant=getattr(self.perchart, 'termsVariant', 0),
-                sig_bodies=sig_bodies)
+                sig_bodies=sig_bodies, term_label_turn=self._pdLabelTurn())
 
         rows = []
         if want_direct:
@@ -1344,7 +1430,7 @@ class PerPredict:
             for fn, pre in mirror_specs:
                 extra.append({'id': '{0}_{1}_0'.format(pre, bn), 'lon': angle.norm(fn(float(bl))), 'lat': 0.0})
         if want_terms:
-            for ruler, sign, tlon in _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+            for ruler, sign, tlon in self._pdTermBoundaries():
                 rname = _pde.TERM_RULER_FULL.get(ruler, ruler)
                 sname = _pde.TERM_SIGN_NAMES[int(sign) % 12]
                 extra.append({'id': 'T_{0}_{1}'.format(rname, sname), 'lon': angle.norm(float(tlon)), 'lat': 0.0})
@@ -1852,6 +1938,41 @@ class PerPredict:
 
     def getPrimaryDirectionChartByDate(self, datetime_text, zone=None, converse=False):
         zone = zone if zone is not None else self.perchart.zone
+        _t = self._pdTrue()
+        if _t is not None:
+            # 南半球读法:搬点在真黄经的盘上做,搬完把黄经换回标签;各点的本命标注(落座尊贵等)仍取本盘(标签)上的
+            res = _t.getPrimaryDirectionChartByDate(datetime_text, zone, converse)
+            if not isinstance(res, dict) or 'chart' not in res:
+                return res
+            chart = self.perchart.getChart()
+
+            def _base(items):
+                out = {}
+                for o in items:
+                    pl = self._pdChartClonePayload(o)
+                    out.setdefault(pl.get('id'), pl)
+                return out
+
+            def _merge(items, base):
+                merged = []
+                for it in items:
+                    _t._pdRelabel(it)
+                    b = base.get(it.get('id')) if base else None
+                    if b is not None:
+                        b = dict(b)
+                        for k in ('lon', 'lat', 'ra', 'decl', 'sign', 'signlon'):
+                            if k in it:
+                                b[k] = it[k]
+                        it = b
+                    merged.append(it)
+                merged.sort(key=lambda item: float(item.get('lon', 0.0)))
+                return merged
+
+            res['chart']['objects'] = _merge(res['chart'].get('objects') or [], _base(self.perchart.getChartObj()['objects']))
+            res['chart']['houses'] = _merge(res['chart'].get('houses') or [], None)
+            res['lots'] = _merge(res.get('lots') or [], _base(self.perchart.getPars(chart)))
+            res['chart']['isDiurnal'] = self.perchart.isDiurnal
+            return res
         parts = '{0}'.format(datetime_text if datetime_text is not None else '').split(' ')
         if len(parts) == 0 or parts[0] == '':
             return {'err': 'param error'}
@@ -1990,7 +2111,7 @@ class PerPredict:
                         _extra.append({'id': '{0}_{1}_0'.format(_pre, _bn),
                                        'lon': angle.norm(_fn(float(_bl))), 'lat': 0.0})
             if _want_terms:
-                for _ruler, _sign, _tlon in _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+                for _ruler, _sign, _tlon in self._pdTermBoundaries():
                     _rname = _pde.TERM_RULER_FULL.get(_ruler, _ruler)
                     _sname = _pde.TERM_SIGN_NAMES[int(_sign) % 12]
                     _extra.append({'id': 'T_{0}_{1}'.format(_rname, _sname),
@@ -2379,7 +2500,7 @@ class PerPredict:
                         _extra.append({'id': '{0}_{1}_0'.format(_pre, _bn),
                                        'lon': angle.norm(_fn(float(_bl))), 'lat': 0.0})
             if _want_terms:
-                for _ruler, _sign, _tlon in _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+                for _ruler, _sign, _tlon in self._pdTermBoundaries():
                     _rname = _pde.TERM_RULER_FULL.get(_ruler, _ruler)
                     _sname = _pde.TERM_SIGN_NAMES[int(_sign) % 12]
                     _extra.append({'id': 'T_{0}_{1}'.format(_rname, _sname),
@@ -2910,6 +3031,9 @@ class PerPredict:
         # 世俗向运(in mundo)。placidus 等走 pd_engine；core 走纯公式世俗核；legacy 仍走 flatlib 'M'。
         # 分发按 resolved projection;旧 morinus/in_zodiaco_lon/in_zodiaco_abs/horosa_legacy 在
         # 未显式指定 pdProjection 时精确保持 flatlib legacy 'M' 输出(零回归)。
+        _t = self._pdTrue()
+        if _t is not None:
+            return _t.getPrimaryDirectionByM()
         proj, _frame = self._pdResolveProjectionFrame()
         method = getattr(self.perchart, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
         explicit_proj = getattr(self.perchart, 'pdProjection', None) is not None
@@ -3116,6 +3240,9 @@ class PerPredict:
         tm = parts[1] if len(parts) > 1 else '00:00'
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
+        # 页面 / 无头复算的种子是「所选年份 + 生日月日 + 出生时刻」,当年返照常在这个钟面之前几小时(历法与回归年长不齐),
+        # 向后求根就跳到下一年(选 2022 得 2023)。种子退两天:同年返照必在生日前后一天内,退两天够不到上一年(相隔约 363 天)。
+        returnDate = Datetime.fromJD(returnDate.jd - SR_SEED_BACK_DAYS, returnDate.utcoffset)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
         _variant, _latmode = self._srVariantFlags(params)
         if _variant == 'hellenistic':
@@ -3150,6 +3277,9 @@ class PerPredict:
         tm = parts[1] if len(parts) > 1 else '00:00'
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
+        # 页面 / 无头复算的种子是「所选年份 + 生日月日 + 出生时刻」,当年返照常在这个钟面之前几小时(历法与回归年长不齐),
+        # 向后求根就跳到下一年(选 2022 得 2023)。种子退两天:同年返照必在生日前后一天内,退两天够不到上一年(相隔约 363 天)。
+        returnDate = Datetime.fromJD(returnDate.jd - SR_SEED_BACK_DAYS, returnDate.utcoffset)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
         _variant, _latmode = self._srVariantFlags(params)
         if _variant == 'hellenistic':
@@ -3370,7 +3500,7 @@ class PerPredict:
         }
         return obj
 
-    def getPersianDirectedByDate(self, date, rateKey='persian', asporb=1, nodeRetrograde=False, direction='direct', zone=None):
+    def getPersianDirectedByDate(self, date, rateKey='persian', asporb=1, nodeRetrograde=False, direction='direct', zone=None, persianYear='solar'):
         # 波斯向运（Persian Directed）：黄经象征向运,所有行星/点每年 +rate 度,本命宫头不动。
         # direction: direct(默认,逆时针) / converse(反向,顺时针,弧取负)。
         from astrostudy import symbolicdir
@@ -3378,7 +3508,7 @@ class PerPredict:
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
         target = Datetime(dt, tm, zone or self.perchart.zone)   # dirZone
-        ageYears = (target.jd - self.perchart.chart.date.jd) / 365.2421904
+        ageYears = (target.jd - self.perchart.chart.date.jd) / symbolicdir.yearDays(persianYear)
         res = symbolicdir.compute(self.perchart.chart, ageYears, rateKey, asporb, nodeRetrograde, direction)
         objs = res['objects']
         objs.sort(key=takeLon)
@@ -3472,6 +3602,11 @@ class PerPredict:
         planetobj = perchart.chart.getObject(planet)
         planetobj.relocate(newlon)
 
+        # 转过的四轴与挪过的星:赤经赤纬按新黄经重算(与宫头同一个换算);此前留着本命的值,与盘上的黄经对不上
+        for pt, lat in ((asc, 0.0), (mc, 0.0), (desc, 0.0), (ic, 0.0), (planetobj, getattr(planetobj, 'lat', 0.0) or 0.0)):
+            pt.ra, pt.decl = perchart._cuspEquatorial(pt.lon, lat)
+
+        perchart.markRelocated()
         perchart.reinit()
         return perchart
 
@@ -3552,7 +3687,8 @@ class PerPredict:
                     周日圈用 declZ,虚点 lat=0 时两口径相等)。
         换算路径与各自表格引擎逐位同路:pd_engine 族用 pd_engine.ecl_to_eq(内部
         三角式),core 核族用 _coreEqCoords(swisseph.cotrans);legacy(flatlib G)
-        已带赤道坐标 → 原样透传(flatlib 固定黄赤交角口径,与 legacy 表格同源)。"""
+        已带赤道坐标 → 原样透传(flatlib 主限法类按本日真黄赤交角换算、恒星盘先加回岁差,
+        与 legacy 表格同源)。"""
         lon = float(point.get('lon', 0.0))
         lat = float(point.get('lat', 0.0))
         if point.get('ra') is not None and point.get('decl') is not None:
@@ -3628,7 +3764,7 @@ class PerPredict:
                     if pid not in pts:
                         pts[pid] = ({'lon': fn(base['lon']), 'lat': 0.0}, 'antiscia')
         if include_terms:
-            for ruler, sgn_idx, tlon in pd_engine.term_boundaries():
+            for ruler, sgn_idx, tlon in self._pdTermBoundaries():
                 rname = pd_engine.TERM_RULER_FULL.get(ruler, ruler)
                 tsname = pd_engine.TERM_SIGN_NAMES[int(sgn_idx) % 12]
                 pid = 'T_%s_%s' % (rname, tsname)
@@ -3684,7 +3820,7 @@ class PerPredict:
                         promissors.append({'id': '{0}_{1}_0'.format(_pre, _bn),
                                            'lon': angle.norm(_fn(float(_bl))), 'lat': 0.0})
             if _want_terms:
-                for _ruler, _sign, _tlon in _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+                for _ruler, _sign, _tlon in self._pdTermBoundaries():
                     promissors.append({'id': 'T_{0}_{1}'.format(
                                            _pde.TERM_RULER_FULL.get(_ruler, _ruler),
                                            _pde.TERM_SIGN_NAMES[int(_sign) % 12]),
@@ -3754,6 +3890,13 @@ class PerPredict:
         frame  — armc(swisseph houses_ex 的 ascmc[2] 直出,勿用 MC.ra)/
                  phi(地理纬度)/ eps(当日真黄赤交角,展示框架用)/
                  epsMean(引擎内部换算用 mean ε)/ jd / pdMethod / pdTimeKey。"""
+        _t = self._pdTrue()
+        if _t is not None:
+            # 南半球读法:天球上画的是真位置(与表格同一次计算);labelTurn 告诉前端星座标签相对真黄经转了多少度
+            res = _t.getPrimaryDirection3D()
+            if isinstance(res, dict):
+                res['labelTurn'] = _t._pdLabelTurn()
+            return res
         method = getattr(self.perchart, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
         if method not in _PD_METHOD_REGISTRY:
             # 与 getPrimaryDirectionByZ 的 fallback 同口径:未知方法一律按默认核处理。
@@ -3807,7 +3950,9 @@ class PerPredict:
         td_point_map = None
         if pdtype in (2, 3):
             try:
-                td_pts = TermDirection(self.perchart.getChart(), pdtype == 2)
+                td_pts = TermDirection(self.perchart.getChart(), pdtype == 2,
+                                        terms_variant=getattr(self.perchart, 'termsVariant', 0),
+                                        label_turn=self._pdLabelTurn())
                 asp_list = list(getattr(self.perchart, 'pdaspects', None) or [0])
                 elems = (td_pts._elements(td_pts.SIG_OBJECTS, td_pts.N, [0])
                          + td_pts._elements(td_pts.SIG_HOUSES, td_pts.N, [0])

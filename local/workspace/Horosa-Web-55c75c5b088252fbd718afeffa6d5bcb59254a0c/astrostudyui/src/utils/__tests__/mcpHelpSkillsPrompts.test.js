@@ -5,7 +5,7 @@
 import React from 'react';
 import { helpTextOf, helpTitleOf, listHelpTabs, helpElementToText, __resetHelpTextCacheForTests } from '../aiTools/helpText';
 import { TECHNIQUE_HELP_DOCS } from '../../components/help/techniqueHelpRegistry';
-import HelpDocTwoLevel from '../../components/help/HelpDocTwoLevel';
+import HelpBook from '../../components/help/HelpBook';
 import { readResource, listResourceTemplates, listResourcesPage } from '../aiTools/resources';
 import { listPromptsPage, getPrompt, PROMPT_GUIDE_NAME } from '../aiTools/prompts';
 import { completeArgument } from '../aiTools/completions';
@@ -42,16 +42,16 @@ describe('技法操作手册 → 纯文本', ()=>{
 		});
 		const bazi = helpTextOf('bazi');
 		expect(bazi.split('\n')[0]).toContain('八字');
-		expect((bazi.match(/\n## /g) || []).length).toBeGreaterThan(3);   // 多个页签全部展开
+		expect((bazi.match(/\n#{2,3} /g) || []).length).toBeGreaterThan(3);   // 多个页签 / 手册各章全部展开(组 ## · 章 ###)
 		expect(bazi).not.toMatch(/<[a-z]+[ >]/);   // 不残留标签
 	});
-	it('🔴 两层页签的惰性项全部展开(界面只渲染当前项,这里要全文);判别力:一个只在非首项里的字串也在', ()=>{
-		const El = React.createElement(HelpDocTwoLevel, { groups: [
-			{ key: 'g1', label: '甲组', items: [{ key: 'a', label: '甲一', render: ()=>React.createElement('div', null, '首项正文') }, { key: 'b', label: '甲二', render: ()=>React.createElement('div', null, '藏在第二项里') }] },
-			{ key: 'g2', label: '乙组', hint: '乙组提示', items: [{ key: 'c', label: '乙一', content: React.createElement('p', null, '乙组正文') }] },
-		] });
+	it('🔴 手册(HelpBook)的惰性各章全部展开(界面只渲染当前章,这里要全文);判别力:一个只在非首章里的字串也在', ()=>{
+		const El = React.createElement(HelpBook, { book: { title: '测试 · 操作手册', groups: [
+			{ key: 'g1', label: '甲组', chapters: [{ key: 'a', label: '甲一', render: ()=>React.createElement('div', null, '首章正文') }, { key: 'b', label: '甲二', render: ()=>React.createElement('div', null, '藏在第二章里') }] },
+			{ key: 'g2', label: '乙组', hint: '乙组提示', chapters: [{ key: 'c', label: '乙一', render: ()=>React.createElement('p', null, '乙组正文') }] },
+		] } });
 		const t = helpElementToText(El);
-		['甲组', '甲一', '甲二', '首项正文', '藏在第二项里', '乙组', '乙组提示', '乙组正文'].forEach((w)=>expect(t).toContain(w));
+		['测试 · 操作手册', '甲组', '甲一', '甲二', '首章正文', '藏在第二章里', '乙组', '乙组提示', '乙组正文'].forEach((w)=>expect(t).toContain(w));
 	});
 	it('资源:模版含 help / task;读 horosa://help/bazi = 手册全文;未知页签 null;列表里有手册', async ()=>{
 		const tpl = listResourceTemplates().map((x)=>x.uriTemplate);
@@ -136,5 +136,25 @@ describe('run_analysis 三个新参数', ()=>{
 		expect((await runTool('run_analysis', { recordId: A.cid, partnerRecordId: A.cid, question: 'q' }, { origin: 'mcp', headlessDeps: seam(captured) })).code).toBe('E_TECHNIQUE_NOT_ALLOWED');
 		expect((await runTool('run_analysis', { recordId: A.cid }, { origin: 'mcp', headlessDeps: seam(captured) })).code).toBe('E_ARGS_INVALID');
 		expect((await runTool('run_analysis', { recordId: A.cid, skill: 'nope' }, { origin: 'mcp', headlessDeps: seam(captured) })).code).toBe('E_ARGS_INVALID');
+	});
+});
+
+// 帮助部件的纯文本分隔:键值、表格各格、步骤号与正文不黏连(外部 AI 读 horosa://help 时要读得懂)
+describe('帮助纯文本分隔', ()=>{
+	it('键值 = 键:值;表格逐格「 | 」;步骤号后「. 」', ()=>{
+		const React = require('react');
+		global.React = React;
+		const { helpElementToText } = require('../aiTools/helpText');
+		const { kv, Steps, OptionTable } = require('../../components/help/helpDocStyle');
+		const el = React.createElement('div', null,
+			kv('旋转', '按住鼠标左键拖动'),
+			React.createElement(Steps, { items: ['90 天内', '再看表'] }),
+			React.createElement(OptionTable, { rows: [{ name: '宫制', values: 'Placidus / 整宫', def: 'Placidus', effect: '决定宫头' }] }));
+		const t = helpElementToText(el);
+		expect(t).toContain('旋转:按住鼠标左键拖动');
+		expect(t).toContain('1. 90 天内');
+		expect(t).not.toContain('190 天内');
+		expect(t).toContain('选项 | 取值 | 缺省 | 作用 |');
+		expect(t).toContain('宫制 | Placidus / 整宫 | Placidus | 决定宫头 |');
 	});
 });

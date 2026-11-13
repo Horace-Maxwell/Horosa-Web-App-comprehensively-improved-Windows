@@ -13,6 +13,7 @@ import {
 	XQSelect as Select,
 	XQTabs as Tabs,
 	XQSideSection,
+	XQSwitch,
 } from '../xq-ui';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
@@ -23,6 +24,13 @@ import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { Option } = Select;
+// 右栏四象取卦:键 = model.selected 的键,文 = 位名
+const SIXIANG_PICKS = [
+	['taiyin', '太阴·本体'],
+	['taiyang', '太阳·方法'],
+	['shaoyang', '少阳·认识'],
+	['shaoyin', '少阴·宇宙'],
+];
 const { TabPane } = Tabs;
 
 const BAGUA_SYMBOL = {
@@ -1540,7 +1548,7 @@ class TongSheFaMain extends Component{
 						selectedTags.length > 0 && (
 							<div style={{ marginBottom: 6 }}>
 								{selectedTags.map((txt)=>{
-									return <Tag key={`${bagua.key}_${txt}`} color='blue'>{txt}</Tag>;
+									return <Tag key={`${bagua.key}_${txt}`}>{txt}</Tag>;
 								})}
 							</div>
 						)
@@ -1893,7 +1901,7 @@ class TongSheFaMain extends Component{
 			<div className={styles.scrollbar} style={{ height: tabheight, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2, paddingBottom: 14 }}>
 				<Card size='small' title='左右卦之五行关系' style={{ marginBottom: 8 }}>
 					<div style={{ marginBottom: 6 }}>
-						<Tag color='blue'>{model.mainRelation}</Tag>
+						<Tag>{model.mainRelation}</Tag>
 						<span>~（{model.mainRelationLabel}）</span>
 					</div>
 					<div>左卦：{model.leftElem || '—'}（思想） · {model.leftHouseLabel}</div>
@@ -1958,69 +1966,46 @@ class TongSheFaMain extends Component{
 						</Col>
 						<Col span={8} className="horosa-tongshefa-right-col">
 							{/* [自由起盘] 占问时刻·地点:统摄法手选八卦不吃占时,此处记录占问的时地入事盘(不改卦象;原仅能取主命盘时间) */}
-							<XQSideSection iconName={sideSectionIcon('time')} title="占问时刻 · 地点" collapsible={false}>
+							<XQSideSection
+								iconName={sideSectionIcon('time')}
+								title="占问时刻 · 地点"
+								collapsible={false}
+								className="horosa-tongshefa-when"
+								extra={(
+									<span className="horosa-tongshefa-head-tools">
+										<span className="horosa-tongshefa-border-switch">
+											<span>显示边框</span>
+											<XQSwitch
+												size="small"
+												aria-label="显示边框"
+												checked={!!this.state.showMatrixBorder}
+												onChange={(checked)=>this.onBorderToggle(checked ? 1 : 0)}
+											/>
+										</span>
+										<Button size="small" onClick={this.clickSaveCase}>保存为事盘</Button>
+									</span>
+								)}
+							>
 								<SpaceTimePanel
+									compact
 									fields={this.activeFields()}
 									value={buildDateTimeFromFields(this.activeFields())}
 									onTimeChange={this.onTimeChanged}
 									onGeoChange={this.changeGeo}
 								/>
 							</XQSideSection>
-							<Row style={{ marginTop: 8 }}>
-								<Col span={24}>
-								<div style={{ marginBottom: 2 }}>是否显示边框</div>
-								<Select
-									value={this.state.showMatrixBorder ? 1 : 0}
-									onChange={this.onBorderToggle}
-									style={{ width: '100%' }}
-								>
-									<Option value={1}>显示</Option>
-									<Option value={0}>不显示</Option>
-								</Select>
-							</Col>
-						</Row>
-						<Row style={{ marginTop: 8 }}>
-							<Col span={24}>
-								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存为事盘</Button>
-							</Col>
-						</Row>
-						<Divider />
-						<Row gutter={10} style={{ marginBottom: 8 }}>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>太阴·本体</div>
-								<Select value={model.selected.taiyin} onChange={(val)=>this.changeSelect('taiyin', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`taiyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>太阳·方法</div>
-								<Select value={model.selected.taiyang} onChange={(val)=>this.changeSelect('taiyang', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`taiyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-						</Row>
-						<Row gutter={10} style={{ marginBottom: 8 }}>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>少阳·认识</div>
-								<Select value={model.selected.shaoyang} onChange={(val)=>this.changeSelect('shaoyang', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`shaoyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>少阴·宇宙</div>
-								<Select value={model.selected.shaoyin} onChange={(val)=>this.changeSelect('shaoyin', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`shaoyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-						</Row>
+							<div className="horosa-tongshefa-picks">
+								{SIXIANG_PICKS.map(([key, label])=>(
+									<div className="horosa-tongshefa-pick" key={key}>
+										<span className="horosa-tongshefa-pick-label">{label}</span>
+										<Select value={model.selected[key]} onChange={(val)=>this.changeSelect(key, val)}>
+											{BAGUA_LIST.map((item)=>(
+												<Option key={`${key}_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>
+											))}
+										</Select>
+									</div>
+								))}
+							</div>
 						{/* horosa_freeze_subtabs_v1:四个详情页签(三十二观/三界/爻位/纳甲筮法)皆为长表,
 						    非激活者此前每次重渲都跟着重建。冻结≠卸载,切回即拿最新 model 立刻重画。 */}
 						<Tabs

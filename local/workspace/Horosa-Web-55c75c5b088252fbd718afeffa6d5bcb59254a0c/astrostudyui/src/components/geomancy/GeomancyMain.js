@@ -22,6 +22,7 @@ import { QUESITED_HOUSE_OPTIONS, TURN_HOUSE_LABELS } from './geomancyOptions';
 import { subscribeRemoteNongli, paramsFromFields, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields } from '../../utils/divinationTimeDraft';
 import './GeomancyMain.less';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { ownedBoxSizeRef, shortHostVars, GEOMANCY_HOST_SHORT } from '../../utils/boxSizeVars';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -185,6 +186,13 @@ const QUESTION_TYPE_OPTIONS = [
 	{ key: 'death', label: '⚰️ 死亡与遗产', short: '遗产' },
 	{ key: 'custom', label: '💬 自订问题', short: '自订' },
 ];
+
+// 问类显示名:后端给了中文名用后端的,没给(自订问题不回中文名)按本表取,不把程序键名直接显示出来。
+function questionTypeText(zh, key){
+	if(zh){ return zh; }
+	const hit = QUESTION_TYPE_OPTIONS.find((item) => item.key === key);
+	return hit ? hit.short : (key || '—');
+}
 
 // 所问宫十二项 —— **判读的真值源**(档名在 geomancyOptions.js,与 AI 挂载齿轮同一份)。问类只是快捷预设。
 // 🔴 此前所问宫只能由问类查表得出,而表里 custom→1、life→1 与问者宫(恒一)撞车,
@@ -413,7 +421,7 @@ export function buildGeomancySnapshotText(result){
 		lines.push('');
 	}else{
 		lines.push(`问题：${reading.question || '—'}`);
-		lines.push(`问类：${reading.questionTypeZh || reading.questionType || '—'}`);
+		lines.push(`问类：${questionTypeText(reading.questionTypeZh, reading.questionType)}`);
 		lines.push(`上升图形：${(reading.ascendantFigure || {}).nameZh || ''}（上升星座 ${reading.ascendantSignZh || ''}）`);
 		lines.push('');
 	}
@@ -853,11 +861,14 @@ function savedGeomancySettings(){
 
 // 方形宫盘 / 两式方盘的设计尺寸(布局 px):低于它时按它排版再等比缩小(XQDesignScaleBox)。
 // 方形宫盘是按可用高定边长的正方网格(格 overflow:hidden):取「四行格里的图名 / 宫号 / 点阵整段放得下」的最小边长(真内核实测 620 起零裁切),
-// 设计高 = 边长 + 标题与间距;两式方盘取最小窗口 1 档的盘宽(此宽下图名零越界)。
+// 设计高 = 边长 + 标题与间距;两式方盘(北印度式 / 中世纪盘)取「每宫的宫号 / 星座 / 点阵 / 图名整段落在本宫多边形里」的最小边长
+// (真内核六次起卦实测:680 起最坏越界 0.3px,660 越界 2px、640 越界 4px —— 盘内字号是定值,边长再小字就压到分宫线上)。
+// 设计高 = 边长 + 盘名一行(21)与行距(12):盘是「高取满、按一比一反推宽」的,设计高多给一截缩放态里盘就被拉成竖长方(分宫线跟着变形)。
+export const GEOMANCY_BOARD_TITLE_ROW = 33;
 export const GEOMANCY_SQUARE_DESIGN_W = 640;
-export const GEOMANCY_SQUARE_DESIGN_H = 696;
-export const GEOMANCY_POLY_DESIGN_W = 416;
-export const GEOMANCY_POLY_DESIGN_H = 476;
+export const GEOMANCY_SQUARE_DESIGN_H = GEOMANCY_SQUARE_DESIGN_W + GEOMANCY_BOARD_TITLE_ROW;
+export const GEOMANCY_POLY_DESIGN_W = 680;
+export const GEOMANCY_POLY_DESIGN_H = GEOMANCY_POLY_DESIGN_W + GEOMANCY_BOARD_TITLE_ROW;
 
 class GeomancyMain extends Component{
 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
@@ -1909,7 +1920,7 @@ class GeomancyMain extends Component{
 							)
 							: (vp.broken_at ? <span className="horosa-geomancy-pyr-vp">{`${veAll ? `${(VIA_LINE_ZH[line] || {}).n}线` : '点之路'}断于${vp.broken_at}`}</span> : null))}
 				</div>
-				<svg viewBox={`0 0 ${W} ${H}`} className="horosa-geomancy-pyr-svg" xmlns="http://www.w3.org/2000/svg">
+				<svg viewBox={`0 0 ${W} ${H}`} className="horosa-geomancy-pyr-svg horosa-plain-text-board" xmlns="http://www.w3.org/2000/svg">
 					{lines}
 					{nodes}
 				</svg>
@@ -1951,7 +1962,7 @@ class GeomancyMain extends Component{
 		}
 		return (
 			<div className="horosa-geomancy-wheel">
-				<svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="horosa-geomancy-wheel-svg" xmlns="http://www.w3.org/2000/svg">
+				<svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="horosa-geomancy-wheel-svg horosa-plain-text-board" xmlns="http://www.w3.org/2000/svg">
 					<circle cx={C} cy={C} r={rOuter} className="horosa-geomancy-wheel-ring is-gold" />
 					<circle cx={C} cy={C} r={rZodiac} className="horosa-geomancy-wheel-ring is-gold" />
 					<circle cx={C} cy={C} r={rInner} className="horosa-geomancy-wheel-ring is-gold" />
@@ -2111,7 +2122,7 @@ class GeomancyMain extends Component{
 		});
 		// 栏宽不足设计宽时按设计宽排版再整体等比缩(放得下时逐像素不变):格里的拉丁图名 / 宫号不再被裁,盘心字不再越放大越小
 		return (
-			<XQDesignScaleBox designWidth={GEOMANCY_SQUARE_DESIGN_W} designHeight={GEOMANCY_SQUARE_DESIGN_H}>
+			<XQDesignScaleBox designWidth={GEOMANCY_SQUARE_DESIGN_W} designHeight={GEOMANCY_SQUARE_DESIGN_H} fitHeight>
 				<div className="horosa-geomancy-square">
 					<div className="horosa-geomancy-shield-title">方形宫盘 · 十二宫{rtl ? ' · 自右向左' : ''}</div>
 					<div className="horosa-geomancy-sq-grid">
@@ -2273,7 +2284,7 @@ class GeomancyMain extends Component{
 			: pts);
 		// 栏宽不足设计宽时按设计宽 × 设计高排版再整体等比缩(放得下时逐像素不变):图名不再越出方盘、压到宫号 / 点阵上
 		return (
-			<XQDesignScaleBox designWidth={GEOMANCY_POLY_DESIGN_W} designHeight={GEOMANCY_POLY_DESIGN_H} designGutter={16}>
+			<XQDesignScaleBox designWidth={GEOMANCY_POLY_DESIGN_W} designHeight={GEOMANCY_POLY_DESIGN_H} designGutter={16} fitHeight>
 			<div className={`horosa-geomancy-polychart ${opts.cls}`}>
 				<div className="horosa-geomancy-shield-title">{opts.title}{rtl ? ' · 自右向左' : ''}</div>
 				<div className="horosa-geomancy-poly-board">
@@ -2450,7 +2461,7 @@ class GeomancyMain extends Component{
 						{`星座表:${(PCHART_ZODIAC_OPTIONS.find((o)=>o.key === pc.zodiac_table) || {}).label || pc.zodiac_table}`}
 					</span>
 				</div>
-				<svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="horosa-geomancy-wheel-svg" xmlns="http://www.w3.org/2000/svg">
+				<svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="horosa-geomancy-wheel-svg horosa-plain-text-board" xmlns="http://www.w3.org/2000/svg">
 					<circle cx={C} cy={C} r={rOuter} className="horosa-geomancy-wheel-ring is-gold" />
 					<circle cx={C} cy={C} r={rZodiac} className="horosa-geomancy-wheel-ring is-gold" />
 					<circle cx={C} cy={C} r={rInner} className="horosa-geomancy-wheel-ring is-gold" />
@@ -2656,7 +2667,7 @@ class GeomancyMain extends Component{
 					<div className="horosa-geomancy-card-title">本占概要</div>
 					<div className="horosa-geomancy-summary">
 						<div className="horosa-geomancy-summary-row"><span>问题</span><strong>{r.question || '—'}</strong></div>
-						<div className="horosa-geomancy-summary-row"><span>问类</span><strong>{r.questionTypeZh || r.questionType || '—'}</strong></div>
+						<div className="horosa-geomancy-summary-row"><span>问类</span><strong>{questionTypeText(r.questionTypeZh, r.questionType)}</strong></div>
 						<div className="horosa-geomancy-summary-row"><span>上升</span><strong>{(r.ascendantFigure || {}).nameZh || '—'} · {r.ascendantSignZh || ''}</strong></div>
 						<div className="horosa-geomancy-summary-row"><span>主宫</span><strong>第 {r.primaryHouse || '—'} 宫</strong></div>
 					</div>
@@ -3500,7 +3511,7 @@ class GeomancyMain extends Component{
 				{history.map((h, i)=>(
 					<button type="button" className="horosa-geomancy-history-row" key={`${h.ts}_${i}`} onClick={()=>this.applyHistory(h)}>
 						<span className="horosa-geomancy-history-q">{h.question || '（无问题）'}</span>
-						<span className="horosa-geomancy-history-meta">{h.questionTypeZh || ''} · 判官{h.judge || '—'}</span>
+						<span className="horosa-geomancy-history-meta">{questionTypeText(h.questionTypeZh, h.questionType)} · 判官{h.judge || '—'}</span>
 					</button>
 				))}
 			</div>
@@ -3562,7 +3573,7 @@ class GeomancyMain extends Component{
 								{this.renderInputPanel()}
 							</div>
 							<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer">
-								<div className="horosa-huangji-board-host">{this.renderCenter()}</div>
+								<div className="horosa-huangji-board-host" ref={ownedBoxSizeRef(this, 'host', shortHostVars(GEOMANCY_HOST_SHORT))}>{this.renderCenter()}</div>
 							</div>
 							<div className="horosa-inspector-panel horosa-astro-content-panel horosa-huangji-info-panel">
 								<div className="horosa-side-panel-heading horosa-huangji-info-heading-main">

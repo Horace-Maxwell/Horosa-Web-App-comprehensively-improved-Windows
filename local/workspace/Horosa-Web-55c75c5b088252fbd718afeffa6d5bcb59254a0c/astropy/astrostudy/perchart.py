@@ -21,7 +21,6 @@ from flatlib.ephem import swe
 from astrostudy.nakshatra import nakshatra_from_lon
 from astrostudy import classical_tables as ctab
 from astrostudy.helper import distance
-from astrostudy.jieqi.realsuntime import getOffsetByDate
 
 from astrostudy.perpredict import PerPredict
 from astrostudy.guostarsect import guotables
@@ -579,12 +578,9 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
         self.objlists = []
 
         jd = self.dateTime.jd
-        # 凯龙域内=全表(与旧行为字节一致);域外=按各天体数据域精确筛
-        #(旧版整组剔除小行星,致 relative/midpoint 等在古代/远期缺 Ceres 等全域可算天体)。
-        if 1967601.5 <= jd <= 3419437.5:
-            self.objlists.extend(const.LIST_OBJECTS)
-        else:
-            self.objlists.extend(objectsForJD(jd))
+        # 一律按各天体数据域精确筛:各域都覆盖的年代(约 AD 675–3003)结果即全表,与旧行为字节一致;
+        # 旧版只在凯龙域外才筛,AD 3003–4649 时插值远地点 / 近地点越域仍被列入,起盘即 KeyError。
+        self.objlists.extend(objectsForJD(jd))
 
         if 'objlists' in data.keys():
             self.objlists = data['objlists']
@@ -665,7 +661,7 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
         占星(希腊化)G12:西占月交点真平共用本链路 —— westNodeType=='true' 同样触发真交点置换
         (与 guolaoNodeType 等效,默认 mean 零回归;两键互不污染:七政走 guolao*、西占走 west*)。
         复用 chart 自身 sidereal context+flags;本调用在 reinit(setupPlanets)前,宿度随新 lon 重算。
-        失败安全回退保留平算(同 india _apply_true_node:南交=北交 lon/ra+180,lat/decl 不取负)。"""
+        失败安全回退保留平算(同 india _apply_true_node:南交是北交的对点,lon/ra 加 180°,lat/decl 取负)。"""
         data = self.data if isinstance(self.data, dict) else {}
         nodeTrue = (data.get('guolaoNodeType', 'mean') == 'true'
                     or data.get('westNodeType', 'mean') == 'true')
@@ -681,7 +677,7 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
         def calc(swid):
             with self.chart._siderealContext():
                 pos = swe.swisseph.calc_ut(jd, swid, flags)[0]
-                eq = swe.swisseph.calc_ut(jd, swid, flags | swe.SEFLG_EQUATORIAL)[0]
+                eq = swe.swisseph.calc_ut(jd, swid, swe.equatorialFlags(flags))[0]
             ra = eq[0] if eq[0] >= 0 else (eq[0] + 360) % 360
             return pos, eq, ra
 
@@ -703,8 +699,8 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
                         north.ra = ra; north.decl = eq[1]
                     if south is not None:
                         south.relocate((pos[0] + 180.0) % 360.0)
-                        south.lat = pos[1]; south.lonspeed = pos[3]; south.latspeed = pos[4]
-                        south.ra = (ra + 180.0) % 360.0; south.decl = eq[1]
+                        south.lat = -pos[1]; south.lonspeed = pos[3]; south.latspeed = -pos[4]
+                        south.ra = (ra + 180.0) % 360.0; south.decl = -eq[1]   # 对点:赤纬取反
 
         if lilithTrue:
             darkmoon = findobj(const.DARKMOON)
@@ -797,7 +793,6 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
             planets.append(const.PLUTO)
             objs = self.objlists
             suobjs = self.objlists.copy()
-
         asc = self.chart.getAngle(const.ASC)
         ascsign = asc.sign
         sidx = const.LIST_SIGNS.index(ascsign)

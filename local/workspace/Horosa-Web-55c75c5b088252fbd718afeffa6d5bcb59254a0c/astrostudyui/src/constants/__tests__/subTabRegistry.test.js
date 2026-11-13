@@ -98,9 +98,9 @@ describe('合盘子页签回落', () => {
 	const fs = require('fs');
 	const path = require('path');
 	afterEach(() => { delete window.__horosaRelativeCurrentTab; });
-	test('RELATIVE_SUBTABS = AstroRelative.state.hook 全部六键(含马克斯盘 / 关系量化);germanytech 非法 → 回宿主记忆 / 首档 Comp', () => {
+	test('RELATIVE_SUBTABS = AstroRelative.state.hook 全部七键(含马克斯盘 / 关系量化 / 八重合);germanytech 非法 → 回宿主记忆 / 首档 Comp', () => {
 		const { RELATIVE_SUBTABS } = require('../SubTabRegistry');
-		expect(RELATIVE_SUBTABS).toEqual(['Comp', 'Composite', 'Synastry', 'TimeSpace', 'Marks', 'Score']);
+		expect(RELATIVE_SUBTABS).toEqual(['Comp', 'Composite', 'Synastry', 'TimeSpace', 'Marks', 'Score', 'Ashtakoota']);
 		const src = fs.readFileSync(path.resolve(__dirname, '../../components/astro/AstroRelative.js'), 'utf8');
 		RELATIVE_SUBTABS.forEach((k) => expect(src).toMatch(new RegExp(`\\n\\t{4,6}${k}:\\{`)));
 		// 页签键与登记表逐一对应(新增页签忘登记即红)

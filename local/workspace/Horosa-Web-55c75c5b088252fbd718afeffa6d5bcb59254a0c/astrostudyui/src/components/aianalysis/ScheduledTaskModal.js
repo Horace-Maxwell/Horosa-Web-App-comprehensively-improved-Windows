@@ -9,6 +9,7 @@ import { isAgentEnabled, isSchedulerEnabled } from '../../utils/aiAgent/prefs';
 import { listAnalysisSources } from '../../utils/aiAnalysisSources';
 import { listAnalysisTechniqueOptions } from '../../utils/aiAnalysisContext';
 import { scriptFilterBy } from '../../utils/scriptMode';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 const TYPE_LABELS = { daily: '每天', weekly: '每周', monthly: '每月', once: '仅一次' };
 const soft = { color: 'var(--horosa-text-soft, #8a8f99)' };
@@ -71,7 +72,7 @@ export default function ScheduledTaskModal({ open, onClose, onCreated }){
 					{type === 'weekly' ? <Select size="small" value={weekday} onChange={setWeekday} style={{ width: 90 }} options={WEEKDAY_LABELS.map((w, i)=>({ value: i, label: `周${w}` }))} /> : null}
 					{type === 'monthly' ? <span>每月 <InputNumber size="small" min={1} max={28} value={day} onChange={(v)=>setDay(v || 1)} style={{ width: 64 }} /> 日</span> : null}
 					{type === 'once'
-						? <input type="datetime-local" className="horosa-native-date" value={at} onChange={(e)=>setAt(e.target.value)} data-schedule-at="1" style={{ fontSize: 12 }} />
+						? <span data-schedule-at={at || ''}><IsoDateTimeField date={(at || '').slice(0, 10)} time={(at || '').slice(11, 16)} placeholder="选时刻" onChange={(v)=>setAt(`${v.date}T${v.time}`)} /></span>
 						: <input type="time" className="horosa-native-date" value={time} onChange={(e)=>setTime(e.target.value)} data-schedule-time="1" style={{ fontSize: 12 }} />}
 					<span style={soft} data-schedule-next={next || ''}>{next ? `下次:${new Date(parseDateTimeMs(next)).toLocaleString()}` : (type === 'once' ? '时刻须在未来' : '时间格式 HH:mm')}</span>
 				</div>

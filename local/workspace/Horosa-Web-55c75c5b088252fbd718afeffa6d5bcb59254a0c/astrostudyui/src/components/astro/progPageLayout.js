@@ -43,6 +43,24 @@ let fillCardSeq = 0;
 const NEAR_FIT_PX = 60;
 const DENSE_MAX_PX = 96;
 const DONOR_MIN_PX = 200;
+// 小窗兜底:表格区的下限 = 每张表卡至少 CARD_MIN_PX(内容更矮的按内容高)。固定头加这个下限超过右栏高时,右栏整列自己滚。
+// 此前下限恒为 160:矮窗口里两张表各只剩三行,只能在 80 多像素的缝里滚;固定头高的页,表格区下沿还会被裁掉、滚不到。
+const BODY_MIN_PX = 160;
+const CARD_MIN_PX = 168;
+const TABLE_MIN_PX = 104;   // 卡内的表至少露出这么高(表头 + 两三行),再矮就是只能滚一两行的缝
+// 一张卡的下限:卡自己报了(FillCard 量出的「固定部分 + 最少几行表」;没有可滚的表 = 内容全高)就用它,否则按内容高封顶到 CARD_MIN_PX
+export function cardMinHeight(c){
+	const natural = Number(c && c.natural) || 0;
+	const m = Number(c && c.min);
+	return Number.isFinite(m) && m > 0 ? Math.min(m, natural || m) : Math.min(natural, CARD_MIN_PX);
+}
+export function sideBodyMinHeight(cards, extraMin){
+	const list = Array.isArray(cards) ? cards : [];
+	const cardsMin = list.length
+		? list.reduce((a, c)=>a + cardMinHeight(c), 0) + (list.length - 1) * PAGE_GAP + 4
+		: 0;
+	return Math.max(BODY_MIN_PX, Math.ceil(cardsMin), Number(extraMin) || 0);
+}
 export function allocateCardHeights(cards, avail){
 	// cards: [{ id, natural, grow }](按出现顺序);返回 { id: height }
 	const out = {};
@@ -72,6 +90,23 @@ export function allocateCardHeights(cards, avail){
 			out[c.id] += gap;
 		}
 	});
+	// 小窗兜底:分到的高低于自己下限的卡(固定部分放不下 / 表只剩一条缝),从分得最多、仍高于自身下限的卡里匀过来。
+	// 可用高放得下各卡时没有哪张低于下限,这一步不动任何数。
+	cards.forEach((c)=>{
+		if(!Number.isFinite(Number(c.min)) || !(Number(c.min) > 0)){ return; }
+		let lack = Math.ceil(cardMinHeight(c) - out[c.id]);
+		while(lack > 0){
+			const donor = cards
+				.filter((d)=>d.id !== c.id && out[d.id] - cardMinHeight(d) >= 1)
+				.sort((a, b)=>(out[b.id] - cardMinHeight(b)) - (out[a.id] - cardMinHeight(a)))[0];
+			if(!donor){ break; }
+			const take = Math.min(lack, Math.floor(out[donor.id] - cardMinHeight(donor)));
+			if(!(take > 0)){ break; }
+			out[donor.id] -= take;
+			out[c.id] += take;
+			lack -= take;
+		}
+	});
 	return out;
 }
 
@@ -85,11 +120,14 @@ export class SideColumn extends Component{
 		this.order = [];
 		this.measure = this.measure.bind(this);
 		this.alloc = {
-			report: (id, natural, grow)=>{
+			report: (id, natural, grow, min)=>{
 				if(this.order.indexOf(id) < 0){ this.order.push(id); }
 				const cur = this.state.naturals[id];
-				if(!cur || Math.abs(cur.natural - natural) > 1 || cur.grow !== grow){
-					this.setState((st)=>({ naturals: { ...st.naturals, [id]: { natural, grow } } }));
+				// 下限只在正常行距下量:紧凑档里卡的内距与行高都小,照它更新下限 → 表格区下限变小 → 表格区变矮 →
+				// 退出紧凑 → 下限变回去 → 再进紧凑,来回跳。紧凑档期间沿用进档前量到的下限。
+				const keepMin = this.state.dense && cur && Number(cur.min) > 0 ? cur.min : min;
+				if(!cur || Math.abs(cur.natural - natural) > 1 || cur.grow !== grow || Math.abs((cur.min || 0) - (keepMin || 0)) > 1){
+					this.setState((st)=>({ naturals: { ...st.naturals, [id]: { natural, grow, min: keepMin } } }));
 				}
 			},
 			drop: (id)=>{
@@ -137,17 +175,18 @@ export class SideColumn extends Component{
 	}
 
 	render(){
-		const { head, children, scrollBody, style, className } = this.props;
+		const { head, children, scrollBody, style, className, bodyMin } = this.props;
 		const cards = this.order.filter((id)=>this.state.naturals[id]).map((id)=>({ id, ...this.state.naturals[id] }));
+		const bodyMinHeight = sideBodyMinHeight(scrollBody ? [] : cards, bodyMin);
 		const avail = this.state.bodyH - Math.max(cards.length - 1, 0) * PAGE_GAP - 2;
 		this.alloc.heights = scrollBody ? {} : allocateCardHeights(cards, avail);
 		// 新对象让 context 消费方随分配结果重渲染
 		const ctx = { report: this.alloc.report, drop: this.alloc.drop, heights: this.alloc.heights };
 		return (
-			<div className={`horosa-prog-side${className ? ` ${className}` : ''}${this.state.dense && !scrollBody ? ' horosa-prog-dense' : ''}`} style={{ height: '100%', minWidth: 0, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', paddingTop: SIDE_TOP_PAD, ...style }}>
+			<div className={`horosa-prog-side ${styles.scrollbar}${className ? ` ${className}` : ''}${this.state.dense && !scrollBody ? ' horosa-prog-dense' : ''}`} style={{ height: '100%', minWidth: 0, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', paddingTop: SIDE_TOP_PAD, overflowY: 'auto', overflowX: 'hidden', ...style }}>
 				<div className="horosa-prog-side-head" style={{ flex: '0 0 auto' }}>{head}</div>
 				<div ref={this.bodyRef} className={scrollBody ? styles.scrollbar : undefined}
-					style={{ flex: '1 1 0', minHeight: 160, marginTop: PAGE_GAP, display: 'flex', flexDirection: 'column', gap: PAGE_GAP, overflowY: scrollBody ? 'auto' : 'hidden', overflowX: 'hidden', paddingRight: scrollBody ? 6 : 0, paddingBottom: 2 }}>
+					style={{ flex: '1 1 0', minHeight: bodyMinHeight, marginTop: PAGE_GAP, display: 'flex', flexDirection: 'column', gap: PAGE_GAP, overflowY: scrollBody ? 'auto' : 'hidden', overflowX: 'hidden', paddingRight: scrollBody ? 6 : 0, paddingBottom: 2 }}>
 					<SideAlloc.Provider value={scrollBody ? null : ctx}>{children}</SideAlloc.Provider>
 				</div>
 			</div>
@@ -289,11 +328,13 @@ export function TargetTimeControl({ date, time, zone, onChange }){
 // 卡把自己的「完整内容高」= 卡当前高 − 表盒可视高 + 表盒内容高 报给右栏;表行变了 / 卡宽变了(换行)都会重报。
 // grow = 主表:全放得下时多出来的高度给它。不在 SideColumn 里(老页的 scrollBody)时按内容自然排。
 // 卡的「完整内容高」:内距 + 边框 + 各子块高;表盒按里面整张表的高算(不按表盒当前被分到的高,否则主表分到多余高度后会虚涨)
-function cardNaturalHeight(el){
-	if(typeof getComputedStyle !== 'function'){ return el.scrollHeight; }
+// 返回 { natural, scrollable }:natural = 表全部行都摆开时卡的高;scrollable = 其中可以在卡内滚动的那部分(各表的完整高之和)
+function cardHeights(el){
+	if(typeof getComputedStyle !== 'function'){ return { natural: el.scrollHeight, scrollable: 0 }; }
 	const px = (v)=>parseFloat(v) || 0;
 	const cs = getComputedStyle(el);
 	let h = px(cs.paddingTop) + px(cs.paddingBottom) + px(cs.borderTopWidth) + px(cs.borderBottomWidth);
+	let scrollable = 0;
 	Array.prototype.forEach.call(el.children, (ch)=>{
 		const ccs = getComputedStyle(ch);
 		const m = px(ccs.marginTop) + px(ccs.marginBottom);
@@ -304,11 +345,12 @@ function cardNaturalHeight(el){
 			const box = px(ccs.paddingTop) + px(ccs.paddingBottom) + px(ccs.borderTopWidth) + px(ccs.borderBottomWidth);
 			const hScrollbar = Math.max(ch.offsetHeight - ch.clientHeight - px(ccs.borderTopWidth) - px(ccs.borderBottomWidth), 0);
 			h += (t ? t.offsetHeight : 0) + m + box + hScrollbar;
+			scrollable += t ? t.offsetHeight : 0;
 		}else{
 			h += ch.offsetHeight + m;
 		}
 	});
-	return h;
+	return { natural: h, scrollable };
 }
 
 export function FillCard({ title, extra, note, grow, style, children }){
@@ -321,9 +363,14 @@ export function FillCard({ title, extra, note, grow, style, children }){
 		if(!alloc || !ref.current){ return undefined; }
 		const el = ref.current;
 		const report = ()=>{
-			const natural = cardNaturalHeight(el);
+			const { natural, scrollable } = cardHeights(el);
 			// 表格实测高常带小数(350.4px):向上取整再 +1,否则容器取整后亚像素溢出,刚好放下也画出滚动条
-			if(natural > 0){ alloc.report(id, Math.ceil(natural) + 1, !!grow); }
+			if(natural > 0){
+				const n = Math.ceil(natural) + 1;
+				// 下限:卡里有表 → 固定部分 + 表至少露 TABLE_MIN_PX;没有可滚的表 → 内容全高(卡自己不滚,给少了内容会溢出卡外)
+				const min = scrollable > 0 ? Math.ceil(n - scrollable + Math.min(scrollable, TABLE_MIN_PX)) : n;
+				alloc.report(id, n, !!grow, min);
+			}
 		};
 		report();
 		const ro = createDeferredResizeObserver(report);

@@ -2,21 +2,23 @@
 // 逐一写清左栏每个输入/设置项的取值与差别 + 右栏每块内容，便于使用者理解每个开关怎么影响排盘。
 // 中性表述，纯展示零后端；只写公版古籍名，不写现代来源、软件名或内部章节号。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
 
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class TaiyiHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>太乙神数 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '太乙神数 · 操作手册',
+	groups: [
+		{
+			key: 'taiyi',
+			label: '太乙神数',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>太乙神数以推算的<b>积年</b>立局，定出太乙、文昌、始击等十六神在九宫十六位的落处，再由<b>主算 · 客算 · 定算</b>三数论格局胜负，兼及分野、诸神之算、行限与命法。</p>
 							<p style={p}>本页布局：<b>左栏</b>分「时间与地点 / 盘式选项 / 流派设置」三段；<b>中栏</b>为太乙圆盘；<b>右栏</b>「太乙信息」分概览、十六宫、神煞等页签列出全部推演结果。</p>
@@ -30,9 +32,14 @@ class TaiyiHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>下面分「起盘设置 / 数理格局 / 胜负分野 / 流派覆盖 / 命法盘 / 十六神 · 生成 / 占断 · 存疑 / 右栏标签」逐项说明。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="起盘设置" key="setup">
+					</div>
+					),
+				},
+				{
+					key: 'setup',
+					label: '起盘设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>先「时间与地点」，再「盘式选项」，逐项：取值 / 区别。</p>
 							<div style={card}><div style={ct}>时间（左栏「时间与地点」，不折叠）</div>
@@ -90,9 +97,14 @@ class TaiyiHelpDoc extends Component{
 								{kv('还原', '进入本页或切换所选案例时，若该案例存有太乙盘，直接回放存盘（不重新推算），设置一并复位；故存过的盘日后打开仍逐字如旧')}
 								{kv('设置记忆', '盘式、古法公式、时间基准、博弈、盘面标注和流派设置会自动记住，下次沿用（概览「流派」行会标出非默认项）。性别跟随当前命盘；换日不记在本页，重开时跟随全局。左栏各段的折叠状态也会记住')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="数理格局" key="shuli">
+					</div>
+					),
+				},
+				{
+					key: 'shuli',
+					label: '数理格局',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>右栏「概览」据当前盘派生以下要项（纯展示，不改动盘的立成数）：</p>
 							<div style={h}>三算（主 · 客 · 定）</div>
@@ -134,9 +146,14 @@ class TaiyiHelpDoc extends Component{
 								<li style={li}>八门在各宫的整幅分布与八宫旺衰，另见右栏「八门」页签。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="胜负分野" key="victory">
+					</div>
+					),
+				},
+				{
+					key: 'victory',
+					label: '胜负分野',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>起局（概览首要一卡）</div>
 							<ul style={ul}>
@@ -180,9 +197,14 @@ class TaiyiHelpDoc extends Component{
 								<li style={li}>大游 / 小游并作「限运」中的二限，见「数理格局」页。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派覆盖" key="school">
+					</div>
+					),
+				},
+				{
+					key: 'school',
+					label: '流派覆盖',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>「流派设置」（仅非命法盘）让使用者按不同古法取法覆盖部分神煞与主客算。<b>每项默认「从盘」即沿用基础盘、结果完全不变</b>；一旦改为非默认档，被波及的神煞与主客算<b>按所选古法重新计算</b>，右栏会以蓝字注明当前流派。</p>
 							<div style={card}><div style={ct}>计神方向</div>
@@ -214,9 +236,14 @@ class TaiyiHelpDoc extends Component{
 								{kv('提示', '始击于九宫或十六神两套坐标系的取法古今分歧、暂无定本，本档标「存疑·待源」，默认仍从盘；仅供互参，勿单据此论断')}</div>
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>多项可叠加；任一非默认即在概览「流派」行汇总所改条目，交给 AI 的内容也同步注明，确保「显示什么就分析什么」。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="命法盘" key="life">
+					</div>
+					),
+				},
+				{
+					key: 'life',
+					label: '命法盘',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>盘式选「太乙命法」时，本页整体改为命法一路：以生辰立<b>十二命宫</b>，中栏另画方格盘，左栏隐去古法公式、博弈与流派设置，右栏多出「命法」页签。</p>
 							<div style={h}>中栏十二宫方格盘</div>
@@ -242,9 +269,14 @@ class TaiyiHelpDoc extends Component{
 								<li style={li}>十六宫、神煞两页签照常可用，内容为命法盘所推之诸神落处。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="十六神 · 生成" key="shen">
+					</div>
+					),
+				},
+				{
+					key: 'shen',
+					label: '十六神 · 生成',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>十六神名与其位</div>
 							<p style={p}>十六神各据一位，自正上「午」起顺时针周行（此即中栏第四环所标之名）：</p>
@@ -266,9 +298,14 @@ class TaiyiHelpDoc extends Component{
 							<div style={h}>生成之序</div>
 							<p style={p}>太乙之数，本于一气：太极生二目（文昌为阳目、始击为阴目），二目生八将，八将统十六神而周流九宫，于是主客之算、格局之象、分野之占皆自此出。故观盘先立太乙，次审二目，再察八将，终会诸神，层层相生而条理不紊。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="占断 · 存疑" key="misc">
+					</div>
+					),
+				},
+				{
+					key: 'misc',
+					label: '占断 · 存疑',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>占断纲要</div>
 							<ul style={ul}>
@@ -302,9 +339,14 @@ class TaiyiHelpDoc extends Component{
 								<li style={li}>凡本页标「存疑」处，皆存而不断、聊备一格，望使用者互参而勿泥。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="右栏标签" key="tabs">
+					</div>
+					),
+				},
+				{
+					key: 'tabs',
+					label: '右栏标签',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>右栏「太乙信息」分页签陈列结果，部分页签按盘式与输出动态出现。</p>
 							<div style={card}><div style={ct}>概览</div>
@@ -332,11 +374,19 @@ class TaiyiHelpDoc extends Component{
 								{kv('AI 助手', '带当前盘跳到 AI 分析')}</div>
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>附：交给 AI 的内容比屏幕更全（含古法条文与十六宫），非默认流派在开头注明。</p>
 						</div>
-					</TabPane>
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
 
-				</Tabs>
-			</div>
-		);
+class TaiyiHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

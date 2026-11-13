@@ -2,6 +2,8 @@
 //   时间字段:单击弹出完整时间编辑器(编辑器里年 / 月 / 日 / 时 / 分 / 秒按住上下拖动可连续调,见 DateTimeSelector);
 //            双击直接键入 14 位数字(年月日时分秒),输满或回车即生效;
 //   下面一行:步长 ± / 此刻 / 确定(PlusMinusTime adjustOnly)。
+//   noAdjust:不带下面那一行(占地最省;单击编辑器与双击键入照旧),给只需记一个时刻、不靠步进翻盘的页面用。
+//   showTime=false:只选日期。
 // onChange(res) 收到与 PlusMinusTime 同形的 { time: DateTime, ad, confirmed, step? };value 可以是 DateTime,也可以是带 .time / .value 的包装。
 import React from 'react';
 import TimeFieldTrigger from './QuickTimeField';
@@ -26,10 +28,11 @@ function defaultText(dt, onlyYear, yearMonth){
 export default function CompactTimeField(props){
 	const {
 		label = '时间', hint = '当地时间', value, timeText, onChange, needZone, timeHook,
-		onlyYear, yearMonth, startTime, showZone, showSeconds, onStepSelect, confirmOnAdjust, inline,
+		onlyYear, yearMonth, startTime, showZone, showSeconds, onStepSelect, confirmOnAdjust, inline, noAdjust, showTime,
 	} = props;
 	const dt = dateTimeOf(value) || new DateTime();
-	const pass = { needZone, onlyYear, yearMonth, startTime, showZone, showSeconds, onStepSelect };
+	// showTime=false:只选日期(编辑器不出时分秒);缺省照旧带时间
+	const pass = { needZone, onlyYear, yearMonth, startTime, showZone, showSeconds, onStepSelect, showTime };
 	const emit = (res)=>{ if(onChange && res){ onChange(res); } };
 	const editor = (
 		<div className="horosa-time-popover">
@@ -59,7 +62,7 @@ export default function CompactTimeField(props){
 			{label ? <div className="horosa-field-label">{label}</div> : null}
 			{trigger}
 			{hint ? <div className="horosa-field-hint">{hint}</div> : null}
-			{adjust}
+			{noAdjust ? null : adjust}
 		</div>
 	);
 }

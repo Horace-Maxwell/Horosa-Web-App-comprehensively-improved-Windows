@@ -72,7 +72,7 @@ class BabylonEphemeris extends Component{
 			segs.push(<text key={`t${i}`} x={x((from + Math.min(to, from + (to - from) / 2)) % 360 === 0 ? from + 8 : (from + (to - from) / 2) % 360)} y={y(w) - 5} fontSize="9" fill="#9a6a25" textAnchor="middle">{z.w}</text>);
 		});
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 640 }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 640 }}>
 				<line x1={pad} y1={H - pad / 2} x2={W - pad} y2={H - pad / 2} stroke="rgba(122,94,48,0.35)" strokeWidth="0.8" />
 				{[0, 90, 180, 270, 360].map((d) => (
 					<text key={d} x={x(d)} y={H - 2} fontSize="8.5" fill="var(--horosa-text-secondary)" textAnchor="middle">{d}°</text>
@@ -100,7 +100,7 @@ class BabylonEphemeris extends Component{
 		const y = (v) => H - pad / 2 - ((v - m * 0.98) / (M * 1.02 - m * 0.98)) * (H - pad * 1.4);
 		const pts = seq.map((v, i) => `${x(i)},${y(v)}`).join(' ');
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 640 }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 640 }}>
 				<line x1={pad} y1={y(M)} x2={W - pad} y2={y(M)} stroke="rgba(191,60,54,0.4)" strokeDasharray="3,3" strokeWidth="0.8" />
 				<line x1={pad} y1={y(m)} x2={W - pad} y2={y(m)} stroke="rgba(61,143,116,0.4)" strokeDasharray="3,3" strokeWidth="0.8" />
 				<text x={W - pad + 2} y={y(M) + 3} fontSize="8.5" fill="#bf3c36">M</text>

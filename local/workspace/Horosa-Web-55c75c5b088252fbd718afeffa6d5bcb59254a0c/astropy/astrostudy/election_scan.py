@@ -611,7 +611,7 @@ class LightMoment(object):
 
     def obliquity(self):
         if self._eps is None:
-            self._eps = swisseph.calc_ut(self.jd, swisseph.ECL_NUT, swisseph.FLG_SWIEPH)[0][0]
+            self._eps = flatlib.ephem.swe.trueObliquity(self.jd)   # 与主盘四轴 / 宫头同一个出口(数值与原式逐位相同)
         return self._eps
 
     # -- 昼夜(宗派单源):默认纯几何地平 altitudeTrue(Sun)>0;buffer='ptolemy5' 逐字复刻

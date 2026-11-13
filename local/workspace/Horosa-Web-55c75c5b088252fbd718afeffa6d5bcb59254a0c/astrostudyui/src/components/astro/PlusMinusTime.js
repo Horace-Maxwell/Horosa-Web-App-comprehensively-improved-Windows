@@ -49,7 +49,7 @@ class PlusMinusTime extends Component{
 					<DateTimeSelector
 						value={dt}
 						startTime={this.props.startTime}
-						showTime={true}
+						showTime={this.props.showTime !== false}
 						needZone={needZone}
 						showZone={this.props.showZone}
 						showSeconds={this.props.showSeconds}

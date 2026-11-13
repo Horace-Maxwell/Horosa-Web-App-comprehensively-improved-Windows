@@ -1025,9 +1025,9 @@ class TaiYiMain extends Component {
 						)}
 							<label className="horosa-taiyi-select-field">
 								<span>盘面标注</span>
-								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.showBoardMark ? 1 : 0} onChange={(v) => this.onOptionChange('showBoardMark', v === 1)}>
-									<Option value={0}>关(简洁)</Option>
-									<Option value={1}>开(分野/高亮/连线/点击)</Option>
+								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" optionLabelProp="label" value={opt.showBoardMark ? 1 : 0} onChange={(v) => this.onOptionChange('showBoardMark', v === 1)}>
+									<Option value={0} label="关(简洁)">关(简洁)</Option>
+									<Option value={1} label="开(全标注)">开(分野/高亮/连线/点击)</Option>
 								</Select>
 							</label>
 					</div>

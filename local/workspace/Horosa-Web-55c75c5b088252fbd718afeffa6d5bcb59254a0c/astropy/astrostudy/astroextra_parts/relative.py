@@ -37,6 +37,8 @@ def score_relative_comp(comp, body_weight=None):
         return body_weight.get(name, RELATIVE_BODY_WEIGHT_DEFAULT)
 
     from astrostudy.modern.chartcomp import CROSS_ASPECT_ORB
+    # 比较盘按「1° × 容许度整体倍率」判的跨盘相位,衰减也按这个上限归一(没调倍率时回包不带 crossOrb,就是 1°)
+    cross = safe_float(comp.get('crossOrb'), CROSS_ASPECT_ORB) or CROSS_ASPECT_ORB
     score = 50
     highlights = []
     challenges = []
@@ -58,7 +60,7 @@ def score_relative_comp(comp, body_weight=None):
                 orb = safe_float(asp.get('orb', asp.get('delta', 0)), 0)
                 body_mult = bw(key) * bw(bId)
                 # 误差衰减按跨盘相位的实际容许度折算(曾按 8° 折:容许度只有 1°,系数恒在 0.875–1,「误差越小分量越足」体现不出)
-                impact = weight * body_mult * max(0.2, 1.0 - min(orb, CROSS_ASPECT_ORB) / CROSS_ASPECT_ORB)
+                impact = weight * body_mult * max(0.2, 1.0 - min(orb, cross) / cross)
                 score += impact
                 item = {
                     'a': key,
@@ -94,6 +96,10 @@ def build_relative_score(data):
         item['predictive'] = False
         item['hsys'] = hsys
         item['zodiacal'] = zodiacal
+        # 容许度设置(逐星表 / 整体倍率)两盘同一把尺,与比较盘页同口径:整体倍率同时决定跨盘接触的容许度
+        for key in ('orbs', 'orbScale'):
+            if key in params and key not in item:
+                item[key] = params[key]
     comp = ChartComp(inner, outer).compute()
     result = score_relative_comp(comp)
     result['raw'] = comp

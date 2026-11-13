@@ -8,7 +8,7 @@ import { definePageSettings } from '../../utils/pageSettingsStore';
 import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import DateTime from '../comp/DateTime';
 import { convertLonToStr, convertLatToStr } from '../astro/AstroHelper';
-import { getClassicalChartGlobals } from '../../utils/classicalChartGlobals';
+import { getClassicalChartGlobals, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { natalClassicalParams } from '../astro/AstroExtraCommon';
 import AstroInfo from '../astro/AstroInfo';
 import AstroAspect from '../astro/AstroAspect';
@@ -316,9 +316,6 @@ export default class TianxingElectionMain extends Component{
 					<XQButton type="primary" style={{ width: '100%' }} onClick={() => this.openSearch(fields)}>
 						征象搜索…
 					</XQButton>
-					<div className="horosa-divi-note" style={{ marginTop: 6 }}>
-						工作台内选时间段/地点/盘面与征象条件(支持嵌套逻辑组),搜索结果点击即起盘。
-					</div>
 				</div>
 			</XQSideSection>
 		);
@@ -480,6 +477,9 @@ export default class TianxingElectionMain extends Component{
 			// 浮窗与扫描同源构参:全局古典口径(界系/三分/交点真平/昼夜缓冲/福点反转/落宫前移…)
 			// 与 'user' 档历元两键——此前浮窗只带时地/宫制/黄道,非缺省全局口径下浮窗盘与扫描判定、主盘三者不同形。
 			...natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: chart.siderealAyanamsa }),
+			// 容许度随盘走(宿主 fields):浮窗盘的相位线与壳内盘同一把尺。扫描判定不吃它——
+			// 每条扫描条件自带容许度,判读类条件用固定星体表(引擎侧口径,见 election_scan_cores)。
+			...chartOrbOverridesFromFields(this.props.fields),
 		};
 	};
 
@@ -487,6 +487,7 @@ export default class TianxingElectionMain extends Component{
 		return (
 			<div style={{ height: '100%', flex: '1 1 auto', minWidth: 0, width: '100%' }}>
 				<DivinationChartShell
+					hostState={this.state}   /* 右栏读本页 state;壳的渲染守卫把函数类属性都当没变,要靠这一项知道本页状态变了 */
 					title="天星择日"
 					kicker="择日搜索"
 					pageClass="horosa-zeri-page"

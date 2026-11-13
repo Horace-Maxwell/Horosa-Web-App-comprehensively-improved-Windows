@@ -64,8 +64,19 @@ public class ParamHashCacheHelper {
 	// 于是每发一版所有用户都回到全冷**。改用 resolveFlag 后,启动器传
 	// -Dparamhash.cache.local.dir=<LOCALAPPDATA>\HorosaDesktop\cache\paramhash 即可跨更新存活。
 	// 加开关前先确认目标怎么读它(-D / -- 程序参数 / PropertyPlaceholder 三者读法不同)。
+	// 缓存目录跨更新存活的两种情形:Windows 靠上面这个 -D;macOS 增量更新时暂存目录是当前运行时的整份拷贝,
+	// 而 Java 部件只替换清单里列的文件,boot-exploded 下的缓存目录原样带进新运行时。
+	// 所以「更新后算法变了、缓存还在」是常态 —— 靠下面的 CacheEpoch 把键按运行时版本分代。
 	private static final String LocalDir = resolveFlag("paramhash.cache.local.dir", defaultLocalDir());
 	private static final DateTimeFormatter LdtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+	// horosa_paramhash_runtime_epoch_v1:缓存键(redis 键 + 本地文件名)一律并入运行时版本。
+	// 只进键、不进参数 —— 传给计算函数的参数原样,不向下游多带任何字段。
+	// 没有它时,键里不带版本的链路(绝大多数:只有 /chart 与推运两处自己放了 _runtimeVer)在更新后
+	// 会把上一版算出的结果继续发回来:普通链路至多一天,getAnnual(节气年表)至多 180 天。
+	// 每个链路各自手抬的 _v / _wireRev 仍然有用(同一运行时版本内改口径),但不再是「发版必抬否则陈旧」的唯一防线。
+	// 代价:每次运行时版本变更后各链路冷算一次;旧代文件由 sweepLocal 按 180 天 / 512MB 回收。
+	private static final String CacheEpoch = spacex.basecomm.constants.RuntimeWire.RUNTIME_VERSION;
 
 	private static final ICache RedisCache = CacheHelper.getCache();
 	private static final ConcurrentHashMap<String, Object> KeyLocks = new ConcurrentHashMap<String, Object>();
@@ -311,8 +322,16 @@ public class ParamHashCacheHelper {
 	}
 
 	public static String hash(Map<String, Object> params) {
+		return hash(params, CacheEpoch);
+	}
+
+	// 同一组参数在不同运行时版本下落到不同的键;epoch 为空时退回纯参数哈希(只给测试对照旧键用)。
+	static String hash(Map<String, Object> params, String epoch) {
 		Object normalized = normalize(params);
 		String json = JsonUtility.encode(normalized);
+		if(!StringUtility.isNullOrEmpty(epoch)) {
+			json = json + "\n#runtime=" + epoch;
+		}
 		return MD5Utility.encryptAsString(json);
 	}
 

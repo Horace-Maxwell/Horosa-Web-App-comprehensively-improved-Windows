@@ -8,7 +8,7 @@ from astrostudy.germany.houseframes import compute_house_frames
 from astrostudy.germany.declination import compute_declination
 from astrostudy.germany.coord_midpoint import coord_midpoints
 from flatlib import const
-from flatlib.ephem import ephem as flatlib_ephem
+from astrostudy.germany.chart_objects import ephem_object
 
 
 def _build_uranian_tnp(perchart):
@@ -18,7 +18,7 @@ def _build_uranian_tnp(perchart):
     errors = []
     for oid in const.LIST_URANIAN:
         try:
-            o = flatlib_ephem.getObject(oid, perchart.dateTime, perchart.pos)
+            o = ephem_object(perchart, oid)   # 按本盘黄道制取:恒星盘的虚星与同盘行星同一零点
             out.append({
                 'id': o.id,
                 'lon': o.lon,

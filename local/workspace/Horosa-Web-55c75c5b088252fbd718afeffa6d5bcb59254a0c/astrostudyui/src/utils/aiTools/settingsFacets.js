@@ -37,6 +37,13 @@ export const SETTING_FACETS = ['chart', 'mount', 'app', 'classical', 'technique'
 // 只开放标量(布尔 / 数字 / 字符串,有候选的按候选)与勾选列表;覆盖层 / 子开关表(map)只读。写入走该页自己的 save(同一校验);
 // 撤销只还原本次改到的字段(写前没存过 = 删该字段,整份删空 = 删存储键),且须当前值仍等于写后值。已打开的页面在下次载入时按新设置排盘。
 export const PAGE_FACET_LOADERS = {
+	astrodetails: ()=>import('../chartDetails'),
+	india: ()=>import('../indiaExtraTables'),
+	mundanecycles: ()=>import('../mundaneCycles'),
+	transformchart: ()=>import('../transformCharts'),
+	zodiacsystems: ()=>import('../transformCharts'),
+	dongya: ()=>import('../eastAsiaSnapshot'),
+	zhufang: ()=>import('../zhufangArts'),
 	liureng: ()=>import('../../components/lrzhan/LiuRengMain'),
 	dunjia: ()=>import('../../components/dunjia/DunJiaMain'),
 	taiyi: ()=>import('../../components/taiyi/TaiYiMain'),
@@ -56,12 +63,14 @@ export const PAGE_FACET_LOADERS = {
 	babylon: ()=>import('../../components/babylon/BabylonMain'),
 	draconic: ()=>import('../../components/auxchart/AstroDraconicLab'),
 	fengshui: ()=>import('../../components/fengshui/FengShuiMain'),
+	suzhan: ()=>import('../ascRaMode'),
+	guolao: ()=>import('../ascRaMode'),
 };
 // 页面面的中文页名(审批卡标题 / 执行后的动作条摘要 / 账本同一套;合同看守:与载入表逐页对齐)
 export const PAGE_FACET_TITLES = {
 	liureng: '六壬', dunjia: '遁甲', taiyi: '太乙', sanshiunited: '三式', jinkou: '金口诀', wuzhao: '五兆', geomancy: '地占', tarot: '塔罗',
 	kinastro: '数算 / 其他命术(策天 · 演禽 · 一掌经等)', horary: '辅盘·卜卦盘', mundane: '辅盘·世俗盘', election: '辅盘·择日盘', tianxingzeri: '天星择日',
-	direction: '星运', guazhan: '六爻', acg: '辅盘·占星地图', babylon: '辅盘·巴比伦', draconic: '辅盘·龙盘', fengshui: '风水',
+	astrodetails: '占星·盘面细节', india: '印占·显示口径', mundanecycles: '辅盘·世俗周期表', transformchart: '辅盘·变换盘', zodiacsystems: '辅盘·黄道制', dongya: '其他·东亚诸术', zhufang: '其他·诸方杂术', direction: '星运', guazhan: '六爻', acg: '辅盘·占星地图', babylon: '辅盘·巴比伦', draconic: '辅盘·龙盘', fengshui: '风水', suzhan: '宿占', guolao: '七政',
 };
 // 不进页面面的页(须写理由;合同看守:载入表 ∪ 本表 = 登记表)
 export const PAGE_FACET_EXCLUDED = {

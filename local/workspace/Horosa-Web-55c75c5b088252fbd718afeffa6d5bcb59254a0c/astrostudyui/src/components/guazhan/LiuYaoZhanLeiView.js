@@ -1,6 +1,7 @@
 // 右栏「占类」页:鬼谷辨爻法+占类专用对照卡(即时可用,数据来自 tianjiZhanleiCore)+
 // 歌赋断语库(tianjiDoctrine 古籍抽取件,经 liuyaoDoctrineCache 按需异步载入;载入前显示「载入中」)。
 import React, { useState, useEffect } from 'react';
+import { rareSafeText } from '../../utils/rareChars';
 import { BIANYAO_FA, QUE_LIUQIN, SIGUA_ILLNESS, BING_WEI, GUI_ZHENG, YAO_FANG, JI_RANG, LIUSHEN_SONG, LIUSHEN_SUI,
 	ZEI_SHOUFA, CANG_WU_FANG, XUN_ZEI_ZONG, YING_ZEI_WO, TAO_CANG, ZOU_FANG_BAGUA, YINXIN_BAGUA, XINGGE_ZHI,
 	JIULIU_ZISUN, NIUMA_GUA, TIANHE_GUI, CAN_GUI_YAO, LIUCHU_BENMING } from '../gua/data/tianjiZhanleiCore';
@@ -42,8 +43,8 @@ function DoctrineMen({ men, rows, defaultOpen }){
 							<React.Fragment key={i}>
 								{showSrc ? <div style={{ color: C.accent, fontWeight: 600, margin: '6px 0 2px', width: '100%' }}>◈ {r.source}</div> : null}
 								{dupTitle ? null : (isFrag
-									? <span style={{ display: 'inline-block', margin: '2px 5px 2px 0', padding: '1px 8px', borderRadius: 8, background: C.accentSoft, fontSize: 12 }}>{r.text}</span>
-									: <div style={{ color: r.text.indexOf('（') === 0 || r.text.indexOf('今注') >= 0 ? C.muted : C.text }}>{r.text}</div>)}
+									? <span style={{ display: 'inline-block', margin: '2px 5px 2px 0', padding: '1px 8px', borderRadius: 8, background: C.accentSoft, fontSize: 12 }}>{rareSafeText(r.text)}</span>
+									: <div style={{ color: r.text.indexOf('（') === 0 || r.text.indexOf('今注') >= 0 ? C.muted : C.text }}>{rareSafeText(r.text)}</div>)}
 							</React.Fragment>
 						);
 					})}

@@ -172,8 +172,8 @@ export default function SystemOnePanel(){
 
 					<div className={styles.groupLabel}>接入点</div>
 					<div className={styles.table}>
-						<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, lineHeight: '20px' }}>
-							<thead><tr style={{ textAlign: 'left' }}>{TABLE_HEADS.map((h)=><th key={h} style={{ whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
+						<table className={styles.plainTable}>
+							<thead><tr>{TABLE_HEADS.map((h)=><th key={h}>{h}</th>)}</tr></thead>
 							<tbody>
 								{points.map((p)=>{
 									const mode = getPointMode(p.id);

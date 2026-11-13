@@ -4,6 +4,7 @@
 // AI 快照 [古典·显赫计分] 段同引 —— AI 核禁 import 组件文件)。
 // 角宫判定复用现成宫位分类(1/4/7/10 角宫);夜盘区间光体=月,缺福点/朔望降级。中性表述。
 import { Component } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { SmallTable, astroSymbol } from './AstroExtraCommon';
 import { computeEminence, computePredominator, computeSevenRays, RAY_NAMES_CN } from '../../utils/astroClassicalDerived';
 import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
@@ -63,7 +64,7 @@ class AstroEminence extends Component{
 					</span>
 					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
 						{data.ok ? <span style={{ color: data.levelColor, fontWeight: 600, marginRight: 8 }}>{data.level}　{data.total}/10</span> : null}
-						{open ? '收起 ▲' : '展开 ▼'}
+						{open ? '收起' : '展开'}<XQToggleCaret open={open} />
 					</span>
 				</div>
 				{open ? (

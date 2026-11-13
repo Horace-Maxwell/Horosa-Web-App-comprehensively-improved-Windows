@@ -4,7 +4,7 @@ import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { Checkbox, message, Modal } from 'antd';
-import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQModal  } from '../xq-ui';
+import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQModal, XQStageEmpty } from '../xq-ui';
 import QuickDockBar from '../common/QuickDockBar';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -2356,6 +2356,10 @@ class GuaZhanMain extends Component{
 		let yao = this.fillYaoGods(this.state.yao);
 
 		let guadesc = this.state.guaDesc;
+		// 还没起卦时中栏给一句居中的提示,不画一张空盘。逐爻随机(一爻一爻起)时六爻没齐就没有本卦,
+		// 但已落定 / 正在翻动的爻要照常一爻一爻长出来 —— 只要有一爻有值就画盘。
+		const hasGua = (this.state.currentGua !== null && this.state.currentGua !== undefined)
+			|| (this.state.yao || []).some((y)=>y && y.value >= 0);
 
 		return (
 			<div className="horosa-guazhan-page horosa-astro-redesign horosa-guazhan-redesign" style={{ height: height, minHeight: height, overflow: 'hidden' }}>
@@ -2367,6 +2371,7 @@ class GuaZhanMain extends Component{
 						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-guazhan-chart-panel xq-chart-renderer xq-chart-renderer-liuyao">
 							{/* 流派/卦序/用神/卦身 已并入中栏盘内标题(GZChart.drawTitle),移除左侧冗余浮层 */}
 							<div className="horosa-guazhan-board-host">
+						{hasGua ? (
 						<GuaZhanChart
 							value={chart} 
 									height={Math.max(visualFloorPx(560), height - 22)}
@@ -2376,6 +2381,9 @@ class GuaZhanMain extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 						/>
+						) : (
+							<XQStageEmpty hint="左栏「快捷起卦」或下方快捷功能都可以起卦">起卦后显示卦盘</XQStageEmpty>
+						)}
 						</div>
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-guazhan-info-panel">

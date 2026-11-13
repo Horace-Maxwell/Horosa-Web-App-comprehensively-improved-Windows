@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
-index 4e547234..47bb7195 100644
+index 6d15208a..b37c4623 100644
 --- a/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
-@@ -431,14 +431,30 @@ describe('T4 补丁完整性哨兵', () => {
+@@ -578,14 +578,30 @@ describe('T4 补丁完整性哨兵', () => {
  	});
  
  	it('全树只有一份 dom-align(补丁覆盖面完整性前提)', () => {

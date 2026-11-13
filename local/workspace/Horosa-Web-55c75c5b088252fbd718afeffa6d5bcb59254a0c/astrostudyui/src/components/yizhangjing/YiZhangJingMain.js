@@ -4,8 +4,8 @@ import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/di
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { fieldVal, devFreeze } from '../shusuan/shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { Empty, Select } from 'antd';
-import { XQTabs as Tabs, XQDesignScaleBox } from '../xq-ui';
+import { Select } from 'antd';
+import { XQTabs as Tabs, XQDesignScaleBox, XQStageEmpty } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { buildYizhangjingModel, buildYizhangjingSnapshotText } from '../../utils/yizhangjingReport';
 import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAt, xiaoxianStarAtDir, xunShenAt, starLabel, daoLabel } from '../../utils/yizhangjingLocal';
@@ -49,6 +49,18 @@ class YiZhangJingMain extends Component {
 		this.state = { tab: 'overview' };
 		this.lastSnapKey = '';
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+	}
+
+	// 右栏当前页签:外层(底部快捷栏)给了 activeTab 就听外层的,否则用自己的 state。
+	currentTab() {
+		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
+		const raw = this.props.activeTab != null ? this.props.activeTab : this.state.tab;
+		return TAB_ALIAS[raw] || raw;
+	}
+
+	changeTab(k) {
+		this.setState({ tab: k });
+		if (typeof this.props.onTabChange === 'function') this.props.onTabChange(k);
 	}
 
 	componentDidMount() {
@@ -654,13 +666,14 @@ class YiZhangJingMain extends Component {
 		const c = m.chart;
 		const lb = this.lunarBirthParts(m);
 		// 旧键归一：重犯并入格局；小限·流年并入运限（防旧 state.tab 落空）。
-		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
-		const activeTab = TAB_ALIAS[this.state.tab] || this.state.tab;
+		// 神煞页签只在开了神煞合参时才有;关掉后停在那一页就回概览。
+		const rawTab = this.currentTab();
+		const activeTab = rawTab === 'shensha' && !m.shenshaLayer ? 'overview' : rawTab;
 		const showLiunian = m.annualMethod !== 'xiaoxian';
 		const pillarStarData = (star) => DATA.data[star] || {};
 		return (
 			<div className="horosa-yizhangjing-aux">
-				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
+				<Tabs activeKey={activeTab} onChange={(k) => this.changeTab(k)} tabPosition="top" className="horosa-yizhangjing-tabs">
 					<TabPane tab="概览" key="overview">
 						{this.card('起盘信息', (
 							<div>
@@ -730,12 +743,12 @@ class YiZhangJingMain extends Component {
 	// 空态右栏:子 tab 条恒在(与有盘时同构),各页内容区放空提示——用户在任何 tab 下切换/停留
 	// 都能看到完整信息架构,不因未排盘整块消失。
 	renderAuxEmpty() {
-		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
-		const activeTab = TAB_ALIAS[this.state.tab] || this.state.tab;
-		const empty = <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
+		const rawTab = this.currentTab();
+		const activeTab = rawTab === 'shensha' ? 'overview' : rawTab;
+		const empty = <div className="horosa-huangji-empty">请先在左侧输入出生时间</div>;
 		return (
 			<div className="horosa-yizhangjing-aux">
-				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
+				<Tabs activeKey={activeTab} onChange={(k) => this.changeTab(k)} tabPosition="top" className="horosa-yizhangjing-tabs">
 					<TabPane tab="概览" key="overview">{empty}</TabPane>
 					<TabPane tab="格局" key="geju">{empty}</TabPane>
 					<TabPane tab="十二宫" key="renshi">{empty}</TabPane>
@@ -752,7 +765,8 @@ class YiZhangJingMain extends Component {
 		const m = this.getModel();
 		if (!m) {
 			if (this.props.slot === 'aux') return this.renderAuxEmpty();
-			return <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
+			// 中栏没盘时与全站盘面空态同款:一句居中的提示
+			return <XQStageEmpty>请先在左侧输入出生时间</XQStageEmpty>;
 		}
 		return this.props.slot === 'aux' ? this.renderAux(m) : this.renderCenter(m);
 	}

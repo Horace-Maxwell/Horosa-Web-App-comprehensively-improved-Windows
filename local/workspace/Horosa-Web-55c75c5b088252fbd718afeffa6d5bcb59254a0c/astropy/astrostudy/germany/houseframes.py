@@ -5,8 +5,9 @@
 五框走「等宫」(每宫整 30°,锚点=1 宫头);唯独「子午局」走赤道分宫(不等距),
 直连 swisseph.houses_ex(jd,lat,lon,b'X') 读裸 ascmc[4](东点)作 1 宫头、ascmc[1](MC)作 10 宫头。
 
-🔴 子午局/东点必走 houses_ex(...,b'X') 读裸 ascmc[4]/ascmc[1],绝不走 flatlib sweHouses
-   —— 后者把东点(ascmc[4])当 ASC 的赤经误转成黄经(见 flatlib/ephem/swe.py 的 cotrans),会算错。
+🔴 子午局/东点必走 houses_ex(...,b'X') 读裸 ascmc[4]/ascmc[1],不走 flatlib sweHouses
+   —— 后者按所选分宫制给宫头,四轴的赤经赤纬是黄道点 (黄经, 黄纬 0) 的赤道坐标,东点另放在上升对象的
+   eastPointLon;子午局要的是 X 制的十二宫头与同一次调用的东点 / MC / Vertex,直连一次取全。
 
 六框锚点:
   - 子午局 meridian : 1 宫头=东点 ascmc[4]、10 宫头=MC ascmc[1](赤道分宫,等距=False)。
@@ -26,7 +27,7 @@ from flatlib import const
 def _meridian_cusps(jd, lat, lon):
     """子午局:赤道分宫(Axial rotation / Meridian houses, hsys=X)。
     返回 (cusps[12] 已 %360, 东点 ascmc[4]%360, MC ascmc[1]%360)。
-    直连 houses_ex 读裸 ascmc——不经 flatlib sweHouses(它会把东点当 ASC 赤经误转)。"""
+    直连 houses_ex 读裸 ascmc——不经 flatlib sweHouses(它给的是所选分宫制的宫头,不是 X 制)。"""
     cusps, ascmc = swisseph.houses_ex(jd, float(lat), float(lon), b'X')
     # ascmc[3]=Vertex:同一调用顺带带出(B7 前端可选点),零新计算;锚点语义(ascmc[4]/[1])不变。
     return [c % 360 for c in cusps], ascmc[4] % 360, ascmc[1] % 360, ascmc[3] % 360

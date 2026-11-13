@@ -15,6 +15,7 @@ import AstroPlanet from './AstroPlanet';
 import AstroLots from './AstroLots';
 import AstroPredictPlanetSign from './AstroPredictPlanetSign';
 import AstroAnalysisLab from './AstroAnalysisLab';
+import AstroChartDetails from './AstroChartDetails';
 import AstroEgypt from './AstroEgypt';
 import { inspectorEmptyNode, INSPECTOR_EMPTY_RELATIVE } from './inspectorEmpty';
 import AspSelector from './AspSelector';
@@ -34,7 +35,7 @@ import * as AstroText from '../../constants/AstroText';
 import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, aspectModelOrbs } from './schoolPresets';
 import { moietyOrbOverrides } from './AstroOrbSetting';
 import { schoolPresetFromFields } from './schoolPresetFromFields';
-import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
+import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQSettingGroup, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // 图标语义映射单源
 import XQIcon from '../xq-icons';
 // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
@@ -212,6 +213,11 @@ class AstroContentPanel extends Component{
 					<TabPane tab="埃及" key="egypt">
 						<FreezeSubTab active={activeTab === 'egypt'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroEgypt value={chartObj} height={tabHeight} />
+						))}</FreezeSubTab>
+					</TabPane>
+					<TabPane tab="细节" key="details">
+						<FreezeSubTab active={activeTab === 'details'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
+							<AstroChartDetails value={chartObj} height={tabHeight} />
 						))}</FreezeSubTab>
 					</TabPane>
 				</XQTabs>
@@ -915,11 +921,11 @@ class AstroChartMain extends Component{
 				</div>
 			</div>
 		);
-		const displayContent = (
-			<div className="horosa-settings-popover-panel horosa-settings-popover-panel-large">
-				<div className="horosa-settings-popover-title">显示与样式</div>
-				<div className={`horosa-chart-style-block${isIndiaChart ? ' horosa-india-style-block' : ''}`}>
-					<div className="horosa-side-section-title">星盘样式</div>
+		// 「星盘样式」作为前置组交给 ChartDisplaySelector:与其余设置组同一副组卡、同一条滚动流
+		// (浮层 portal 到 body,workspace-shell 作用域下的字段样式解析不到 → 版式由 .horosa-settings-popover 自带)。
+		const displayStyleLead = (
+			<XQSettingGroup title="星盘样式">
+				<div className="horosa-popover-style-fields">
 					{isIndiaChart ? (
 						<XQSegmented
 							value={indiaChartStyle}
@@ -930,6 +936,11 @@ class AstroChartMain extends Component{
 						this.renderWheelStyleGrid(chartStyle)
 					)}
 				</div>
+			</XQSettingGroup>
+		);
+		const displayContent = (
+			<div className="horosa-settings-popover-panel horosa-settings-popover-panel-large horosa-settings-popover-panel-flow">
+				<div className="horosa-settings-popover-title">显示与样式</div>
 				<ChartDisplaySelector
 					value={this.props.chartDisplay}
 					showPdBounds={this.props.fields && this.props.fields.showPdBounds ? this.props.fields.showPdBounds.value : this.props.showPdBounds}
@@ -942,6 +953,8 @@ class AstroChartMain extends Component{
 					fields={this.props.fields}
 					dispatch={this.props.dispatch}
 					classicalWriteBack={!this.props.embeddedSubChart}   /* 嵌入子盘不回写本命 fields */
+					lead={displayStyleLead}
+					hideWheelArt={!isIndiaChart}   /* 西洋盘的盘面美术已在前置组;印度盘前置组只有盘式,保留这一行 */
 				/>
 			</div>
 		);

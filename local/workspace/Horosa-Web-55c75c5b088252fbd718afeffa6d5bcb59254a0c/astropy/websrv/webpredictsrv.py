@@ -321,7 +321,8 @@ class PredictSrv:
             asporb = data['asporb'] if 'asporb' in data.keys() else 1
             nodeRetrograde = data['nodeRetrograde'] if 'nodeRetrograde' in data.keys() else False
             direction = data['direction'] if 'direction' in data.keys() else 'direct'
-            res = predict.getPersianDirectedByDate(data['datetime'], rateKey, asporb, nodeRetrograde, direction, zone=(data.get('dirZone') or None))
+            persianYear = data['persianYear'] if 'persianYear' in data.keys() else 'solar'
+            res = predict.getPersianDirectedByDate(data['datetime'], rateKey, asporb, nodeRetrograde, direction, zone=(data.get('dirZone') or None), persianYear=persianYear)
             return jsonpickle.encode(res, unpicklable=False)
         except:
             traceback.print_exc()

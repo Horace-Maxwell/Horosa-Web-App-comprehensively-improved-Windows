@@ -24,9 +24,11 @@ from websrv.horosa_engine_common import (  # noqa: F401  下列名字由各 kina
     build_snapshot,
     clean_text,
     coord_to_float,
+    format_timezone_label,
     gender_cn,
     json_safe,
     parse_datetime_fields,
+    simplify_text,
     timezone_to_float,
     to_float,
     to_int,
@@ -128,12 +130,7 @@ def display_text(value):
     else:
         for old, new in DISPLAY_REPLACEMENTS.items():
             text = text.replace(old, new)
-    if zh_convert:
-        try:
-            text = zh_convert(text, "zh-cn")
-        except Exception:
-            pass
-    return text.replace("None", "无")
+    return simplify_text(text).replace("None", "无")
 
 
 SOURCE_REPLACEMENTS = {new: old for old, new in DISPLAY_REPLACEMENTS.items() if old != new}

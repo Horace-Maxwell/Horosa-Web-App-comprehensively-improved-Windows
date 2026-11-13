@@ -239,9 +239,8 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 			['components/guolao/GuoLaoMoiraPickWheel.js', 'fixedPopupFrame'],
 			['components/astro/IndiaChartMain.js', 'fixedPopupFrame'],
 			['components/planetarium/PlanetariumBabylon.js', 'fixedPopupFrame'],
-			['components/zeri/ZeriMiniPanPopup.js', 'clientToFixed'],
-			['components/zeri/QimenMiniBoardPopup.js', 'clientToFixed'],
-			['components/zeri/ConditionBuilderModal.js', 'clientToFixed'],
+			// 择日三个概览浮窗(盘概览 / 奇门速览 / 天星条件预览)的拖拽与缩放收在同一副外壳里,换域只此一处
+			['components/zeri/ZeriFloatPanel.js', 'clientToFixed'],
 			['components/acg/AcgD3Map.js', 'pointerToLocal'],
 			['components/germany/UranianGraphicEphemeris.js', 'pointerToLocal'],
 			['components/fengshui/fengshuiEngine.js', 'pointerToLocal'],
@@ -259,6 +258,14 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 			expect(`${f} 调用 ${token}=${calls > 0}`).toBe(`${f} 调用 ${token}=true`);
 		});
 		expect(seen).toBeGreaterThan(5);
+	});
+
+	it('择日三个概览浮窗都走共用外壳,不各写一份拖拽 / 缩放(各写一份 = 各自要换域,漏一个就在缩放档下不跟手)', () => {
+		['components/zeri/ZeriMiniPanPopup.js', 'components/zeri/QimenMiniBoardPopup.js', 'components/zeri/ConditionBuilderModal.js'].forEach((f) => {
+			const src = readSource(path.join(SRC, f));
+			expect(`${f} 用共用外壳=${/<ZeriFloatPanel\b/.test(src)}`).toBe(`${f} 用共用外壳=true`);
+			expect(`${f} 自己读指针坐标=${/\bclientX\b/.test(src)}`).toBe(`${f} 自己读指针坐标=false`);
+		});
 	});
 
 	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {

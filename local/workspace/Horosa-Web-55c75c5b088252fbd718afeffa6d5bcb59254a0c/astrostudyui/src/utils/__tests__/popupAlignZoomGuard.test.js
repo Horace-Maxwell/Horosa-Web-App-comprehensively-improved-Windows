@@ -27,8 +27,10 @@ function installLayoutModel(){
 	Element.prototype.getBoundingClientRect = function(){
 		const l = parseFloat(this.style.left) || 0;
 		const t = parseFloat(this.style.top) || 0;
-		const w = parseFloat(this.style.width) || 0;
-		const h = parseFloat(this.style.height) || 0;
+		// data-collapsed="1" = 入场动画首帧的 transform: scale(0):位置还在(变换原点在左上),宽高量出来是 0
+		const collapsed = !!(this.dataset && this.dataset.collapsed === '1');
+		const w = collapsed ? 0 : (parseFloat(this.style.width) || 0);
+		const h = collapsed ? 0 : (parseFloat(this.style.height) || 0);
 		return {
 			left: l * Z, top: t * Z, width: w * Z, height: h * Z,
 			right: (l + w) * Z, bottom: (t + h) * Z,
@@ -376,6 +378,141 @@ describe('T3c rect 不反映缩放的引擎 · 放大档下拉必须翻转', () 
 	});
 });
 
+// ── T3d 入场动画首帧(scale(0))── antd 的下拉 / 选择框 / 日期面板都用 slide 族入场:首次对齐发生在 transform: scale(0) 阶段,
+// 浮层 rect 宽高是 0。dom-align 量不到尺寸时回落读 getComputedStyle 的宽高 —— 那是布局域(未缩放)的数,却被当成 rect 域用。
+// 缩放档 ≠ 1 时:居中 / 右对齐的浮层首帧横向偏 (1−z)·宽/2(或整宽),上置浮层纵向偏 (1−z)·高;动画结束后 rc-trigger 再对齐一次、
+// 量到真尺寸才归位 ⇒ 肉眼看见「先出现在偏一点的位置、再挪过去」(真机 0.9 档页头「设置」「AI导出」下拉;0.8 档实测跳 12 / 15 px)。
+// 旧守卫的浮层 rect 宽高恒非 0,回落分支从未被执行过。补丁 v4 让回落读数乘实测缩放(系数 1 时逐位不变)。
+describe('T3d 入场首帧量不到尺寸:回落读数必须换到 rect 域', () => {
+	beforeEach(() => { installLayoutModel(); __resetScaleCacheForTest(); });
+	afterEach(() => {
+		restoreLayoutModel();
+		delete window.__HOROSA_ALIGN_SCALE__;
+		delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		Z = 1;
+	});
+
+	const BORDER_BOX = 'position:absolute;left:0px;top:0px;width:200px;height:300px;box-sizing:border-box;';
+	// content-box 走回落分支的另一半(内边距 / 边框单独相加):外宽同为 200 = 180 + 10 + 10
+	const CONTENT_BOX = 'position:absolute;left:0px;top:0px;width:180px;height:300px;box-sizing:content-box;padding-left:10px;padding-right:10px;';
+	const OUTER_W = 200; const OUTER_H = 300;
+	const TGT = { left: 600, top: 400, width: 120, height: 32 };
+
+	// 收拢态对齐一次,返回写回的 CSS 域 left / top(= 浮层首帧实际落位)
+	function openCollapsed(alignFn, z, hooked, points, popupCss){
+		Z = z;
+		__resetScaleCacheForTest();
+		if(hooked){
+			window.__HOROSA_ALIGN_SCALE__ = () => z;
+			window.__HOROSA_ALIGN_VIEWPORT_SCALE__ = () => 1;
+		}else{
+			delete window.__HOROSA_ALIGN_SCALE__;
+			delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		}
+		const target = mkEl(`position:absolute;left:${TGT.left}px;top:${TGT.top}px;width:${TGT.width}px;height:${TGT.height}px;`);
+		const popup = mkEl(popupCss || BORDER_BOX);
+		popup.dataset.collapsed = '1';
+		alignFn(popup, target, { points, offset: [0, 0], overflow: { adjustX: 0, adjustY: 0 } });
+		const out = { left: parseFloat(popup.style.left), top: parseFloat(popup.style.top) };
+		popup.remove(); target.remove();
+		return out;
+	}
+	// 正确落位(CSS 域):下置居中 = 触发器中线 − 外宽/2;上置 = 触发器顶 − 外高
+	const CENTER_LEFT = TGT.left + TGT.width / 2 - OUTER_W / 2;      // 560
+	const ABOVE_TOP = TGT.top - OUTER_H;                               // 100
+	const RIGHT_LEFT = TGT.left + TGT.width - OUTER_W;                 // 520
+
+	// 去补丁副本:把 v4 两处换域还原成库的原样,其余补丁(v1~v3)保留 —— 反例只隔离这一处
+	function loadWithoutV4(){
+		const fs = require('fs');
+		const path = require('path');
+		let src = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'node_modules/dom-align/dist-node/index.js'), 'utf8');
+		const pairs = [
+			['cssBoxValue = Math.floor(parseFloat(cssBoxValue) * __horosaAlignScale(elem)) || 0;', 'cssBoxValue = Math.floor(parseFloat(cssBoxValue)) || 0;'],
+			['return cssBoxValue + getPBMWidth(elem, BOX_MODELS.slice(extra), which) * __horosaAlignScale(elem);', 'return cssBoxValue + getPBMWidth(elem, BOX_MODELS.slice(extra), which);'],
+		];
+		pairs.forEach(([patched, plain]) => {
+			expect(src.split(patched).length - 1).toBe(1);
+			src = src.replace(patched, plain);
+		});
+		const mod = {};
+		// eslint-disable-next-line no-new-func
+		new Function('exports', src)(mod);
+		return mod.alignElement;
+	}
+
+	it('🔴 下置居中(页头「设置」「AI导出」同款 placement=bottom):各档首帧即居中(<2 CSS px)', () => {
+		[0.7, 0.8, 0.9, 1.2, 1.8].forEach((z) => {
+			const r = openCollapsed(alignElement, z, true, ['tc', 'bc']);
+			expect(Math.abs(r.left - CENTER_LEFT)).toBeLessThan(2);
+			expect(Math.abs(r.top - (TGT.top + TGT.height))).toBeLessThan(2);
+		});
+	});
+
+	it('🔴 右对齐(bottomRight)与上置(topLeft 翻上去的下拉):各档首帧即到位', () => {
+		[0.7, 0.8, 0.9, 1.2, 1.8].forEach((z) => {
+			const right = openCollapsed(alignElement, z, true, ['tr', 'br']);
+			expect(Math.abs(right.left - RIGHT_LEFT)).toBeLessThan(2);
+			const above = openCollapsed(alignElement, z, true, ['bl', 'tl']);
+			expect(Math.abs(above.top - ABOVE_TOP)).toBeLessThan(2);
+		});
+	});
+
+	it('🔴 content-box 浮层(内边距单独相加的那一半)同样首帧即居中', () => {
+		[0.8, 0.9, 1.2].forEach((z) => {
+			const r = openCollapsed(alignElement, z, true, ['tc', 'bc'], CONTENT_BOX);
+			expect(Math.abs(r.left - CENTER_LEFT)).toBeLessThan(2);
+		});
+	});
+
+	it('🔴 首帧落位 = 展开后再对齐的落位(同一几何两次对齐不挪窝 —— 用户看到的「跳一下」就是这两者之差)', () => {
+		[0.8, 0.9, 1.2].forEach((z) => {
+			const first = openCollapsed(alignElement, z, true, ['tc', 'bc']);
+			Z = z;
+			const target = mkEl(`position:absolute;left:${TGT.left}px;top:${TGT.top}px;width:${TGT.width}px;height:${TGT.height}px;`);
+			const popup = mkEl(BORDER_BOX);                                   // 展开态:rect 宽高是真值
+			alignElement(popup, target, { points: ['tc', 'bc'], offset: [0, 0], overflow: { adjustX: 0, adjustY: 0 } });
+			const settled = parseFloat(popup.style.left);
+			popup.remove(); target.remove();
+			expect(Math.abs(first.left - settled)).toBeLessThan(2);
+		});
+	});
+
+	it('🔴 z=1:装钩子与不装钩子逐位相同(零回归锁)', () => {
+		[['tc', 'bc'], ['tr', 'br'], ['bl', 'tl']].forEach((points) => {
+			const a = openCollapsed(alignElement, 1, false, points);
+			const b = openCollapsed(alignElement, 1, true, points);
+			expect(b.left).toBe(a.left);
+			expect(b.top).toBe(a.top);
+		});
+		const c = openCollapsed(alignElement, 1, false, ['tc', 'bc'], CONTENT_BOX);
+		const d = openCollapsed(alignElement, 1, true, ['tc', 'bc'], CONTENT_BOX);
+		expect(d.left).toBe(c.left);
+		expect(Math.abs(c.left - CENTER_LEFT)).toBeLessThan(2);
+	});
+
+	it('反例自证:去掉 v4 两处换域后,同一几何首帧偏差 = 闭式解 —— 这把尺有牙', () => {
+		const plainAlign = loadWithoutV4();
+		const z = 0.8;
+		// 居中:宽被当成 200(实为 200z)⇒ 落位偏左 (1−z)·宽/2 视觉 px = (1−z)·宽/(2z) CSS px = 25
+		const mid = openCollapsed(plainAlign, z, true, ['tc', 'bc']);
+		// (库读坐标时主动取整 ⇒ 与闭式解差 ≤ 1 CSS px,容差给 1.5)
+		expect(Math.abs((mid.left - CENTER_LEFT) - (-(1 - z) * OUTER_W / (2 * z)))).toBeLessThan(1.5);
+		// 右对齐:偏整宽差 = (1−z)·宽/z = 50;上置:偏整高差 = (1−z)·高/z = 75
+		const right = openCollapsed(plainAlign, z, true, ['tr', 'br']);
+		expect(Math.abs((right.left - RIGHT_LEFT) - (-(1 - z) * OUTER_W / z))).toBeLessThan(1.5);
+		const above = openCollapsed(plainAlign, z, true, ['bl', 'tl']);
+		expect(Math.abs((above.top - ABOVE_TOP) - (-(1 - z) * OUTER_H / z))).toBeLessThan(1.5);
+		// content-box 那一半同样偏
+		const cb = openCollapsed(plainAlign, z, true, ['tc', 'bc'], CONTENT_BOX);
+		expect(Math.abs(cb.left - CENTER_LEFT)).toBeGreaterThan(20);
+		// 同一副本在 z=1 下与带补丁的真文件逐位相同(v4 在默认档是纯恒等)
+		const p1 = openCollapsed(plainAlign, 1, true, ['tc', 'bc']);
+		const q1 = openCollapsed(alignElement, 1, true, ['tc', 'bc']);
+		expect(p1.left).toBe(q1.left);
+	});
+});
+
 describe('T4 补丁完整性哨兵', () => {
 	const fs = require('fs');
 	const path = require('path');
@@ -402,7 +539,7 @@ describe('T4 补丁完整性哨兵', () => {
 	it('🔴 v2 防半修:祖先裁剪循环四个布局域读数都换到 rect 域(每份产物各恰 1 处)', () => {
 		files.forEach((rel) => {
 			const src = fs.readFileSync(path.join(root, rel), 'utf8');
-			expect(src.indexOf('horosa:dom-align-zoom v3') >= 0).toBe(true);   // 标记随补丁版本走(v3 含 v2 全部锚)
+			expect(src.indexOf('horosa:dom-align-zoom v4') >= 0).toBe(true);   // 标记随补丁版本走(v4 含 v2 / v3 全部锚)
 			['pos.left += el.clientLeft * __hzc;', 'pos.top += el.clientTop * __hzc;', 'pos.left + el.clientWidth * __hzc);', 'pos.top + el.clientHeight * __hzc);', 'var __hzc = __horosaAlignScale(el);']
 				.forEach((tok) => expect(src.split(tok).length - 1).toBe(1));
 			// 未补形态不得残留(半修 = 一边乘了一边没乘,比不修更糟)
@@ -422,6 +559,16 @@ describe('T4 补丁完整性哨兵', () => {
 			const def = src.indexOf('var __vs = __horosaViewportScale(win);');
 			expect(def).toBeGreaterThan(0);
 			expect(src.indexOf('documentHeight = win.innerHeight * __vs;')).toBeGreaterThan(def);
+		});
+	});
+
+	it('🔴 v4 防半修:量不到尺寸时的回落读数两处都换到 rect 域(每份产物各恰 1 处,未补形态零残留)', () => {
+		files.forEach((rel) => {
+			const src = fs.readFileSync(path.join(root, rel), 'utf8');
+			['cssBoxValue = Math.floor(parseFloat(cssBoxValue) * __horosaAlignScale(elem)) || 0;', 'return cssBoxValue + getPBMWidth(elem, BOX_MODELS.slice(extra), which) * __horosaAlignScale(elem);']
+				.forEach((tok) => expect(src.split(tok).length - 1).toBe(1));
+			expect(src.indexOf('cssBoxValue = Math.floor(parseFloat(cssBoxValue)) || 0;')).toBe(-1);
+			expect(src.indexOf('return cssBoxValue + getPBMWidth(elem, BOX_MODELS.slice(extra), which);')).toBe(-1);
 		});
 	});
 

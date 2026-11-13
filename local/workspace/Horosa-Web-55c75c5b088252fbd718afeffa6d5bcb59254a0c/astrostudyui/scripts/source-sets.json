@@ -11,7 +11,7 @@
     },
     "utils/aiAnalysisContext.js": {
       "dir": "utils/aiAnalysisContext",
-      "files": ["catalog.js", "recordFields.js", "regenDivination.js", "pair.js", "regenCase.js", "chartParams.js", "regenHoraryElection.js", "primaryDirection.js", "regenPredictive.js", "regenChart.js", "sourceContext.js", "techniqueKey.js", "snapshotMatch.js", "techniqueContext.js", "contextLayers.js"]
+      "files": ["catalog.js", "recordFields.js", "regenDivination.js", "pair.js", "regenCase.js", "chartParams.js", "regenHoraryElection.js", "primaryDirection.js", "regenPredictive.js", "regenChart.js", "sourceContext.js", "techniqueKey.js", "snapshotMatch.js", "techniqueContext.js", "contextLayers.js", "derivedLabsHeadless.js"]
     },
     "components/lrzhan/LiuRengMain.js": {
       "dir": "components/lrzhan/main",
@@ -19,11 +19,11 @@
     },
     "components/planetarium/PlanetariumBabylon.js": {
       "dir": "components/planetarium/babylon",
-      "files": ["PlanetariumTimeEditor.js", "constants.js", "skyMath.js", "itemText.js", "textures.js", "sceneParams.js", "PlanetariumRenderer.js"]
+      "files": ["PlanetariumTimeEditor.js", "constants.js", "skyMath.js", "itemText.js", "textures.js", "sceneParams.js", "labelCrop.js", "labelUploadQueue.js", "playbackClock.js", "playbackHotkey.js", "PlanetariumRenderer.js"]
     },
     "components/astro/IndiaChartMain.js": {
       "dir": "components/astro/indiaMain",
-      "files": ["dasha.js", "optionState.js", "jyotishData.js"]
+      "files": ["dasha.js", "optionState.js", "jyotishData.js", "IndiaExtraTables.js", "IndiaTransitEvents.js", "IndiaYogaRuleTable.js"]
     },
     "components/guolao/GuoLaoChartMain.js": {
       "dir": "components/guolao/main",

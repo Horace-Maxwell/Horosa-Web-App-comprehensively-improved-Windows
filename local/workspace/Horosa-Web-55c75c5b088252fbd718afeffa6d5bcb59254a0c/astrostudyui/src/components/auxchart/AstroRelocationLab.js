@@ -1,5 +1,10 @@
 import { Component } from 'react';
 import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
+import { CHART_DETAIL_SETTINGS, CHART_DETAIL_SETTINGS_EVENT, buildChartDetailsText, chartDetailRequestFields } from '../../utils/chartDetails';
+import { buildClassicalAnalysisSection } from '../../utils/astroAiSnapshot';
+import { fixedStarOrbParamsFor, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { MODULE_SNAPSHOT_PREPARE_EVENT } from '../../utils/moduleSnapshotRefresh';
+import { getStore } from '../../utils/storageutil';
 import AstroChart from '../astro/AstroChart';
 import AstroInfo from '../astro/AstroInfo';
 import AstroAspect from '../astro/AstroAspect';
@@ -49,6 +54,27 @@ function natalLatLonDecimal(chartObj){
 	};
 }
 
+// 「可能性」(星落星座的断语):重置只换地点、出生 UT 不变 → 各星所落星座与本命相同,断语就是本命那份。
+// 后端重置盘不跑推断(predictive=false),此前页面「可能性」页签恒空、导出 / 挂载也没有这一段;借本命的星座断语补上
+// (只借 PlanetSign,与宫位 / 地点有关的推断一概不借)。结果与本命同一命主才进来(shownResult / load 都按命主认领)。
+function withNatalPlanetSign(relocChart, natal){
+	if(!relocChart || typeof relocChart !== 'object'){ return relocChart; }
+	const own = relocChart.predict && relocChart.predict.PlanetSign;
+	const natalSigns = natal && natal.predict && natal.predict.PlanetSign;
+	if(own || !natalSigns){ return relocChart; }
+	return { ...relocChart, predict: { ...(relocChart.predict || {}), PlanetSign: natalSigns } };
+}
+
+// 古典格局请求体:与导出 / 挂载取古典格局同口径(缓存代次盐、恒星轨随盘 → 全局仓、空亡古典开关)
+function relocClassicalBody(params){
+	const body = { _v: 'cls1', ...params, ...fixedStarOrbParamsFor(params) };
+	try{
+		const app = (getStore() || {}).app;
+		if(app && (app.voidClassical === 1 || app.voidClassical === '1' || app.voidClassical === true)){ body.voidClassical = true; }
+	}catch(e){ /* 读不到按缺省 */ }
+	return body;
+}
+
 class AstroRelocationLab extends Component{
 	constructor(props){
 		super(props);
@@ -66,6 +92,8 @@ class AstroRelocationLab extends Component{
 		this.load = this.load.bind(this);
 		this.handleGeoOk = this.handleGeoOk.bind(this);
 		this.renderContentPanel = this.renderContentPanel.bind(this);
+		this.handleSnapshotPrepareRequest = this.handleSnapshotPrepareRequest.bind(this);
+		this.handleExtrasSettingsChanged = this.handleExtrasSettingsChanged.bind(this);
 		this.changeSideTab = this.changeSideTab.bind(this);
 	}
 
@@ -75,6 +103,11 @@ class AstroRelocationLab extends Component{
 
 	componentDidMount(){
 		this._mounted = true;
+		if(typeof window !== 'undefined'){
+			window.addEventListener(MODULE_SNAPSHOT_PREPARE_EVENT, this.handleSnapshotPrepareRequest);
+			window.addEventListener(CHART_DETAIL_SETTINGS_EVENT, this.handleExtrasSettingsChanged);
+			window.addEventListener(CLASSICAL_GLOBALS_EVENT, this.handleExtrasSettingsChanged);
+		}
 		this.load();
 	}
 
@@ -90,10 +123,20 @@ class AstroRelocationLab extends Component{
 				});
 			}
 		}
+		// 空亡古典义等宿主口径改了(经 props 进来):快照里的「古典格局」随之重取
+		if(prevProps.voidClassical !== this.props.voidClassical){
+			this.handleExtrasSettingsChanged();
+		}
 	}
 
 	componentWillUnmount(){
 		this._mounted = false;
+		clearTimeout(this._extrasTimer);
+		if(typeof window !== 'undefined'){
+			window.removeEventListener(MODULE_SNAPSHOT_PREPARE_EVENT, this.handleSnapshotPrepareRequest);
+			window.removeEventListener(CHART_DETAIL_SETTINGS_EVENT, this.handleExtrasSettingsChanged);
+			window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this.handleExtrasSettingsChanged);
+		}
 	}
 
 	relocKey(){
@@ -150,25 +193,124 @@ class AstroRelocationLab extends Component{
 			this.setState({result: res, resultSig, loading: false, requestKey: key}, ()=>{
 				markPanelReady('auxchart');
 			});
-			// 出盘即存:整张重置盘 + [重置盘] 专属段(地点/四角对比)。
-			saveDerivedAstroSnapshot('relocation', res.chart, this.props.fields, ()=>{
-				const out = ['[重置盘]'];
-				out.push(`重置地点：纬 ${this.state.relocLat} / 经 ${this.state.relocLon}`);
-				try{
-					const natal = anglesOf(this.props.value);
-					const reloc = anglesOf(res.chart);
-					ANGLE_IDS.forEach((id)=>{
-						const n = natal && natal[id]; const r = reloc && reloc[id];
-						if(n || r){ out.push(`${id}：本命 ${n ? `${n.sign || ''}${n.signlon != null ? Number(n.signlon).toFixed(2) + '°' : ''}` : '—'} → 重置后 ${r ? `${r.sign || ''}${r.signlon != null ? Number(r.signlon).toFixed(2) + '°' : ''}` : '—'}`); }
-					});
-				}catch(e){ /* 角点缺省不产行 */ }
-				return out.length > 1 ? out : [];
-			});
+			// 出盘即存(整张重置盘 + [重置盘] 专属段):这一刻起导出 / 挂载 / 存案读到的就是这张盘,不留上一张;
+			// 按重置地点算的 [盘面细节] / [古典格局] 已按同一口径取过就一并写入,否则取回后补写(导出前会等它)。
+			const relocParams = this.relocParams();
+			const known = this.knownRelocExtras(relocParams);
+			this.saveRelocSnapshot(res, known);
+			if(known){ return; }
+			const extras = await this.fetchRelocExtras(relocParams);
+			if(!this._mounted || seq !== this._loadSeq) return;
+			this.saveRelocSnapshot(res, extras);
 		}catch(e){
 			if(!this._mounted || seq !== this._loadSeq) return;
 			parkLoadFailure(this, key);   // 失败不记成已完成:窗口期后同一张盘自动重试
 			this.setState({loading: false});
 		}
+	}
+
+	// 重置后的起盘参数:出生时刻不变,只换经纬(宫位、地平高度、世俗位置、角宫 / 地平上下都随地点变)
+	relocParams(){
+		return { ...chartParams(this.props.value), lat: convertLatToStr(this.state.relocLat), lon: convertLonToStr(this.state.relocLon) };
+	}
+
+	// [盘面细节] / [古典格局] 两个请求体 = 口径签名:重置地点、盘面细节各项、恒星轨、空亡古典义任一项变了就得重取
+	relocExtrasBodies(relocParams){
+		const detailsBody = { ...relocParams, ...chartDetailRequestFields(CHART_DETAIL_SETTINGS.load()) };
+		const classicalBody = relocClassicalBody(relocParams);
+		return { detailsBody, classicalBody, key: JSON.stringify([detailsBody, classicalBody]) };
+	}
+
+	// 当前口径下已取到的两段;没取过 / 口径变了 → null
+	knownRelocExtras(relocParams){
+		const { key } = this.relocExtrasBodies(relocParams);
+		return this._extras && this._extras.key === key && this._extras.value ? this._extras.value : null;
+	}
+
+	// 两个请求并发,同一口径只取一次(在途的复用);取不到只少那一段,两段都没取到不记账(下回再取)
+	fetchRelocExtras(relocParams){
+		const { detailsBody, classicalBody, key } = this.relocExtrasBodies(relocParams);
+		if(this._extras && this._extras.key === key){
+			return this._extras.value ? Promise.resolve(this._extras.value) : this._extras.promise;
+		}
+		const promise = Promise.all([
+			request(`${Constants.ServerRoot}/astroextra/chartdetails`, { body: JSON.stringify(detailsBody), silent: true, timeoutMs: 20000 })
+				.then((det)=>buildChartDetailsText(det && det.Result ? det.Result : det) || '').catch(()=>''),
+			request(`${Constants.ServerRoot}/astroextra/analysis`, { body: JSON.stringify(classicalBody), silent: true, timeoutMs: 20000 })
+				.then((an)=>buildClassicalAnalysisSection(an && an.Result ? an.Result : an) || '').catch(()=>''),
+		]).then(([detailsText, classicalText])=>{
+			const value = { detailsText, classicalText };
+			// 只记最近一次口径的回包(口径在途又变了 = 这份已过时,不记)
+			if(this._extrasKey === key && this._extras){
+				if(detailsText || classicalText){ this._extras.value = value; }else{ this._extras = null; this._extrasKey = ''; }
+			}
+			return value;
+		});
+		this._extras = { key, promise, value: null };
+		this._extrasKey = key;
+		return promise;
+	}
+
+	// 页面上这张重置盘(出自当前命主、且就是当前地点那一张);没有 → null
+	currentRelocResult(){
+		const res = this.shownResult();
+		return res && res.chart && this.state.requestKey === this.relocKey() ? res : null;
+	}
+
+	// 口径变了(盘面细节各项 / 恒星轨 / 空亡古典义):按新口径重取两段并重存快照,挂载与导出都不留旧口径
+	handleExtrasSettingsChanged(){
+		clearTimeout(this._extrasTimer);
+		this._extrasTimer = setTimeout(()=>{ if(this._mounted){ this.refreshRelocExtras(); } }, 0);
+	}
+
+	refreshRelocExtras(){
+		const res = this.currentRelocResult();
+		if(!res){ return null; }
+		const relocParams = this.relocParams();
+		const known = this.knownRelocExtras(relocParams);
+		if(known){
+			this.saveRelocSnapshot(res, known);
+			return null;
+		}
+		return this.fetchRelocExtras(relocParams).then((extras)=>{
+			if(this._mounted && this.currentRelocResult() === res){ this.saveRelocSnapshot(res, extras); }
+		});
+	}
+
+	// 导出前补算:正文要的两段按此刻口径取齐(导出侧最多等 30 秒)
+	handleSnapshotPrepareRequest(evt){
+		const detail = evt && evt.detail;
+		if(!detail || detail.module !== 'relocation' || !Array.isArray(detail.pending)){ return; }
+		const pending = this.refreshRelocExtras();
+		if(pending){ detail.pending.push(pending); }
+	}
+
+	saveRelocSnapshot(res, extras){
+		const { detailsText = '', classicalText = '' } = extras || {};
+		saveDerivedAstroSnapshot('relocation', this.relocChartFor(res.chart), this.props.fields, ()=>{
+			const out = ['[重置盘]'];
+			out.push(`重置地点：纬 ${this.state.relocLat} / 经 ${this.state.relocLon}`);
+			try{
+				const natal = anglesOf(this.props.value);
+				const reloc = anglesOf(res.chart);
+				ANGLE_IDS.forEach((id)=>{
+					const n = natal && natal[id]; const r = reloc && reloc[id];
+					if(n || r){ out.push(`${id}：本命 ${n ? `${n.sign || ''}${n.signlon != null ? Number(n.signlon).toFixed(2) + '°' : ''}` : '—'} → 重置后 ${r ? `${r.sign || ''}${r.signlon != null ? Number(r.signlon).toFixed(2) + '°' : ''}` : '—'}`); }
+				});
+			}catch(e){ /* 角点缺省不产行 */ }
+			const lines = out.length > 1 ? out : [];
+			return [[lines.join('\n'), detailsText, classicalText].filter(Boolean).join('\n\n')];   // 段间空一行(行数组会滤掉空行)
+		});
+	}
+
+	// 补上本命星座断语的重置盘:同一张回包 × 同一份本命断语只拼一次(盘面组件按引用判重画,每次渲染新拼一份 = 每次整盘重画)
+	relocChartFor(chart){
+		const natalSigns = this.props.value && this.props.value.predict ? this.props.value.predict.PlanetSign : undefined;
+		const memo = this._signMemo;
+		if(memo && memo.chart === chart && memo.natalSigns === natalSigns){ return memo.out; }
+		const out = withNatalPlanetSign(chart, this.props.value);
+		this._signMemo = { chart, natalSigns, out };
+		return out;
 	}
 
 	renderAngleCompare(relocChart){
@@ -343,7 +485,7 @@ class AstroRelocationLab extends Component{
 	render(){
 		this.ensureLoaded();
 		const result = this.shownResult() || {};
-		const relocChart = result.chart || null;
+		const relocChart = this.relocChartFor(result.chart || null);
 		const fields = this.props.fields;
 		const height = this.props.height ? this.props.height : 760;
 		const tabHeight = Math.max(height - 60, 520);

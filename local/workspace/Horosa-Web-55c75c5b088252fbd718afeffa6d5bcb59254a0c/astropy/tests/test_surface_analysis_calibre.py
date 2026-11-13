@@ -91,10 +91,10 @@ def test_planetary_hours_sunrise_late_autumn_high_lat_has_current():
     assert any(h['current'] for h in ph['hours'])
 
 
-def test_house_ra_sidereal_vs_tropical_divergence_documents_pseudo_ra():
-    # 后端 sweHouses 对恒星制宫头黄经直接做黄→赤旋转,产出的 ra 并非真赤经
-    # (差≈ayanamsa 的赤道投影)。前端已按制回落不显;此例锁「两制 ra 确实分岔」的事实,
-    # 若未来后端治本(恒星制 ra 修正为真赤经),本例翻红提醒同步放开前端回落。
+def test_house_ra_is_the_same_in_sidereal_and_tropical_charts():
+    # 宫头赤经与黄道制无关:sweHouses 对恒星制宫头先加回岁差再按本日真黄赤交角换算。
+    # 此前恒星制直接拿恒星黄经做黄→赤旋转,赤经差≈岁差的赤道投影,前端 RAMC 只好在恒星制回落不显;
+    # 现在前端回落已放开(classicalSurfaceParity.test.js 同步)。
     from astrostudy.perchart import PerChart
     base = {'date': '1990/06/15', 'time': '12:00:00', 'zone': '+08:00',
             'lat': '39n54', 'lon': '116e28', 'hsys': 5}
@@ -110,4 +110,4 @@ def test_house_ra_sidereal_vs_tropical_divergence_documents_pseudo_ra():
     ra_sid = h10ra({'zodiacal': 1, 'siderealAyanamsa': 'lahiri'})
     assert ra_trop is not None and ra_sid is not None
     d = abs(((ra_trop - ra_sid) + 180) % 360 - 180)
-    assert d > 5.0   # 伪 ra 与真 ra 差≈ayanamsa 投影(~24°),显著分岔
+    assert d < 1e-6

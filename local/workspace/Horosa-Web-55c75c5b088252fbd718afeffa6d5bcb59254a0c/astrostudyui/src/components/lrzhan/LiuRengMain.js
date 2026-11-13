@@ -9,7 +9,7 @@ import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { registerProcessCache } from '../../utils/processCacheRegistry';
 import { Modal, message, Tag } from 'antd';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection , XQStageEmpty } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -64,6 +64,7 @@ import {
 } from './main/panData';
 import { XIAO_JU_REFERENCE_TAB_KEYS } from './main/referenceData';
 import { buildReferenceDocumentText, buildOverviewReferenceText, buildLiuRengReferenceBundle, filterBiFaListByQuery } from './main/referenceMatch';
+import { LiuRengRefCard, LiuRengRefEmpty, LiuRengRefFacts, LiuRengRefGroupTitle } from './LiuRengRefCard';
 import { buildLiuRengSnapshotText } from './main/snapshot';
 import { zeriLockProps, zeriRestoredLockMarks, clearZeriLockMarks } from '../../divination/zeri/zeriPageCalibre';
 // 对外导出面不变:搬进子模块的导出原样重导出
@@ -88,7 +89,7 @@ const TabPane = Tabs.TabPane;
 // 与任何 props/state 无关,原 genWuXingDoms() 每次 render 都从头重建一遍(纯白跑)。提为模块级
 // 冻结常量:引用恒稳 → 左栏子面板 sCU 浅比恒等;Select 只读消费列表,零语义差。
 const WUXING_OPTION_DOMS = Object.freeze(LRConst.WuXing.map((item, idx)=>(
-	<Option key={idx} value={item.elem}>十二长生：{item.elem}--{item.ganzi}</Option>
+	<Option key={idx} value={item.elem} label={`${item.elem}（${item.ganzi}）`}>十二长生：{item.elem}--{item.ganzi}</Option>
 )));
 
 // horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear 的结果缓存**提升到模块级**。
@@ -158,7 +159,7 @@ class LiuRengInputPanel extends Component{
 					<div className="horosa-liureng-select-grid">
 							<label className="horosa-liureng-select-field">
 								<span>十二长生</span>
-								<Select value={p.wuxing} onChange={p.onWuXingChange} dropdownMatchSelectWidth={false}>
+								<Select value={p.wuxing} optionLabelProp="label" onChange={p.onWuXingChange} dropdownMatchSelectWidth={false}>
 									{WUXING_OPTION_DOMS}
 								</Select>
 							</label>
@@ -188,14 +189,14 @@ class LiuRengInputPanel extends Component{
 							<label className="horosa-liureng-select-field" title={castLock.title}>
 								<span>起课法</span>
 								{/* 择日内嵌:扫描只按正时正将起课,宿主传 zeriLocked 置灰(点结果行时回写锁定值) */}
-								<Select value={p.castMethod} onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!castLock.disabled}>
-									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
+								<Select value={p.castMethod} optionLabelProp="label" onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!castLock.disabled}>
+									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 								</Select>
 							</label>
 							<label className="horosa-liureng-select-field">
 								<span>换将</span>
-								<Select value={p.yueJiangMethod} onChange={(v)=>p.onOptionChange('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
-									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
+								<Select value={p.yueJiangMethod} optionLabelProp="label" onChange={(v)=>p.onOptionChange('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
+									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 								</Select>
 							</label>
 							{p.castMethod === 'xuanshi' ? (
@@ -379,6 +380,11 @@ class LiuRengMain extends Component{
 		if(this.props.hook){
 			this.props.hook.fun = (fields, chartObj)=>{
 				if(this.unmounted){
+					return;
+				}
+				// 切回本页时的刷新(不带底盘):还没起过课就不替用户起 —— 首次进页留空等「起课」,切走再回来也一样
+				// (此前回访时自己起出一课,与首次进页、与遁甲 / 三式合一都不一致);起过课的照旧按当前时刻重起
+				if((chartObj === undefined || chartObj === null) && !this.state.liureng){
 					return;
 				}
 				this.startPaiPanByFields(fields || this.props.fields, chartObj);
@@ -825,7 +831,7 @@ class LiuRengMain extends Component{
 		let flds = getAppliedBirth(this.state);
 		const calcFields = this.state.calcFields ? this.state.calcFields : this.props.fields;
 		const guaDate = calcFields && calcFields.date && calcFields.date.value ? calcFields.date.value.format('YYYY-MM-DD') : '';
-		const guaTime = calcFields && calcFields.time && calcFields.time.value ? calcFields.time.value.format('HH:mm') : '';
+		const guaTime = calcFields && calcFields.time && calcFields.time.value ? calcFields.time.value.format('HH:mm:ss') : '';
 		const guaAd = calcFields && calcFields.ad && calcFields.ad.value !== undefined
 			? calcFields.ad.value
 			: (calcFields && calcFields.date && calcFields.date.value ? calcFields.date.value.ad : 1);
@@ -839,7 +845,7 @@ class LiuRengMain extends Component{
 		const params = {
 			ad: flds.date.value.ad,
 			date: flds.date.value.format('YYYY-MM-DD'),
-			time: flds.time.value.format('HH:mm'),
+			time: flds.time.value.format('HH:mm:ss'),
 			zone: flds.date.value.zone,
 			lon: flds.lon.value,
 			lat: flds.lat.value,
@@ -872,7 +878,7 @@ class LiuRengMain extends Component{
 		}else{
 			params = {
 				date: flds.date.value.format('YYYY-MM-DD'),
-				time: flds.time.value.format('HH:mm'),
+				time: flds.time.value.format('HH:mm:ss'),
 				zone: flds.date.value.zone,
 				ad: flds.date.value.ad,
 				lon: flds.lon.value,
@@ -919,7 +925,7 @@ class LiuRengMain extends Component{
 		}
 		const key = [
 			flds.date.value.format('YYYY-MM-DD'),
-			flds.time.value.format('HH:mm'),
+			flds.time.value.format('HH:mm:ss'),
 			flds.date.value.ad,
 			flds.date.value.zone,
 			flds.lon.value,
@@ -937,7 +943,7 @@ class LiuRengMain extends Component{
 		const params = {
 			ad: flds.date.value.ad,
 			date: flds.date.value.format('YYYY-MM-DD'),
-			time: flds.time.value.format('HH:mm'),
+			time: flds.time.value.format('HH:mm:ss'),
 			zone: flds.date.value.zone,
 			lon: flds.lon.value,
 			lat: flds.lat.value,
@@ -1660,18 +1666,17 @@ class LiuRengMain extends Component{
 		const XINJUE_NOS = [93, 94, 96, 97, 98, 99, 100]; // 断法通则 / 占则，无单课盘面成局条件，仅浏览
 		return (
 			<div className="horosa-liureng-reference-tab-body">
-				<div style={{ fontWeight: 600, margin: '2px 0 6px' }}>已命中</div>
+				<LiuRengRefGroupTitle extra={hits.length ? `${hits.length} 条` : ''}>已命中</LiuRengRefGroupTitle>
 				{hits.length ? hits.map((item)=>(
-					<Card key={`bf_hit_${item.no}`} size='small' style={{ marginBottom: 8 }}>
-						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-							<span style={{ fontWeight: 600 }}>{`${item.no}. ${item.name}`}</span>
-							<Tag color='volcano'>毕法</Tag>
-						</div>
-						<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px' }}>{item.explain}</div>
-						{item.evidence && item.evidence.length ? (<div style={{ ...muted, fontSize: 12, marginTop: 4 }}>依据：{item.evidence.join('；')}</div>) : null}
-					</Card>
-				)) : (<Card size='small'><div style={muted}>本盘暂未机械命中可判定之毕法（仅高置信条目自动命中）。</div></Card>)}
-				<div style={{ fontWeight: 600, margin: '12px 0 6px' }}>{`全部毕法（${BIFA_LIST.length} 条）`}</div>
+					<LiuRengRefCard
+						key={`bf_hit_${item.no}`}
+						name={`${item.no}. ${item.name}`}
+						tag="毕法"
+						text={item.explain}
+						evidence={item.evidence}
+					/>
+				)) : (<LiuRengRefEmpty>本盘暂未机械命中可判定之毕法（仅高置信条目自动命中）。</LiuRengRefEmpty>)}
+				<LiuRengRefGroupTitle extra={`${BIFA_LIST.length} 条`}>全部毕法</LiuRengRefGroupTitle>
 				<input value={this.state.bifaQuery} onChange={(e)=>this.setState({ bifaQuery: e.target.value })} placeholder='检索法名 / 关键词' style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)', marginBottom: 8 }} />
 					<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, rgba(255,255,255,0.03))' }}>
 						<div style={{ fontWeight: 600, marginBottom: 4 }}>异文校勘<Tag color='gold' style={{ marginLeft: 6, transform: 'scale(0.82)' }}>百法</Tag></div>
@@ -1833,48 +1838,30 @@ class LiuRengMain extends Component{
 				<TabPane tab="格局" key="dage">
 					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
 					<div className="horosa-liureng-reference-tab-body">
-						{refSummary ? (
-							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-								<div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #595959)', lineHeight: '20px' }}>{refSummary}</div>
-							</Card>
-						) : null}
-						<div className="horosa-side-panel-subtitle" style={{ margin: '2px 0 6px' }}>大格</div>
+						{refSummary ? <LiuRengRefFacts text={refSummary} /> : null}
+						<LiuRengRefGroupTitle extra={refBundle.dage && refBundle.dage.length ? `${refBundle.dage.length} 条` : ''}>大格</LiuRengRefGroupTitle>
 						{refBundle.dage && refBundle.dage.length ? refBundle.dage.map((item)=>(
-							<Card key={`dage_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-									<span style={{ fontWeight: 600 }}>{item.name}</span>
-									<Tag color='blue'>{item.source || '课式命中'}</Tag>
-								</div>
-								<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-									{buildReferenceDocumentText(item, 'dage')}
-								</div>
-								{item.evidence && item.evidence.length ? (
-									<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-								) : null}
-							</Card>
+							<LiuRengRefCard
+								key={`dage_${item.key}`}
+								name={item.name}
+								tag={item.source || '课式命中'}
+								text={buildReferenceDocumentText(item, 'dage')}
+								evidence={item.evidence}
+							/>
 						)) : (
-							<Card size='small' style={{ marginBottom: 8 }}>
-								<div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘暂未命中可判定的大格。</div>
-							</Card>
+							<LiuRengRefEmpty>当前盘暂未命中可判定的大格。</LiuRengRefEmpty>
 						)}
-						<div className="horosa-side-panel-subtitle" style={{ margin: '8px 0 6px' }}>小局</div>
+						<LiuRengRefGroupTitle extra={xiaojuMainItems.length ? `${xiaojuMainItems.length} 条` : ''}>小局</LiuRengRefGroupTitle>
 						{xiaojuMainItems.length ? xiaojuMainItems.map((item)=>(
-							<Card key={`xiaoju_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-									<span style={{ fontWeight: 600 }}>{item.name}</span>
-									<Tag color='purple'>{item.categoryName || '小局'}</Tag>
-								</div>
-								<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-									{buildReferenceDocumentText(item, 'xiaoju')}
-								</div>
-								{item.evidence && item.evidence.length ? (
-									<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-								) : null}
-							</Card>
+							<LiuRengRefCard
+								key={`xiaoju_${item.key}`}
+								name={item.name}
+								tag={item.categoryName || '小局'}
+								text={buildReferenceDocumentText(item, 'xiaoju')}
+								evidence={item.evidence}
+							/>
 						)) : (
-							<Card size='small'>
-								<div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘暂未命中已收录的小局条件。</div>
-							</Card>
+							<LiuRengRefEmpty>当前盘暂未命中已收录的小局条件。</LiuRengRefEmpty>
 						)}
 					</div>
 					)}</FreezeSubTab>
@@ -1913,22 +1900,16 @@ class LiuRengMain extends Component{
 					<FreezeSubTab active={activeTabKey === 'reference'}>{() => (
 					<div className="horosa-liureng-reference-tab-body">
 						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
-							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-									<span style={{ fontWeight: 600 }}>{item.name}</span>
-									<Tag color='gold'>参考</Tag>
-								</div>
-								<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-									{buildReferenceDocumentText(item, 'xiaoju')}
-								</div>
-								{item.evidence && item.evidence.length ? (
-									<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-								) : null}
-							</Card>
+							<LiuRengRefCard
+								key={`ref_${item.key}`}
+								name={item.name}
+								tag="参考"
+								tone="weak"
+								text={buildReferenceDocumentText(item, 'xiaoju')}
+								evidence={item.evidence}
+							/>
 						)) : (
-							<Card size='small'>
-								<div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘暂无可展示的参考条目。</div>
-							</Card>
+							<LiuRengRefEmpty>当前盘暂无可展示的参考条目。</LiuRengRefEmpty>
 						)}
 					</div>
 					)}</FreezeSubTab>
@@ -1938,24 +1919,15 @@ class LiuRengMain extends Component{
 					<div className="horosa-liureng-reference-tab-body">
 						{this.renderShenShaSection(ctx)}
 						{overviewItems.length ? overviewItems.map((item, idx)=>(
-							<Card key={`overview_${item.key}_${idx}`} size='small' style={{ marginBottom: 8 }}>
-								<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-									<span style={{ fontWeight: 600 }}>{item.name}</span>
-									<Tag color={item.group === 'laiyi' ? 'cyan' : 'magenta'}>
-										{item.group === 'laiyi' ? '天将发用来意诀' : '天将杂主吉凶'}
-									</Tag>
-								</div>
-								<div style={{ color: 'var(--horosa-text-soft, #595959)', lineHeight: '22px', whiteSpace: 'pre-wrap' }}>
-									{buildOverviewReferenceText(item)}
-								</div>
-								{item.evidence && item.evidence.length ? (
-									<div style={{ color: 'var(--horosa-muted, #8c8c8c)', fontSize: 12, marginTop: 6 }}>依据：{item.evidence.join('；')}</div>
-								) : null}
-							</Card>
+							<LiuRengRefCard
+								key={`overview_${item.key}_${idx}`}
+								name={item.name}
+								tag={item.group === 'laiyi' ? '天将发用来意诀' : '天将杂主吉凶'}
+								text={buildOverviewReferenceText(item)}
+								evidence={item.evidence}
+							/>
 						)) : (
-							<Card size='small'>
-								<div style={{ color: 'var(--horosa-muted, #8c8c8c)' }}>当前盘未命中“天将发用来意诀/天将杂主吉凶”条目。</div>
-							</Card>
+							<LiuRengRefEmpty>当前盘未命中“天将发用来意诀/天将杂主吉凶”条目。</LiuRengRefEmpty>
 						)}
 					</div>
 					)}</FreezeSubTab>
@@ -2241,6 +2213,12 @@ class LiuRengMain extends Component{
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
 								/>
+								{/* 未起课:盘面是空 svg,提示落在舞台正中(与遁甲 / 三式 / 六爻同款);盘组件照常挂着,起课后原地画 */}
+								{!chart && !this.state.liureng ? (
+									<div className="horosa-liureng-stage-empty">
+										<XQStageEmpty>点击左侧“起课”后显示六壬盘</XQStageEmpty>
+									</div>
+								) : null}
 							</div>
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-liureng-info-panel">

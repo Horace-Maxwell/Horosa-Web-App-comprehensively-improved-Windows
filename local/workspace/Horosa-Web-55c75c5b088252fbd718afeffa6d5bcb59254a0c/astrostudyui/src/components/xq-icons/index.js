@@ -154,6 +154,37 @@ const iconMap = {
 			<path {...lineProps} d="m7 9.5 5 5 5-5" />
 		</Svg>
 	),
+	chevronUp: (
+		<Svg>
+			<path {...lineProps} d="m7 14.5 5-5 5 5" />
+		</Svg>
+	),
+	// 判读条目的倾向标记:利 / 不利 / 中性(实心小三角与圆点;取代字体里形状不一的 ▲▼·)
+	markUp: (
+		<Svg>
+			<path d="M12 6.2 18.6 17H5.4z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+		</Svg>
+	),
+	markDown: (
+		<Svg>
+			<path d="M12 17.8 5.4 7h13.2z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+		</Svg>
+	),
+	markNeutral: (
+		<Svg>
+			<circle cx="12" cy="12" r="2.6" fill="currentColor" />
+		</Svg>
+	),
+	markLeft: (
+		<Svg>
+			<path d="M6.2 12 17 5.4v13.2z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+		</Svg>
+	),
+	markRight: (
+		<Svg>
+			<path d="M17.8 12 7 18.6V5.4z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+		</Svg>
+	),
 	clock: (
 		<Svg>
 			<circle {...lineProps} cx="12" cy="12" r="8.2" />
@@ -566,6 +597,12 @@ const iconMap = {
 			<rect {...lineProps} x="7" y="7" width="10" height="10" rx="1.2" />
 		</Svg>
 	),
+	pause: (
+		<Svg>
+			<circle {...lineProps} cx="12" cy="12" r="8.5" />
+			<path {...lineProps} d="M10 8.8v6.4M14 8.8v6.4" />
+		</Svg>
+	),
 	list: (
 		<Svg>
 			<path {...lineProps} d="M8.5 7h10M8.5 12h10M8.5 17h10" />
@@ -614,6 +651,46 @@ const iconMap = {
 			<path {...lineProps} d="M10 12h9" />
 		</Svg>
 	),
+	// 页内全屏(铺满工作区)进 / 出:四角向外 = 进,四角向内 = 出
+	fullscreen: (
+		<Svg>
+			<path {...lineProps} d="M5.5 9.5v-4h4M14.5 5.5h4v4M18.5 14.5v4h-4M9.5 18.5h-4v-4" />
+		</Svg>
+	),
+	fullscreenExit: (
+		<Svg>
+			<path {...lineProps} d="M9.5 5.5v4h-4M18.5 9.5h-4v-4M14.5 18.5v-4h4M5.5 14.5h4v4" />
+		</Svg>
+	),
+	// 列表里的上移 / 下移
+	up: (
+		<Svg>
+			<path {...lineProps} d="M12 18.5v-13M6.5 11 12 5.5 17.5 11" />
+		</Svg>
+	),
+	down: (
+		<Svg>
+			<path {...lineProps} d="M12 5.5v13M6.5 13 12 18.5 17.5 13" />
+		</Svg>
+	),
+	// 「更多操作」三点
+	more: (
+		<Svg>
+			<path {...lineProps} strokeWidth={2.6} d="M6 12h.01M12 12h.01M18 12h.01" />
+		</Svg>
+	),
+	// 追问 / 提问:对话气泡
+	ask: (
+		<Svg>
+			<path {...lineProps} d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H12l-4 3v-3H5.5A1.5 1.5 0 0 1 4 15V8a1.5 1.5 0 0 1 1.5-1.5Z" />
+			<path {...lineProps} d="M9 11.5h6" />
+		</Svg>
+	),	// 浮窗 / 卡片右上角的关闭
+	close: (
+		<Svg>
+			<path {...lineProps} d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+		</Svg>
+	),
 };
 
 export function XQIcon({name, className = '', ...rest}){
@@ -621,6 +698,31 @@ export function XQIcon({name, className = '', ...rest}){
 		className: `xq-icon ${className}`.trim(),
 		...rest,
 	});
+}
+
+// 倾向标记:polarity = 'positive' | 'negative' | 其它(中性)。颜色随所在行的字色(各页已按利 / 不利着色)。
+export function XQPolarityMark({polarity, className = '', ...rest}){
+	const name = polarity === 'positive' ? 'markUp' : (polarity === 'negative' ? 'markDown' : 'markNeutral');
+	return <XQIcon name={name} className={`xq-polarity-mark ${className}`.trim()} {...rest} />;
+}
+
+// 给拼 HTML 字符串的地方用(图表浮窗):与 XQPolarityMark 同一个形状。
+export function polarityMarkHtml(polarity){
+	const d = polarity === 'positive' ? 'M12 6.2 18.6 17H5.4z' : (polarity === 'negative' ? 'M12 17.8 5.4 7h13.2z' : '');
+	const shape = d
+		? `<path d="${d}" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>`
+		: '<circle cx="12" cy="12" r="2.6" fill="currentColor"/>';
+	return `<svg class="xq-icon xq-polarity-mark" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" style="vertical-align:-0.125em">${shape}</svg>`;
+}
+
+// 「当前这一项」的指示标记:side = 'left'(缺省,跟在文字后面、尖朝左指回文字)| 'right'(放在行首、尖朝右指向这一行)
+export function XQCurrentMark({side, className = '', ...rest}){
+	return <XQIcon name={side === 'right' ? 'markRight' : 'markLeft'} className={`xq-current-mark ${className}`.trim()} style={{ verticalAlign: '-0.125em' }} {...rest} />;
+}
+
+// 展开 / 收起按钮上的小箭头(文字后面跟一个)
+export function XQToggleCaret({open}){
+	return <XQIcon name={open ? 'chevronUp' : 'chevronDown'} className="xq-toggle-caret" style={{ marginLeft: 3, verticalAlign: '-0.125em' }} />;
 }
 
 export default XQIcon;

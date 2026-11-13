@@ -44,13 +44,13 @@ export function saveAIExportSettings(settings){
 // [YE] 技法下拉分组:73 项扁平列表按术数域分五组(设置面 OptGroup 渲染)。
 // 键归组按域硬编码;未列键自动落「其他」——新增技法漏归组不隐身、只是分组粗。
 const AI_EXPORT_TECHNIQUE_GROUPS = [
-	{ title: '西方占星', keys: ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'astrochart_like', 'relative', 'mundane', 'germany',
+	{ title: '西方占星', keys: ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'transformchart', 'zodiacsystems', 'relocation', 'locastro', 'astrochart_like', 'relative', 'mundane', 'germany',
 		'babylon',
 		'horary', 'election', 'tianxing', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi',
 	] },
-	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon',
+	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon', 'timelords',
 	] },
-	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan',
+	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'dongya', 'zhufang', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan',
 	] },
 	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'qimenzeri', 'bazizeri', 'taiyizeri', 'ziweizeri', 'liurengzeri', 'sanshizeri', 'qizhengzeri', 'indiazeri', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'lingqi', 'fengshui',
 		'calendar', 'huangli', 'huanglizeri', 'tongshu'] },
@@ -58,7 +58,7 @@ const AI_EXPORT_TECHNIQUE_GROUPS = [
 
 // 「附命主实况」只附在「这张命盘本人」的导出上:星运推运 / 中式命理两组,西方占星只认本命盘及由它派生的盘;
 // 卜卦 / 择日 / 世俗 / 节气 / 合盘 / 占卜术数等不附(那不是这位命主本人的盘,附了就把私人内容带进别的导出)
-const SUBJECT_FACTS_EXPORT_WESTERN_KEYS = ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'astrochart_like', 'germany', 'babylon'];
+const SUBJECT_FACTS_EXPORT_WESTERN_KEYS = ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'transformchart', 'zodiacsystems', 'relocation', 'locastro', 'astrochart_like', 'germany', 'babylon'];
 const SUBJECT_FACTS_EXPORT_GROUPS = ['星运推运', '中式命理'];
 const SUBJECT_FACTS_EXPORT_SKIP_KEYS = [
 ];
@@ -207,7 +207,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
 		|| exportKey === 'tianxing' || exportKey === 'qimenzeri'
 		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'zhengchuan'
-		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu' || exportKey === 'huanglizeri' || exportKey === 'bazizeri' || exportKey === 'taiyizeri' || exportKey === 'ziweizeri' || exportKey === 'liurengzeri' || exportKey === 'sanshizeri' || exportKey === 'qizhengzeri' || exportKey === 'indiazeri'){
+		|| exportKey === 'yizhangjing' || exportKey === 'dongya' || exportKey === 'zhufang' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu' || exportKey === 'huanglizeri' || exportKey === 'bazizeri' || exportKey === 'taiyizeri' || exportKey === 'ziweizeri' || exportKey === 'liurengzeri' || exportKey === 'sanshizeri' || exportKey === 'qizhengzeri' || exportKey === 'indiazeri'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
 	}
 	if(exportKey === 'taiyi'){

@@ -5,6 +5,7 @@ import XQIcon from '../xq-icons';
 import { scriptFilterBy } from '../../utils/scriptMode';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import { parseQuickDigitsForFormat, pickerDigitsLength, QUICK_DIGITS_ERROR_PREFIX } from '../../utils/quickDateTimeDigits';
+import { pointerLocalRatio } from '../../utils/zoomDomain';
 
 export function XQButton({children, iconName, className = '', variant = 'default', ...rest}){
 	const icon = iconName ? <XQIcon name={iconName} /> : rest.icon;
@@ -26,7 +27,7 @@ export function XQIconButton({label, iconName, tooltip, className = '', ...rest}
 			{...rest}
 			className={`xq-icon-button ${className}`.trim()}
 			icon={<XQIcon name={iconName} />}
-			aria-label={label || tooltip || iconName}
+			aria-label={rest['aria-label'] || label || tooltip || iconName}
 		>
 			{label ? <span className="xq-icon-button-label">{label}</span> : null}
 		</Button>
@@ -48,10 +49,12 @@ export function XQToggle({active, children, iconName, className = '', ...rest}){
 }
 
 export function XQSwitch({className = '', ...rest}){
+	// 轨道里不带「开 / 关」字的开关挂 xq-switch-plain:亮色关态用浅灰轨道(带字的要托住白字,走全站深色轨道)。
+	const plain = rest.checkedChildren == null && rest.unCheckedChildren == null;
 	return (
 		<Switch
 			{...rest}
-			className={`xq-switch ${className}`.trim()}
+			className={`xq-switch ${plain ? 'xq-switch-plain ' : ''}${className}`.trim()}
 		/>
 	);
 }
@@ -257,7 +260,7 @@ export function useSegmentedWrap(containerRef, deps = []){
 	return wrapped;
 }
 
-export function XQSegmented({value, options, onChange, className = '', size = 'small'}){
+export function XQSegmented({value, options, onChange, className = '', size = 'small', disabled, style}){
 	// 星阙金 W1:内部滑块 —— Radio.Group DOM 与 {value,options,onChange(e.target.value)} API 零变,
 	// 仅组内新增绝对定位 thumb(aria-hidden);测量不可用时无 -sliding 类,CSS 落回选中项实底。
 	const groupRef = React.useRef(null);
@@ -274,7 +277,9 @@ export function XQSegmented({value, options, onChange, className = '', size = 's
 			buttonStyle="solid"
 			value={value}
 			onChange={onChange}
-			className={`xq-segmented ${sliding ? 'xq-segmented-sliding' : ''} ${segmentedLevelClass(wrapped)} ${className}`.trim().replace(/\s+/g, ' ')}
+			disabled={disabled}
+			style={style}
+			className={`xq-segmented ${sliding ? 'xq-segmented-sliding' : ''} ${disabled ? 'xq-segmented-disabled' : ''} ${segmentedLevelClass(wrapped)} ${className}`.trim().replace(/\s+/g, ' ')}
 		>
 			{sliding ? (
 				<span
@@ -284,7 +289,7 @@ export function XQSegmented({value, options, onChange, className = '', size = 's
 				/>
 			) : null}
 			{(options || []).map((item)=>(
-				<Radio.Button key={item.value} value={item.value}>{item.label}</Radio.Button>
+				<Radio.Button key={item.value} value={item.value} disabled={item.disabled}>{item.label}</Radio.Button>
 			))}
 		</Radio.Group>
 	);
@@ -369,6 +374,41 @@ export function XQCheckList({children, className = '', columns = 1, ...rest}){
 			className={`xq-check-list xq-check-list-${columns} ${className}`.trim()}
 		>
 			{children}
+		</div>
+	);
+}
+
+// 设置面板原件:一组设置 = 一张安静的卡(标题 + 若干行);一行 = 左标签(可带灰字说明 / 小徽标)+ 右控件。
+// 全站设置抽屉 / 弹窗 / 浮层共用,观感单源:无渐变、无辉光、无装饰线,行间只有一道细分隔。
+export function XQSettingGroup({title, hint, extra, children, className = '', ...rest}){
+	return (
+		<section {...rest} className={`xq-setting-group ${className}`.trim()}>
+			{title ? (
+				<div className="xq-setting-group-head">
+					<span className="xq-setting-group-title">{title}</span>
+					{hint ? <span className="xq-setting-group-hint">{hint}</span> : null}
+					{extra ? <span className="xq-setting-group-extra">{extra}</span> : null}
+				</div>
+			) : null}
+			<div className="xq-setting-group-body">{children}</div>
+		</section>
+	);
+}
+
+export function XQSettingRow({label, hint, badge, control, children, disabled = false, stacked = false, className = '', ...rest}){
+	return (
+		<div
+			{...rest}
+			className={`xq-setting-row ${stacked ? 'xq-setting-row-stacked' : ''} ${disabled ? 'xq-setting-row-disabled' : ''} ${className}`.trim()}
+		>
+			<div className="xq-setting-row-text">
+				<span className="xq-setting-row-label">
+					{label}
+					{badge ? <span className="xq-setting-row-badge">{badge}</span> : null}
+				</span>
+				{hint ? <span className="xq-setting-row-hint">{hint}</span> : null}
+			</div>
+			{(control || children) ? <div className="xq-setting-row-control">{control || children}</div> : null}
 		</div>
 	);
 }
@@ -580,7 +620,124 @@ export function XQTimePicker({className = '', popupClassName = '', ...rest}){
 	);
 }
 
-export function XQTabs({className = '', ...rest}){
+// 竖排页签(rail)单一来源:tabPosition 为 right / left 的 XQTabs 一律走这条自绘页签条。
+// antd 的页签条在页签比页面长时只做「平移 + 省略号菜单」:拦滚轮、聚焦时把滚动位置归零,省略号还压在最后一项上。
+// 这里改成原生纵向滚动(滚轮 / 触控板 / 键盘都可用),上下还有内容时边缘渐隐提示,选中项自动滚入视野。
+// 类名沿用 antd 的(ant-tabs-nav / -nav-wrap / -nav-list / -tab / -tab-btn),各页既有皮肤不用另写。
+function collectRailTabs(children, out){
+	React.Children.forEach(children, (child)=>{
+		if(!React.isValidElement(child)){ return; }
+		if(child.type === React.Fragment){ collectRailTabs(child.props.children, out); return; }
+		if(child.key === null || child.key === undefined){ return; }
+		out.push({ key: String(child.key), label: child.props.tab, disabled: !!child.props.disabled });
+	});
+	return out;
+}
+
+function XQTabRailBar({ tabs, activeKey, onSelect, tabsId, extra, style }){
+	const wrapRef = React.useRef(null);
+	const [more, setMore] = React.useState('none');
+	const sync = React.useCallback(()=>{
+		const el = wrapRef.current;
+		if(!el){ return; }
+		const top = el.scrollTop > 1;
+		const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+		const next = top && bottom ? 'both' : (top ? 'top' : (bottom ? 'bottom' : 'none'));
+		setMore((prev)=>(prev === next ? prev : next));
+	}, []);
+	// 选中项滚入视野:只动页签条自己的滚动位置(不用 scrollIntoView —— 它会连带滚动祖先,整页跟着跳)。
+	const reveal = React.useCallback(()=>{
+		const el = wrapRef.current;
+		if(!el){ return; }
+		const cur = el.querySelector('.ant-tabs-tab-active');
+		if(cur && el.clientHeight > 0){
+			// 留白要大过边缘渐隐带(30px),选中项才不会停在渐隐里发灰
+			const pad = 34;
+			const wrapBox = el.getBoundingClientRect();
+			const box = cur.getBoundingClientRect();
+			// 整页缩放(根节点 zoom)下,量出来的矩形是缩放后的尺寸,scrollTop 却是缩放前的:
+			// 两者直接相加减会少滚一截(0.9 档少一成),末项就停在渐隐带里、压着右下角状态灯。统一换算到滚动量的单位。
+			const scale = pointerLocalRatio(el, wrapBox).ky;
+			const above = (box.top - wrapBox.top) * scale;
+			const below = (wrapBox.bottom - box.bottom) * scale;
+			if(above < pad){
+				el.scrollTop = Math.max(0, el.scrollTop - (pad - above));
+			}else if(below < pad){
+				el.scrollTop = el.scrollTop + (pad - below);
+			}
+		}
+		sync();
+	}, [sync]);
+	React.useEffect(()=>{ reveal(); }, [activeKey, tabs.length, reveal]);
+	React.useEffect(()=>{
+		const el = wrapRef.current;
+		if(!el || typeof ResizeObserver === 'undefined'){ return undefined; }
+		// 页签条高度变了(窗口缩放 / 缩放档 / 页面从隐藏切回)重新对一次位置
+		let seen = false;
+		const ro = new ResizeObserver(()=>{ if(seen){ reveal(); }else{ seen = true; sync(); } });
+		ro.observe(el);
+		return ()=>ro.disconnect();
+	}, [reveal, sync]);
+	const pick = (tab)=>(e)=>{
+		if(tab.disabled){ return; }
+		if(e.type === 'keydown'){
+			if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+				const btns = wrapRef.current ? Array.from(wrapRef.current.querySelectorAll('.ant-tabs-tab:not(.ant-tabs-tab-disabled) .ant-tabs-tab-btn')) : [];
+				const at = btns.indexOf(e.currentTarget);
+				const to = btns[at + (e.key === 'ArrowDown' ? 1 : -1)];
+				if(to){ e.preventDefault(); to.focus(); }
+				return;
+			}
+			if(e.key !== 'Enter' && e.key !== ' '){ return; }
+			e.preventDefault();
+		}
+		onSelect(tab.key, e);
+	};
+	return (
+		<div className="ant-tabs-nav xq-tab-rail" role="tablist" aria-orientation="vertical" style={style}>
+			<div className="ant-tabs-nav-wrap xq-tab-rail-wrap" data-more={more} ref={wrapRef} onScroll={sync}>
+				<div className="ant-tabs-nav-list">
+					{tabs.map((tab)=>{
+						const active = tab.key === activeKey;
+						return (
+							<div key={tab.key} data-node-key={tab.key} className={`ant-tabs-tab${active ? ' ant-tabs-tab-active' : ''}${tab.disabled ? ' ant-tabs-tab-disabled' : ''}`} onClick={pick(tab)}>
+								<div
+									className="ant-tabs-tab-btn" role="tab" tabIndex={tab.disabled ? -1 : 0}
+									aria-selected={active} aria-disabled={tab.disabled || undefined}
+									id={tabsId ? `${tabsId}-tab-${tab.key}` : undefined}
+									aria-controls={tabsId ? `${tabsId}-panel-${tab.key}` : undefined}
+									onKeyDown={pick(tab)}
+								>{tab.label}</div>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+			{extra ? <div className="ant-tabs-extra-content">{extra}</div> : null}
+		</div>
+	);
+}
+
+export function XQTabs({className = '', rail, ...rest}){
+	const vertical = rest.tabPosition === 'right' || rest.tabPosition === 'left';
+	if(vertical && rail !== false && !rest.renderTabBar){
+		const tabs = Array.isArray(rest.items)
+			? rest.items.filter(Boolean).map((it)=>({ key: String(it.key), label: it.label, disabled: !!it.disabled }))
+			: collectRailTabs(rest.children, []);
+		return (
+			<Tabs
+				{...rest}
+				className={`xq-tabs xq-tabs-rail ${className}`.trim()}
+				renderTabBar={(barProps)=>(
+					<XQTabRailBar
+						tabs={tabs} activeKey={barProps.activeKey} tabsId={barProps.id}
+						extra={barProps.extra} style={barProps.style}
+						onSelect={(key, e)=>barProps.onTabClick(key, e)}
+					/>
+				)}
+			/>
+		);
+	}
 	return (
 		<Tabs
 			{...rest}
@@ -682,6 +839,17 @@ export function XQPanelHeader({kicker, extra, className = '', ...rest}){
 		<div {...rest} className={`xq-panel-header ${className}`.trim()}>
 			<span className="xq-panel-header-kicker">{kicker}</span>
 			{extra ? <span className="xq-panel-header-extra">{extra}</span> : null}
+		</div>
+	);
+}
+
+// 中栏盘面空态(起盘前 / 取不到数据):提示落在舞台正中。
+// 宿主多是「顶 / 左对齐 + 可滚」的 flex 盘容器(放不下时宁可滚、不能裁),所以靠自身 margin:auto 居中,不依赖宿主对齐方式。
+export function XQStageEmpty({children, hint, className = ''}){
+	return (
+		<div className={`xq-stage-empty ${className}`.trim()} role="note">
+			<div className="xq-stage-empty-text">{children}</div>
+			{hint ? <div className="xq-stage-empty-hint">{hint}</div> : null}
 		</div>
 	);
 }

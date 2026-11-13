@@ -10,7 +10,17 @@ import { DELETED_LOG_RECENT } from '../../user/DeletedLogPanel';
 
 const SRC = path.join(__dirname, '..', '..', '..');
 const R = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
-const H = (name)=>R(`components/help/${name}.js`);
+// 星运手册的正文分在 direction/ 两个章节文件里,读「星运手册源码」= 组装文件 + 两个章节文件
+const H = (name)=>(name === 'DirectionHelpDoc'
+	? ['DirectionHelpDoc.js', 'direction/chaptersDirectional.js', 'direction/chaptersTimelord.js'].map((f)=>R(`components/help/${f}`)).join('\n')
+	: R(`components/help/${name}.js`));
+// 手册(HelpBook)里某一章的源码:从「label: '章名'」切到下一章开头(或章列表结尾)
+const chapterSrc = (doc, label)=>{
+	const i = doc.indexOf(`label: '${label}'`);
+	if(i < 0){ return ''; }
+	const nexts = [doc.indexOf('\n\t\t\t\t{\n', i), doc.indexOf('\n\t\t\t],', i)].filter((x)=>x > i);
+	return doc.slice(i, nexts.length ? Math.min(...nexts) : undefined);
+};
 
 describe('AI 页「软件用法」帮助', ()=>{
 	test('挂载案例的入口是顶栏「选择案例」,技法页菜单项叫「存为命盘」', ()=>{
@@ -201,7 +211,8 @@ describe('命类手册', ()=>{
 	});
 	test('一掌经页:流年范围、记住什么;八字:其余口径按本机沿用;紫微:平太阳时', ()=>{
 		const yz = H('YizhangjingHelpDoc');
-		expect(yz).toContain('点选今年前后各 120 年内的任一年');
+		// 策天飞星的流年(今年前后各 120 年)只在「命·其他」合本的策天一章;一掌经那本只讲一掌经
+		expect(H('MingOtherHelpDoc')).toContain('点选今年前后各 120 年内的任一年');
 		expect(yz).toContain('重开软件后记住什么');
 		expect(H('BaziHelpDoc')).toContain('主用流派与「显示」各项按本机上次所选沿用');
 		expect(H('ZiweiHelpDoc')).toContain("kv('平太阳时'");
@@ -218,7 +229,7 @@ describe('命类手册', ()=>{
 
 describe('档案管理手册(星盘手册「档案管理」页签)', ()=>{
 	const doc = H('AstroHelpDoc');
-	const records = doc.slice(doc.indexOf('<TabPane tab="档案管理"'), doc.indexOf('</TabPane>', doc.indexOf('<TabPane tab="档案管理"')));
+	const records = chapterSrc(doc, '档案管理');
 	test('页签切得出来', ()=>{
 		expect(records.length).toBeGreaterThan(2000);
 	});

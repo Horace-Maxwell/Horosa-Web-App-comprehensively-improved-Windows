@@ -17,6 +17,7 @@
 //   dist*                 界推运的发放点 / 时间算法 / 年长 / 年限
 //   ap*                   年龄推进点的推进方式 / 事件 / 年长 / 年限
 //   profGrain / profStart 小限法摘要的粒度(年 / 月 / 日)与起点(上升 / 区分光 / 福点 / 月亮 / 天顶)
+//   tl*                   时主轮转的方法、年长与各法选项
 //   ner* / bezzaOrb / jayFrom / michon*  推运图族:演进推运的弧常数 / 出生前年数 / 换到赤道 / 容许度;推运图的接触窗;
 //                         周日小限的起始年龄;双黄道的容许度 / 水金互换 / 等宫
 // 不收:各页的目标日期 / 目标年份 / 地点(输入);「行运星与本命星交角容许度」(初值归「星盘设置」的全局行运容许度管,
@@ -26,6 +27,7 @@
 // 与组件常量的一致性由测试逐个比对(directionPageSettings.test.js)。
 import { definePageSettings } from './pageSettingsStore';
 import { NEROMAN_DEFAULTS, BEZZA_DEFAULTS, JAY_DEFAULTS, MICHON_DEFAULTS } from './directedFigures';
+import { TIMELORD_DEFAULTS, TIMELORD_METHODS, TIMELORD_OPTIONS } from './timeLordTables';
 import { TRIPLICITY_DIVISIONS, TRIPLICITY_LIFESPAN_DEFAULT } from './triplicityRulers';
 import { PROFECTION_GRAIN_OPTIONS, PROFECTION_START_OPTIONS } from './profectionSummary';
 import { BALBILLUS_YEARS, BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
@@ -45,7 +47,8 @@ export const DIRECTION_PAGE_SETTINGS = definePageSettings('horosa.direction.sett
 	givenYearInverse: { label: '流年法·双盘内外圈(开 = 天象盘在内盘;关 = 原命盘在内盘)', def: false },
 	lunarReturnInverse: { label: '月亮返照·双盘内外圈(开 = 返照盘在内盘;关 = 原命盘在内盘)', def: true },
 	solarReturnInverse: { label: '太阳返照·双盘内外圈(开 = 返照盘在内盘;关 = 原命盘在内盘)', def: true },
-	persianRateKey: { label: '波斯向运·向运速率', def: 'persian', oneOf: ['persian', 'prophected', 'naibod'] },
+	persianRateKey: { label: '波斯向运·向运速率', def: 'persian', oneOf: ['persian', 'prophected', 'naibod', 'periodic'] },
+	persianYear: { label: '波斯向运·年长', def: 'solar', oneOf: ['solar', 'sidereal', 'hellenistic', 'bija', 'bijaClassic'] },
 	persianDirection: { label: '波斯向运·向运方向', def: 'direct', oneOf: ['direct', 'converse'] },
 	persianMaxYears: { label: '波斯向运·应期年数', def: 90, oneOf: [50, 90, 120, 150, 200] },
 	profGrain: { def: 'y', oneOf: PROFECTION_GRAIN_OPTIONS.map((o)=>o.value) },
@@ -80,4 +83,21 @@ export const DIRECTION_PAGE_SETTINGS = definePageSettings('horosa.direction.sett
 	michonOrb: { label: '双黄道·容许度（度）', def: MICHON_DEFAULTS.orb, oneOf: [0.5, 1, 1.5, 2] },
 	michonSwap: { label: '双黄道·水金互换守护', def: MICHON_DEFAULTS.swap },
 	michonEqual: { label: '双黄道·等宫(上升居第一宫正中)', def: MICHON_DEFAULTS.equal },
+	michonAll: { label: '双黄道·互动表显示全部 66 组', def: false },   // 只改右栏互动表显示哪些行,不进请求
+	tlMethod: { label: '时主轮转·方法', def: TIMELORD_DEFAULTS.method, oneOf: TIMELORD_METHODS.map((m)=>m.value) },
+	tlYearType: { label: '时主轮转·年长', def: TIMELORD_DEFAULTS.yearType, oneOf: TIMELORD_OPTIONS.yearType.map((m)=>m.value) },
+	tlMovingYear: { label: '时主轮转·匀速点年长', def: TIMELORD_DEFAULTS.movingYear, oneOf: TIMELORD_OPTIONS.yearType.map((m)=>m.value) },
+	tlTurnStart: { label: '时主轮转·轮主起始星', def: TIMELORD_DEFAULTS.turnStart, oneOf: TIMELORD_OPTIONS.turnStart.map((m)=>m.value) },
+	tlTurnOrder: { label: '时主轮转·轮主次序', def: TIMELORD_DEFAULTS.turnOrder, oneOf: TIMELORD_OPTIONS.turnOrder.map((m)=>m.value) },
+	tlOrbMode: { label: '时主轮转·轨主走法', def: TIMELORD_DEFAULTS.orbMode, oneOf: TIMELORD_OPTIONS.orbMode.map((m)=>m.value) },
+	tlAnnualDays: { label: '时主轮转·年度分配天数表', def: TIMELORD_DEFAULTS.annualDays, oneOf: TIMELORD_OPTIONS.annualDays.map((m)=>m.value) },
+	tlAnnualOrder: { label: '时主轮转·年度分配次序', def: TIMELORD_DEFAULTS.annualOrder, oneOf: TIMELORD_OPTIONS.annualOrder.map((m)=>m.value) },
+	tlReleaser: { label: '时主轮转·月相四分释放星', def: TIMELORD_DEFAULTS.releaser, oneOf: TIMELORD_OPTIONS.releaser.map((m)=>m.value) },
+	tlVariant: { label: '时主轮转·算法(改进 / 经典)', def: TIMELORD_DEFAULTS.variant, oneOf: TIMELORD_OPTIONS.variant.map((m)=>m.value) },
+	tlNineTime: { label: '时主轮转·九分主时间', def: TIMELORD_DEFAULTS.nineTime, oneOf: TIMELORD_OPTIONS.nineTime.map((m)=>m.value) },
+	tlNineReverse: { label: '时主轮转·九分主子主反转', def: TIMELORD_DEFAULTS.nineReverse },
+	tlRateKind: { label: '时主轮转·匀速点速率', def: TIMELORD_DEFAULTS.rateKind, oneOf: TIMELORD_OPTIONS.rateKind.map((m)=>m.value) },
+	tlMovingStart: { label: '时主轮转·匀速点起点', def: TIMELORD_DEFAULTS.movingStart, oneOf: TIMELORD_OPTIONS.movingStart.map((m)=>m.value) },
+	tlDevBasis: { label: '时主轮转·发展年龄分段', def: TIMELORD_DEFAULTS.devBasis, oneOf: TIMELORD_OPTIONS.devBasis.map((m)=>m.value) },
+	tlDiurnalMode: { label: '时主轮转·周日象限速率', def: TIMELORD_DEFAULTS.diurnalMode, oneOf: TIMELORD_OPTIONS.diurnalMode.map((m)=>m.value) },
 });

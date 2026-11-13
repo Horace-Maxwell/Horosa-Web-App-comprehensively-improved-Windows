@@ -2,21 +2,23 @@
 // 逐一写清左栏每个起课/设置项的取值与差别 + 右栏每块内容，便于使用者理解每个开关怎么影响起课与断法。
 // 中性表述，纯展示零后端；只写公版古籍名，不写现代来源、软件名或内部章节号。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
 
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class LiurengHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>大六壬 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '大六壬 · 操作手册',
+	groups: [
+		{
+			key: 'liureng',
+			label: '大六壬',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>大六壬以<b>占问时刻</b>的天盘地盘起课：先排<b>四课</b>（日干、日支各取上下两神），再依固定法则发出<b>三传</b>（初传·中传·末传），加上<b>十二天将</b>乘神，综合断事。</p>
 							<p style={p}>本页布局：<b>左栏</b>填占问的时间地点、卜卦人出生时间，并设置贵人体系、起课法、换将、分昼夜、涉害取舍等各项口径；<b>中栏</b>为六壬盘（可切方盘 / 圆盘）与四课三传；<b>右栏</b>分格局、信息、毕法、参考、概览、占断、取象、七政等页签列出判读内容。</p>
@@ -40,9 +42,14 @@ class LiurengHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>下面分「起课设置 / 三传八法 / 盘面 / 流派分歧 / 神煞断法 / 右栏标签 / 保存与解读」逐项说明。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="起课设置" key="setup">
+					</div>
+					),
+				},
+				{
+					key: 'setup',
+					label: '起课设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「时间与地点 / 卜卦人出生时间 / 选项」逐项：取值 / 默认 / 区别。</p>
 
@@ -114,9 +121,14 @@ class LiurengHelpDoc extends Component{
 								{kv('影响', '只改年神在右栏的排列与起点，不改课传')}
 								{kv('实际差异', '两档十二年神所临之支只有太阴一位不同（太岁排轮取岁后二辰）')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="三传八法" key="sanchuan">
+					</div>
+					),
+				},
+				{
+					key: 'sanchuan',
+					label: '三传八法',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>四课排定后，依日上神与课中关系发三传。九宗门按固定优先级逐层判定，自上而下逐条试之，命中即定，不再下推；本页把其中争议较多的<b>涉害</b>一节做成可选项。</p>
 
@@ -180,9 +192,14 @@ class LiurengHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>三传发出后，其步法由盘面与右栏自动识别：连茹（连珠）一类十二盘式标于盘上；间传 / 三合成局 / 三会同方的象义见右栏「概览」页首「课体结构」一卡。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="盘面" key="pan">
+					</div>
+					),
+				},
+				{
+					key: 'pan',
+					label: '盘面',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>中栏盘面可在左栏「时间与地点」区切方盘 / 圆盘；默认方盘，所选会被记住。</p>
 
@@ -225,9 +242,14 @@ class LiurengHelpDoc extends Component{
 								{kv('悬浮', '停在宫格或天将上可看该宫天地盘、所乘天将与地支释义')}
 								{kv('点选', '开启左栏「取象」后，点击地支 / 天将即把其类象钉到右栏「取象」页并自动切页；再点同一处取消')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派分歧" key="schools">
+					</div>
+					),
+				},
+				{
+					key: 'schools',
+					label: '流派分歧',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>各家在贵人、换将、昼夜、阳阴归属、活时折支等处取法不一，本页把主要分歧做成可选项；默认一律取通行稳妥的一档。</p>
 
@@ -264,9 +286,14 @@ class LiurengHelpDoc extends Component{
 								{kv('年神排序', '见「起课设置」页')}
 								{kv('土旺衰', '见「神煞断法」页')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="神煞断法" key="shensha">
+					</div>
+					),
+				},
+				{
+					key: 'shensha',
+					label: '神煞断法',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={card}><div style={ct}>土旺衰（土行旺相口径）</div>
 								{kv('四季月土旺（默认）', '土于四季月（辰戌丑未月）当旺')}
@@ -326,9 +353,14 @@ class LiurengHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>常用神煞按日干日支起例补全，右栏「概览」一页列示并标吉凶色；神煞与毕法断语统一带「须合盘」之意，供参不作定论。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="右栏标签" key="tabs">
+					</div>
+					),
+				},
+				{
+					key: 'tabs',
+					label: '右栏标签',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>右栏各页签按当前盘自动判读、即时联动，逐页简述如下。页签依次为 格局 / 信息 / 毕法 / 参考 / 概览 / 占断 / 取象 / 七政。</p>
 							<div style={card}><div style={ct}>格局（课体九宗门 + 成局名目，合一页）</div>
@@ -399,9 +431,14 @@ class LiurengHelpDoc extends Component{
 								{kv('每格', '星名（逆行者加逆行标记）/ 所临之支 / 五行 / 宫内度数；太阳所临之宫另加「月将」徽标')}
 								{kv('空态', '盘中无日月五星星历时给出提示')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="保存与解读" key="save">
+					</div>
+					),
+				},
+				{
+					key: 'save',
+					label: '保存与解读',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页的盘可存为事盘案例；交给 AI 解读与导出的内容随盘自动更新。</p>
 
@@ -429,11 +466,19 @@ class LiurengHelpDoc extends Component{
 								{kv('改全局日界', '晚子时一类全局设置改动后本页即时重新起课')}
 								{kv('选地点', '地点弹窗内的「应用」只把手填坐标送进弹窗自身，须再按弹窗的「确定」才回写左栏并重排；直接关窗则本次选择作废')}</div>
 						</div>
-					</TabPane>
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
 
-				</Tabs>
-			</div>
-		);
+class LiurengHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

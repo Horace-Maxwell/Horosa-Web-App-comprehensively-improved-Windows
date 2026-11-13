@@ -51,7 +51,7 @@ describe('四本账登记', ()=>{
 	it('🔴 ⑤对偶锁:SubTabRegistry⇔ZeriMain TabPane⇔help TabPane 三处成对', ()=>{
 		expect(ZERI_SUBTABS).toContain('ziweizeri');
 		expect(read('components/zeri/ZeriMain.js')).toContain('key="ziweizeri"');
-		expect(read('components/help/ZeriHelpDoc.js')).toContain('key="ziweizeri"');
+		expect(read('components/help/ZeriHelpDoc.js')).toContain("key: 'ziweizeri'");
 	});
 });
 

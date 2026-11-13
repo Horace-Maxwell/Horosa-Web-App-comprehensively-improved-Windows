@@ -9,7 +9,7 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { Empty, Spin, Tabs } from 'antd';
+import { Spin, Tabs } from 'antd';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
@@ -616,7 +616,7 @@ class ZhengChuanMain extends Component {
 		const aux = this.props.slot === 'aux';
 		const m = this.getModel();
 		if (!m) {
-			return <div className="horosa-huangji-empty"><Empty description="请先填写生辰" image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>;
+			return <div className="horosa-huangji-empty">请先填写生辰</div>;
 		}
 		const RENDER = {
 			tieban: this.renderTieban, shaozi: this.renderShaozi, dading: this.renderDading,

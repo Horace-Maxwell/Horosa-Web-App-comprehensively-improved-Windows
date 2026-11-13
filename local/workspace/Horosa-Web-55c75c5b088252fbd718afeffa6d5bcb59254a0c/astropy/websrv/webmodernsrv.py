@@ -50,6 +50,8 @@ class ModernAstroSrv:
             #  ① westNodeType/sectBuffer/lotReversal —— perchart 从每盘 data dict 读 → 灌 inner/outer;
             #  ② termsVariant/leoBoundFirst/geminiBoundEmended/triplicity —— 请求级线程态,
             #     push/pop 包住 compute(与 webchartsrv 各路由同款,finally 必还原防污染后续请求)。
+            # 不透传 southchart(南半球读法:南纬盘全盘黄经 +180°,只换星座标签):它按每盘的纬度各自生效,
+            # 一南一北两张盘会一张是标签黄经、一张是真黄经,中点、搬点、跨盘相位全错。合盘 / 组合盘一律按真黄经算。
             for _ck in ('westNodeType', 'sectBuffer', 'lotReversal', 'houseCuspAdvance', 'triplicity',   # setupPlanets 水象夜表分支读每盘 data.get('triplicity'),缺=夜换挡死
                         'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter',
                         'starOrb', 'starOrbMode', 'antisciaOrb', 'viaCombustaVariant',
@@ -61,7 +63,9 @@ class ModernAstroSrv:
                         'siderealAyanamsa', 'userAyanT0', 'userAyanDeg',
                         # ↓ 三键计算走线程态(push_classical_request),塞每盘仅供 helper.getChartObj
                         #   params 条件回显 → 前端合盘界环/「位于 X 界」与计算同口径(缺省不塞=响应字节零变)
-                        'termsVariant', 'leoBoundFirst', 'geminiBoundEmended'):
+                        'termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
+                        # 用户容许度(逐星表 / 整体倍率):perchart 从每盘 data 读 → 两盘同一把尺
+                        'orbs', 'orbScale'):
                 if _ck in data:
                     inner[_ck] = data[_ck]
                     outer[_ck] = data[_ck]

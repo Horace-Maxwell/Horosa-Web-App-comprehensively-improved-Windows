@@ -23,6 +23,7 @@ const SRC = path.resolve(__dirname, '../..');
 const ALLOW = [
 	['--horosa-wheelart-angle', '印度方盘「轴点星」名字色:盘面美术档注入的盘面绘制色,兜底即设计值(盘面不在界面字色合同,归 audit_chart_theme.py)'],
 	['--horosa-chart-stroke', '汉堡学派盘面 svg 的线色(currentColor 兜底,给盘面线条继承用,不是界面字)'],
+	['--horosa-tech-control-w', '技法设置字段右侧控件列宽:只有宽面板作用域按需调大,其余场合不定义、引用一律带 208px 兜底(这不是颜色)'],
 ];
 
 function walk(dir, out){
@@ -111,6 +112,7 @@ const SCOPED = [
 	['--horosa-huangji-', '皇极 / 灵棋 / 五兆等「卜」页的局部色板,定义在 .horosa-huangji-redesign 作用域(亮暗两块);作用域外的引用一律带 var(--horosa-text-secondary) 一类根变量兜底'],
 	['--horosa-ziwei-house-title', '策天 / 演禽紫微盘作用域里覆盖紫微宫名色(11-kinastro 亮暗两块);作用域外的引用带 var(--horosa-ziwei-house-name) 根变量兜底'],
 	['--horosa-lv', '布局视口单位 --horosa-lvw / --horosa-lvh(及工作区地板用的 -raw 两份):运行时由 utils/layoutViewportVars.js 写到 :root(setProperty),引用处都带 1vw / 1vh 兜底'],
+	['--horosa-tech-control-w', '技法设置字段右侧控件列宽:只在宽面板作用域里调大,别处引用一律带 208px 兜底'],
 	['--horosa-chart-floor-extra', '盘面最小字视觉下限要求的工作区加宽 / 加高量:运行时由 utils/chartTextFloor.js 写到工作区内层(setProperty 常量名),唯一引用处 13-layout-module 带 0px 兜底'],
 ];
 

@@ -31,12 +31,13 @@ import {
 import {
 	XQButton,
 	XQCheckItem,
-	XQCheckList,
 	XQIconButton,
 	XQModal,
-	XQSectionTitle,
 	XQSegmented,
 	XQSelect,
+	XQSettingGroup,
+	XQSettingRow,
+	XQSwitch,
 	XQToolbar, XQInputNumber, } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { SCRIPT_HANT, SCRIPT_APPLIED_EVENT, currentScriptMode, setScriptMode } from '../../utils/scriptMode';
@@ -45,6 +46,12 @@ import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, ZERI_SN
 import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../utils/aiAnalysisDesktop';
 import styles from './PageHeader.less';
 import { getLayoutViewportWidth } from '../../utils/shellZoom';
+
+// 帮助弹窗宽:最多 1200,不超过布局视口的 92%(手册左栏菜单 + 右栏正文要并排放下)
+function helpModalWidth(){
+	if(typeof window === 'undefined'){ return 1100; }
+	return Math.min(1200, Math.round((getLayoutViewportWidth() || 1024) * 0.92));
+}
 
 // Windows 发行版:「关于」内的法律文档与官方下载渠道指向本平台仓库(windows-adaptations #23)。
 const HOROSA_OFFICIAL_REPO = 'https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows';
@@ -94,6 +101,9 @@ function PageHeader(props){
 	const [aiSettingVisible, setAiSettingVisible] = React.useState(false);
 	const [globalSettingVisible, setGlobalSettingVisible] = React.useState(false);
 	const [astroHelpVisible, setAstroHelpVisible] = React.useState(false);
+	// 关弹窗的收起动画期间正文还要在(否则弹窗先缩成只剩标题与底栏);动画结束 afterClose 才卸,下次打开重新停在当前技法
+	const [astroHelpMounted, setAstroHelpMounted] = React.useState(false);
+	React.useEffect(()=>{ if(astroHelpVisible){ setAstroHelpMounted(true); } }, [astroHelpVisible]);
 	const [aboutVisible, setAboutVisible] = React.useState(false);
 	const [aboutVersion, setAboutVersion] = React.useState('');
 	// useState 实参每次渲染都急切求值:listAIExportTechniqueSettings 遍历全部技法并解析快照缓存,
@@ -740,16 +750,26 @@ function PageHeader(props){
 				<XQModal
 					title={`${currentPageLabel} · 操作手册`}
 					open={astroHelpVisible}
+					afterClose={()=>setAstroHelpMounted(false)}
 					onCancel={()=>setAstroHelpVisible(false)}
-					width={Math.min(920, typeof window !== 'undefined' ? Math.round((getLayoutViewportWidth() || 1024) * 0.9) : 920)}
+					width={helpModalWidth()}
 					footer={(
 						<XQToolbar className={styles.aiSettingFooter}>
 							<XQButton size="small" variant="primary" onClick={()=>setAstroHelpVisible(false)}>知道了</XQButton>
 						</XQToolbar>
 					)}
 				>
-					<div className={styles.astroHelpBody} style={{ maxHeight: 'calc(74 * var(--horosa-lvh, 1vh))', overflowY: 'auto' }}>
-						{(()=>{ const HelpDoc = getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)); return HelpDoc ? <HelpDoc /> : (
+					{(()=>{
+						// 手册(HelpBook):左栏本页全部技法、右栏当前技法;弹窗开着(含收起动画)时挂载,每次打开都停在你当前所在的技法
+						const HelpDoc = (astroHelpVisible || astroHelpMounted) ? getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)) : null;
+						if(HelpDoc && HelpDoc.book){
+							const ctx = { currentTab: props.currentTab, currentSubTab: props.currentSubTab, hostTechnique: currentHostTechnique(props.currentTab) };
+							return <HelpDoc ctx={ctx} compact={helpModalWidth() < 760} />;
+						}
+						return null;
+					})()}
+					<div className={styles.astroHelpBody} style={{ maxHeight: 'calc(74 * var(--horosa-lvh, 1vh))', overflowY: 'auto', display: (()=>{ const D = getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)); return D && D.book ? 'none' : undefined; })() }}>
+						{(()=>{ const HelpDoc = (astroHelpVisible || astroHelpMounted) ? getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)) : null; if(HelpDoc && HelpDoc.book){ return null; } return HelpDoc ? <HelpDoc /> : (
 							<>
 								<p>左侧为排盘输入与显示设置，中间为盘面绘制，右侧分页查看信息、相位、行星与判读。</p>
 								<p>底部快捷功能跳转到对应技法或抽屉；切换任一设置即时全组合重算。</p>
@@ -769,130 +789,165 @@ function PageHeader(props){
 						</XQToolbar>
 					)}
 				>
-					<div className={styles.aiSettingModal}>
-						<XQSectionTitle>通用（全部技法）</XQSectionTitle>
-						<XQCheckList columns={2}>
-							<XQCheckItem
-								compact
-								checked={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) === 'v2'}
-								onClick={()=>onAISettingPrefChange({ format: (aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) === 'v2' ? 'v1' : 'v2' })}
-							>
-								新版导出格式 v2（表格化排版）
-							</XQCheckItem>
-							<XQCheckItem
-								compact
-								checked={!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.attachScreenshot === false)}
-								onClick={()=>onAISettingPrefChange({ attachScreenshot: (aiSettingData && aiSettingData.prefs && aiSettingData.prefs.attachScreenshot === false) })}
-							>
-								PDF/Word 附当前页面截图
-							</XQCheckItem>
-							{/* 图例只在 v2 格式下拼装:v1 时置灰并注明,免「勾了不带图例」的哑弹。 */}
-							<XQCheckItem
-								compact
+					{/* 与星盘设置抽屉同一套设置语法:组卡 + 行(文字在左、开关在右)+ 勾选格 */}
+					<div className={`horosa-setting-body ${styles.aiSettingModal}`}>
+						<XQSettingGroup title="通用（全部技法）">
+							<XQSettingRow
+								label="新版导出格式 v2（表格化排版）"
+								hint="关闭 = 经典 v1 格式"
+								control={(
+									<XQSwitch
+										size="small"
+										checked={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) === 'v2'}
+										onChange={(on)=>onAISettingPrefChange({ format: on ? 'v2' : 'v1' })}
+									/>
+								)}
+							/>
+							<XQSettingRow
+								label="PDF/Word 附当前页面截图"
+								hint="导出 PDF、Word 时把当前页面的截图附在正文前"
+								control={(
+									<XQSwitch
+										size="small"
+										checked={!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.attachScreenshot === false)}
+										onChange={(on)=>onAISettingPrefChange({ attachScreenshot: !!on })}
+									/>
+								)}
+							/>
+							{/* 图例只在 v2 格式下拼装:v1 时整行置灰并注明,免「开了不带图例」的哑弹。 */}
+							<XQSettingRow
 								data-ai-export-legend="1"
+								label="附「图例」术语速查"
+								badge={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2' ? '仅 v2 格式' : null}
+								hint="紫微 / 八字 / 星盘的术语对照;随新版 v2 格式拼装,经典 v1 格式不带图例"
 								disabled={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2'}
-								title={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2' ? '图例随新版 v2 格式拼装;经典 v1 格式不带图例' : undefined}
-								checked={!!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.legend === true)}
-								onClick={()=>{ if((aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2'){ return; } onAISettingPrefChange({ legend: !(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.legend === true) }); }}
-							>
-								AI 导出附[图例]术语速查(紫微/八字/星盘){(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2' ? '（仅 v2 格式）' : ''}
-							</XQCheckItem>
+								control={(
+									<XQSwitch
+										size="small"
+										disabled={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2'}
+										checked={!!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.legend === true)}
+										onChange={(on)=>onAISettingPrefChange({ legend: !!on })}
+									/>
+								)}
+							/>
 							{/* 命主实况:当前命盘本人填写的问卷与断事日志等,缺省不附;只附在这张命盘本人的导出上 */}
-							<XQCheckItem
-								compact
+							<XQSettingRow
 								data-ai-export-subject-facts="1"
-								title="当前载入的是已存命盘时,把你为这张盘填写的「命主实况」附在导出末尾;卜卦、择日、占卜术数等导出不附"
-								checked={!!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true)}
-								onClick={()=>onAISettingPrefChange({ subjectFacts: !(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true) })}
-							>
-								AI 导出附「命主实况」(缺省不附)
-							</XQCheckItem>
-						</XQCheckList>
-						<XQSectionTitle>选择技法</XQSectionTitle>
-						<XQSelect
-						size='small'
-						style={{width: '100%'}}
-						value={aiSettingKey}
-						showSearch
-						optionFilterProp='children'
-						onChange={(val)=>setAiSettingKey(val)}
+								label="附「命主实况」"
+								hint="当前载入的是已存命盘时,把你为这张盘填写的「命主实况」附在导出末尾;卜卦、择日、占卜术数等导出不附"
+								control={(
+									<XQSwitch
+										size="small"
+										checked={!!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true)}
+										onChange={()=>onAISettingPrefChange({ subjectFacts: !(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true) })}
+									/>
+								)}
+							/>
+						</XQSettingGroup>
+						<XQSettingGroup
+							title="导出分段"
+							hint={currentSettingOptions.length ? `${currentSettingOptions.filter((item)=>currentSettingSelected.indexOf(item) >= 0).length} / ${currentSettingOptions.length}` : null}
+							extra={(
+								<React.Fragment>
+									<button type="button" className="xq-setting-group-action" onClick={onAISettingSelectAll}>全选</button>
+									<button type="button" className="xq-setting-group-action" onClick={onAISettingClear}>清空</button>
+									<button type="button" className="xq-setting-group-action" onClick={onAISettingResetDefault}>恢复默认</button>
+								</React.Fragment>
+							)}
 						>
-							{/* [YE] 73 项按术数域分组(+搜索);数据仍以 aiSettingTechs 为真值,分组只是展示。 */}
-							{aiSettingGroups.map((group)=>(
-								<XQSelect.OptGroup key={group.title} label={group.title}>
-									{group.items.map((item)=>(
-										<Option key={item.key} value={item.key}>{item.label}</Option>
-									))}
-								</XQSelect.OptGroup>
-							))}
-						</XQSelect>
-						<XQToolbar compact className={styles.aiSettingActions}>
-							<XQButton size='small' onClick={onAISettingSelectAll}>全选</XQButton>
-							<XQButton size='small' onClick={onAISettingClear}>清空</XQButton>
-							<XQButton size='small' onClick={onAISettingResetDefault}>恢复默认</XQButton>
-						</XQToolbar>
-						<XQSectionTitle>导出分段</XQSectionTitle>
-						{currentSettingOptions.length ? (()=>{
-							// [YE] 厚技法(印占/三式)段清单按 tab 语义两级分组渲染;无规则技法平铺现状。纯展示层,存储零变更。
-							const sectionGroups = getSectionGroupsForTechnique(aiSettingKey, currentSettingOptions);
-							const renderChecks = (items)=>(
-								<XQCheckList columns={2} className={styles.aiSettingChecks}>
-									{items.map((item)=>(
-										<XQCheckItem
-											key={item}
-											compact
-											checked={currentSettingSelected.indexOf(item) >= 0}
-											onClick={()=>onAISettingToggleOption(item)}
-										>
-											{item}
-										</XQCheckItem>
-									))}
-								</XQCheckList>
-							);
-							if(!sectionGroups){
-								return renderChecks(currentSettingOptions);
-							}
-							return sectionGroups.map((group)=>(
-								<div key={group.title}>
-									<div className={styles.aiSettingGroupTitle}>{group.title}</div>
-									{renderChecks(group.items)}
-								</div>
-							));
-						})() : (
-							<div className={styles.aiSettingEmpty}>当前技法暂未检测到可选分段，请先在该技法完成一次排盘后再设置。</div>
-						)}
+							<XQSettingRow
+								label="选择技法"
+								hint="每个技法各记一份勾选"
+								control={(
+									<XQSelect
+										size='small'
+										style={{width: 280}}
+										value={aiSettingKey}
+										showSearch
+										optionFilterProp='children'
+										onChange={(val)=>setAiSettingKey(val)}
+									>
+										{/* [YE] 73 项按术数域分组(+搜索);数据仍以 aiSettingTechs 为真值,分组只是展示。 */}
+										{aiSettingGroups.map((group)=>(
+											<XQSelect.OptGroup key={group.title} label={group.title}>
+												{group.items.map((item)=>(
+													<Option key={item.key} value={item.key}>{item.label}</Option>
+												))}
+											</XQSelect.OptGroup>
+										))}
+									</XQSelect>
+								)}
+							/>
+							{currentSettingOptions.length ? (()=>{
+								// [YE] 厚技法(印占/三式)段清单按 tab 语义两级分组渲染;无规则技法平铺现状。纯展示层,存储零变更。
+								const sectionGroups = getSectionGroupsForTechnique(aiSettingKey, currentSettingOptions);
+								const renderChecks = (items)=>(
+									<div className="xq-setting-checks">
+										{items.map((item)=>(
+											<XQCheckItem
+												key={item}
+												compact
+												checked={currentSettingSelected.indexOf(item) >= 0}
+												onClick={()=>onAISettingToggleOption(item)}
+											>
+												{item}
+											</XQCheckItem>
+										))}
+									</div>
+								);
+								return (
+									<div className={styles.aiSettingChecks}>
+										{!sectionGroups ? (
+											<div className="xq-setting-block">{renderChecks(currentSettingOptions)}</div>
+										) : sectionGroups.map((group)=>(
+											<div key={group.title} className="xq-setting-block">
+												<div className="xq-setting-subtitle">{group.title}</div>
+												{renderChecks(group.items)}
+											</div>
+										))}
+									</div>
+								);
+							})() : (
+								<div className="xq-setting-note">当前技法暂未检测到可选分段，请先在该技法完成一次排盘后再设置。</div>
+							)}
+						</XQSettingGroup>
 						{currentSettingSupportsPlanetInfo ? (
-							<div>
-								<XQSectionTitle>星曜后天信息</XQSectionTitle>
-								<XQCheckList columns={2}>
-									<XQCheckItem
-										compact
-										checked={currentSettingPlanetInfo.showHouse === 1}
-										onClick={()=>onAISettingPlanetInfoChange('showHouse', currentSettingPlanetInfo.showHouse !== 1)}
-									>
-										显示星曜宫位
-									</XQCheckItem>
-									<XQCheckItem
-										compact
-										checked={currentSettingPlanetInfo.showRuler === 1}
-										onClick={()=>onAISettingPlanetInfoChange('showRuler', currentSettingPlanetInfo.showRuler !== 1)}
-									>
-										显示星曜主宰宫
-									</XQCheckItem>
-								</XQCheckList>
-							</div>
+							<XQSettingGroup title="星曜后天信息">
+								<XQSettingRow
+									label="显示星曜宫位"
+									control={(
+										<XQSwitch
+											size="small"
+											checked={currentSettingPlanetInfo.showHouse === 1}
+											onChange={(on)=>onAISettingPlanetInfoChange('showHouse', !!on)}
+										/>
+									)}
+								/>
+								<XQSettingRow
+									label="显示星曜主宰宫"
+									control={(
+										<XQSwitch
+											size="small"
+											checked={currentSettingPlanetInfo.showRuler === 1}
+											onChange={(on)=>onAISettingPlanetInfoChange('showRuler', !!on)}
+										/>
+									)}
+								/>
+							</XQSettingGroup>
 						) : null}
 						{currentSettingSupportsAstroMeaning ? (
-							<div>
-								<XQSectionTitle>{currentSettingMeaningTitle}</XQSectionTitle>
-								<XQCheckItem
-									compact
-									checked={currentSettingAstroMeaning.enabled === 1}
-									onClick={()=>onAISettingAstroMeaningChange(currentSettingAstroMeaning.enabled !== 1)}
-								>
-									{currentSettingMeaningCheckbox}
-								</XQCheckItem>
-							</div>
+							<XQSettingGroup title={currentSettingMeaningTitle}>
+								<XQSettingRow
+									label={currentSettingMeaningCheckbox}
+									control={(
+										<XQSwitch
+											size="small"
+											checked={currentSettingAstroMeaning.enabled === 1}
+											onChange={(on)=>onAISettingAstroMeaningChange(!!on)}
+										/>
+									)}
+								/>
+							</XQSettingGroup>
 						) : null}
 					</div>
 				</XQModal>
@@ -900,54 +955,90 @@ function PageHeader(props){
 					title="全局设置"
 					open={globalSettingVisible}
 					onCancel={()=>setGlobalSettingVisible(false)}
-					width={520}
+					width={560}
 					footer={(
 						<XQToolbar className={styles.aiSettingFooter}>
 							<XQButton size="small" variant="primary" onClick={()=>setGlobalSettingVisible(false)}>完成</XQButton>
 						</XQToolbar>
 					)}
 				>
-					<div className={styles.aiSettingModal}>
-						<XQSectionTitle>日界点（日柱换日规则）</XQSectionTitle>
-						<XQSegmented
-							value={normalizeDayBoundary(props.dayBoundary)}
-							onChange={(e)=>changeDayBoundary(e && e.target ? e.target.value : e)}
-							options={[
-								{value: DAY_BOUNDARY_AFTER23, label: '23点算第二天'},
-								{value: DAY_BOUNDARY_AFTER24, label: '24点算第二天'},
-							]}
-						/>
-						<div className={styles.aiSettingEmpty}>作为所有技法的默认换日规则；个别技法仍可在其「排盘设置」中单独调整（左栏改过后全局不会覆盖）。八字左栏的改动只作用于八字页（其它技法不跟随），新建或载入命盘时复位；载入命盘自带的口径优先于这里的全局值。「23点算第二天」=23点起日柱进位次日；「24点算第二天」=23点仍守今、24点才换日柱。</div>
-
-						<XQSectionTitle>时间算法（新命盘的缺省）</XQSectionTitle>
-						<XQSegmented
-							value={defaultTimeAlg}
-							onChange={(e)=>changeDefaultTimeAlg(e && e.target ? e.target.value : e)}
-							options={[
-								{value: 0, label: '真太阳时'},
-								{value: 3, label: '平太阳时'},
-								{value: 1, label: '直接时间'},
-							]}
-						/>
-						<div className={styles.aiSettingEmpty}>新命盘与重开软件时的时间算法由此起始;紫微页亲手改「时间算法」也会更新它。八字左栏的时间算法只作用于八字页,新命盘 / 载入命盘时复位到这里的缺省;载入命盘一律按记录里存的算法。</div>
-						<XQSectionTitle>晚子时·时柱起干（独立于日柱）</XQSectionTitle>
-						<XQSegmented
-							value={normalizeLateZiHourMode(props.lateZiHourMode)}
-							onChange={(e)=>changeLateZiHourMode(e && e.target ? e.target.value : e)}
-							options={[
-								{value: LATE_ZI_HOUR_NEXT_DAY, label: '晚子时按次日日柱计算'},
-								{value: LATE_ZI_HOUR_TODAY, label: '晚子时按当日柱计算'},
-							]}
-						/>
-						<div className={styles.aiSettingEmpty}>晚子时＝23:00–24:00。「按次日日柱计算」（默认）= 时干用次日日干起子时；「按当日柱计算」= 时干用今日日干起子时。这跟日柱开关独立——只在 23:00–23:59 时段影响时干。</div>
-
+					<div className={`horosa-setting-body ${styles.aiSettingModal}`}>
+						<XQSettingGroup title="排盘口径" hint="跨技法通用">
+							<XQSettingRow
+								stacked
+								label="日界点（日柱换日规则）"
+								hint="所有技法的默认换日规则"
+								control={(
+									<XQSegmented
+										value={normalizeDayBoundary(props.dayBoundary)}
+										onChange={(e)=>changeDayBoundary(e && e.target ? e.target.value : e)}
+										options={[
+											{value: DAY_BOUNDARY_AFTER23, label: '23点算第二天'},
+											{value: DAY_BOUNDARY_AFTER24, label: '24点算第二天'},
+										]}
+									/>
+								)}
+							/>
+							<div className="xq-setting-note">「23点算第二天」= 23 点起日柱进位次日；「24点算第二天」= 23 点仍守今、24 点才换日柱。个别技法仍可在其「排盘设置」中单独调整（左栏改过后全局不会覆盖）；八字左栏的改动只作用于八字页（其它技法不跟随），新建或载入命盘时复位；载入命盘自带的口径优先于这里的全局值。</div>
+							<XQSettingRow
+								stacked
+								label="时间算法（新命盘的缺省）"
+								hint="新命盘与重开软件时的时间算法由此起始"
+								control={(
+									<XQSegmented
+										value={defaultTimeAlg}
+										onChange={(e)=>changeDefaultTimeAlg(e && e.target ? e.target.value : e)}
+										options={[
+											{value: 0, label: '真太阳时'},
+											{value: 3, label: '平太阳时'},
+											{value: 1, label: '直接时间'},
+										]}
+									/>
+								)}
+							/>
+							<div className="xq-setting-note">紫微页亲手改「时间算法」也会更新它。八字左栏的时间算法只作用于八字页，新命盘 / 载入命盘时复位到这里的缺省；载入命盘一律按记录里存的算法。</div>
+							<XQSettingRow
+								stacked
+								label="晚子时·时柱起干（独立于日柱）"
+								hint="只在 23:00–23:59 时段影响时干，与日界点互相独立"
+								control={(
+									<XQSegmented
+										value={normalizeLateZiHourMode(props.lateZiHourMode)}
+										onChange={(e)=>changeLateZiHourMode(e && e.target ? e.target.value : e)}
+										options={[
+											{value: LATE_ZI_HOUR_NEXT_DAY, label: '晚子时按次日日柱计算'},
+											{value: LATE_ZI_HOUR_TODAY, label: '晚子时按当日柱计算'},
+										]}
+									/>
+								)}
+							/>
+							<div className="xq-setting-note">晚子时 = 23:00–24:00。「按次日日柱计算」（默认）= 时干用次日日干起子时；「按当日柱计算」= 时干用今日日干起子时。</div>
+						</XQSettingGroup>
 						{/* 择日九宿主 + 天星快照「命中清单」上限与判读树行数全局可配 */}
-						<XQSectionTitle>择日 AI 快照·命中清单</XQSectionTitle>
-						<div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-							<span>最多列出 <XQInputNumber size="small" min={ZERI_SNAPSHOT_MAX_ROWS_MIN} max={ZERI_SNAPSHOT_MAX_ROWS_MAX} precision={0} style={{ width: 84 }} value={normalizeZeriSnapshotMaxRows(props.zeriSnapshotMaxRows)} onChange={(v)=>changeZeriSnapshotPref('zeriSnapshotMaxRows', v)} /> 段</span>
-							<span>前 <XQInputNumber size="small" min={ZERI_SNAPSHOT_EXPLAIN_ROWS_MIN} max={ZERI_SNAPSHOT_EXPLAIN_ROWS_MAX} precision={0} style={{ width: 72 }} value={normalizeZeriSnapshotExplainRows(props.zeriSnapshotExplainRows)} onChange={(v)=>changeZeriSnapshotPref('zeriSnapshotExplainRows', v)} /> 段附判读树</span>
-						</div>
-						<div className={styles.aiSettingEmpty}>择日各宿主与天星择日的 AI 快照「命中时段」清单默认只列前 60 段(页面表格仍逐行全列);前 3 段下附与「详情▼」同源的判读树(设定 vs 实际),便于 AI 看到条件是怎么命中的。改大上限会加长快照。</div>
+						<XQSettingGroup title="择日 AI 快照 · 命中清单">
+							<XQSettingRow
+								label="最多列出"
+								hint="AI 快照「命中时段」清单的段数上限；页面表格仍逐行全列"
+								control={(
+									<React.Fragment>
+										<XQInputNumber size="small" min={ZERI_SNAPSHOT_MAX_ROWS_MIN} max={ZERI_SNAPSHOT_MAX_ROWS_MAX} precision={0} style={{ width: 84 }} value={normalizeZeriSnapshotMaxRows(props.zeriSnapshotMaxRows)} onChange={(v)=>changeZeriSnapshotPref('zeriSnapshotMaxRows', v)} />
+										<span className={styles.settingUnit}>段</span>
+									</React.Fragment>
+								)}
+							/>
+							<XQSettingRow
+								label="附判读树"
+								hint="清单前几段下附与「详情」同源的判读树（设定 vs 实际）"
+								control={(
+									<React.Fragment>
+										<span className={styles.settingUnit}>前</span>
+										<XQInputNumber size="small" min={ZERI_SNAPSHOT_EXPLAIN_ROWS_MIN} max={ZERI_SNAPSHOT_EXPLAIN_ROWS_MAX} precision={0} style={{ width: 84 }} value={normalizeZeriSnapshotExplainRows(props.zeriSnapshotExplainRows)} onChange={(v)=>changeZeriSnapshotPref('zeriSnapshotExplainRows', v)} />
+										<span className={styles.settingUnit}>段</span>
+									</React.Fragment>
+								)}
+							/>
+							<div className="xq-setting-note">缺省列前 60 段、前 3 段附判读树，便于 AI 看到条件是怎么命中的；择日各宿主与天星择日共用。改大上限会加长快照。</div>
+						</XQSettingGroup>
 					</div>
 				</XQModal>
 				<XQModal

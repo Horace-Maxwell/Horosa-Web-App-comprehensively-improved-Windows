@@ -33,9 +33,13 @@ import { isEarlyBootMode } from './backendBootGate';
 //    fields 全程自持(DivinationChartShell/QimenZeriWorkbench),全局武装读 store.astro.fields
 //    构 /chart 对它是错轴白打;其步进预取由 DivinationChartShell 本地预取器负责,
 //    奇门找局是纯本地扫描引擎(零 HTTP)更无从武装。
+// 下面这些页不靠全局时间步进 —— 有自己的日期 / 年份 / 区间(日历、节气盘、
+//    卜 · 其他各技法的自由起盘时间),或压根没有时间轴(资料页、风水、塔罗、合盘)—— 却每次进页都按全局时间武装
+//    6 个 /chart 预取,页面一个都不用,白占排盘引擎一轮。进页不再武装;它们自己的请求不受影响。
 const NO_ARM_TABS = new Set([
 	'guazhan', 'planetarium', 'aianalysis', 'astrodata', 'xuanshi',
 	'zeri',
+	'calendar', 'cntradition', 'fengshui', 'tarot', 'relativechart', 'jieqichart', 'cnyibu',
 ]);
 
 let planBuilder = null;

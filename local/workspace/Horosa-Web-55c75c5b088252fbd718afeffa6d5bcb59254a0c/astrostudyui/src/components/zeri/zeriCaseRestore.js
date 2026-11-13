@@ -62,7 +62,7 @@ export function zeriCaseSnapshotText(host, scope){
 }
 
 // 宿主侧择时结果变了(扫描完成 / 判读预取到齐)→ 重存本槽:先请内嵌页按「母技法全文 + 择时三段」重存;
-// 内嵌页不应答(印度内嵌页本就不应答择日槽、七政降级档产不出基底)才写宿主自己的三段兜底。
+// 内嵌页不应答(还没出盘、七政降级档产不出基底)才写宿主自己的三段兜底;印度内嵌页按宿主槽应答(snapshotScope)。
 // 此前一律直写三段版,把内嵌页存好的母技法全文顶掉。
 export function refreshZeriSlot(host, scope){
 	let fresh = '';

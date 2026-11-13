@@ -186,13 +186,20 @@ describe('风水三新段 union 迁移', ()=>{
 describe('babylon 微黄道段 union 迁移', ()=>{
 	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 
-	it('已自定义过 babylon 的老用户(v49 存档):补上「微黄道」,原勾选不动、被取消段不复活', ()=>{
+	it('已自定义过 babylon 的老用户(v49 存档):补上「微黄道」与 v64「天象实算」,原勾选不动、被取消段不复活', ()=>{
 		const kept = ['起盘信息', '位三法'];
 		const n = normalizeAIExportSettings({ version: 49, sections: { babylon: kept.slice() } });
 		expect(n.sections.babylon).toContain('微黄道');
+		expect(n.sections.babylon).toContain('天象实算');
 		kept.forEach((s)=>{ expect(n.sections.babylon).toContain(s); });
 		expect(n.sections.babylon).not.toContain('七曜按宫');   // 当年取消的不得复活
-		expect(n.sections.babylon.length).toBe(kept.length + 1);
+		expect(n.sections.babylon.length).toBe(kept.length + 2);
+	});
+	it('v63 存档只补「天象实算」;已是 v64 的不再补', ()=>{
+		const n63 = normalizeAIExportSettings({ version: 63, sections: { babylon: ['起盘信息'] } });
+		expect(n63.sections.babylon).toEqual(['起盘信息', '天象实算']);
+		const n64 = normalizeAIExportSettings({ version: 64, sections: { babylon: ['起盘信息'] } });
+		expect(n64.sections.babylon).toEqual(['起盘信息']);
 	});
 
 	it('v50 起用户取消「微黄道」=真取消(不再被 union 顶回)', ()=>{
@@ -229,7 +236,7 @@ describe('紫微身宫段 union 迁移', ()=>{
 		// astrochart 同窗:补衍化三段;世界范式盘=默认关段不入 union(口径倒挂防线)
 		const na = normalizeAIExportSettings({ version: 55, sections: { astrochart: ['起盘信息'] } });
 		// 同一 v55 存档再进 v57 窗:尾插「分宫制宫神星表」(#79 拆段,窗口独立逐窗累加)
-		expect(na.sections.astrochart).toEqual(['起盘信息', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '分宫制宫神星表']);
+		expect(na.sections.astrochart).toEqual(['起盘信息', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '分宫制宫神星表', '盘面细节']);
 		expect(na.sections.astrochart).not.toContain('古典·世界范式盘');
 	});
 
@@ -261,14 +268,15 @@ describe('分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 	it('已自定义过西占键的 v56 存档:尾插「分宫制宫神星表」,原勾选不动、被取消段不复活(取消=真取消)', ()=>{
 		KEYS.forEach((key)=>{
 			const n = normalizeAIExportSettings({ version: 56, sections: { [key]: ['起盘信息', '主宰星链'] } });
-			expect(n.sections[key]).toEqual(['起盘信息', '主宰星链', '分宫制宫神星表']);
+			expect(n.sections[key].filter((item)=>item !== '盘面细节' && item !== '世运周期表')).toEqual(['起盘信息', '主宰星链', '分宫制宫神星表']);
 			expect(n.sections[key]).not.toContain('行星');
 		});
 	});
 
 	it('显式全清(空数组)不得被 union 灌回;v57 及以后存档不再重跑;未自定义键不凭空建', ()=>{
 		expect(normalizeAIExportSettings({ version: 56, sections: { astrochart: [] } }).sections.astrochart).toEqual([]);
-		expect(normalizeAIExportSettings({ version: 57, sections: { astrochart: ['起盘信息'] } }).sections.astrochart).toEqual(['起盘信息']);
+		expect(normalizeAIExportSettings({ version: 57, sections: { astrochart: ['起盘信息'] } }).sections.astrochart).toEqual(['起盘信息', '盘面细节']);
+		expect(normalizeAIExportSettings({ version: 61, sections: { astrochart: ['起盘信息'] } }).sections.astrochart).toEqual(['起盘信息']);
 		expect(CUR).toBeGreaterThanOrEqual(57);
 		expect(normalizeAIExportSettings({ version: CUR, sections: { mundane: ['起盘信息'] } }).sections.mundane).toEqual(['起盘信息']);
 		const n = normalizeAIExportSettings({ version: 56, sections: { fengshui: ['起盘信息'] } });

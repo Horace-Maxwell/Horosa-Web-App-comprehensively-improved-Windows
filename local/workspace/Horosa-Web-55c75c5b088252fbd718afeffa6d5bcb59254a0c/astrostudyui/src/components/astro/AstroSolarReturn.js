@@ -69,6 +69,8 @@ class AstroSolarReturn extends Component{
 				tmType: 'y',
 				nodeRetrograde: false,   // 本页不显示「南北交逆移」控件(后端也不吃这个键):恒出厂值,不读星运族共用的保存值 —— 否则页面导出的快照会印出一个看不见也改不了的「是」
 				asporb: transitOrbDefault(),
+				// 首次请求就带本命盘的古典口径与容许度(与 genNatalParams 同源);不带的话第一张推运盘按出厂口径算,换一次盘才对上
+				...natalClassicalParams(qryparam),
 			},
 			dirChart: null,
 			inverse: DIRECTION_PAGE_SETTINGS.load().solarReturnInverse,   // 上次亲手选的双盘内外圈

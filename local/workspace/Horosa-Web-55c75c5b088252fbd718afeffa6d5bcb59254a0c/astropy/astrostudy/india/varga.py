@@ -286,11 +286,19 @@ def _relocate(point, longitude):
     point.relocate(longitude % 360.0)
 
 
-def _relocate_house(house, longitude, hsys):
+def _relocate_house(house, longitude, hsys, chart=None):
     house.hsys = hsys
     house.size = 30.0
     house.relocate(longitude % 360.0)
-    ra, decl = utils.eqCoords(house.lon, 0)
+    if chart is not None:
+        # 宫头赤经赤纬:本日真黄赤交角,恒星盘先加回岁差(与 flatlib sweHouses 同一换算)
+        from flatlib.ephem import swe as _swe
+        jd = chart.date.jd
+        with chart._siderealContext():
+            offset = _swe.tropicalOffset(jd, getattr(chart, 'flags', 0))
+        ra, decl = _swe.eclipticToEquatorial(house.lon, 0.0, _swe.trueObliquity(jd), offset)
+    else:
+        ra, decl = utils.eqCoords(house.lon, 0)
     house.ra = ra
     house.decl = decl
 
@@ -333,13 +341,16 @@ def apply_varga_chart(perchart, chartnum, variant=None):
         house1lon = math.floor(asclon / 30.0) * 30.0
     for house in chart.houses:
         house_num = int(house.id[5:])
-        _relocate_house(house, house1lon + (house_num - 1) * 30.0, perchart.house)
+        _relocate_house(house, house1lon + (house_num - 1) * 30.0, perchart.house, perchart.chart)
 
     for obj in chart.objects:
         _relocate(obj, varga_position(obj.lon, chartnum, variant))
     for obj in chart.pars:
         _relocate(obj, varga_position(obj.lon, chartnum, variant))
 
+    # 希腊点已随各点一起分过盘:reinit 不再按分盘里的日月与上升重起(与十三分等派生盘同口径)
+    if hasattr(perchart, 'freezeLotVariants'):
+        perchart.freezeLotVariants()
     perchart.reinit()
     if d1_diurnal is not None:
         perchart.isDiurnal = d1_diurnal

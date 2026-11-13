@@ -21,8 +21,10 @@ class TermDirection:
     # Maximum arc
     MAX_ARC = 100
 
-    def __init__(self, chart, clockwise=True, terms_variant=0):
+    def __init__(self, chart, clockwise=True, terms_variant=0, label_turn=0.0):
         self.terms_variant = terms_variant
+        # 星座标签相对真黄经转过的度数(南半球读法换回真黄经来算时 180):界按标签星座取,落在真黄经 = 标签黄经 − label_turn
+        self.label_turn = float(label_turn or 0.0)
         self.chart = chart
         self.clockwise = clockwise
         self.asc = chart.getAngle(const.ASC);
@@ -94,6 +96,8 @@ class TermDirection:
     def T(self, ID, sign):
         """ Returns the term of an object in a sign. """
         lon = self.terms[sign][ID]
+        if self.label_turn:
+            lon = (lon - self.label_turn) % 360.0
         ID = 'T_%s_%s' % (ID, sign)
         return self.G(ID, lon)
 

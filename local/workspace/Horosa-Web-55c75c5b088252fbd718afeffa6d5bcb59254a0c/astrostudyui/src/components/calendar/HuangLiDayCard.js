@@ -68,11 +68,11 @@ export default function HuangLiDayCard({ day }) {
 			<div className='horosa-huangli-yiji'>
 				<div className='horosa-huangli-yiji-col is-yi'>
 					<div className='horosa-huangli-yiji-head'>宜</div>
-					<div className='horosa-huangli-yiji-body'>{(day.yi || []).length ? (day.yi).join('　') : '诸事不宜'}</div>
+					<div className='horosa-huangli-yiji-body'>{(day.yi || []).length ? day.yi.map((x, i)=><span key={`${x}_${i}`} className='horosa-huangli-yiji-item'>{x}</span>) : '诸事不宜'}</div>
 				</div>
 				<div className='horosa-huangli-yiji-col is-ji'>
 					<div className='horosa-huangli-yiji-head'>忌</div>
-					<div className='horosa-huangli-yiji-body'>{(day.ji || []).length ? (day.ji).join('　') : '无所忌'}</div>
+					<div className='horosa-huangli-yiji-body'>{(day.ji || []).length ? day.ji.map((x, i)=><span key={`${x}_${i}`} className='horosa-huangli-yiji-item'>{x}</span>) : '无所忌'}</div>
 				</div>
 			</div>
 

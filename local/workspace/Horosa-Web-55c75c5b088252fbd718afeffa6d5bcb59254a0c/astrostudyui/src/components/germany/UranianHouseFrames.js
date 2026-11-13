@@ -47,7 +47,7 @@ import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
 import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
 import { schoolToBackendParams } from './UranianSchools';
 import { tnpGlyph } from './UranianGlyphs';
-import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
 // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
@@ -128,6 +128,7 @@ function fieldsToParams(fields){
 		tradition: false, predictive: 0, name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
 		// 古典设置单源接入;条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
+		...chartOrbOverridesFromFields(fields),
 	};
 }
 function paramsReady(p){

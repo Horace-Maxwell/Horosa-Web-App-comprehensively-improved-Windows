@@ -6,7 +6,7 @@
 import React from 'react';
 import XQIcon from '../../xq-icons';
 import styles from './advanced.less';
-import { readContextPolicy, subscribeContextPolicy, contextPolicyPresetName } from '../../../utils/aiChatHistory';
+import { readContextPolicy, subscribeContextPolicy, contextPolicyPresetName, hasStoredContextPolicy } from '../../../utils/aiChatHistory';
 import { readModelRoutes, subscribeModelRoutes, hasAnyRoute, readRouteOptions, subscribeRouteOptions, hasAnyRouteOption, readRouteProfiles, subscribeRouteProfiles } from '../../../utils/aiModelRouting';
 import { readPersona, subscribePersona } from '../../../utils/aiChat/persona';
 import { listMemories, subscribeMemory } from '../../../utils/aiChat/memory';
@@ -69,6 +69,8 @@ function Pill({ on, target, onJump, pillKey, children }){
 // personaInjecting:由 useChatAssist 按当前挂载源合成四层后给出(全局空、分层有字也算注入中);未传时回落只看全局文本
 export default function AdvancedPane({ children, personaInjecting }){
 	const [preset, setPreset] = React.useState(()=>contextPolicyPresetName(readContextPolicy()));
+	// 药丸亮不亮 = 用户有没有存过策略(与卡内「已自定」同口径);缺省策略本身不叫 legacy,只看预设名会让它出厂就亮
+	const [ctxStored, setCtxStored] = React.useState(()=>hasStoredContextPolicy());
 	// 与卡内芯片同口径:模型路由 / 槽参数 / 具名方案 三者任一设置即「已设置」(此前只看模型键,设了槽参数仍显示「跟随当前」)
 	const routedNow = ()=>hasAnyRoute(readModelRoutes()) || hasAnyRouteOption(readRouteOptions()) || !!(readRouteProfiles() || {}).active;
 	const [routed, setRouted] = React.useState(routedNow);
@@ -77,7 +79,7 @@ export default function AdvancedPane({ children, personaInjecting }){
 	const [memoryCount, setMemoryCount] = React.useState(0);
 	const [agentOn, setAgentOn] = React.useState(()=>isAgentEnabled());
 	const [systemOneOn, setSystemOneOn] = React.useState(()=>isSystemOneEnabled());
-	React.useEffect(()=>subscribeContextPolicy((p)=>setPreset(contextPolicyPresetName(p))), []);
+	React.useEffect(()=>subscribeContextPolicy((p)=>{ setPreset(contextPolicyPresetName(p)); setCtxStored(hasStoredContextPolicy()); }), []);
 	React.useEffect(()=>subscribeModelRoutes(()=>setRouted(routedNow())), []);
 	React.useEffect(()=>subscribeRouteOptions(()=>setRouted(routedNow())), []);
 	React.useEffect(()=>subscribeRouteProfiles(()=>setRouted(routedNow())), []);
@@ -119,10 +121,10 @@ export default function AdvancedPane({ children, personaInjecting }){
 			<div className={styles.hero}>
 				<div className={styles.heroText}>
 					<div className={styles.heroTitle}><span className={styles.heroMark}><XQIcon name="sliders" /></span>进阶</div>
-					<div className={styles.heroSub}>AI 助手的高级能力总控:每轮发多少上下文、哪一步用哪个模型、你的口径与记忆、可复用的技能包,以及让它替你动手的行动能力。所有旋钮缺省即现状,改了随时可恢复;点右侧胶囊直达该分区。</div>
+					<div className={styles.heroSub}>AI 助手的高级能力总控:每轮发多少上下文、哪一步用哪个模型、你的口径与记忆、可复用的技能包,以及让它替你动手的行动能力。所有旋钮缺省即现状,改了随时可恢复;点下方胶囊直达该分区。</div>
 				</div>
 				<div className={styles.pills} data-advanced-pills="1">
-					<Pill on={preset !== 'legacy'} target={ADV_SECTION_IDS.context} onJump={jump} pillKey="context">上下文 · {PRESET_LABEL[preset] || preset}</Pill>
+					<Pill on={ctxStored} target={ADV_SECTION_IDS.context} onJump={jump} pillKey="context">上下文 · {PRESET_LABEL[preset] || preset}</Pill>
 					<Pill on={routed} target={ADV_SECTION_IDS.routes} onJump={jump} pillKey="routes">模型路由 · {routed ? '已设置' : '跟随当前'}</Pill>
 					<Pill on={personaOn} target={ADV_SECTION_IDS.persona} onJump={jump} pillKey="persona">口径 · {personaOn ? '注入中' : '未注入'}</Pill>
 					<Pill on={memoryCount > 0} target={ADV_SECTION_IDS.persona} onJump={jump} pillKey="memory">记忆 · {memoryCount} 条</Pill>

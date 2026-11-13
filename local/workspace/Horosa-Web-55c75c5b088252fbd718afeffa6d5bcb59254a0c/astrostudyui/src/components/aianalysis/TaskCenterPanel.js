@@ -28,7 +28,7 @@ function TaskRow({ t, onChanged }){
 	const [steer, setSteer] = React.useState('');
 	const canStart = t.kind === 'goal' && ['queued', 'paused', 'interrupted', 'waiting'].indexOf(t.status) >= 0 && !isGoalLoopRunning(t.id);
 	return (
-		<div data-task-row={t.status} data-task-kind={t.kind} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0', borderBottom: '1px dashed var(--horosa-border, #e5e7eb)' }}>
+		<div data-task-row={t.status} data-task-kind={t.kind} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0', borderBottom: '1px solid var(--horosa-border, #e5e7eb)' }}>
 		<div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
 			<Tag style={{ margin: 0 }}>{TASK_KIND_LABELS[t.kind] || t.kind}</Tag>
 			<span style={{ flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.title}>{t.title}</span>

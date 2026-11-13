@@ -1,6 +1,6 @@
 // 择日页子技法宿主:内嵌完整 <IndiaChartMain>(fields 单参 hook 驱动,
-// 印度页=A 类星盘系无 module 快照槽——挂载走「择时三段自足」:宿主扫描后
-// refreshZeriSlot(宿主,'indiazeri') 写三段文本,印度盘全文见主印度页,帮助明示)。
+// 内嵌印占页以 snapshotScope='indiazeri' 只写本宿主槽:正文 = 印占全文 + composeAiSnapshot 拼的择时三段;
+// 宿主扫描后 refreshZeriSlot(宿主,'indiazeri') 请内嵌页按此刻所见重存,盘还没出时才写三段兜底)。
 // 🔴 扫描=远端 astropy /indiaelectionscan(Muhurta:Panchanga 五肢/Lagna/日凶段/本命组
 // Tara·Chandra,分钟粒度);前端按月分段编排,总范围 ≤5 年(py 93 天限=单段防呆)。本命=工作台直选本命月宿/月座两键(印度页盘面可查)。
 import { Component } from 'react';
@@ -422,6 +422,7 @@ export default class IndiaZeriMain extends Component{
 				<div style={{ flex: 1, minHeight: 0 }}>
 					<IndiaChartMain
 					techniqueScope={ZERI_SCOPE}   /* 内嵌实例:选项只改本盘,不记新盘缺省、不写主盘字段 */
+					composeAiSnapshot={this.composeAiSnapshot}   /* 快照 = 印占全文 + 择时三段,写本宿主槽 */
 					fields={this.buildFields(!!this._plotFrozen)}
 					hook={this.indiaHook}
 					height={this.props.height}

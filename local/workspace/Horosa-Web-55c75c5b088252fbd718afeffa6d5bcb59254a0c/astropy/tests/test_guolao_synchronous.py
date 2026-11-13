@@ -3,7 +3,7 @@
 import os
 import pytest
 from astrostudy.perchart import PerChart
-from astrostudy.jieqi.realsuntime import getOffsetByDate
+from astrostudy.jieqi.realsuntime import getOffsetByJd, equationOfTimeMinutes
 from flatlib import const
 
 BASE = {'date': '1990/08/15', 'time': '12:30:00', 'zone': '8',
@@ -25,15 +25,23 @@ def _lons(data, ids):
 
 def test_g6_solar_time_modes():
     # 真(经度+均时差) ≠ 平(仅经度) ≠ 关(0);默认=真(零回归)
-    b = '1990-08-15 12:30:00'
-    t = getOffsetByDate(b, '8', 116.4, 'true')
-    m = getOffsetByDate(b, '8', 116.4, 'mean')
-    o = getOffsetByDate(b, '8', 116.4, 'off')
-    d = getOffsetByDate(b, '8', 116.4)
+    jd = 2448118.6875   # 1990-08-15 04:30 UT
+    t = getOffsetByJd(jd, '8', 116.4, 'true')
+    m = getOffsetByJd(jd, '8', 116.4, 'mean')
+    o = getOffsetByJd(jd, '8', 116.4, 'off')
+    d = getOffsetByJd(jd, '8', 116.4)
     assert o == 0
     assert d == t                          # 默认零回归
     assert m == int((116.4 - 120) * 240)   # 仅经度
     assert t != m                          # 均时差非零
+
+
+def test_g6_equation_of_time_same_as_ui_and_backend():
+    # 全软件同一式:取 Java RealSunTimeOffsetTest / 前端 baziLunarLocal 共用的 NOAA 级数,与星历库差在几秒内,跨年份也成立
+    import swisseph as swe
+    for y, mo, d in ((1990, 8, 31), (1990, 9, 7), (2026, 8, 31), (2026, 11, 4), (1900, 2, 11), (2100, 7, 26)):
+        jd = swe.julday(y, mo, d, 4.0)
+        assert abs(equationOfTimeMinutes(jd) * 60 - swe.time_equ(jd) * 86400) < 4.5
 
 
 def test_g10_g11_siyu_true_vs_mean():

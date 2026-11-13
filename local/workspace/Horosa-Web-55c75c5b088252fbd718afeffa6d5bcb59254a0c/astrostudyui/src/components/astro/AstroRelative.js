@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
-import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { userAyanParamsFrom } from '../../utils/customCalibreStores';   // 自定义恒星黄道历元两参
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
@@ -14,13 +14,15 @@ import AstroSynastry from '../relative/AstroSynastry'
 import AstroTimeSpace from '../relative/AstroTimeSpace'
 import AstroMarks from '../relative/AstroMarks'
 import AstroRelativeScore from '../relative/AstroRelativeScore'
+import AstroAshtakoota from '../relative/AstroAshtakoota'
+import { buildAshtakootaLines, maleSideOf } from '../../utils/indiaExtraTables';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
 import { astroMsgText as msg } from './AstroHelper';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { clearModuleAISnapshot, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { recordSeedsForFieldWrite } from '../../utils/newChartSeeds';
@@ -60,6 +62,9 @@ function relationNameByKey(key){
 	}
 	if(key === 'Marks'){
 		return '马克斯盘';
+	}
+	if(key === 'Ashtakoota'){
+		return '八重合';
 	}
 	return key || '合盘';
 }
@@ -208,6 +213,12 @@ export function buildRelativeSnapshotText(comp){
 		}
 	}
 
+	if(comp.currentTab === 'Ashtakoota'){
+		lines.push('');
+		lines.push('[八重合]');
+		lines.push(...buildAshtakootaLines(res));
+	}
+
 	if(comp.currentTab === 'Score'){
 		lines.push('');
 		lines.push('[关系量化]');
@@ -248,6 +259,8 @@ export function relativeClassicalParamsFromFields(f){
 	if(fv('lotReversal') === 0 || fv('lotReversal') === '0'){ params.lotReversal = 0; }
 	// 2026-07 二批九键:共享 helper(键名含后端映射 starOrb/starOrbMode),默认不下发。
 	Object.assign(params, classicalBackendOverridesFromFields(f));
+	// 随盘容许度:合盘 / 比较盘的盘间相位与主盘同一套(此前三层都不带,合盘恒按默认容许度)
+	Object.assign(params, chartOrbOverridesFromFields(f));
 	// 自定义恒星黄道 'user' 档随行历元两参(与本命 models/astro.js 同款;Java/Python 两层早已放行):
 	// 此前不发 → 后端静默按 Lahiri 算、回显仍标自定义。
 	if(`${fv('siderealAyanamsa')}` === 'user'){
@@ -312,6 +325,12 @@ class AstroRelative extends Component{
 					},
 					Score:{
 						txt:'关系量化',
+						relative: 0,
+						result: null,
+						fun: null
+					},
+					Ashtakoota:{
+						txt:'八重合',
 						relative: 0,
 						result: null,
 						fun: null
@@ -487,6 +506,8 @@ class AstroRelative extends Component{
 				: null;
 			const result = currentHook ? currentHook.result : null;
 			if(!result){
+				// 八重合是单次请求的结果页:换人或请求失败后结果已清,旧分不能留给 AI 当真
+				if(this.state.currentTab === 'Ashtakoota'){ clearModuleAISnapshot('relative'); }
 				return '';
 			}
 			const params = this.genParams() || {};
@@ -537,6 +558,7 @@ class AstroRelative extends Component{
 		let birthA = recA.birth.split(' ');
 		let birthB = recB.birth.split(' ');
 
+		// 不带 southchart(南半球读法):它按每张盘的纬度各自生效,一南一北会一张标签黄经、一张真黄经;合盘一律按真黄经算(引擎透传表同口径)。
 		let params = {
 			inner: {
 				date: birthA[0],
@@ -570,6 +592,10 @@ class AstroRelative extends Component{
 
 	async doChart(){
 		if(this.state.chartA === null || this.state.chartB === null){
+			return;
+		}
+		// 八重合自己取数,这条请求的结果不能写进它的 hook
+		if(this.state.currentTab === 'Ashtakoota'){
 			return;
 		}
 
@@ -761,18 +787,18 @@ class AstroRelative extends Component{
 							<Search placeholder="星盘B" value={chartBtxt} onChange={(e)=>{}} />
 						</ChartSearchModal>
 					</Col>
-					<Col span={8}>
+					<Col span={8} className="horosa-relative-action-col">
 						<Button onClick={this.clickDoChart}>排盘</Button>
+						{/* 空态:两张盘没选齐时一句提示,跟在「排盘」右侧的空位里(文流内、不占高度、不盖任何内容);各子盘右栏 / 盘位另有各自的就地空态 */}
+						{(!this.state.chartA || !this.state.chartB) ? (
+							<span className="horosa-empty-line horosa-relative-empty-hint" role="note">先选择星盘 A 与星盘 B,再点「排盘」</span>
+						) : null}
 					</Col>
 				</Row>
 				{/* position:relative=角标定位上下文;宿主收敛处统一发请求,故角标只挂盘容器一处、不进各子盘 */}
 				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
 					<Col span={24}>
 						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
-						{/* 空态:两张盘没选齐时盘面整块空白、相位栏空,首启看不出该做什么 → 盘区正中一句提示(绝对定位,不占版面) */}
-						{(!this.state.chartA || !this.state.chartB) ? (
-							<div className="horosa-empty-line horosa-relative-empty-hint" role="note">先在上方选择星盘 A 与星盘 B,再点「排盘」</div>
-						) : null}
 						{/* horosa_freeze_subtabs_v1:六个合盘子页签此前全部常驻重渲(每次排盘/改选项都画 6 套)。
 						    state.currentTab 本就由 changeTab 与 antd 同步,直接拿来做 active;
 						    Tabs 仍保持原非受控写法(defaultActiveKey),行为逐字不变。
@@ -917,6 +943,16 @@ class AstroRelative extends Component{
 											params={this.genParams()}
 											height={height}
 											onResult={(r)=>{ hook.Score.result = r; this.saveRelativeSnapshot(); }}
+										/>
+									</FreezeSubTab>
+								</TabPane>
+								<TabPane tab="八重合" key="Ashtakoota">
+									<FreezeSubTab active={this.state.currentTab === 'Ashtakoota'}>
+										<AstroAshtakoota
+											params={this.genParams()}
+											height={height}
+											maleDefault={maleSideOf(this.state.chartA && this.state.chartA.record.gender, this.state.chartB && this.state.chartB.record.gender)}
+											onResult={(r)=>{ hook.Ashtakoota.result = r; this.saveRelativeSnapshot(); }}
 										/>
 									</FreezeSubTab>
 								</TabPane>

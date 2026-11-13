@@ -25,7 +25,8 @@ const BASELINE = {
 	'utils/profectionSummary.js': 2,	// 日数 ÷ 回归年 / 月长换算整岁整月(日数不是由段界反推的点)
 	'components/ziwei/ZWCommHouse.js': 1,	// 版面:可容字数
 	'utils/aiExportPdfVector.js': 1,	// 版面:可容行数
-	'utils/civilCalendar.js': 1,	// Swiss Ephemeris revjul 逐式移植(30.6001 是该算法自带的防舍入常数,与计算服务逐位同口径,不可改)
+	'utils/civilCalendar.js': 1,
+	'utils/eastAsiaArts.js': 1,	// 藏历真月序的初估,其后两个 while 按真日逐月校正(不靠取整定段)	// Swiss Ephemeris revjul 逐式移植(30.6001 是该算法自带的防舍入常数,与计算服务逐位同口径,不可改)
 };
 
 function walk(dir, acc = []){

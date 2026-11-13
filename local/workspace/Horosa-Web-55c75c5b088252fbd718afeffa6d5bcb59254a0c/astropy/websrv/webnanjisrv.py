@@ -18,6 +18,7 @@ from websrv.kentang.kinastro_common import (
     row,
     to_float,
     to_int,
+    format_timezone_label,
     timezone_to_float,
 )
 
@@ -394,7 +395,7 @@ class NanJiSrv:
                 "timeStr": data.get("time", dt.strftime("%H:%M:%S")),
                 "gender": gender,
                 "timezone": timezone_value,
-                "timezoneText": f"UTC{timezone_value:+g}",
+                "timezoneText": format_timezone_label(timezone_value),
                 "nanji": nanji,
                 "classics": kinastro_source_sections("南极神数", "接入 kinastro 的南极神数，以四柱、宫部、建除十二辰、二十八宿和 246 条手稿条文进行查询与推演。"),
                 "capabilities": {

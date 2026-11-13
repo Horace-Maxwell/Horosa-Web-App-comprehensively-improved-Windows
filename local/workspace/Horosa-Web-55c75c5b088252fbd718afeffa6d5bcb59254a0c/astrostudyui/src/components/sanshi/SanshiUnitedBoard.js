@@ -58,11 +58,12 @@ function ScaleToWidth({ width, designWidth, children }){
 }
 
 // props: { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
-//          outerCoord?, showWeakSolid?, showAstroMeaning?, boardSize?, fitWidth? }
+//          outerCoord?, ascRaMode?, showWeakSolid?, showAstroMeaning?, boardSize?, fitWidth? }
 export default function SanshiUnitedBoard(props){
 	const { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
 		showAstroMeaning } = props;
 	const outerCoord = props.outerCoord || 'ecliptic';
+	const ascRaMode = props.ascRaMode;   // 外圈赤道分宫的上升取法(不传 = 改进 / 真赤经)
 	const showWeakSolid = props.showWeakSolid !== undefined ? props.showWeakSolid : true;
 	const boardSize = props.boardSize || 720;
 	// 主页传中栏可用宽(择日概览浮窗不传 = 不缩)
@@ -70,7 +71,7 @@ export default function SanshiUnitedBoard(props){
 	const astroChartTop = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 	const outerChartKey = getOuterChartKey(chartWrap);
 	// 单槽缓存同语义:chartKey/coord 变才重算
-	const outerData = useMemo(()=>buildOuterData(astroChartTop, outerCoord), [outerChartKey, outerCoord]);
+	const outerData = useMemo(()=>buildOuterData(astroChartTop, outerCoord, ascRaMode), [outerChartKey, outerCoord, ascRaMode]);
 
 	function renderTop(boardSize){
 		// nongli/liureng/dunjia/displaySolarTime 来自组件 props(解构见组件体)

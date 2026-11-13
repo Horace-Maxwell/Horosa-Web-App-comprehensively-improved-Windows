@@ -3,6 +3,7 @@
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../dayBoundary';
 import { ASTRO_SNAPSHOT_FORMAT_VERSION } from '../astroAiSnapshot';
 import { mountCalibreSignature } from '../mountCalibreSignature';
+import { CHART_DETAIL_SETTINGS, chartDetailRequestFields } from '../chartDetails';
 import { DEFAULT_TAIYI_SCHOOL } from '../../components/taiyi/core/taiyiSchool';
 import { GanZiWuXing as LRConst_GanZiWuXing } from '../../components/liureng/LRConst';   // 日干→五行(与页面同一张表)
 import { resolveAfter23NewDay, resolveLateZiHourUseNextDay } from '../dayBoundaryResolve';
@@ -23,12 +24,16 @@ export function buildDayBoundaryMeta(after23NewDay, lateZiHourUseNextDay){
 	};
 }
 // 源层上下文缓存记录格式版本(拆段/改表时升;与 ASTRO_SNAPSHOT_FORMAT_VERSION 拼成命中维度)
-const SOURCE_CONTEXT_CACHE_FORMAT_VERSION = 1;
+// 2:命盘挂载新增「盘面细节」段(升级前缓存的记录没有这一段,升版一次全部重建)
+const SOURCE_CONTEXT_CACHE_FORMAT_VERSION = 2;
 // 缓存记录戳(写入/命中同源;测试种子记录也用它):{ formatVersion, calibreSig }
 export function sourceContextCacheStamp(){
 	const formatVersion = `${SOURCE_CONTEXT_CACHE_FORMAT_VERSION}:${Number(ASTRO_SNAPSHOT_FORMAT_VERSION) || 1}`;
+	// 「盘面细节」段按细节页的五项设置取数:设置变了,命盘挂载也要重建(缺省设置不进签名,老记录照旧命中)
+	const detailFields = chartDetailRequestFields(CHART_DETAIL_SETTINGS.load());
+	const detailSig = Object.keys(detailFields).length ? `cd:${JSON.stringify(detailFields)}` : '';
 	const calibreSig = mountCalibreSignature();
-	return { formatVersion, calibreSig };
+	return { formatVersion, calibreSig: detailSig ? (calibreSig ? `${calibreSig}|${detailSig}` : detailSig) : calibreSig };
 }
 // 六壬 / 金口诀十二长生五行:'auto' 或缺 = 按本课日干现算(两页缺省都随日干);其余为手选或存档已解析的五行
 export function resolveZhangshengElem(wx, liurengResult){
@@ -138,6 +143,8 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	dwadasamsa: '十二分盘',
 	harmonic: '调波盘',
 	draconic: '龙盘',
+	transformchart: '变换盘',
+	zodiacsystems: '黄道制',
 	relocation: '重置盘',
 	indiachart: '印度占星',
 	relative: '合盘',
@@ -177,6 +184,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	bezzafigure: '星运-推运图',
 	jayprofection: '星运-周日小限',
 	michon: '星运-双黄道',
+	timelords: '星运-时主轮转',
 	yearsystem129: '星运-129年系统',
 	planetaryarc: '星运-行星弧',
 	persiandirected: '星运-波斯向运',
@@ -211,6 +219,8 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	zhengchuan: '神数正传',
 	heluo: '河洛理数',
 	yizhangjing: '一掌经',
+	dongya: '东亚诸术',
+	zhufang: '诸方杂术',
 	huangli: '老黄历日课', tongshu: '通书择日', rizi: '日子馆择日', jieqipan: '节气盘',
 	xianqin: '演禽',
 	cetian: '策天飞星',
@@ -253,6 +263,8 @@ export const ANALYSIS_CHART_TECHNIQUES = [
 	'dwadasamsa',
 	'harmonic',
 	'draconic',
+	'transformchart',
+	'zodiacsystems',
 	'relocation',
 	'indiachart',
 	'guolao',
@@ -285,6 +297,7 @@ export const ANALYSIS_CHART_TECHNIQUES = [
 	'bezzafigure',
 	'jayprofection',
 	'michon',
+	'timelords',
 	'yearsystem129',
 	'planetaryarc',
 	'persiandirected',
@@ -296,6 +309,8 @@ export const ANALYSIS_CHART_TECHNIQUES = [
 	'heluo',
 	'zhengchuan',
 	'yizhangjing',
+	'dongya',
+	'zhufang',
 	'xianqin',
 	'cetian',
 	'qizhengkin',

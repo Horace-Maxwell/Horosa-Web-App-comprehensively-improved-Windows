@@ -17,6 +17,12 @@
 	    }
 	    .horosa-cnx-note { font-size: 12px; color: var(--horosa-huangji-muted); }
 
+	    /* [左栏主按钮统一] 卜·其他这一组(皇极经世 / 五兆 / 太玄 / 轨策 / 小六壬 / 小成图 / 飞宫 / 荆诀 / 神易数 / 地占 / 灵棋经)
+	       主按钮与本组输入框同高 36(本组 min-height 36)。17-divination-cards 那条「左栏小号钮 40px」本为卜卦 / 择日 / 世俗而设,
+	       漏进本组 → 小六壬 / 小成图 / 飞宫 / 灵棋经 40、其余 36,切页签时主按钮忽高忽低;轨策的起卦钮直挂在左栏(不在分节里)
+	       又会被弹性收缩压到 36。这里在本组内统一到 36、且不收缩;只管全宽主按钮,时间微调行 / 图标钮各有定高不动。 */
+	    .horosa-astro-input-panel .ant-btn.ant-btn-primary.ant-btn-block.ant-btn-sm { height: 36px !important; min-height: 36px; flex-shrink: 0; }
+
 	    /* [左栏统一] 卜·三页(小六壬/小成图/飞宫)左栏字段已改用全站 huangji-select-field(标题在上·guice 同款);
 	       此处补:直属控件全宽、Radio 按钮平分一行(=段控观感)、开关行 hint 换行到下一行。 */
 	    .horosa-cnx-controls .horosa-huangji-select-field.is-wide > .ant-select,
@@ -126,7 +132,11 @@
 	    .horosa-cnx-flow-arrow { align-self: center; color: var(--horosa-huangji-accent); font-weight: 700; opacity: .9; }  /* .75 叠乘后浅色底只有 2.99:1;.9 ≈ 3.9:1 */
 
 	    /* ── 右栏判读卡(标题眉 + 正文,替代原横排虚线行:长断语可读性↑,契合暖羊皮卡调性) ── */
-	    .horosa-cnx-aux .ant-tabs-tabpane { padding: 6px 2px 10px; }
+	    /* 判读正文与外框之间留安全距:外框(页宿主给的描边圆角卡)原先只隔 2px,卡片贴边显逼仄 → 与「其他」页各邻页右栏同值(10px 12px) */
+	    .horosa-cnx-aux .ant-tabs-tabpane { padding: 10px 12px; }
+	    /* 判读页签多(五六个)而右栏窄:页签间距由 18 收到 14,较窄窗口下也尽量一行排完、不出「···」 */
+	    .horosa-cnx-aux > .ant-tabs-nav .ant-tabs-tab { margin-right: 14px; }
+	    .horosa-cnx-aux > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2) { margin-right: 0; }
 	    .horosa-cnx-item {
 	        display: flex; flex-direction: column; gap: 4px;
 	        padding: 9px 12px; margin-bottom: 8px;
@@ -223,10 +233,12 @@
 	    .horosa-cnx-cell.is-ping::before { background: color-mix(in srgb, var(--horosa-huangji-accent) 62%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.62); } }
 	    .horosa-cnx-cell.is-xiong::before { background: color-mix(in srgb, var(--horosa-danger, #cf1322) 62%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-danger-rgb, 207, 19, 34), 0.62); } }
 	    .horosa-cnx-cell-name { letter-spacing: .12em; font-weight: 800; }
+	    /* 首位徽标 = 实底:字色取「金底上的墨色」成对变量(暗 = 亮金底深墨字 / 亮 = 深金底米白字)。
+	       原先字色取的是卡片底色变量,暗色下那是近乎透明的白 → 徽标只剩一块金、字完全看不见。 */
 	    .horosa-cnx-seq.is-1 {
-	        color: var(--horosa-huangji-card-bg);
-	        background: var(--horosa-huangji-accent-strong);
-	        border-color: var(--horosa-huangji-accent-strong);
+	        color: var(--horosa-huangji-ink-on-accent);
+	        background: var(--horosa-huangji-cta-bg);
+	        border-color: var(--horosa-huangji-cta-bg);
 	    }
 	    .horosa-cnx-seq.is-2 { background: color-mix(in srgb, var(--horosa-huangji-accent) 30%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.3); } }
 	    .horosa-cnx-seq.is-3 { background: color-mix(in srgb, var(--horosa-huangji-accent) 12%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.12); } }
@@ -271,9 +283,13 @@
 	        .horosa-cnx-item { font-size: 13px; padding: 10px 12px; }
 	    }
 	    /* 飞宫:盘面 SVG 随可用空间自适应放大(viewBox 缩放),居中舒展 */
+	    /* 盘框吃满中栏可用高、可收缩(原 flex:1 0 auto 不收缩 → SVG 按宽定高,矮窗口下盘比中栏高、要下滑才看全);
+	       SVG 以 flex-basis:0 取「盘框剩余高」,viewBox + meet 等比缩放。盘框留最小高,极矮时才交宿主纵滚。 */
+	    &.horosa-fg-page .horosa-huangji-board-host > .horosa-cnx-board { flex: 1 1 0; min-height: 300px; }
+	    &.horosa-fg-page .horosa-cnx-board > .horosa-cnx-board-header { flex: none; align-self: stretch; }
 	    &.horosa-fg-page .horosa-cnx-board > svg {
-	        flex: 1; min-height: 0; width: 100%; max-width: 100%;
-	        height: 100%; align-self: center;
+	        flex: 1 1 0; min-height: 0; width: 100%; max-width: 100%;
+	        height: auto; align-self: center;
 	    }
 	    /* 飞宫同心盘 SVG 文字【无描边】:上层祖先 stroke(var(--horosa-text))经 SVG 继承泄漏到 <text> 成暗色外描边、糊字 → 逐盘重置(同 fengshui/liureng 法);环线/分隔 line·circle 自带 stroke 属性不受影响。 */
 	    &.horosa-fg-page .horosa-cnx-board svg text { stroke: none; paint-order: fill; }
@@ -295,6 +311,21 @@
 	            gap: 4px; padding: 12px 10px; overflow: visible;
 	        }
 	        .horosa-cnx-cell.horosa-cnx-cell-sq .horosa-cnx-cell-name { font-size: clamp(19px, calc(2 * var(--horosa-lvw, 1vw)), 23px); }
+	        /* 传序角标竖着叠在右上角:两三传落在同一宫时,横排的角标会压到居中的「节」名;竖叠后每枚各靠一行的右边空位。 */
+	        .horosa-cnx-cell.horosa-cnx-cell-sq .horosa-cnx-cell-seqs { top: 5px; right: 5px; flex-direction: column; align-items: flex-end; gap: 2px; }
+	        .horosa-cnx-cell.horosa-cnx-cell-sq .horosa-cnx-cell-seqs .horosa-cnx-seq { padding: 0 4px; line-height: 14px; }
+	        /* 矮窗口整盘不下滑:正方形格的盘高 = 题头 + 行数 × 列宽 + 三传条,小窗口里九宫第三行落到可视区以下。
+	           宿主量出「放得下的格高」(--cnx-cell-cap,见 boxSizeVars.squareGridFitVars);它小于列宽时挂 data-cell-capped,
+	           格子改成「列宽 × 该高」的矩形(内容更高就按内容长,宁可滚、不能裁)。放得下正方形时不挂,一字不变。 */
+	        .horosa-huangji-board-host[data-cell-capped] .horosa-cnx-cell.horosa-cnx-cell-sq {
+	            aspect-ratio: auto; min-height: var(--cnx-cell-cap, 0px);
+	        }
+	        /* 更矮(data-host-short):再收紧盘框上下内边距、题头下距与格内行距;格底留出吉凶色条(bottom 8px + 高 3px)的位置 */
+	        .horosa-huangji-board-host[data-host-short] > .horosa-cnx-board { padding-top: 14px; padding-bottom: 14px; gap: 10px; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-board-header { padding-bottom: 8px; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-cell.horosa-cnx-cell-sq { gap: 1px; padding: 5px 8px 13px; line-height: 1.3; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-cell-sq .horosa-cnx-cell-name { line-height: 1.2; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-cell-sq .horosa-cnx-cell-keys { line-height: 1.3; }
 	    }
 	    /* [小成图·顶级美化] 洛书九宫单元:天盘卦大字纵横居中、地盘卦+宫号小字放大居中,序标(用宫/推N)浮右上不挤正文。 */
 	    &.horosa-xct-page {
@@ -312,8 +343,18 @@
 	        }
 	        .horosa-cnx-cell.horosa-xct-cell {
 	            align-items: center; justify-content: center; text-align: center;
-	            gap: 9px; padding: 14px 12px;
+	            gap: 8px; padding: 19px 12px 9px;
 	        }
+	        /* 矮窗口整盘不下滑(宿主 data-host-short,见 boxSizeVars.shortHostVars):收紧盘框上下内边距、题头下距与格内留白;
+	           格顶仍留出角标一行。常规高度不挂属性,一字不变。 */
+	        .horosa-huangji-board-host[data-host-short] > .horosa-cnx-board { padding-top: 14px; padding-bottom: 14px; gap: 10px; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-board-header { padding-bottom: 8px; }
+	        .horosa-huangji-board-host[data-host-short] .horosa-cnx-cell.horosa-xct-cell { gap: 5px; padding: 15px 10px 6px; }
+	        /* 宫格角标:用宫靠左上、推序靠右上,各占一角;格顶留出角标一行的高度,卦画从角标下方起排
+	           (原先两枚角标并排挤在右上,窄格里正压在居中的卦画上)。 */
+	        .horosa-xct-cell .horosa-cnx-cell-seqs { top: 3px; left: 6px; right: 6px; gap: 4px; pointer-events: none; }
+	        .horosa-xct-cell .horosa-cnx-cell-seqs .horosa-cnx-seq { padding: 0 5px; line-height: 13px; letter-spacing: .02em; }
+	        .horosa-xct-cell .horosa-cnx-cell-seqs .horosa-cnx-seq.is-step { margin-left: auto; }
 	        .horosa-xct-cell-name {
 	            font-size: clamp(30px, calc(3.2 * var(--horosa-lvw, 1vw)), 44px); font-weight: 800;
 	            letter-spacing: .08em; line-height: 1; color: var(--horosa-huangji-text);
@@ -356,6 +397,45 @@
 	            border-radius: 6px;
 	        }
 	        .horosa-xct-controls .ant-radio-group .ant-radio-button-wrapper::before { display: none; }
+	        /* 宫义:一宫一卡。宫数徽标 + 卦宫名 + 方位月令,次行所主(描金)与本局天盘;用宫整卡描金。 */
+	        .horosa-xct-gong-list { display: flex; flex-direction: column; gap: 8px; }
+	        .horosa-xct-gong-list > .horosa-cnx-item { margin-bottom: 0; }
+	        .horosa-xct-gong-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+	        .horosa-xct-gong-num {
+	            flex: none; width: 22px; height: 22px; border-radius: 50%;
+	            display: inline-flex; align-items: center; justify-content: center;
+	            border: 1px solid var(--horosa-huangji-line-strong);
+	            font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+	            color: var(--horosa-huangji-accent-strong);
+	        }
+	        .horosa-xct-gong-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; color: var(--horosa-huangji-text); }
+	        .horosa-xct-gong-meta { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--horosa-huangji-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	        .horosa-xct-gong-tag {
+	            flex: none; padding: 1px 8px; border-radius: 999px;
+	            border: 1px solid var(--horosa-huangji-accent);
+	            font-size: 11px; font-weight: 700; line-height: 1.6; letter-spacing: .08em;
+	            color: var(--horosa-huangji-accent-strong);
+	        }
+	        .horosa-xct-gong-zhu {
+	            display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px;
+	            font-size: 12.5px; font-weight: 700; color: var(--horosa-huangji-accent-strong);
+	        }
+	        .horosa-xct-gong-tian { font-weight: 500; color: var(--horosa-huangji-muted); }
+	        .horosa-xct-gong .horosa-cnx-item-v { font-size: 12.5px; color: var(--horosa-huangji-muted); }
+	        .horosa-xct-gong.is-yong {
+	            border-color: var(--horosa-huangji-accent);
+	            border-left-color: var(--horosa-huangji-accent);
+	            background: rgba(var(--horosa-huangji-accent-rgb), 0.11);
+	        }
+	        .horosa-xct-gong.is-yong .horosa-xct-gong-num {
+	            border-color: var(--horosa-huangji-accent);
+	            background: rgba(var(--horosa-huangji-accent-rgb), 0.2);
+	        }
+	        .horosa-xct-gong.is-yong .horosa-cnx-item-v { color: var(--horosa-huangji-text); }
+	        /* 应期推演逐跳、文末原文:与判读卡同字号层级 */
+	        .horosa-xct-steps { margin: 6px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.75; color: var(--horosa-huangji-muted); }
+	        .horosa-xct-steps b { font-weight: 700; color: var(--horosa-huangji-text); }
+	        .horosa-xct-pre-foot { margin: 10px 0 0; font-size: 12px; color: var(--horosa-huangji-muted); }
 	        /* 六十四式总表(四象页折叠) */
 	        .horosa-xct-64-table {
 	            border-collapse: collapse; font-size: 11px; line-height: 1.35;

@@ -432,7 +432,7 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 			liurengzeri: '[Z5] 按快照槽实时挂载(择日页内嵌六壬盘+择时三段,scope=liurengzeri);同族豁免',
 			sanshizeri: '[Z6] 按快照槽实时挂载(择日页内嵌三式合一盘+择时三段,scope=sanshizeri);同族豁免',
 			qizhengzeri: '[Z7] 按快照槽实时挂载(择日页内嵌七政盘+择时三段,scope=qizhengzeri);同族豁免',
-			indiazeri: '[Z8] 择时三段自足槽(印度页星盘系无 module 槽,宿主扫描后直写);同族豁免',
+			indiazeri: '[Z8] 按快照槽实时挂载(择日页内嵌印占盘+择时三段,scope=indiazeri);同族豁免',
 			// [YD 拆键] 六衍生盘导出键独立(段勾选可分盘),挂载语义仍走 astrochart_like 聚合键(主盘族重算)。
 			hellenastro: '衍生盘挂载走 astrochart_like 聚合键',
 			dwadasamsa: '衍生盘挂载走 astrochart_like 聚合键',

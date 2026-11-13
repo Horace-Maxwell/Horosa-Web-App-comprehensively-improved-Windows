@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroGivenYear.js b/astrostudyui/src/components/astro/AstroGivenYear.js
-index 1b11295f..b22230b7 100644
+index d214b0bb..9d1d4213 100644
 --- a/astrostudyui/src/components/astro/AstroGivenYear.js
 +++ b/astrostudyui/src/components/astro/AstroGivenYear.js
 @@ -23,6 +23,7 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
@@ -10,7 +10,7 @@ index 1b11295f..b22230b7 100644
  
  const Option = Select.Option;
  
-@@ -123,7 +124,13 @@ class AstroGivenYear extends Component{
+@@ -125,7 +126,13 @@ class AstroGivenYear extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -25,7 +25,7 @@ index 1b11295f..b22230b7 100644
  		// 「今年 / 此刻」按本盘时区(DateTime.nowForChart);东八区盘逐位不变
  		let datetime = DateTime.nowForChart(qryparam.zone);
  		if(qryparam.birth){
-@@ -211,6 +218,8 @@ class AstroGivenYear extends Component{
+@@ -213,6 +220,8 @@ class AstroGivenYear extends Component{
  		};
  
  		this.setState(st, ()=>{

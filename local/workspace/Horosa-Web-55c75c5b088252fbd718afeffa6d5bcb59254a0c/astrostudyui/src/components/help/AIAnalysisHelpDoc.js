@@ -2,15 +2,13 @@
 // 把顶栏全部控件、右侧每个页签、挂载与上下文口径、接口/模型参数写清楚;中性表述,纯展示零后端。
 // 共享样式见 helpDocStyle;kv 行本组件自渲染。绝不写章节号、现代来源与借鉴软件名(公版古籍名可写)、内部标识、后端地址。
 import { Component } from 'react';
-import { Tabs } from 'antd';
+import HelpBook from './HelpBook';
 
-const { TabPane } = Tabs;
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 import { DEFAULT_STREAM_STALL_MS, DEFAULT_STREAM_MAX_MS } from '../../utils/aiStreamLimits';   // 看门狗数字与服务层缺省同源(零 import 常量件)
 import { SKILL_MAX_TEMPLATE } from '../../utils/aiChat/skillLimits';
 import { BUILTIN_COMMANDS, groupCommandItems } from '../../utils/aiChat/commands';   // 斜杠命令清单从注册表插值(单源;加删命令手册自动跟上;合同测试锁每条命令都出现在手册)
 
-const kv = (k, v, key) => <div key={key} style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 // 斜杠命令清单:按注册表分组渲染(名字 + 参数提示 + 一句说明 + 前提)
 const REQ_TEXT = { chart: '需已挂载命盘', 'two-charts': '需已挂载命盘 + 对方名字', any: '需已挂载案例', timepoint: '需时间点', none: '' };
 const GATE_TEXT = { agent: '需开行动能力', 'agent+goal': '需开行动能力 + 目标任务', orchestrate: '需开多技法并行分析(行动能力卡内的子开关)' };
@@ -25,13 +23,18 @@ const renderCommandList = () => commandGroups().map((g) => (
 	</div>
 ));
 
-class AIAnalysisHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>AI 分析 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: 'AI 分析 · 操作手册',
+	groups: [
+		{
+			key: 'aianalysis',
+			label: 'AI 分析',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}><b>AI 分析</b>把你在各技法页排出并保存的命盘 / 占测快照交给你自己配置的大语言模型做解读。上方顶栏选案例、技法、模型与参数,主区是流式对话;右侧竖排页签把 分析 / 历史 / 资料 / 模版 / 设置 / 进阶 各分一栏。</p>
 							<div style={card}><div style={ct}>三步上手</div>
@@ -45,9 +48,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('完全离线', '选本地部署的模型服务(如 Ollama)可让数据完全不出本机;此类服务密钥可留空')}
 								{kv('全部记录', '对话、资料、模版、接口配置都存在本机本地库,可在「设置」整包导出备份')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="功能页签" key="panes">
+					</div>
+					),
+				},
+				{
+					key: 'panes',
+					label: '功能页签',
+					render: ()=>(
+						<div>
 						<div style={{ ...body }}>
 							<p style={{ ...p, color: MUTED }}>页签在页面右侧竖排,点一下即切换;所选页签会被记住,下次进入停在原处。</p>
 							<div style={card}><div style={ct}>分析</div>
@@ -65,9 +73,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('看什么', '模型服务配置(多套档案)、健康概览、测试连接与连通性诊断;卡片 / 紧凑列表两种视图;可导出 / 恢复整个工作区备份')}
 								{kv('清理上下文缓存', '挂载内容看着像旧的时可以点;不影响命盘、事盘和对话,下次挂载按当前存档重建')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="分析页操作" key="analysis">
+					</div>
+					),
+				},
+				{
+					key: 'analysis',
+					label: '分析页操作',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>顶栏 · 左组(模型与参数)</div>
 							<ul style={ul}>
@@ -118,9 +131,14 @@ class AIAnalysisHelpDoc extends Component{
 								<li style={li}><b>跳到最新</b>:上滚超过一小段距离后自动暂停跟随,并浮出「跳到最新」按钮;回到底部恢复自动跟随。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="接口与模型" key="provider">
+					</div>
+					),
+				},
+				{
+					key: 'provider',
+					label: '接口与模型',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页所有模型调用都用<b>你自己的</b>接口密钥,经本机转发到你选定的服务商。</p>
 
@@ -190,9 +208,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('网络问题', '检查地址可达性 / 代理 / 防火墙 —— 可重试')}
 								{kv('上游服务异常', '服务端故障,稍后重试 —— 可重试')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="挂载与上下文" key="context">
+					</div>
+					),
+				},
+				{
+					key: 'context',
+					label: '挂载与上下文',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「上下文」= 每次发送给模型的全部内容:系统提示 + 案例快照 + 排盘规则 + 各技法判读 + 模版约束 + 引用资料 / 检索片段 + 最近对话。为避免过长被截断或超额,系统会实时统计并在超限时自动裁剪。</p>
 							<div style={card}><div style={ct}>挂载状态条(常驻)</div>
@@ -244,9 +267,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('降级', '切块失败会提示「本次检索已跳过」;向量检索失败会提示「本次仅用关键词排序」——都不阻断发送')}
 								{kv('组合里的「默认检索策略」', '三档真实生效,只在挂了该组合的对话里起作用:自动=按资料长度判定(短的整篇挂、长的切块检索);全文优先=不看长度一律整篇挂,超预算时仍按裁剪规则收;检索优先=一律切块排序后只送相关片段,短资料也切。想更省预算就选检索优先,或少挂长资料')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="技法挂载设置" key="mount">
+					</div>
+					),
+				},
+				{
+					key: 'mount',
+					label: '技法挂载设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>入口:挂载抽屉里技法层右侧的齿轮「设置」。抽屉分上下两个分区。</p>
 							<div style={h}>分区一 · 该技法设置(排盘 / 起卦参数)</div>
@@ -282,9 +310,9 @@ class AIAnalysisHelpDoc extends Component{
 							<div style={h}>顶栏「AI导出设置」弹窗(技法页导出用,与「纳入内容」同一份设置)</div>
 							<div style={card}>
 								{kv('入口', '各技法页顶栏「AI导出」旁的设置;改完点「保存设置」生效,「取消」放弃本次改动')}
-								{kv('通用四项(全部技法)', '新版导出格式 v2(表格化排版,默认开;关 = 经典 v1)/ PDF / Word 附当前页面截图(默认开)/ 附「图例」术语速查(紫微 / 八字 / 星盘;默认关,只在 v2 格式下可勾,v1 时置灰)/ 附「命主实况」(默认关;只在载入的是已存命盘时附在这张盘本人的导出末尾,卜卦、择日、占卜术数等导出不附)')}
+								{kv('通用四项(全部技法)', '四个开关:新版导出格式 v2(表格化排版,默认开;关 = 经典 v1)/ PDF / Word 附当前页面截图(默认开)/ 附「图例」术语速查(紫微 / 八字 / 星盘;默认关,只在 v2 格式下可开,v1 时置灰并标「仅 v2 格式」)/ 附「命主实况」(默认关;只在载入的是已存命盘时附在这张盘本人的导出末尾,卜卦、择日、占卜术数等导出不附)')}
 								{kv('选择技法', '下拉按术数域分组(西方占星 / 星运推运 / 中式命理 / 占卜术数 / 其他),可输字搜索;选定后下面显示该技法的设置')}
-								{kv('导出分段', '逐段勾选,配「全选 / 清空 / 恢复默认」;段多的技法按右栏语义分小组;还没在该技法排过盘时提示「暂未检测到可选分段」')}
+								{kv('导出分段', '逐段勾选,组头显示「已选 / 总数」,配「全选 / 清空 / 恢复默认」;段多的技法按右栏语义分小组;还没在该技法排过盘时提示「暂未检测到可选分段」')}
 								{kv('星曜后天信息', '只在带星曜表的技法出现:显示星曜宫位 / 显示星曜主宰宫,默认都开')}
 								{kv('释义开关', '只在支持的技法出现(标题随技法变,占星类为「占星注释(仅 AI 导出)」):勾选后在对应分段附星 / 宫 / 座 / 相 / 希腊点释义,只进导出、不改盘面')}
 							</div>
@@ -300,9 +328,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('可起什么', '按「新命盘」会用的设置(新盘缺省 + 你自己的紫微设置)即时起命盘类技法(八字 / 紫微 / 星盘 / 各推运);存为命盘后照样按这套设置,存前存后内容一致')}
 								{kv('保存为命盘', '存进案例列表并自动选中')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="历史 · 资料 · 模版" key="manage">
+					</div>
+					),
+				},
+				{
+					key: 'manage',
+					label: '历史 · 资料 · 模版',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={card}><div style={ct}>历史页</div>
 								{kv('筛选', '搜索(标题 / 案例名 / 模型)+ 接口 / 模型 / 案例类型(命盘·事盘)/ 收藏(全部·仅收藏·未收藏)/ 归档(未归档·已归档·全部)多面过滤;默认只看未归档')}
@@ -331,10 +364,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('一键应用', '写入参考、模型、系统提示与生成参数,并把默认技法暂存 —— 等你选定案例后按交集自动挂上')}
 								{kv('加入参考', '只把该组合加进本轮参考,不改其它设置')}</div>
 						</div>
-					</TabPane>
-
-
-					<TabPane tab="进阶" key="advanced">
+					</div>
+					),
+				},
+				{
+					key: 'advanced',
+					label: '进阶',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「进阶」页把七块高级能力集中在一处:上下文策略、按任务用模型、口径与记忆、技能包、多模型对比、决策层(实验)、AI 助手行动能力。除上下文策略缺省按模型窗口裁历史(见下)外,其余全部缺省关闭或跟随现状;不改任何设置,工具行为与请求内容与之前一致;每个控件改完立即生效,不需要重启。</p>
 							<div style={card}><div style={ct}>对话上下文策略</div>
@@ -393,9 +430,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('新建定时', '选排期,以及错过时「跳过」还是「下次打开补跑一次」;软件开着时每分钟查一次到期任务')}
 								{kv('前提', '新建目标或定时前,要先在进阶页「AI 助手行动能力」里打开对应的子开关')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="算法与口径" key="algo">
+					</div>
+					),
+				},
+				{
+					key: 'algo',
+					label: '算法与口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页只写判据与边界,便于你判断「为什么少了内容 / 为什么停了 / 为什么标了警告」。</p>
 
@@ -459,9 +501,14 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('公式', '支持行内与块级数学公式渲染')}</div>
 
 						</div>
-					</TabPane>
-
-					<TabPane tab="注意点" key="caveats">
+					</div>
+					),
+				},
+				{
+					key: 'caveats',
+					label: '注意点',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={card}><div style={ct}>挂载相关</div>
 								{kv('事盘绝不按时间重算', '摇卦 / 报数 / 洗牌类事盘只认存盘。若显示「缺失」,正确做法是回该技法页按本案例起一次并保存,而不是期待挂载替你算')}
@@ -485,10 +532,19 @@ class AIAnalysisHelpDoc extends Component{
 								{kv('「AI助手」快捷按钮', '各技法页底部的这个按钮只是跳转到 AI 分析页,不会把当前盘变成案例;要成为可挂载案例须先在技法页「保存为命盘 / 事盘」')}
 								{kv('顶栏「AI导出」', '那是技法页的导出入口(把当前页判读文本复制 / 导出成 TXT·Word·PDF),与本页对话无关;它的「AI导出设置」与本页「纳入内容」是同一份设置')}</div>
 						</div>
-					</TabPane>
-				</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class AIAnalysisHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

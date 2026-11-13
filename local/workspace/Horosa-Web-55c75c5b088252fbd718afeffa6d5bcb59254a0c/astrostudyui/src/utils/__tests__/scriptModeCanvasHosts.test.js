@@ -25,6 +25,7 @@ const LIBS = {
 // 只在导出时临时画、画完即丢的(不在屏幕上停留),不必订阅
 const EXEMPT = {
 	'utils/scriptMode.js': '单源件本身',
+	'utils/rareChars.js': '离屏小画布只用来比像素、判断本机字体画不画得出某个字,不显示给人看',
 };
 
 function walk(dir, out){

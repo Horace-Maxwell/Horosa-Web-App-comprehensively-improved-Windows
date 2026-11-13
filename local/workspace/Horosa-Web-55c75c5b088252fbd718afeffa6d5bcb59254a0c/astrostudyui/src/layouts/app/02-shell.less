@@ -37,7 +37,15 @@
     .horosa-workspace-shell .ant-btn[disabled],
     .horosa-workspace-shell .ant-btn[disabled]:hover,
     .horosa-workspace-shell .ant-btn[disabled]:focus,
-    .horosa-workspace-shell .ant-btn[disabled]:active {
+    .horosa-workspace-shell .ant-btn[disabled]:active,
+    .ant-modal-root .ant-btn[disabled],
+    .ant-modal-root .ant-btn[disabled]:hover,
+    .ant-modal-root .ant-btn[disabled]:focus,
+    .ant-modal-root .ant-btn[disabled]:active,
+    .ant-drawer .ant-btn[disabled],
+    .ant-drawer .ant-btn[disabled]:hover,
+    .ant-drawer .ant-btn[disabled]:focus,
+    .ant-drawer .ant-btn[disabled]:active {
         border-color: var(--horosa-border);
         background: var(--horosa-panel-soft);
         color: var(--horosa-muted);
@@ -63,6 +71,15 @@
         color: var(--horosa-muted) !important;
     }
 
+    /* 下拉聚焦用主题金:antd 缺省是蓝 */
+    .horosa-workspace-shell .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector,
+    .horosa-workspace-shell .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+        border-color: var(--horosa-accent) !important;
+    }
+    .horosa-workspace-shell .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        box-shadow: 0 0 0 2px var(--horosa-accent-soft) !important;
+    }
+
     .horosa-workspace-shell .ant-select:not(.ant-select-customize-input) .ant-select-selector,
     .horosa-workspace-shell .ant-input,
     .horosa-workspace-shell .ant-input-affix-wrapper,
@@ -70,7 +87,9 @@
     .horosa-workspace-shell .ant-picker {
         border-radius: 7px;
         border-color: var(--horosa-border);
-        background: var(--horosa-panel-soft);
+        // 输入类控件的底统一取不透明面色(与各技法页左栏一致;暗色下本来就是这个值),
+        // 不再用比面板深一档的半透明底 —— 否则没套页面级皮的页(塔罗 / 节气 / 风水图判)下拉框颜色与别页不同
+        background: var(--horosa-surface-solid);
         color: var(--horosa-text);
         box-shadow: none;
     }
@@ -87,6 +106,17 @@
     .horosa-workspace-shell .ant-picker-suffix,
     .horosa-workspace-shell .ant-picker-clear {
         color: var(--horosa-muted);
+    }
+
+    // 输入框 / 数字框的前后缀块(「次/分钟」这类单位):跟随主题,不留 antd 自带的浅灰底 —— 暗色下那是一块白、字也看不见。
+    // 搜索框的后缀是按钮,不在此列(它有自己的皮)。
+    .horosa-workspace-shell :not(.ant-input-search) > .ant-input-group > .ant-input-group-addon,
+    .horosa-workspace-shell .ant-input-number-group-addon,
+    :is(.ant-modal-root, .ant-drawer, .ant-popover) :not(.ant-input-search) > .ant-input-group > .ant-input-group-addon,
+    :is(.ant-modal-root, .ant-drawer, .ant-popover) .ant-input-number-group-addon {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-sunken);
+        color: var(--horosa-text-soft);
     }
 
     .horosa-workspace-shell .ant-select-selection-item,
@@ -757,7 +787,7 @@
     //    的那些)这是实打实的观感回归。故此处照抄两块:暗色基线 + 亮色覆盖,逐条对齐。
     //    有 sentinel 用例锁死(portalAstroVarParity.test.js):两处定义漂移即红。
     //
-    //    🔴 同一组也挂在 :root 上:作用域与 portal 之外的页面(金融「食与月相」的日数徽标、策天断诀…)
+    //    🔴 同一组也挂在 :root 上:作用域与 portal 之外的页面(部分子页徽标的日数徽标、策天断诀…)
     //    同样写着 var(--horosa-astro-gold) 一类 —— 解析不到时声明作废、颜色退回继承值(antd 容器的缺省黑),
     //    暗底黑字。根上给一份亮 / 暗各自的取值,作用域内与 portal 里的定义仍按层叠优先(取值相同)。
     :root,
@@ -858,6 +888,12 @@
     .ant-dropdown-menu-item,
     .ant-dropdown-menu-submenu-title {
         color: var(--horosa-text);
+    }
+
+    /* 菜单分组分隔线:跟主题走(antd 缺省是固定浅灰,暗色下看不见) */
+    .ant-dropdown-menu-item-divider,
+    .ant-dropdown-menu-submenu-title-divider {
+        background-color: var(--horosa-border);
     }
 
     .ant-dropdown-menu-item:hover,
@@ -1395,6 +1431,13 @@
         background: rgba(115, 197, 154, 0.12);
         color: var(--horosa-jade);
     }
+    /* 多选 / tags 模式的已选 chip:全站同一圆角(antd 默认 2px 直角,与圆角输入框不搭);亮暗共用 */
+    .horosa-workspace-shell .ant-select-multiple .ant-select-selection-item,
+    .ant-drawer .ant-select-multiple .ant-select-selection-item,
+    .ant-modal-root .ant-select-multiple .ant-select-selection-item,
+    .ant-popover .ant-select-multiple .ant-select-selection-item {
+        border-radius: 6px;
+    }
     /* 多选 / tags 模式的已选 chip（rubric / 重点 / 参考流派 等） */
     :root[data-horosa-appearance='dark'] .ant-drawer .ant-select-multiple .ant-select-selection-item,
     :root[data-horosa-appearance='dark'] .ant-modal-root .ant-select-multiple .ant-select-selection-item {
@@ -1671,6 +1714,8 @@
         min-height: 38px;
         margin: 2px 0;
         padding: 0 12px;
+        // 选中态有 1px 描边:未选中项先占同宽的透明边,否则最长那一项一选中就把整条 rail 撑宽 2px、内容区跟着左移
+        border: 1px solid transparent;
         border-radius: 7px;
     }
 

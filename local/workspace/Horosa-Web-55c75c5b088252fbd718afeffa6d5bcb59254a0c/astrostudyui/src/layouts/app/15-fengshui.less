@@ -47,12 +47,15 @@
 /* 选择栏(基础/纳气盘/标注/导出)原贴左边框,与下方卡片(距边 16px)错位;给 tab 头加左右内边距,
    与卡片对齐、留出安全距离。 */
 .horosa-fengshui-side .ant-tabs > .ant-tabs-nav {
-    padding: 0 14px;
-    margin-bottom: 6px;
+    /* 留白用 margin 不用 padding:条自身带水平 padding 时,页签溢出后选中页签会被「…」钮那侧裁掉等量宽度 */
+    margin: 0 14px 6px;
+    padding: 0;
 }
 /* 工作区 tab(画布/判定/要点)同样贴左,给安全距离。 */
 .horosa-fengshui-workspace-tabs > .ant-tabs-nav {
-    padding: 0 12px;
+    margin-left: 12px;
+    margin-right: 12px;
+    padding: 0;
 }
 .horosa-fengshui-workspace {
     height: 100%;
@@ -290,8 +293,9 @@
 .horosa-fengshui-liqi-field { display: flex; flex-direction: column; gap: 6px; }
 .horosa-fengshui-liqi-field > span { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--horosa-muted); }
 .horosa-fengshui-liqi-field .xq-select, .horosa-fengshui-liqi-field .xq-segmented { width: 100%; }
-.horosa-fengshui-liqi-field input[type='number'] { width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); color: var(--horosa-text); font-size: 13px; transition: border-color .15s ease; }
-.horosa-fengshui-liqi-field input[type='number']:focus { border-color: var(--horosa-border-strong); outline: none; }
+.horosa-fengshui-liqi-field .ant-input-number { width: 100%; }
+// 日期块:全站时间组件自带的块间距在这里不要(本栏的字段间距由网格给)
+.horosa-fengshui-liqi-date .horosa-compact-time { margin: 0; }
 /* 中 · 盘面舞台 */
 .horosa-fengshui-liqi-chart { min-height: 0; display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 8px 6px; }
 /* 理气盘 SVG 文字去描边:上层 stroke 经 SVG 继承泄漏到 <text>(字体外暗色描边)→ 逐盘重置无描边 + fill 优先;瓦片/环线 path 自带 stroke 属性不受影响。 */

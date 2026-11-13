@@ -11,6 +11,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQCard as Card } from '../xq-ui';
 import { readGlobalSetupField } from '../../utils/globalSetupStore';
+import { trimDecimalsNonZero } from '../../utils/displayPrecision';
 
 // WI-02 偕日相中文口径(中性词)。
 const PLANET_PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
@@ -141,7 +142,7 @@ class AstroPlanet extends Component{
 			// degreeOnly 档:每星一行(符号+名+星座度数),跳过富卡余下全部行。
 			if(listStyle === 'degreeOnly'){
 				doms.push(
-					<div key={`pls_deg_${objid}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 10px', borderBottom: '1px solid rgba(148,163,184,.14)' }}>
+					<div key={`pls_deg_${objid}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 10px', borderBottom: '1px solid var(--horosa-border-soft)' }}>
 						<span style={{ fontFamily: AstroConst.AstroFont, fontSize: 16 }}>{AstroText.AstroMsg[objid]}</span>
 						<span style={{ fontFamily: AstroConst.NormalFont, fontSize: 12.5 }}>{AstroText.AstroTxtMsg[objid] || objid}</span>
 						<span style={{ marginLeft: 'auto', fontFamily: AstroConst.NormalFont, fontSize: 12.5 }}>
@@ -294,7 +295,7 @@ class AstroPlanet extends Component{
 							<Row gutter={12}>
 								<Col span={titleSpan}>平均速度</Col>
 								<Col span={ctSpan} style={{fontFamily: AstroConst.NormalFont}}>
-									{obj.meanSpeed}
+									{obj.meanSpeed === undefined || obj.meanSpeed === null || obj.meanSpeed === '' ? '' : `${trimDecimalsNonZero(obj.meanSpeed)}度`}
 								</Col>
 							</Row>
 							<Row gutter={12}>

@@ -123,7 +123,9 @@ public class GermanyTechController {
 			"aspectIncludeCusps", "aspectIncludeLots", "aspectIncludeMidpoints",
 			"solarReturnVariant", "returnLatitudeMode",
 			"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg",
-			"vulcanCalc"
+			"vulcanCalc",
+			// 用户容许度(逐星表 / 整体倍率):随盘字段,与 PredictiveController 同步
+			"orbs", "orbScale"
 		};
 		for(String key : classicalKeys) {
 			if(TransData.containsParam(key)) {

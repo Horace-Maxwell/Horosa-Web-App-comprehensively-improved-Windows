@@ -1,6 +1,7 @@
 // G5 Thema Mundi 世界盘(希腊化占星):固定范式盘——上升 15°巨蟹,七政各居本垣 15°。
 // 纯前端静态常量盘(不参与任何计算),古典 tab 末尾「世界盘」开关卡;含义三条出自第一性原理。中性表述。
 import { Component } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { THEMA_MUNDI, SIGN_EN, SIGN_CN, PLANET_CN, parseSignDegree } from '../../divination/data/hellenisticData';
@@ -51,7 +52,7 @@ function ThemaWheel({ size = 300 }){
 	});
 	const asc = pt(ascLon, rOuter);
 	return (
-		<svg viewBox={`0 0 ${size} ${size}`} width="100%" style={{ maxWidth: size, display: 'block', margin: '0 auto' }}>
+		<svg className="horosa-plain-text-board" viewBox={`0 0 ${size} ${size}`} width="100%" style={{ maxWidth: size, display: 'block', margin: '0 auto' }}>
 			<circle cx={cx} cy={cy} r={rOuter} fill="none" stroke={BORDER} strokeWidth="1.2" />
 			<circle cx={cx} cy={cy} r={rSignRing} fill="none" stroke={BORDER} strokeWidth="1" />
 			<circle cx={cx} cy={cy} r={rPlanet + 14} fill="none" stroke={BORDER} strokeWidth="0.8" strokeDasharray="2 3" />
@@ -80,7 +81,7 @@ class AstroThemaMundi extends Component{
 						<span className="horosa-classical-zh">世界范式盘</span>
 						<span className="horosa-classical-en">Thema Mundi</span>
 					</span>
-					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起' : '展开'}<XQToggleCaret open={open} /></span>
 				</div>
 				{open ? (
 					<div style={{ marginTop: 8 }}>

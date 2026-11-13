@@ -38,6 +38,7 @@ class ZodiacalRelease extends Component{
 			}
 
 			let divstyle = {};
+			let isLB = false;
 			if(item.level === 1){
 				divstyle = {
 					color: this.colors[item.level - 1],
@@ -48,6 +49,7 @@ class ZodiacalRelease extends Component{
 					color: this.colors[item.level - 1],
 				};
 				if(cnt === 2){
+					isLB = true;
 					divstyle = {
 						color: this.colors[item.level - 1],
 						background: this.bgColors[item.level - 2],
@@ -59,12 +61,12 @@ class ZodiacalRelease extends Component{
 			// 不按同座给散落多节点上色——否则点一个运,树里所有同座的运四处一起变色,反而干扰阅读。
 			let titledom = (
 				<div style={{ ...divstyle, cursor: 'pointer', borderRadius: 4, padding: '0 4px' }}
-					title="点击高亮该运星座(本座 + 第4/7/10座)">
+					title={item.truncated ? '点击高亮该运星座(本座 + 第4/7/10座);该子期超出所属上级期,已按上级期讫日截断' : '点击高亮该运星座(本座 + 第4/7/10座)'}>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{'L' + item.level}&nbsp;</span>
 					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item.sign]}&nbsp;</span>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{item.date}&nbsp;</span>
-					{/* 末段子期按父期截断(后端 truncated 标):明示该期未走完整长 */}
-					{item.truncated ? <span style={{ fontFamily: AstroConst.NormalFont, opacity: 0.7 }} title="该子期超出所属上级期,已按上级期讫日截断">（截）</span> : null}
+					{/* 解结(Loosing of the Bond):子期走完十二座后跳到对冲座的那一段;末段按父期截断只在悬停说明里写,不占行内 */}
+					{isLB ? <span style={{ fontFamily: AstroConst.NormalFont }} title="解结(Loosing of the Bond):子期走完十二座后跳到对冲座">（LB）</span> : null}
 				</div>
 			);
 
@@ -86,21 +88,6 @@ class ZodiacalRelease extends Component{
 
 
 	render(){
-		// fill:吃满父卡(星运右栏 FillCard,高度由右栏分配);带上表盒同一个类,右栏量完整内容高时按树本身算
-		if(this.props.fill){
-			let fdom = null;
-			if(this.props.value){
-				this._keySign = {};
-				fdom = this.genZRSubLevelDom(this.props.value, -1, 'zr');
-			}
-			return (
-				<div className={`${styles.scrollbar} horosa-small-table-scroll horosa-direction-tree-scroll horosa-zodiacal-release-tree-scroll`} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-					<Tree className="horosa-direction-tree horosa-zodiacal-release-tree" onSelect={this.handleSelect}>
-						{fdom}
-					</Tree>
-				</div>
-			);
-		}
 		let height = this.props.height ? this.props.height : '100%';
 		let mainCont = document.getElementById('mainContent');
 		if(mainCont){

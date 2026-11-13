@@ -42,7 +42,8 @@ export function isPredictiveExportKey(key){
 		|| val === 'neroman'
 		|| val === 'bezzafigure'
 		|| val === 'jayprofection'
-		|| val === 'michon';
+		|| val === 'michon'
+		|| val === 'timelords';
 }
 
 export function getTechniqueLabelByKey(key){

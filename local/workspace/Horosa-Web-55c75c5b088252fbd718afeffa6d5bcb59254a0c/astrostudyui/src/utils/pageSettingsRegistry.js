@@ -73,7 +73,7 @@ export const PAGE_SETTINGS_REGISTRY = [
 	},
 	{
 		page: 'sanshiunited', storageKey: 'horosa.sanshi.settings.v1', file: 'components/sanshi/SanShiUnitedMain.js', exportName: 'SANSHI_PAGE_SETTINGS', changeVia: ['optionKey', 'stateKey'],
-		fields: ['timeAlg', 'guireng', 'paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'taiyiStyle', 'taiyiAccum', 'taiyiTimeBasis', 'gameTheory', 'taiyiSchool', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'outerCoord', 'showWeakSolid'],
+		fields: ['timeAlg', 'guireng', 'paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'taiyiStyle', 'taiyiAccum', 'taiyiTimeBasis', 'gameTheory', 'taiyiSchool', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'outerCoord', 'showWeakSolid', 'ascRaMode'],
 		exempt: {
 			mode: '命局 / 事局是「这一盘存去哪」的逐盘属性',
 			chartCategory: '盘类是逐盘属性',
@@ -166,7 +166,7 @@ export const PAGE_SETTINGS_REGISTRY = [
 	},
 	{
 		page: 'mundane', storageKey: 'horosa.mundane.settings.v1', file: 'components/mundane/MundaneMain.js', exportName: 'MUNDANE_PAGE_SETTINGS', changeVia: 'extraKey',
-		fields: ['mundaneRuleset', 'mundaneOrbScheme', 'mundaneIngressRule', 'solunarWeights', 'solunarOrb', 'vedicDashaYearLen', 'zodiacal', 'siderealAyanamsa', 'hsys'],
+		fields: ['mundaneRuleset', 'mundaneOrbScheme', 'mundaneIngressRule', 'solunarWeights', 'solunarOrb', 'vedicDashaYearLen', 'bbSet', 'bbHarm', 'zodiacal', 'siderealAyanamsa', 'hsys'],
 		exempt: {
 			...sameReason(['mundaneType', 'mhKind', 'solunarType'], '起哪种盘 / 问哪类事是每一张盘的输入'),
 			...sameReason(['ingressTerm', 'ingressYear', 'ingressMoment', 'scanYear', 'solunarYear', 'vedicYear', 'vedicFoundingYear', 'vedicNatalAsc'], '节气 / 年份 / 时刻 / 立国年与命宫是每一张盘的输入'),
@@ -193,13 +193,16 @@ export const PAGE_SETTINGS_REGISTRY = [
 		// 组件里的 state 键名 → 本表字段名(同一含义在不同组件里叫法不同 / 各页各存)
 		keyAliases: { includeTransits: 'ephemerisTransits', division: 'triplicityDivision', lifespan: 'triplicityLifespan', inverse: 'givenYearInverse', rateKey: 'persianRateKey', direction: 'persianDirection', maxYears: 'persianMaxYears', mode: 'balbillusMode', startPlanet: 'balbillusStartPlanet', yearType: 'balbillusYearType', subRule: 'balbillusSubRule', settings: 'decennialStartMode' /* 十年大运四项收在 state.settings 这个对象里,枚举器只看得到对象名 */ },
 		stateAlias: 'opts',
-		fields: ['nodeRetrograde', 'minorVariant', 'yearBand', 'triplicityDivision', 'triplicityLifespan', 'ephemerisTransits', 'givenYearInverse', 'lunarReturnInverse', 'solarReturnInverse', 'persianRateKey', 'persianDirection', 'persianMaxYears', 'decennialStartMode', 'decennialOrderType', 'decennialDayMethod', 'decennialCalendarType', 'profGrain', 'profStart', 'balbillusStartPlanet', 'balbillusYearType', 'balbillusMode', 'balbillusSubRule', 'ys129StartPlanet', 'ys129Order', 'ys129YearType', 'ys129SubRule', 'distReleaser', 'distMethod', 'distYear', 'distYears', 'apMethod', 'apEvents', 'apYear', 'apMaxAge', 'keypointsMode', 'nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual'],
+		fields: ['nodeRetrograde', 'minorVariant', 'yearBand', 'triplicityDivision', 'triplicityLifespan', 'ephemerisTransits', 'givenYearInverse', 'lunarReturnInverse', 'solarReturnInverse', 'persianRateKey', 'persianYear', 'persianDirection', 'persianMaxYears', 'decennialStartMode', 'decennialOrderType', 'decennialDayMethod', 'decennialCalendarType', 'profGrain', 'profStart', 'balbillusStartPlanet', 'balbillusYearType', 'balbillusMode', 'balbillusSubRule', 'ys129StartPlanet', 'ys129Order', 'ys129YearType', 'ys129SubRule', 'distReleaser', 'distMethod', 'distYear', 'distYears', 'apMethod', 'apEvents', 'apYear', 'apMaxAge', 'keypointsMode', 'nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual', 'michonAll', 'tlMethod', 'tlYearType', 'tlMovingYear', 'tlTurnStart', 'tlTurnOrder', 'tlOrbMode', 'tlAnnualDays', 'tlAnnualOrder', 'tlReleaser', 'tlVariant', 'tlNineTime', 'tlNineReverse', 'tlRateKind', 'tlMovingStart', 'tlDevBasis', 'tlDiurnalMode'],
 		exempt: {
 			...sameReason(['targetDate', 'targetTime', 'startDate', 'endDate'], '目标日期 / 起止日期是每一次查看的输入'),
 			system: '三分体系初值随本盘排盘口径与流派预设;页内改动只覆盖本会话',
 			aiMode: 'AI 输出范围(全部 L1 / 某个 L1 下的 L2 …)是查看位置,不是口径',
 			asporb: '容许度初值归「星盘设置」的全局行运容许度管;页内改动只覆盖本会话',
-			michonAll: '双黄道互动表「只看有族 / 全部 66 组」是查看方式,不是口径',
+			tlOpenRow: '时主轮转选中哪一段看子段是查看位置,不是口径',
+			tlMoonRow: '月亮日选中哪一行看该时刻的盘是查看位置,不是口径',
+			tlMoonChart: '月亮日当前行的盘是接口结果,不是设置',
+			tlMoonSig: '月亮日那张盘对应哪张本命盘的校验值,不是设置',
 		},
 	},
 	{
@@ -220,13 +223,65 @@ export const PAGE_SETTINGS_REGISTRY = [
 	{
 		// 改设置的入口有三十多个且零非用户入口 → componentDidUpdate 里按保留键前后值统一落盘(前提由合同测试看守)
 		page: 'acg', storageKey: 'horosa.acg.settings.v1', file: 'components/acg/AstroAcg.js', exportName: 'ACG_PAGE_SETTINGS', changeVia: 'stateDiff',
-		fields: ['lines', 'projection', 'mapStyle', 'showLabels', 'showGeo', 'showLS', 'showAspects', 'showPoints', 'showMidpoints', 'showLots', 'showCrossings', 'showCuspLines', 'showStars', 'showStarParans', 'showTreasure', 'showZones', 'zoneWidth', 'showGeodetic', 'geodetic', 'geodeticVar', 'geodeticZero', 'hsys', 'orb', 'mode', 'coord', 'posType', 'horizon', 'nodeType', 'lilithType', 'draconic', 'harmonic', 'showVibration', 'midpointMode', 'ayanamsa', 'lsMode', 'paranMode'],
+		fields: ['lines', 'projection', 'mapStyle', 'showLabels', 'showGeo', 'showLS', 'showAspects', 'showPoints', 'showMidpoints', 'showLots', 'showCrossings', 'showCuspLines', 'showStars', 'showStarParans', 'showTreasure', 'showZones', 'zoneWidth', 'showGeodetic', 'geodetic', 'geodeticVar', 'geodeticZero', 'hsys', 'orb', 'mode', 'coord', 'posType', 'horizon', 'nodeType', 'lilithType', 'draconic', 'harmonic', 'showVibration', 'midpointMode', 'ayanamsa', 'lsMode', 'paranMode', 'eclipse', 'eclipseFilter', 'climes', 'climesObliquity'],
 		exempt: {
 			...sameReason(['acgData', 'linesSet', 'pointReport', 'pointLoading', 'clickMarker'], '后端数据 / 由 lines 派生的集合 / 落点报告,不是设置'),
 			...sameReason(['drawerVisible', 'layersOpen', 'refOpen', 'pointOpen', 'lsDialOpen'], '抽屉 / 面板开合是视图态'),
 			...sameReason(['ccgPlay', 'ccgDate', 'ccgTime', 'ccgMix'], 'CCG 时间地图的目标时刻与播放态是每次查看的输入'),
 			...sameReason(['relMode', 'relDate', 'relTime', 'relPos', 'relZone', 'showRelCross'], '关系盘的 B 盘资料与其渲染层是每次查看的输入'),
 			lotsCustom: '自定义阿拉伯点公式是每次查看的输入',
+		},
+	},
+	{
+		page: 'mundanecycles', storageKey: 'horosa.mundane.cycles.v1', file: 'utils/mundaneCycles.js', exportName: 'MUNDANE_CYCLE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/mundane/MundaneCycleTables.js'],
+		fields: ['cycleTable', 'conjKind', 'meanTable', 'flood', 'cycleYear', 'firdariaLevel', 'firdariaYears', 'profRate', 'profBase', 'dawrStart', 'eraKind', 'ingressPoint', 'cycleVariant', 'mpdKey', 'weatherMonths'],
+		exempt: {
+			startYear: '年份是查看范围的输入,不是口径', endYear: '年份是查看范围的输入,不是口径', startDraft: '年份输入框里还没确认的值', endDraft: '年份输入框里还没确认的值', outOfRange: '年份超出星历的提示状态', result: '表结果是接口返回,不是设置', requestKey: '已取结果对应的请求键,不是设置',
+			loading: '加载中状态', failed: '加载失败状态',
+		},
+	},
+	{
+		page: 'astrodetails', storageKey: 'horosa.astro.details.v1', file: 'utils/chartDetails.js', exportName: 'CHART_DETAIL_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/astro/AstroChartDetails.js'],
+		fields: ['detailTable', 'detailFaces', 'detailVariant', 'detailLunar', 'detailMundo', 'detailMidpoint'],
+		exempt: {
+			result: '细节表结果是接口返回,不是设置', resultSig: '结果对应哪张本命盘的校验值,不是设置', requestKey: '已取结果对应的请求键,不是设置',
+			loading: '加载中状态', failed: '加载失败状态',
+		},
+	},
+	{
+		page: 'transformchart', storageKey: 'horosa.transform.settings.v1', file: 'utils/transformCharts.js', exportName: 'TRANSFORM_PAGE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/auxchart/AstroTransformLab.js'],
+		fields: ['kind', 'planet', 'shift', 'house', 'variant', 'view'],
+		exempt: {
+			result: '变换盘结果是接口返回,不是设置', resultSig: '结果对应哪张本命盘的校验值,不是设置', requestKey: '已取结果对应的请求键,不是设置',
+			loading: '加载中状态', loadError: '加载失败提示',
+		},
+	},
+	{
+		page: 'zhufang', storageKey: 'horosa.zhufang.settings.v1', file: 'utils/zhufangArts.js', exportName: 'ZHUFANG_PAGE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/zhufang/ZhufangMain.js'],
+		fields: ['tab', 'mayanCorrelation', 'hdTrueNode', 'spiritQuadrant'],
+		exempt: {
+			remote: '人类图 / 灵名字母是接口返回,不是设置', remoteKey: '已取结果对应的请求键,不是设置', loading: '加载中状态', loadError: '加载失败提示',
+		},
+	},
+	{
+		page: 'dongya', storageKey: 'horosa.dongya.settings.v1', file: 'utils/eastAsiaSnapshot.js', exportName: 'EAST_ASIA_PAGE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/dongya/EastAsiaMain.js'],
+		fields: ['tab', 'fenyeVersion', 'ichingMerge'],
+		exempt: {
+			flowYear: '流年是每次查看的输入(缺省今年),不跨会话保留',
+		},
+	},
+	{
+		page: 'zodiacsystems', storageKey: 'horosa.zodiacsystems.settings.v1', file: 'utils/transformCharts.js', exportName: 'ZODIAC_PAGE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/auxchart/AstroZodiacLab.js'],
+		fields: ['version', 'view'],
+		exempt: {
+			result: '黄道制结果是接口返回,不是设置', resultSig: '结果对应哪张本命盘的校验值,不是设置', requestKey: '已取结果对应的请求键,不是设置',
+			loading: '加载中状态', loadError: '加载失败提示',
 		},
 	},
 	{
@@ -243,5 +298,37 @@ export const PAGE_SETTINGS_REGISTRY = [
 		page: 'fengshui', storageKey: 'horosa.fengshui.settings.v1', file: 'components/fengshui/FengShuiMain.js', exportName: 'FENGSHUI_PAGE_SETTINGS', changeVia: 'stateKey',
 		fields: ['school', 'diskSkin'],   // diskSkin(盘面样式)住在画布引擎的视图模型里(value={vm.diskSkin}),枚举器看不到,这里手工登记
 		exempt: {},
+	},
+	{
+		// 宿占(含二十八宿宿盘):排盘口径(外盘 / 盘形 / 宿法 / 人事十二宫起宫)随命盘字段走,不在本表;
+		// 这里只保留「ASC 起盘」时的上升取法(改进 = 真赤经 / 经典 = 东点黄经)。节气页内嵌的只读宿盘跟随这份设置、不显示不写。
+		page: 'suzhan', storageKey: 'horosa.suzhan.settings.v1', file: 'utils/ascRaMode.js', exportName: 'SUZHAN_ASC_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/suzhan/SuZhanInput.js'],
+		fields: ['ascRaMode'],
+		exempt: {},
+	},
+	{
+		// 七政:排盘口径随命盘字段 / 七政仓走,不在本表;这里只保留赤仪时的上升取法(择日内嵌的七政盘跟随这份设置、不显示不写)。
+		page: 'guolao', storageKey: 'horosa.guolao.settings.v1', file: 'utils/ascRaMode.js', exportName: 'GUOLAO_ASC_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/guolao/GuoLaoInput.js'],
+		fields: ['ascRaMode'],
+		exempt: {},
+	},
+	{
+		// 印占页的排盘口径(宫制 / 岁差 / 大运体系 …)随命盘存进记录(INDIA_OPTION_FIELD_STATE_MAP),不在本表;
+		// 这里只保留显示口径:Yoga 判定表与补充表两张表的下拉,外加左栏三个纯显示开关(宿数 / 中栏盘面 / 盘面叠加;印占页构造时读)。
+		page: 'india', storageKey: 'horosa.india.tables.settings.v1', file: 'utils/indiaExtraTables.js', exportName: 'INDIA_TABLE_SETTINGS', changeVia: 'stateKey',
+		consumers: ['components/astro/IndiaChartMain.js', 'components/astro/indiaMain/IndiaTransitEvents.js'],
+		fields: ['yogaTableVariant', 'yogaTableScope', 'dirahVariant', 'indiaNakshatraCount', 'indiaStageMode', 'indiaOverlayBB', 'transitPlanet', 'transitKind', 'transitDays'],
+		exempt: {
+			...sameReason(['indiaSchool', 'indiaAnnualChartType', 'indiaDashaYearLength', 'indiaKarakaScheme', 'indiaYuddhaCriterion', 'indiaVargaVariantMap', 'vargaSetFractals'],
+				'印占排盘口径随命盘存进记录字段(INDIA_OPTION_FIELD_STATE_MAP),载入命盘时还原,新命盘按新盘种子'),
+			indiaTripatakiOn: '三旗盘开关随命盘写进记录字段 indiaTripataki',
+			...sameReason(['rectifyWindowMinutes', 'rectifyStepSeconds', 'rectifyRpSource'], '生时校正三偏好早已由 horosa.india.rectify.prefs.v1 保留'),
+			...sameReason(['prashnaCast', 'prashnaNumberInput', 'prashnaMatterInput', 'prashnaCuspModeInput', 'prashnaPrimaryHouseInput', 'prasnaNumber'], '问事起卦的数字、占事与宫位是每一课的输入'),
+			...sameReason(['currentTab', 'currentFractal'], '当前分盘页签是视图态'),
+			mainChartObj: '盘数据是接口返回,不是设置(控件只读它显示子项)',
+			indiaShowRiskFactors: '风险因子区块涉及敏感内容,每次打开默认收起,由用户当次自己展开',
+		},
 	},
 ];

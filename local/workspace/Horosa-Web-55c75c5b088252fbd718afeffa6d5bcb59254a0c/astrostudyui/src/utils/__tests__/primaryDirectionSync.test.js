@@ -56,7 +56,7 @@ describe('primaryDirectionSync', ()=>{
 	});
 
 	test('PD_SYNC_REV 现值 v15 (pd3d 扩展点 points/circles 扩形 → 升盐防 Java paramhash 脏缓存)', ()=>{
-		expect(PD_SYNC_REV).toBe('pd_method_sync_v26');
+		expect(PD_SYNC_REV).toBe('pd_method_sync_v28');
 	});
 
 	test('SUPPORTED_PD_METHODS covers 默认+legacy+pd_engine 四法 + 主限法改进新增方位法', ()=>{

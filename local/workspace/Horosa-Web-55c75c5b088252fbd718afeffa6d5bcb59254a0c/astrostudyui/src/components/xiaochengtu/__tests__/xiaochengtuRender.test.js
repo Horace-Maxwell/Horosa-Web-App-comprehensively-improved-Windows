@@ -80,8 +80,9 @@ describe('小成图 · 渲染冒烟', ()=>{
 		expect(yq).toContain('两分·阴阳(定支)');
 		expect(yq).toContain('应期推演');
 		const gy = renderToStaticMarkup(<div>{paneOf('gongyi').props.children}</div>);
-		expect(gy).toContain('坎宫——坎为陷为水');   // 八宫所主原文
-		expect(gy).toContain('← 用宫');
+		expect(gy).toContain('<span class="horosa-xct-gong-name">坎宫</span>');   // 一宫一卡:宫名
+		expect(gy).toContain('坎为陷为水');   // 八宫所主原文
+		expect(gy).toMatch(/horosa-xct-gong is-yong[\s\S]*?<span class="horosa-xct-gong-tag">用宫<\/span>/);   // 用宫卡带标
 		const sx = renderToStaticMarkup(<div>{paneOf('sixiang').props.children}</div>);
 		expect(sx).toContain('细判口径');
 		expect(sx).toMatch(/上乾[↑↓]下兑[↑↓]/);      // 升降箭头

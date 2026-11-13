@@ -32,14 +32,16 @@ describe('directionPageSettings', ()=>{
 		expect(DIRECTION_PAGE_SETTINGS.load()).toEqual({
 			nodeRetrograde: false, minorVariant: 'synodic', yearBand: 'least', triplicityDivision: 'thirds', triplicityLifespan: 75,
 			ephemerisTransits: true, givenYearInverse: false, lunarReturnInverse: true, solarReturnInverse: true,
-			persianRateKey: 'persian', persianDirection: 'direct', persianMaxYears: 90,
+			persianRateKey: 'persian', persianYear: 'solar', persianDirection: 'direct', persianMaxYears: 90,
 			decennialStartMode: 'sect_light', decennialOrderType: 'zodiacal', decennialDayMethod: 'valens', decennialCalendarType: 'calendar_360',
 			profGrain: 'y', profStart: 'asc',
 			balbillusStartPlanet: 'Sun', balbillusYearType: 'solar', balbillusMode: 'nearest', balbillusSubRule: 'once', keypointsMode: 'soul',
 			ys129StartPlanet: 'Sun', ys129Order: 'zodiacal', ys129YearType: 'solar', ys129SubRule: 'days',
 			distReleaser: 'Asc', distMethod: 'classical', distYear: 'tropical', distYears: 100,
 			apMethod: 'koch', apEvents: 'full', apYear: 'tropical', apMaxAge: 72,
-			nerK: 273.18, nerT0: 0.75, nerKeepDec: false, nerOrb: 1, bezzaOrb: 1, jayFrom: -1, michonOrb: 1, michonSwap: false, michonEqual: false,
+			nerK: 273.18, nerT0: 0.75, nerKeepDec: false, nerOrb: 1, bezzaOrb: 1, jayFrom: -1, michonOrb: 1, michonSwap: false, michonEqual: false, michonAll: false,
+			tlMethod: 'turn', tlYearType: 'solar', tlMovingYear: 'sidereal', tlTurnStart: 'asc', tlTurnOrder: 'zodiac', tlOrbMode: 'single', tlAnnualDays: 'tableA', tlAnnualOrder: 'natal',
+			tlReleaser: 'Moon', tlVariant: 'improved', tlNineTime: 'degree', tlNineReverse: false, tlRateKind: 'condition', tlMovingStart: 'Asc', tlDevBasis: 'sign', tlDiurnalMode: 'five',
 		});
 	});
 

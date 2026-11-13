@@ -17,7 +17,9 @@ describe('AI 导出旧段名迁移', () => {
 	});
 	test('印占「分盘吉位」段名改正(Vaiśeṣikāṁśa 吉位计数,非 Viṃśopaka 20 分力):旧名设置与旧快照都按现名认', () => {
 		const saved = saveAIExportSettings({ version: 60, sections: { indiachart: ['分盘吉位 Vimśopaka', 'Vimśopaka 分盘 20 分力'] } });
-		expect(saved.sections.indiachart).toEqual(['分盘吉位 Vaiśeṣikāṁśa', 'Vimśopaka 分盘 20 分力']);
+		// 后两段是 v62 升级窗补进来的新段,与改名无关
+		// v65 union 给自定义过印占段的用户补上新段「穿界时刻」
+		expect(saved.sections.indiachart).toEqual(['分盘吉位 Vaiśeṣikāṁśa', 'Vimśopaka 分盘 20 分力', 'Yoga 判定表', '印占补充表', '穿界时刻']);
 		const content = '[分盘吉位 Vimśopaka]\n木星 六4\n\n[Vimśopaka 分盘 20 分力]\n木 12';
 		expect(filterContentByWantedSections(content, new Set(['分盘吉位 Vaiśeṣikāṁśa']))).toBe('[分盘吉位 Vimśopaka]\n木星 六4');
 	});

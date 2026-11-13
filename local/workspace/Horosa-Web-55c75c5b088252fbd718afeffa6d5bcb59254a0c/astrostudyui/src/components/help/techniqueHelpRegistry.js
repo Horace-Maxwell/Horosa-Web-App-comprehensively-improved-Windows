@@ -2,6 +2,8 @@
 // PageHeader 帮助弹窗按当前页查本表渲染对应古籍;新增技法手册=加一行,无需改 PageHeader。
 import GuoLaoHelpDoc from '../guolao/GuoLaoHelpDoc';
 import AstroHelpDoc from './AstroHelpDoc';
+import DongyaHelpDoc from './DongyaHelpDoc';
+import ZhufangHelpDoc from './ZhufangHelpDoc';
 import GermanyHelpDoc from './GermanyHelpDoc';
 import ZiweiHelpDoc from './ZiweiHelpDoc';
 import BaziHelpDoc from './BaziHelpDoc';
@@ -27,6 +29,7 @@ import Astro3DHelpDoc from './Astro3DHelpDoc';
 import XuanshiHelpDoc from './XuanshiHelpDoc';
 import AIAnalysisHelpDoc from './AIAnalysisHelpDoc';
 import YizhangjingHelpDoc from './YizhangjingHelpDoc';
+import MingOtherHelpDoc from './MingOtherHelpDoc';
 import AstrodataHelpDoc from './AstrodataHelpDoc';
 import ZeriHelpDoc from './ZeriHelpDoc';
 
@@ -51,35 +54,30 @@ export const TECHNIQUE_HELP_DOCS = {
 	jieqichart: JieqiHelpDoc,
 	shusuan: ShusuanHelpDoc,
 	yanqin: YanqinHelpDoc,
+	dongya: DongyaHelpDoc,
+	zhufang: ZhufangHelpDoc,
 	calendar: CalendarHelpDoc,
 	planetarium: PlanetariumHelpDoc,
 	cntradition: CntraditionHelpDoc,
 	astrochart3D: Astro3DHelpDoc,
 	xuanshi: XuanshiHelpDoc,
 	aianalysis: AIAnalysisHelpDoc,
-	mingother: YizhangjingHelpDoc,
+	mingother: MingOtherHelpDoc,
+	yizhangjing: YizhangjingHelpDoc,
 	astrodata: AstrodataHelpDoc,
 	zeri: ZeriHelpDoc,
 };
 
-// 子技法手册:这些 key 不是主 tab,而是挂在别的主 tab 下的子页签。只按主 tab 取的话,
-// 在量化盘子页打开帮助会拿到「辅盘」总手册,而它自己那份手册永远打不开。
-// (演禽不在此列:它本身就是 currentTab,只是导航高亮时才归一到宿主 tab。)
-const SUBTECHNIQUE_HELP_KEYS = ['germanytech'];
+// 一页一本手册(HelpBook):本页所有技法都在这本书里各占一章,打开时由书按当前子页签 / 当前技法停到那一章
+// (见 HelpBook.resolveChapterKey)。量化盘在辅盘里是书中一组;只有从合盘页打开量化盘时才单独给量化盘那本。
+// 命·其他 = 策天飞星 / 演禽 / 一掌经 / 东亚 / 诸方 合成一本(MingOtherHelpDoc);演禽、东亚、诸方、一掌经各自那本
+// 仍在注册表里,给外部 AI 按 horosa://help/<tab> 单独读。
+const SUBTECHNIQUE_HELP_KEYS = { relativechart: ['germanytech'] };
 
-// 一页多技法的宿主页:按页内当前技法挑手册(有独立手册的技法用自己那份,其余用宿主页手册)。
-// 「命·其他」= 策天飞星 / 演禽 / 一掌经:演禽有独立手册;策天与一掌经共用「命·其他」那份。
-// 外部 AI 读 horosa://help/<tab> 仍按 tab 键取,不受影响。
-const HOST_TECHNIQUE_HELP = { mingother: { xianqin: 'yanqin' } };
-
-export function getTechniqueHelpDoc(currentTab, currentSubTab, activeTechnique){
-	if(currentSubTab && SUBTECHNIQUE_HELP_KEYS.indexOf(currentSubTab) >= 0 && TECHNIQUE_HELP_DOCS[currentSubTab]){
+export function getTechniqueHelpDoc(currentTab, currentSubTab){
+	const own = SUBTECHNIQUE_HELP_KEYS[currentTab];
+	if(currentSubTab && own && own.indexOf(currentSubTab) >= 0 && TECHNIQUE_HELP_DOCS[currentSubTab]){
 		return TECHNIQUE_HELP_DOCS[currentSubTab];
-	}
-	const hostMap = HOST_TECHNIQUE_HELP[currentTab];
-	const viaTechnique = hostMap && activeTechnique ? hostMap[activeTechnique] : null;
-	if(viaTechnique && TECHNIQUE_HELP_DOCS[viaTechnique]){
-		return TECHNIQUE_HELP_DOCS[viaTechnique];
 	}
 	return TECHNIQUE_HELP_DOCS[currentTab] || null;
 }

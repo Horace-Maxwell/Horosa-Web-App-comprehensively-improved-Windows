@@ -21,6 +21,10 @@ public class AstroExtraController {
 		"aspects", "targetDate", "targetTime", "datetime", "orb", "startYear", "endYear", "count",
 		"harmonic", "inner", "outer", "relative", "altitude", "body", "p1", "p2", "aspect", "eclipseKind",
 		"minorVariant", "relocLat", "relocLon", "termsVariant", "voidClassical",
+		// 变换盘(种类 / 基准星 / 宫位同转 / 对应宫头)与黄道制版本:漏登记会被白名单静默丢弃,页面永远停在缺省变换。
+		"transformKind", "transformPlanet", "transformShift", "transformHouse", "transformVariant", "zodiacVersion",
+		// 诸方:人类图交点(真 / 平)与灵名象限
+		"hdTrueNode", "spiritQuadrant",
 		// 自定义容许度:前端 AstroExtraCommon 早已把 orbs/orbScale 放进请求体,
 		// 此处缺键 → 调波盘 / 龙盘 / 重置盘的相位恒按默认容许度(ChartController、
 		// PredictiveController 均已转发,只有本族断)。缺省不发 = 零回归。
@@ -45,7 +49,16 @@ public class AstroExtraController {
 		"solarReturnVariant", "returnLatitudeMode", "houseCuspAdvance", "vulcanCalc",
 		"customTermsDay", "customTermsNight", "siderealAyanamsa", "userAyanT0", "userAyanDeg",
 		// 推运图族(演进推运 / 推运图 / 周日小限 / 双黄道)的专属设置;缺省不发 = 引擎缺省。
-		"nerK", "nerT0", "nerKeepDec", "maxAge", "jayFrom", "mzSwap", "mzEqual"
+		"nerK", "nerT0", "nerKeepDec", "maxAge", "jayFrom", "mzSwap", "mzEqual",
+		// 印占过运穿界表
+		"transitStart", "transitDays", "transitPlanet", "transitKind",
+		// 时主轮转的专属设置
+		"method", "yearType", "turnStart", "turnOrder", "orbMode", "annualDays", "annualOrder", "releaser", "variant",
+		"nineTime", "nineReverse", "rateKind", "movingStart", "devBasis", "diurnalMode", "detailFaces", "table", "conjKind", "meanTable", "flood", "cycleYear", "firdariaLevel", "firdariaYears", "profRate", "profBase", "dawrStart", "eraKind", "ingressPoint",
+		// 盘面细节续表
+		"lunarMethod", "mundoSystem", "midpointCoord",
+		// 世俗主限的时间键、气象占的月数
+		"mpdKey", "weatherMonths"
 	};
 
 	private Map<String, Object> getBaseParams(){
@@ -105,6 +118,7 @@ public class AstroExtraController {
 		if(TransData.containsParam("stepMonths")) { params.put("stepMonths", TransData.get("stepMonths")); }
 		if(TransData.containsParam("planets")) { params.put("planets", TransData.get("planets")); }
 		if(TransData.containsParam("center")) { params.put("center", TransData.get("center")); }
+		if(TransData.containsParam("harm")) { params.put("harm", TransData.get("harm")); }
 		return params;
 	}
 
@@ -125,6 +139,14 @@ public class AstroExtraController {
 		}
 		if(TransData.containsParam("relative")) {
 			params.put("relative", TransData.get("relative"));
+		}
+		// 容许度(逐星表 / 整体倍率):比较盘那条链路早已放行;这里不放行的话,关系量化仍按固定 1° 判跨盘接触,
+		// 与同一对盘的比较盘(随倍率放缩)对不上
+		if(TransData.containsParam("orbs")) {
+			params.put("orbs", TransData.get("orbs"));
+		}
+		if(TransData.containsParam("orbScale")) {
+			params.put("orbScale", TransData.get("orbScale"));
 		}
 		return params;
 	}
@@ -181,6 +203,48 @@ public class AstroExtraController {
 	@RequestMapping("/michon")
 	public void michon(){
 		TransData.set(AstroHelper.getAstroExtraMichon(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/timelords")
+	public void timelords(){
+		TransData.set(AstroHelper.getAstroExtraTimeLords(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/chartdetails")
+	public void chartdetails(){
+		TransData.set(AstroHelper.getAstroExtraChartDetails(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/transformchart")
+	public void transformchart(){
+		TransData.set(AstroHelper.getAstroExtraTransformChart(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/zodiacsystems")
+	public void zodiacsystems(){
+		TransData.set(AstroHelper.getAstroExtraZodiacSystems(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/zhufang")
+	public void zhufang(){
+		TransData.set(AstroHelper.getAstroExtraZhufang(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/babylontables")
+	public void babylontables(){
+		TransData.set(AstroHelper.getAstroExtraBabylonTables(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/mundanecycles")
+	public void mundanecycles(){
+		TransData.set(AstroHelper.getAstroExtraMundaneCycles(getBaseParams()));
 	}
 
 	@ResponseBody
@@ -241,5 +305,21 @@ public class AstroExtraController {
 	@RequestMapping("/relative")
 	public void relative(){
 		TransData.set(AstroHelper.getAstroExtraRelative(getRelativeParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/transitevents")
+	public void transitevents(){
+		TransData.set(AstroHelper.getAstroExtraTransitEvents(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/ashtakoota")
+	public void ashtakoota(){
+		Map<String, Object> params = getRelativeParams();
+		if(TransData.containsParam("maleSide")) {
+			params.put("maleSide", TransData.get("maleSide"));
+		}
+		TransData.set(AstroHelper.getAstroExtraAshtakoota(params));
 	}
 }

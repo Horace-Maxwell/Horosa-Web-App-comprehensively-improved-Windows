@@ -6,8 +6,7 @@ import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/di
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { Empty } from 'antd';
-import { XQTabs as Tabs } from '../xq-ui';
+import { XQTabs as Tabs, XQStageEmpty } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { lunarByDayBoundary } from '../../utils/dayBoundary';
 import { calculate as canpingCalculate, liunianSeries, buildSnapshotText } from '../../utils/canpingLocal';
@@ -318,7 +317,7 @@ class CanPingMain extends Component {
 		const m = this.getModel();
 		if (!m) {
 			if (this.props.slot === 'aux') return null;
-			return <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
+			return <XQStageEmpty>请先在左侧输入出生时间</XQStageEmpty>;
 		}
 		return this.props.slot === 'aux' ? this.renderAux(m) : this.renderCenter(m);
 	}

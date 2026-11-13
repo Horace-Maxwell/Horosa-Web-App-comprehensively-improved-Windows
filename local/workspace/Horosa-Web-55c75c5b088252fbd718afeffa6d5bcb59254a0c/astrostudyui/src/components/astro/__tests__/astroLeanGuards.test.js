@@ -65,7 +65,7 @@ describe('相位表离相过滤 / 推运容许度默认', () => {
 		expect(transitOrbDefault()).toBe(1);
 		setClassicalChartGlobal('transitOrb', 1);
 		const src = code('components/astro/AstroExtraCommon.js');
-		expect(src).toContain("import { classicalBackendOverridesFromPlain, classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';");
+		expect(src).toMatch(/^import \{[^}]*\bclassicalGlobalValue\b[^}]*\} from '\.\.\/\.\.\/utils\/classicalChartGlobals';$/m);
 		expect(src).not.toContain("require('../../utils/classicalChartGlobals')");
 	});
 	test('返照 / 流年三页「内外盘」只在双圈视图可选(单盘视图下拨了没反应 → 置灰带说明)', () => {

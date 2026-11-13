@@ -14,6 +14,8 @@ import LocAstroMain from '../loc/LocAstroMain';
 import OtherBuMain from '../otherbu/OtherBuMain';
 import AstroHarmonicLab from './AstroHarmonicLab';
 import AstroDraconicLab from './AstroDraconicLab';
+import AstroTransformLab from './AstroTransformLab';
+import AstroZodiacLab from './AstroZodiacLab';
 import AstroRelocationLab from './AstroRelocationLab';
 import HoraryMain from '../horary/HoraryMain';
 import ElectionMain from '../election/ElectionMain';
@@ -84,6 +86,12 @@ class AuxChartMain extends Component{
 					fun: null
 				},
 				babylon:{
+					fun: null
+				},
+				transformchart:{
+					fun: null
+				},
+				zodiacsystems:{
 					fun: null
 				},
 			},
@@ -190,7 +198,7 @@ class AuxChartMain extends Component{
 		const childHeight = Math.max(height - 36, visualFloorPx(560));
 		const tab = this.findTab();
 
-		// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):11 个子盘各包一层 FreezeSubTab(函数式 children)。
+		// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):每个子盘各包一层 FreezeSubTab(函数式 children;v3.14.0 新增的变换盘 / 黄道制同款)。
 		// 未激活过 → 连元素都不建;激活过后切走 → 冻结(DOM/实例/state 全留,不卸载不重取);
 		// 切回 → sCU 返 true,拿本轮最新 props 立刻渲一帧,零陈旧零闪烁。
 		return (
@@ -424,6 +432,38 @@ class AuxChartMain extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								hook={this.state.hook.babylon}
 								dispatch={this.props.dispatch}
+							/>
+							)}</FreezeSubTab>
+						</TabPane>
+
+						<TabPane tab="变换盘" key="transformchart">
+							<FreezeSubTab active={tab === 'transformchart'}>{()=>(
+							<AstroTransformLab
+								value={this.props.chart}
+								fields={this.props.fields}   /* 同上:派生快照 meta 源 */
+								height={childHeight}
+								chartStyle={this.props.chartStyle}
+								wheelArt={this.props.wheelArt}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							)}</FreezeSubTab>
+						</TabPane>
+
+						<TabPane tab="黄道制" key="zodiacsystems">
+							<FreezeSubTab active={tab === 'zodiacsystems'}>{()=>(
+							<AstroZodiacLab
+								value={this.props.chart}
+								fields={this.props.fields}   /* 同上:派生快照 meta 源 */
+								height={childHeight}
+								chartStyle={this.props.chartStyle}
+								wheelArt={this.props.wheelArt}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 							)}</FreezeSubTab>
 						</TabPane>

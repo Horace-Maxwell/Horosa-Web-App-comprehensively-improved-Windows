@@ -726,7 +726,7 @@
     }
 
     .horosa-workspace-shell .horosa-liureng-reference-tab-body {
-        padding-right: 4px;
+        padding-right: 0;
         overflow: visible;
     }
     // 取象右栏三传 mini 等 SVG 文字会继承祖先的 stroke(var(--horosa-text))而带上深色描边、很难看;
@@ -734,6 +734,187 @@
     .horosa-workspace-shell .horosa-liureng-reference-tab-body svg text {
         stroke: none;
         paint-order: fill;
+    }
+
+    // 六壬参考条目卡(大格 / 小局 / 参考 / 概览 / 毕法;组件 lrzhan/LiuRengRefCard.js)。
+    // 大六壬页与三式合一页共用这一份;层次 = 条目名 > 口诀 > 段标 > 行首小标 > 正文 > 依据,
+    // 只用主题变量,亮 / 暗 / 经典白同一套规则。卡的边与底跟太乙键值卡同族。
+    .horosa-workspace-shell .horosa-lr-ref-card {
+        margin-bottom: 10px;   // 卡与卡之间 10px,与太乙 / 遁甲 / 三式右栏的卡片同一口径
+        padding: 10px 12px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        color: var(--horosa-text-soft);
+        font-size: 13px;
+        line-height: 1.7;
+        word-break: break-word;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-lr-ref-card {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-card.horosa-lr-ref-empty {
+        padding: 16px 12px;
+        color: var(--horosa-muted);
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-head {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-bottom: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-name {
+        min-width: 0;
+        color: var(--horosa-text);
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-tag {
+        display: inline-flex;
+        align-items: center;
+        height: 20px;
+        padding: 0 7px;
+        border: 1px solid var(--horosa-border-strong);
+        border-radius: 10px;
+        color: var(--horosa-accent-strong);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-tag.is-weak {
+        border-color: var(--horosa-border);
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-poem {
+        margin: 2px 0 4px;
+        padding-left: 9px;
+        border-left: 2px solid var(--horosa-accent);
+        color: var(--horosa-text);
+        font-weight: 600;
+        line-height: 1.8;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-section {
+        margin-top: 8px;
+        color: var(--horosa-accent-strong);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.6;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-doc > .horosa-lr-ref-section:first-child,
+    .horosa-workspace-shell .horosa-lr-ref-gap + .horosa-lr-ref-section {
+        margin-top: 2px;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-line {
+        color: var(--horosa-text-soft);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-key {
+        margin-right: 8px;
+        color: var(--horosa-text);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-term {
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-del {
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-gap {
+        height: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-evidence {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        padding-top: 7px;
+        border-top: 1px dashed var(--horosa-border);
+        color: var(--horosa-muted);
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-evidence strong {
+        flex: 0 0 auto;
+        color: var(--horosa-text-soft);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-evidence span {
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-lr-ref-facts {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-fact {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-fact strong {
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-group {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: 12px 0 8px;
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-group:first-child {
+        margin-top: 0;
+    }
+
+    .horosa-workspace-shell .horosa-lr-ref-group em {
+        color: var(--horosa-muted);
+        font-size: 12px;
+        font-style: normal;
+        font-weight: 400;
     }
 
     .horosa-workspace-shell .horosa-liureng-redesign .ant-card {
@@ -852,6 +1033,140 @@
     .horosa-zeri-workbench-modal .ant-modal-close:hover,
     .horosa-zeri-workbench-modal .ant-modal-close:focus {
         color: var(--horosa-accent-strong) !important;   /* 旧 #ffffff:亮色白底上悬停即隐身 */
+    }
+
+    /* [择日] 各概览浮窗(盘概览 / 奇门速览 / 天星条件预览 / 黄历日卡)共用的一副外壳。
+       金线 + 面板底,亮暗都只吃主题变量;外观只此一处,四个浮窗不再各写一份灰线内联样式。 */
+    .horosa-zeri-float {
+        position: fixed;
+        z-index: 2100;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid rgba(var(--horosa-accent-rgb), 0.38);
+        border-radius: 12px;
+        background: var(--horosa-astro-panel, var(--horosa-surface-solid));
+        box-shadow: 0 18px 54px rgba(0, 0, 0, 0.34);
+        color: var(--horosa-text);
+    }
+    .horosa-zeri-float-head {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 6px 8px 6px 14px;
+        border-bottom: 1px solid rgba(var(--horosa-accent-rgb), 0.2);
+        background: rgba(var(--horosa-accent-rgb), 0.06);
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .horosa-zeri-float-head.is-draggable {
+        cursor: move;
+    }
+    .horosa-zeri-float-title {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .horosa-zeri-float-title-note {
+        margin-left: 6px;
+        color: var(--horosa-muted);
+        font-weight: 400;
+    }
+    .horosa-zeri-float-sub {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        color: var(--horosa-muted);
+        font-size: 11px;
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .horosa-zeri-float-gap {
+        flex: 1 1 0;
+        min-width: 4px;
+    }
+    .horosa-zeri-float-close {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--horosa-muted);
+        cursor: pointer;
+        transition: color 0.15s ease, background-color 0.15s ease;
+    }
+    .horosa-zeri-float-close svg {
+        width: 16px;
+        height: 16px;
+    }
+    .horosa-zeri-float-close:hover {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+    }
+    .horosa-zeri-float-close:focus-visible {
+        outline: 2px solid rgba(var(--horosa-accent-rgb), 0.55);
+        outline-offset: 1px;
+        color: var(--horosa-accent-strong);
+    }
+    .horosa-zeri-float-body {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .horosa-zeri-float-empty {
+        padding: 20px;
+        color: var(--horosa-muted);
+        font-size: 12px;
+    }
+    .horosa-zeri-float-grip {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 18px;
+        height: 18px;
+        border-bottom-right-radius: 11px;
+        background: linear-gradient(135deg, transparent 50%, rgba(var(--horosa-accent-rgb), 0.55) 50%);
+        cursor: nwse-resize;
+    }
+    /* 黄历日卡:居中的模态卡,外观同上;蒙层点一下关。 */
+    .horosa-zeri-daycard-mask {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1300;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 18, 26, 0.45);
+    }
+    .horosa-zeri-float.horosa-zeri-daycard {
+        position: relative;
+        z-index: auto;
+        width: 430px;
+        max-width: calc(100% - 32px);
+        max-height: calc(86 * var(--horosa-lvh, 1vh));
+    }
+    .horosa-zeri-float-body.horosa-zeri-daycard-body {
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 12px 14px 14px;
     }
 
     .horosa-liureng-meta-modal .ant-modal-close {
@@ -1611,7 +1926,7 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
-        padding: 10px;
+        padding: 12px;
         border: 1px solid rgba(215, 173, 105, 0.14);
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.018);
@@ -1683,6 +1998,15 @@
         color: var(--horosa-text);
     }
 
+    // 键值卡族的空态(独立太乙页与三式盘右栏共用):居中弱字,不再是贴左上角的一行裸字。
+    .horosa-workspace-shell .horosa-taiyi-empty {
+        padding: 18px 10px;
+        color: var(--horosa-muted);
+        font-size: 12px;
+        line-height: 1.6;
+        text-align: center;
+    }
+
     .horosa-workspace-shell .horosa-taiyi-snapshot {
         min-height: 100%;
         margin: 0;
@@ -1747,19 +2071,53 @@
         overflow-y: auto;
     }
 
-    .horosa-workspace-shell .horosa-tongshefa-right-col > .ant-row,
-    .horosa-workspace-shell .horosa-tongshefa-right-col > .ant-divider {
+    .horosa-workspace-shell .horosa-tongshefa-right-col > .xq-side-section,
+    .horosa-workspace-shell .horosa-tongshefa-right-col > .horosa-tongshefa-picks {
         flex: 0 0 auto;
     }
 
-    .horosa-workspace-shell .horosa-tongshefa-right-col > .ant-row {
-        margin-right: 0 !important;
-        margin-left: 0 !important;
+    /* 分节标题右侧:显示边框开关 + 保存钮(不占正文高度) */
+    .horosa-workspace-shell .horosa-tongshefa-head-tools {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
     }
 
-    .horosa-workspace-shell .horosa-tongshefa-right-col > .ant-row > .ant-col {
-        padding-right: 0 !important;
-        padding-left: 0 !important;
+    .horosa-workspace-shell .horosa-tongshefa-border-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    /* 四象取卦:两列两行,位名在框左 */
+    .horosa-workspace-shell .horosa-tongshefa-picks {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 8px;
+        margin: 8px 0;
+    }
+
+    .horosa-workspace-shell .horosa-tongshefa-pick {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        gap: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-tongshefa-pick-label {
+        flex: 0 0 auto;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-tongshefa-pick .ant-select {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
     }
 
     .horosa-workspace-shell .horosa-tongshefa-tabs {
@@ -1872,9 +2230,10 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: var(--horosa-text, #f2eadb);
-        color: var(--horosa-bg, #0b0c0d);
-        font-weight: 800;
+        border: 1px solid var(--horosa-gold-soft, rgba(216, 173, 99, 0.18));
+        background: var(--horosa-gold-soft, rgba(216, 173, 99, 0.18));
+        color: var(--horosa-accent-strong, #f2cf91);
+        font-weight: 700;
     }
 
     .horosa-workspace-shell .horosa-tongshefa-relation-badge {

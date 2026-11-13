@@ -1,33 +1,39 @@
-/* 每技法详细设置字段样式(从 AIAnalysisMain.less techSetting* 抽出,共用件统一口径) */
+// 每技法「详细设置」字段面:组 = 细边卡(XQSettingGroup),行 = 标签左 / 控件右(XQSettingRow)。
+// 外观全部走 xq-ui 设置语法;这里只管组间距与控件宽度。
 .techSettingsFields {
-	margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
 }
+
+// 旧类名保留:段清单(SectionChecklist)与挂载面板拿它当「同款卡」用。
 .techSettingGroup {
-	margin-bottom: 12px;
-	padding: 10px 12px;
-	border: 1px solid var(--horosa-border);
-	border-radius: 8px;
-	background: var(--horosa-panel-soft);
+  min-width: 0;
 }
+
 .techSettingGroupTitle {
-	margin: 6px 0 8px;
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--horosa-text-soft);
+  margin: 6px 0 8px;
+  color: var(--horosa-accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
+
 .techSettingRow {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	margin-bottom: 8px;
+  min-width: 0;
 }
-.techSettingRow:last-child {
-	margin-bottom: 0;
+
+// 控件宽度:右侧控件一律同宽,整列右缘 / 左缘都对齐;窄栏里不撑破行。
+// 宽度走变量:窄抽屉用缺省值,宽面板的宿主把 --horosa-tech-control-w 调大,长选项就不用截断。
+// 类名叠写一次提权:antd 给各控件自带的 width 与本类同权重时后者说了算。
+.techSettingControl.techSettingControl {
+  width: var(--horosa-tech-control-w, 208px);
+  max-width: 100%;
 }
-.techSettingLabel {
-	font-size: 12px;
-	color: var(--horosa-text-soft);
-	flex: 1 1 auto;
-	min-width: 0;
+
+// 独占一行的控件(多选 / 填 JSON 的长文本)。
+.techSettingMulti,
+.techSettingWide {
+  width: 100%;
 }

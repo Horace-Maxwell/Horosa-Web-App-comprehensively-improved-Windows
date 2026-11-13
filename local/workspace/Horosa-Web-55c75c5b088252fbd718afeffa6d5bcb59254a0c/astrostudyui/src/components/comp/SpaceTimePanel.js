@@ -47,9 +47,11 @@ class SpaceTimePanel extends Component{
 		const gpsLon = fieldValue(fields, 'gpsLon', undefined);
 		const needZone = this.props.needZone;
 		const showLocation = this.props.showLocation !== false;
+		// compact:时间与地点同一行,不带小标签 / 提示 / 步进行(放不下自动折成两行)—— 给时地只是「记一笔」的页面省高度
+		const compact = !!this.props.compact;
 
 		return (
-			<div className={`horosa-spacetime-panel ${this.props.className || ''}`}>
+			<div className={`horosa-spacetime-panel${compact ? ' horosa-spacetime-panel-compact' : ''} ${this.props.className || ''}`}>
 				{/* 时间块与星运各页右上角同一个件(CompactTimeField:单击编辑器 / 双击键入 / 拖动调单位 / 步进行) */}
 				<CompactTimeField
 					value={value}
@@ -59,12 +61,19 @@ class SpaceTimePanel extends Component{
 					needZone={needZone}
 					onStepSelect={this.props.onStepSelect}
 					confirmOnAdjust={this.props.confirmOnAdjust}
+					label={compact ? null : undefined}
+					hint={compact ? null : undefined}
+					noAdjust={compact}
 				/>
 				{showLocation ? (
 					<div className="horosa-field-block">
-						<div className="horosa-field-label">地点</div>
+						{compact ? null : <div className="horosa-field-label">地点</div>}
 						<GeoCoordModal onOk={this.props.onGeoChange} lat={gpsLat} lng={gpsLon}>
-							<button type="button" className="horosa-unified-field horosa-place-field">
+							<button
+								type="button"
+								className={`horosa-unified-field horosa-place-field${compact ? ' horosa-place-field-compact' : ''}`}
+								title={compact ? `${locationName}${lon || lat ? `　${lon}${lon && lat ? ' · ' : ''}${lat}` : ''}` : undefined}
+							>
 								<XQIcon name="locastro" />
 								<span>
 									<strong>{locationName}</strong>

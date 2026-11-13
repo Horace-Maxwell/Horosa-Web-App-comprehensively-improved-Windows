@@ -1,19 +1,22 @@
 // 七政四余 · 操作手册(帮助页内容组件,占星页/七政页右上角「帮助」打开)。
 // 逐流派/用制写清「怎么算 + 差在哪」;中性表述,纯展示零后端。规则与排盘置宿、七政数据表一致。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from '../help/helpDocStyle';
+import HelpBook from '../help/HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from '../help/helpDocStyle';
 
-const { TabPane } = Tabs;
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class GuoLaoHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>七政四余 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '七政四余 · 操作手册',
+	groups: [
+		{
+			key: 'guolao',
+			label: '七政四余',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}><b>黄仪（黄道坐标 · 黄极为心）</b> vs <b>赤仪（赤道坐标 · 天极/天赤恒定）</b>:黄仪以黄道为准,赤仪以赤道为准;立足点不同,定命、定宫、置宿都会不同。</p>
 							<p style={p}>一句话古今之别:<b>清以前赤道定、黄道有岁差(以赤求黄)</b>;<b>清以后黄道定、赤道时改(以黄求赤)</b>。</p>
@@ -49,9 +52,14 @@ class GuoLaoHelpDoc extends Component{
 							</div>
 							<p style={{ ...p, color: MUTED }}>底部快捷功能只有<b>「AI助手」</b>一键(跳 AI 分析);命例保存、AI 导出、帮助在页头。盘面所显示的一切(宿度制、命身、庙旺、星点动态、神煞、大限、格局、相位)会一并写入 AI 解读与导出所用的盘面快照——<b>盘上看到什么,AI 就读到什么</b>。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="左栏设置" key="input">
+					</div>
+					),
+				},
+				{
+					key: 'input',
+					label: '左栏设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>逐项:取值 / 默认 / 出现条件 / 改它会动什么。带「条件」字样者平时不出现,只在指定前置选项被选中时才显示。</p>
 
@@ -69,6 +77,11 @@ class GuoLaoHelpDoc extends Component{
 								{kv('联动', '同时决定盘面与右栏一切度数的显示坐标(黄经或赤经),并揭示对应的条件子选项')}
 								{kv('记忆', '亲手选过的值作新命盘的缺省,与宿盘的「宿法」共用,以两页里最后一次亲手选的为准;载入命盘按记录,记录没写宿度制的按荀爽距星(AI 分析同此);本机早先存过的值维持')}
 							</div>
+							<div style={card}><div style={ct}>上升取法〔条件:宿度制=赤仪任一档〕</div>
+								{kv('改进(默认)', '上升点按自身真赤经落座,与行星、宫头同一坐标')}
+								{kv('经典', '沿用旧版取的东点黄经。东点黄经与赤经不是同一个坐标系,中纬度常差几度,命宫可能换座;老版本存下、没有东点黄经这一项的盘,经典档按真赤经算')}
+								{kv('影响', '赤仪盘上「升」的位置与四轴宫头,悬停提示里的宿名与宿内度随之同取,右栏星点动态表的「升」行亦随之;右栏命度、命度宿主、三主与 AI 快照的命身限度仍按真赤经算,两档相同。黄仪各环取黄经、不读上升赤经,不显示本项')}
+								{kv('记忆', '亲手选过的值本机记住,下次进入沿用;择日里内嵌的七政盘跟随这里的设置。AI 快照「起盘信息」写明所用一档')}</div>
 							<div style={card}><div style={ct}>命度(命宫安法)</div>
 								{kv('取值', '占星上升 / 日出安命 / 遇卯安命(古法) / 赤黄转换,再加 自定命宫·子~亥 十二项,共 16 项')}
 								{kv('默认', '占星上升')}
@@ -153,9 +166,14 @@ class GuoLaoHelpDoc extends Component{
 								{kv('机制', '选中即一次性套用该派声明的那几项设置;之后微调任一相关项,本框自动回落「自定」(逐项对照见「行运·流派」页)')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="宿度制" key="su28">
+					</div>
+					),
+				},
+				{
+					key: 'su28',
+					label: '宿度制',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>逐档:原理 / 置宿坐标 / 锚点 / 框架 / 岁差 / 周天 / 与邻档差在哪。</p>
 							<div style={card}><div style={ct}>回归今宿（黄仪）</div>
@@ -193,9 +211,14 @@ class GuoLaoHelpDoc extends Component{
 								{kv('举例', '同一盘:元明档觜宿恒 0.05 古度;实时档觜宿≈1.7°(现代距星实测)——牛前缘两档都精确钉在冬至 270°')}</div>
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>宿宽天生不等:宿由距星间隔定义。觜≈1°(古度低至 0.05°)、鬼≈2–4° 极窄,井≈30°+ 巨宽,都是正常值。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="宫位制" key="palace">
+					</div>
+					),
+				},
+				{
+					key: 'palace',
+					label: '宫位制',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>定宫法</div>
 							<ul style={ul}>
@@ -229,9 +252,14 @@ class GuoLaoHelpDoc extends Component{
 								<li style={li}><b>宫主(默认)</b> / <b>度主</b> / <b>贬宫主专度主(果老)</b>。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="四余·报时星" key="siyu">
+					</div>
+					),
+				},
+				{
+					key: 'siyu',
+					label: '四余·报时星',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>四余取法</div>
 							<ul style={ul}>
@@ -254,9 +282,14 @@ class GuoLaoHelpDoc extends Component{
 								<li style={li}>盘面/右栏在七政落入其<b>擢升(旺)本座</b>时,标出该曜的<b>擢升度数</b>(旺度峰值);距峰值 ≤1° 另标「精擢」。擢升度由各宫庙主旺度派生,用以细判七政庙旺强弱,非另起一盘。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="行运·流派" key="luck">
+					</div>
+					),
+				},
+				{
+					key: 'luck',
+					label: '行运·流派',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>行运法（限度法）</div>
 							<ul style={ul}>
@@ -293,9 +326,14 @@ class GuoLaoHelpDoc extends Component{
 								<li style={li}><b>坚七政</b>:另一路引擎,左栏选项与右栏页签整套更换,见「坚七政」页。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="盘面样式" key="wheel">
+					</div>
+					),
+				},
+				{
+					key: 'wheel',
+					label: '盘面样式',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「Moira圆盘」样式的两种形态(双盘 / 七政+相位盘)与盘面元素详解(版式对照 Moira 官方几何逐值移植)。</p>
 							<div style={h}>双盘(默认 · 本命+流年)</div>
@@ -335,9 +373,14 @@ class GuoLaoHelpDoc extends Component{
 								<li style={li}>盘上一切元素皆可悬浮细读:<b>星体</b>(所落宿+宿内度 · 星座与宫内度 · <b>黄经/赤经双行</b> · 日行度数值 · 本命层另给化曜、所临命曜、所在宫位与庙旺)、<b>宿区</b>(起讫度 · 本命/流年落入 · 同经)、<b>宫区</b>(宫名宫主 · 命曜 · 虚实)、<b>神煞</b>(逐神判语)、<b>岁数格</b>(岁·年干支·限度·黄赤经·小限飞限童限)、<b>宫界年份</b>、<b>中心立命</b>(命度宿+宿内度)、<b>西占宫位格</b>(第几宫 · 起讫度 · 宫宽)。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="天星择日" key="election">
+					</div>
+					),
+				},
+				{
+					key: 'election',
+					label: '天星择日',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「天星择日」样式=Moira 式动静双轮:外轮为动盘(实时天象),内轮为黄道静盘。择日专属设置在左栏<b>「天星择日」卡</b>,时刻在<b>「天星择日动盘」卡</b>,而<b>「分宫制」在「选项」卡</b>(与 Moira圆盘共用)。</p>
 							<div style={h}>双轮结构</div>
@@ -384,9 +427,14 @@ class GuoLaoHelpDoc extends Component{
 								<li style={li}>「择日起日 / 择日用途 / 择日天数」三项属<b>坚七政</b>样式的选项卡(不在本样式的左栏):自起日起逐日打分,产出适宜日期列表;用途分 通用 / 嫁娶 / 出行 / 开市 / 搬迁,天数 1–60(默认 30)。与本页双轮盘互补使用。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="显示·资料" key="display">
+					</div>
+					),
+				},
+				{
+					key: 'display',
+					label: '显示·资料',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>下列开关在「Moira圆盘 / 天星择日」两样式的左栏<b>「显示」卡</b>提供(Horosa原盘与坚七政两式没有这张卡),均为呈现偏好,即改即生效、不重排盘。</p>
 
@@ -500,9 +548,14 @@ class GuoLaoHelpDoc extends Component{
 								{kv('搜索', '方位搜索 / 日食 / 月食,结果可一键设为择时(见「天星择日」页)')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="坚七政" key="kin">
+					</div>
+					),
+				},
+				{
+					key: 'kin',
+					label: '坚七政',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「星盘样式」选<b>坚七政</b>即整页切到另一路七政盘引擎:盘面由该引擎自绘,左栏选项与右栏页签成套更换。切回其余三式即回主引擎。</p>
 
@@ -532,9 +585,14 @@ class GuoLaoHelpDoc extends Component{
 								{kv('空态', '未起盘、正在排盘、排盘失败三种状态各有独立提示文字')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="算法与口径" key="algo">
+					</div>
+					),
+				},
+				{
+					key: 'algo',
+					label: '算法与口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>判据、公式、边界与精度。数值皆为程序实际所用口径。</p>
 
@@ -605,9 +663,14 @@ class GuoLaoHelpDoc extends Component{
 								{kv('缺数据', '日月出没等字段缺失时,右栏改以起盘时间与盘面星曜为准并给出说明,不显示假值')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="古今星制之别" key="diff">
+					</div>
+					),
+				},
+				{
+					key: 'diff',
+					label: '古今星制之别',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<ul style={ul}>
 								<li style={li}>春分太阳:古制在亥宫壁宿 2–3 度(非现代白羊 0°)——岁差累积使「岁实起点」与星空错位。</li>
@@ -617,10 +680,19 @@ class GuoLaoHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>以上是古今星制的历史背景。<b>本页面的实现</b>:十二宫恒为等分整宫(不做古制不等宫),古今之别全部体现在<b>宿界</b>与<b>坐标口径</b>上——换句话说,想比对古今差异请切「宿度制」,而不是找宫制开关。</p>
 						</div>
-					</TabPane>
-				</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class GuoLaoHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

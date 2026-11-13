@@ -5,7 +5,7 @@ from flatlib.chart import Chart
 from flatlib import const
 from flatlib.ephem import swe
 from astrostudy.helper import distance
-from astrostudy.jieqi.realsuntime import getOffsetByDate
+from astrostudy.jieqi.realsuntime import getOffsetByJd
 from astrostudy.perchart_parts.chart_tables import dayerStar, timerStar
 
 
@@ -150,15 +150,13 @@ class TimingMixin:
                         return cur[0]['ruler']
             except Exception:
                 pass   # 极区无升降 / 星历异常 → 回落下方旧算法(表无行时时主星仍有值)
-        birth = '{0}-{1}-{2}'.format(self.year, self.month, self.day)
         # G6 报时星太阳时:true=真(经度时差+均时差,默认零回归)/mean=平(仅经度)/off=钟表(不校正)。
         solarMode = self.data.get('trueSolarTime', 'true') if isinstance(self.data, dict) else 'true'
         if solarMode not in ('true', 'mean', 'off'):
             solarMode = 'true'
-        tmoffset = getOffsetByDate(birth, self.zone, self.lon, solarMode)
-        offsetjdn = tmoffset / 3600.0 / 24.0
-
         dt = Datetime(self.date, self.time, self.zone)
+        tmoffset = getOffsetByJd(dt.jd, self.zone, self.lon, solarMode)
+        offsetjdn = tmoffset / 3600.0 / 24.0
         jdn = dt.jd + offsetjdn
         bdt = Datetime.fromJD(jdn, self.zone)
         bdtstr = bdt.toCNString()

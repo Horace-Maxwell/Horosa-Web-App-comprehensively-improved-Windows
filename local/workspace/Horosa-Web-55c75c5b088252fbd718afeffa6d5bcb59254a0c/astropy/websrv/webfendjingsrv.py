@@ -16,6 +16,7 @@ from websrv.kentang.kinastro_common import (
     kinastro_source_sections,
     parse_datetime,
     row,
+    format_timezone_label,
     timezone_to_float,
 )
 
@@ -177,7 +178,7 @@ class FenDingJingSrv:
                 "timeStr": data.get("time", dt.strftime("%H:%M:%S")),
                 "gender": gender_cn(data.get("gender"), "男"),
                 "timezone": timezone_value,
-                "timezoneText": f"UTC{timezone_value:+g}",
+                "timezoneText": format_timezone_label(timezone_value),
                 "pillars": pillars,
                 "fendjing": fendjing,
                 "classics": kinastro_source_sections("鬼谷分定经", "接入 kinastro 的鬼谷分定经两头钳，以出生年干与时干组合调用上游 twogan 数据库，并展示命格、判断与六段古文断语。"),

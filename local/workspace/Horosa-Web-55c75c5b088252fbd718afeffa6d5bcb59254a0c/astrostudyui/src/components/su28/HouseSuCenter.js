@@ -5,6 +5,7 @@ import * as Su28Helper from './Su28Helper';
 import HouseSu from './HouseSu';
 import { fillTextFromStroke, drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import {randomStr, genHtml} from '../../utils/helper';
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 
 class HouseSuCenter extends HouseSu{
 	constructor(option){
@@ -44,7 +45,7 @@ class HouseSuCenter extends HouseSu{
 		let baziganzi = `${bazi.year.ganzi},${bazi.month.ganzi},${bazi.day.ganzi},${bazi.time.ganzi}时`;
 		let realtm = nongli.birth.split(' ');
 		let data = [
-			'时区：' + this.fields.zone.value,
+			'时区：' + (formatZoneLabel(this.fields.zone.value) || this.fields.zone.value),
 			'经度：' + this.fields.lon.value,
 			'纬度：' + this.fields.lat.value,
 			'真太阳日：' + realtm[0],

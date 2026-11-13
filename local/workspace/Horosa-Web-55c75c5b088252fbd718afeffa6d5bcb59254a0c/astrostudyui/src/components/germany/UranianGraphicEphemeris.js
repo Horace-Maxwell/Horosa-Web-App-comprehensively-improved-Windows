@@ -3,8 +3,8 @@ import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // �
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
-import { Radio, Spin, Empty, Checkbox, Select } from 'antd';
-import { XQDatePicker } from '../xq-ui';
+import { Spin, Empty } from 'antd';
+import { XQDatePicker, XQSegmented, XQSelect, XQCheckItem } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
@@ -86,6 +86,8 @@ function planetGlyph(id, color, size){
 }
 
 // 外包自己承担纵向滚动(页签内容框不滚):放大档里控件行 + 图(高度有底线)+ 说明行比页签框高时,此前下半截被裁、滚不到;放得下时不出滚动条,一字不变
+// 工具条里的分段钮 / 勾选条按内容宽并排(控件默认整行宽,那是给侧栏表单用的)
+const SEG_INLINE = { width: 'auto', flex: 'none' };
 const GEPHEM_WRAP = { padding: '4px 8px', height: '100%', overflowY: 'auto', boxSizing: 'border-box' };
 
 export default class UranianGraphicEphemeris extends Component {
@@ -226,7 +228,7 @@ export default class UranianGraphicEphemeris extends Component {
 				{controls}
 				<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
 					<svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', maxWidth: '100%', color: stroke }}
-						className="xq-chart-renderer xq-chart-renderer-astro">
+						className="horosa-plain-text-board xq-chart-renderer xq-chart-renderer-astro">
 						<rect x={mL} y={mT} width={plotW} height={plotH} fill="none" stroke={stroke} strokeWidth="1" opacity="0.5" />
 						{yTicks.map((t, i) => (
 							<g key={`y${i}`}>
@@ -368,33 +370,25 @@ export default class UranianGraphicEphemeris extends Component {
 		const natForFocus = nat;
 		const controls = (
 			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-				<Radio.Group size="small" value={this.state.mode} onChange={(e) => this.saveDisp({ mode: e.target.value })}>
-					<Radio.Button value="transit">行运星历</Radio.Button>
-					<Radio.Button value="life">太阳弧生命图</Radio.Button>
-				</Radio.Group>
+				<XQSegmented style={SEG_INLINE} value={this.state.mode} onChange={(e) => this.saveDisp({ mode: e.target.value })}
+					options={[{ value: 'transit', label: '行运星历' }, { value: 'life', label: '太阳弧生命图' }]} />
 				{!isLife ? (
 					<RangePicker size="small" value={[this.state.start, this.state.end]} allowClear={false}
 						onChange={(v) => { if (v && v[0] && v[1]) this.setState({ start: v[0].clone().startOf('day'), end: v[1].clone().startOf('day') }, () => this.requestData()); }} />
 				) : null}
-				<Radio.Group size="small" value={base} onChange={(e) => this.saveDisp({ base: e.target.value })}>
-					<Radio.Button value={90}>90° (H4)</Radio.Button>
-					<Radio.Button value={45}>45° (H8)</Radio.Button>
-					<Radio.Button value={22.5}>22.5° (H16)</Radio.Button>
-				</Radio.Group>
+				<XQSegmented style={SEG_INLINE} value={base} onChange={(e) => this.saveDisp({ base: e.target.value })}
+					options={[{ value: 90, label: '90° (H4)' }, { value: 45, label: '45° (H8)' }, { value: 22.5, label: '22.5° (H16)' }]} />
 				{!isLife ? (
-					<Checkbox checked={this.state.includeMoon} onChange={(e) => this.saveDisp({ includeMoon: e.target.checked }, this.requestData)}>含月亮</Checkbox>
+					<XQCheckItem compact style={SEG_INLINE} checked={!!this.state.includeMoon} onClick={() => this.saveDisp({ includeMoon: !this.state.includeMoon }, this.requestData)}>含月亮</XQCheckItem>
 				) : null}
 				{isLife ? (
 					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
 						<span style={{ color: soft, fontSize: 12 }}>聚焦因子</span>
-						<Select size="small" value={this.state.lifeFocus} style={{ minWidth: 92 }} dropdownMatchSelectWidth={false}
+						<XQSelect size="small" value={this.state.lifeFocus} style={{ minWidth: 92 }} dropdownMatchSelectWidth={false}
 							onChange={(v) => this.saveDisp({ lifeFocus: v })}
 							options={natForFocus.map((p) => ({ value: p.id, label: planetName(p.id) }))} />
-						<Radio.Group size="small" value={this.state.lifeRate} onChange={(e) => this.saveDisp({ lifeRate: e.target.value })}>
-							<Radio.Button value="naibod">均日弧</Radio.Button>
-							<Radio.Button value="cardan">59′12″</Radio.Button>
-							<Radio.Button value="oneDeg">1°/年</Radio.Button>
-						</Radio.Group>
+						<XQSegmented style={SEG_INLINE} value={this.state.lifeRate} onChange={(e) => this.saveDisp({ lifeRate: e.target.value })}
+							options={[{ value: 'naibod', label: '均日弧' }, { value: 'cardan', label: '59′12″' }, { value: 'oneDeg', label: '1°/年' }]} />
 					</span>
 				) : (
 					<span style={{ color: soft, fontSize: 12 }}>行运行星折叠到盘基,与本命水平线相交≈应期(最长约 366 天/次)</span>
@@ -422,7 +416,7 @@ export default class UranianGraphicEphemeris extends Component {
 				<Spin spinning={this.state.loading}>
 					<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
 						<svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', maxWidth: '100%', color: stroke }}
-							className="xq-chart-renderer xq-chart-renderer-astro">
+							className="horosa-plain-text-board xq-chart-renderer xq-chart-renderer-astro">
 							{/* 外框 */}
 							<rect x={mL} y={mT} width={plotW} height={plotH} fill="none" stroke={stroke} strokeWidth="1" opacity="0.5" />
 							{/* Y 网格 + 刻度 */}

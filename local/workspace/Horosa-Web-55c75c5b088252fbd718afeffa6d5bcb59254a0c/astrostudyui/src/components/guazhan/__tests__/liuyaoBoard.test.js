@@ -98,7 +98,8 @@ describe('六爻装卦表/用神/动变 渲染冒烟(SSR,捕获运行时JSX错�
 		['诸爻持世诀', '六亲发动诀', '六神发动歌', '爻位象', '常见占类'].forEach((t) => { expect(html).toContain(t); });
 		expect(html).toContain('青龙'); // 六神发动
 		expect(html).toContain('求财'); // 占类
-		expect(html).toContain('◀持世'); // 高亮当前持世六亲
+		expect(html).toMatch(/xq-current-mark[^>]*>.*?<\/svg>持世/); // 高亮当前持世六亲(指示标记是图标,不是字符)
+		expect(html).not.toContain('◀');
 	});
 
 	test('全 64 卦 × 默认设置 装卦表 渲染不抛(新暗黑令牌+伏神+真假空压测)', () => {

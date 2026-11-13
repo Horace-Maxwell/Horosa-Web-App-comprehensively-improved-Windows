@@ -64,6 +64,7 @@ import {
 	buildGodRowsFromChart, buildLocalMoiraRules, normalizeGodRows, buildGuolaoSnapshotTextV2,
 } from './main/snapshot';
 import { toSlashDate, parseDateParts } from '../../utils/dateStrSafe';
+import { loadGuolaoAscRaMode, guolaoAscRaModeOf, withAscRaMode, withAscRaModeRoot } from '../../utils/ascRaMode';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 // 对外导出面不变:搬进子模块的导出原样重导出
 export { applyGuolaoNodeMode } from './main/aspectsNodeMode';
@@ -243,6 +244,7 @@ class GuoLaoChartMain extends Component{
 		const storedEngineMode = engineLocked ? 'horosa' : (storedChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? 'kinastro' : getStoredGuolaoEngineMode());
 		this.state = {
 			chartObj: null,
+			ascRaMode: loadGuolaoAscRaMode(),   // 赤仪上升取法:只用来在左栏改了之后重画 / 重存快照(取值一律经 guolaoAscRaModeOf)
 			moiraTransitTime: makeDefaultMoiraTransitTime(props.fields),
 			moiraTransitChartObj: null,
 			moiraTransitLoading: false,
@@ -508,11 +510,13 @@ class GuoLaoChartMain extends Component{
 		});
 	}
 
+	// key 可以是一组键值(同时改几项时用:分两次调,第二次读到的还是旧状态,前一项会被盖掉)
 	onKinastroOptionChange(key, value){
 		const persist = this.persistsGuolaoPrefs();
+		const patch = (key && typeof key === 'object') ? key : { [key]: value };
 		const next = setStoredKinastroQizhengOptions({
 			...this.state.kinastroOptions,
-			[key]: value,
+			...patch,
 		}, { persist, base: this.state.kinastroOptions });
 		this.setState({
 			kinastroOptions: next,
@@ -2235,11 +2239,15 @@ class GuoLaoChartMain extends Component{
 		// 比较的 memo 边界语义被毁;对抗校验点名「先修这处再上 memo」)。改为**带单键缓存的派生
 		// 浅拷贝**:同一 chartObj ⇒ 同一派生引用(下游 React.memo 行为与旧同引用路径逐帧等价),
 		// 换盘才换引用;state 对象从此只读。
-		const chart = this.getDerivedChart(chartObj);
+		let chart = this.getDerivedChart(chartObj);
+		// 赤仪上升取法(经典档只把上升点的 ra 换成东点黄经;黄仪恒原样):三种盘式、右栏同一份盘数据
+		const ascRaMode = guolaoAscRaModeOf(chart, this.props.fields);
+		chart = withAscRaMode(chart, ascRaMode);
+		chartObj = withAscRaModeRoot(chartObj, ascRaMode);
 		const useMoiraWheel = this.state.chartStyle === GUOLAO_CHART_STYLE_MOIRA;
 		const usePickWheel = this.state.chartStyle === GUOLAO_CHART_STYLE_PICK;
 		const useMoiraLikeWheel = useMoiraWheel || usePickWheel;
-		const moiraPanelChartObj = this.state.moiraPanelChartObj || chartObj;
+		const moiraPanelChartObj = withAscRaModeRoot(this.state.moiraPanelChartObj, ascRaMode) || chartObj;
 		const moiraPanelTransitChartObj = this.state.moiraPanelTransitChartObj || this.shownMoiraTransitChartObj();
 		const moiraPanelTransitParams = this.state.moiraPanelTransitParams || this.memoTransitParams();
 		const useKinastroQizheng = this.state.engineMode === 'kinastro';
@@ -2278,6 +2286,7 @@ class GuoLaoChartMain extends Component{
 								electionDeclination={this.resolveElectionDeclination()}
 								electionDeclOutOfRange={this.state.electionDeclOutOfRange}
 								onOpenPatternDialog={()=>this.openMoiraQuickDialog('patterns')}
+								onAscRaModeChange={(m)=>this.setState({ ascRaMode: m }, ()=>this.saveGuolaoAISnapshot())}
 							/>
 						</div>
 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>

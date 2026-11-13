@@ -2,20 +2,22 @@
 // 把左栏全部输入/设置选项（取值/含义/区别/默认）+ 右栏每个 tab 写清楚；中性表述，纯展示零后端。
 // 共享样式见 helpDocStyle；kv 行本组件自渲染（避免 JSX 进样式文件）。不写章节号与软件名；只写公版古籍名，不写现代来源。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class DunjiaHelpDoc extends Component {
-	render() {
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>奇门遁甲 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '奇门遁甲 · 操作手册',
+	groups: [
+		{
+			key: 'dunjia',
+			label: '奇门遁甲',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>奇门遁甲以求测的<b>时间 + 地点</b>定出干支与节气，先<b>定局</b>（阴阳遁、几局），再把<b>三奇六仪</b>布入九宫地盘，依<b>值符随时干、值使随时辰</b>转出天盘，并叠加<b>九星、八门、八神</b>，最后据<b>用神落宫</b>的旺衰、格局、生克来断事。</p>
 							<p style={p}>本页布局：<b>左栏</b>填时间地点并设定排盘各项（排盘法/起局定局/盘式等）；<b>中栏</b>为九宫盘面（标注天地盘干、星、门、神，及击刑/入墓/门迫/空亡/驿马等）；<b>右栏</b>分概览、神煞、八宫、化解、用神五个标签。</p>
@@ -27,9 +29,14 @@ class DunjiaHelpDoc extends Component {
 							</ul>
 							<p style={{ ...p, color: MUTED }}>下面分「定局设置 / 盘面结构 / 流派分歧 / 格局断法 / 底层逻辑 / 灭象·布阵 / 取象·意象 / 分论要义 / 右栏标签」逐项说明——前五项讲排盘与设置，后四项讲意象操作一路的断解心法。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="定局设置" key="setup">
+					</div>
+					),
+				},
+				{
+					key: 'setup',
+					label: '定局设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏逐项：取值 / 默认 / 区别。首次出盘：点「起盘」，或选定地点后自动出盘；已起过盘后，改动任一项即时重算中栏盘与右栏信息。</p>
 
@@ -194,9 +201,14 @@ class DunjiaHelpDoc extends Component {
 								{kv('影响', '不改变盘面本身，只让护局/护干提示更贴合实际涉事人')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="盘面结构" key="structure">
+					</div>
+					),
+				},
+				{
+					key: 'structure',
+					label: '盘面结构',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>定局后，九宫盘面自下而上叠四层；中栏各宫即按此布局并标注吉凶要素。</p>
 
@@ -238,9 +250,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}>选「已封局」时，九宫中央另叠一枚印章示意。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派分歧" key="schools">
+					</div>
+					),
+				},
+				{
+					key: 'schools',
+					label: '流派分歧',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>奇门各家在「定局」与「排法」上分歧最多。本页把主要分歧点做成可选项，默认取通行口径。</p>
 
@@ -288,9 +305,14 @@ class DunjiaHelpDoc extends Component {
 
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>以上分歧点均不预设唯一答案，按需切换即可对照不同传承的结果。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="格局断法" key="patterns">
+					</div>
+					),
+				},
+				{
+					key: 'patterns',
+					label: '格局断法',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>断奇门先<b>定用神</b>（一事一测，所问之事各有对应符号），再看用神落宫的<b>旺衰、格局、生克</b>，综合吉凶。下列为右栏「八宫」「用神」「化解」所依的断法框架。</p>
 
@@ -343,9 +365,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}>并按「八门化气大阵 · 必护天干」提示哪些关键干（含相关人员生年干）勿落六害宫；局太差时可用左栏「移星」整盘换局（移即催）。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="底层逻辑" key="foundation">
+					</div>
+					),
+				},
+				{
+					key: 'foundation',
+					label: '底层逻辑',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页「化解 / 用神」采意象操作一路的断解思路：以盘为活局，先辨害、后解局、据盘趋避。以下为其底层概念与操作次第（仅方法论，不涉具体仪轨）。</p>
 
@@ -390,9 +417,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}><span style={{ color: MUTED }}>病弱之人（重病 / 老人 / 小孩 / 孕妇）相关之事须谨慎，宜一点点灭象布阵、不要一次到位。</span></li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="灭象·布阵" key="operate">
+					</div>
+					),
+				},
+				{
+					key: 'operate',
+					label: '灭象·布阵',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>「化解」页每一处害，给出灭象（先移走）→ 布阵（再放上）→ 时机（应期）三步。以下说明其取法。</p>
 
@@ -435,9 +467,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}><span style={{ color: MUTED }}>宜由当事人亲手布局（他人代做则代做者亦被入局）；一事一解、护住必护即止。</span></li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="取象·意象" key="imagery">
+					</div>
+					),
+				},
+				{
+					key: 'imagery',
+					label: '取象·意象',
+					render: ()=>(
+						<div>
 						<div style={body}>
 														<p style={{ ...p, color: MUTED }}>取象＝把现实一切事物对应到符号体系；以符号的「材质 + 功能」锁定其象。以下为十干 / 八门 / 九星 / 八神 的核心象意（悬停中栏盘面各元素可见更全词条）。</p>
 							<div style={h}>取象三定律</div>
@@ -508,9 +545,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}><b>改意换象</b>：局是活的——经灭象、布阵改其象，即可趋吉避凶，非一成不变的宿命。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="分论要义" key="topics">
+					</div>
+					),
+				},
+				{
+					key: 'topics',
+					label: '分论要义',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>右栏「用神」的四题（识破人心 / 财富 / 事业 / 婚恋）各有取用要点，撮要如下。</p>
 
@@ -542,9 +584,14 @@ class DunjiaHelpDoc extends Component {
 								<li style={li}><span style={{ color: MUTED }}>操作时所动天干绝不可落入击刑宫或入墓宫——击刑易生嗔怒、入墓易致郁结。</span></li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="右栏标签" key="tabs">
+					</div>
+					),
+				},
+				{
+					key: 'tabs',
+					label: '右栏标签',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>盘面右侧分五个标签。</p>
 
@@ -585,11 +632,19 @@ class DunjiaHelpDoc extends Component {
 								{kv('数字报数', '另可输入报数，除九取余定用神宫，看其卦象/方位/类象')}
 							</div>
 						</div>
-					</TabPane>
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
 
-				</Tabs>
-			</div>
-		);
+class DunjiaHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

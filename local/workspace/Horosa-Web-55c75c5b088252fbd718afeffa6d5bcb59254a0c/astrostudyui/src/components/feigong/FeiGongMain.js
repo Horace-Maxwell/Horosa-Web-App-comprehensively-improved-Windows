@@ -3,8 +3,8 @@
 // 🔴 局是【冻结值】:起支(时支/选支/数取)一经定局即不可重起;命宫年龄性别只重排命宫目。
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { XQSideSection } from '../xq-ui';
-import { Tabs, Empty, Input, InputNumber, Radio, Button, Select, Tag } from 'antd';
+import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSelect as Select } from '../xq-ui';
+import { Tabs, Tag } from 'antd';
 import { resolveQiZhi, buildJu, mingGong, liuNian, liuYue } from './core/feigongJu';
 import { zhuKe, gongDuan, menDuan, shenDuan, xingDuan, tuiDuanText, wuXingOf, shengKeRel, xingShenSunYi, yingQi, shiXiangKey } from './core/feigongDuan';
 import {
@@ -358,9 +358,9 @@ class FeiGongMain extends Component {
 				    顺流补位到次行 —— 复用 select-grid 两列基类,is-wide 在该网格里天然铺满单元格。 */}
 				<div className="horosa-huangji-select-grid horosa-fg-pair-grid">
 					{this.field('起支', <Select size="small" style={{ width: '100%' }} value={settings.qiMode} onChange={(v)=>this.setSettings({ qiMode: v })}
-						options={[{ value: 'hour', label: `按占时(${c.hourZhi || '?'})` }, { value: 'zhi', label: '选支' }, { value: 'num', label: '数取' }, { value: 'yearZhi', label: '年命佈局(生年支)' }]}/>)}
+						options={[{ value: 'hour', label: `占时·${c.hourZhi || '?'}` }, { value: 'zhi', label: '选支' }, { value: 'num', label: '数取' }, { value: 'yearZhi', label: '年命佈局' }]}/>)}
 					{this.field('日干支', <Select size="small" style={{ width: '100%' }} value={inputs.useDayGZ ? 'auto' : 'manual'} onChange={(v)=>this.setState({ inputs: { ...inputs, useDayGZ: v === 'auto' } })}
-						options={[{ value: 'auto', label: `随盘(${c.dayGan || '?'}${c.dayZhi || '?'})` }, { value: 'manual', label: '手动' }]}/>)}
+						options={[{ value: 'auto', label: `随盘·${c.dayGan || '?'}${c.dayZhi || '?'}` }, { value: 'manual', label: '手动' }]}/>)}
 					{settings.qiMode === 'yearZhi' ? this.field('生年支', (
 						<Select size="small" style={{ width: '100%' }} value={inputs.yearZhi || '子'} onChange={(v)=>this.setState({ inputs: { ...inputs, yearZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
 					), '手选命主生年地支后以该支起局(不自动读命盘出生年,需自行选定)') : null}
@@ -380,13 +380,13 @@ class FeiGongMain extends Component {
 				{this.field('命宫', (
 					<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
 						<InputNumber size="small" min={1} max={120} style={{ flex: 1 }} placeholder="年龄" value={inputs.mingAge} onChange={(v)=>this.setState({ inputs: { ...inputs, mingAge: v } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}/>
-						<Radio.Group size="small" optionType="button" value={inputs.mingGender} onChange={(e)=>this.setState({ inputs: { ...inputs, mingGender: e.target.value } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}
+						<XQSegmented style={{ width: 'auto', flex: 'none' }} value={inputs.mingGender} onChange={(e)=>this.setState({ inputs: { ...inputs, mingGender: e.target.value } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}
 							options={[{ value: 'male', label: '男' }, { value: 'female', label: '女' }]}/>
 					</div>
 				))}
 				{this.field('问事', <Input size="small" placeholder="所占何事(入快照)" value={inputs.askEvent} onChange={(e)=>this.setState({ inputs: { ...inputs, askEvent: e.target.value } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}/>)}
 				{/* 河魁口径:定点断语开关(收/开之河魁·贵人两说),改则右栏/AI 断语重排,局不重起。 */}
-				{this.field('河魁口径', <Radio.Group size="small" optionType="button" value={settings.heKuiKoujing || 'zheng'}
+				{this.field('河魁口径', <XQSegmented value={settings.heKuiKoujing || 'zheng'}
 					onChange={(e)=>{ this.setSettings({ heKuiKoujing: e.target.value }); if(this.state.ju){ this.saveSnap(); } }}
 					options={[{ value: 'zheng', label: '正传·收' }, { value: 'yi', label: '异文·开' }]}/>, '收/开之河魁·贵人归属两说')}
 				<Button type="primary" size="small" block onClick={()=>this.doQiJu()} style={{ marginTop: 2 }}>定局</Button>
@@ -592,7 +592,7 @@ class FeiGongMain extends Component {
 	render(){
 		const slot = this.props.slot;
 		const ju = this.state.ju;
-		const empty = <div className="horosa-huangji-empty"><Empty description={this.state.error || '请择起支而定局'} image={Empty.PRESENTED_IMAGE_SIMPLE}/></div>;
+		const empty = <div className="horosa-huangji-empty">{this.state.error || '请择起支而定局'}</div>;
 		if(slot === 'controls'){ return this.renderControls(); }
 		if(slot === 'center' || slot === 'aux'){
 			if(!ju){ return empty; }

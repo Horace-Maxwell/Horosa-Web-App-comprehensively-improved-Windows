@@ -138,39 +138,48 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 			data-persona-memory-panel="1">
 			<Tabs size="small" data-persona-tabs="1" tabBarExtraContent={<span className={styles.soft}>{layerCount ? `分层口径 ${layerCount} 条` : '全局→命主→技法→会话 逐层叠加'}</span>}>
 				<Tabs.TabPane tab="全局" key="global">
+			<div className={styles.tabBody}>
 			<div className={styles.textarea}>
 				<Input.TextArea rows={6} maxLength={PERSONA_TEXT_MAX} value={text} onChange={(e)=>setText(e.target.value)} placeholder={PERSONA_TEMPLATE} data-persona-text="1" />
 			</div>
 			{initDraft && initDraft.text ? (
 				<div data-persona-draft="1" className={styles.infoStrip}>
 					<div className={styles.subhead}><b>草稿(按最近 {initDraft.conversations || 0} 个对话生成)</b><Button size="small" type="primary" data-persona-draft-apply="1" onClick={()=>{ setText(initDraft.text); if(typeof initDraft.onDismiss === 'function'){ initDraft.onDismiss(); } }}>填入文本框</Button></div>
-					<div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{initDraft.text}</div>
+					<div className={styles.preText}>{initDraft.text}</div>
 				</div>
 			) : null}
-			<div className={styles.chips}>
-				<span className={styles.chip}>启用注入 <Switch size="small" checked={persona.enabled} data-persona-enabled="1" onChange={(v)=>writePersona({ enabled: !!v })} /></span>
-				<span className={styles.chip}>记忆注入 <Switch size="small" checked={persona.memoryInject} data-persona-memory-inject="1" onChange={(v)=>writePersona({ memoryInject: !!v })} /></span>
-				<span className={styles.chip}>自动沉淀候选(不用 AI) <Switch size="small" checked={persona.memoryCapture} data-persona-memory-capture="1" onChange={(v)=>writePersona({ memoryCapture: !!v })} /></span>
-				<span className={styles.spacer} />
+			<div className={styles.setGrid}>
+				<span className={styles.setTile}><span>启用注入</span><Switch size="small" checked={persona.enabled} data-persona-enabled="1" onChange={(v)=>writePersona({ enabled: !!v })} /></span>
+				<span className={styles.setTile}><span>记忆注入</span><Switch size="small" checked={persona.memoryInject} data-persona-memory-inject="1" onChange={(v)=>writePersona({ memoryInject: !!v })} /></span>
+				<span className={styles.setTile}><span>自动沉淀候选(不用 AI)</span><Switch size="small" checked={persona.memoryCapture} data-persona-memory-capture="1" onChange={(v)=>writePersona({ memoryCapture: !!v })} /></span>
+			</div>
+			<div className={styles.end}>
 				<Button size="small" type="primary" disabled={!dirty} data-persona-save="1" onClick={()=>{ writePersona({ text }); message.success('口径已保存'); }}>保存口径</Button>
+			</div>
 			</div>
 				</Tabs.TabPane>
 				<Tabs.TabPane tab="命主" key="subject">
+					<div className={styles.tabBody}>
 					{layersGate}
 					<LayerEditor scope="subject" id={activeSource ? activeSource.id : ''} title={activeSource ? `当前命主/案例:${activeSource.title || ''}` : ''} hint="先在对话页挂载一个命主/案例,再给它写只对这个人生效的口径(如:此人是我父亲,称呼用「令尊」)。" layers={layers} max={PERSONA_LAYER_TEXT_MAX} />
 					{Object.keys(layers.bySubject).length ? <div className={styles.soft}>已有命主口径 {Object.keys(layers.bySubject).length} 条(按命主档案 id 存,删档不自动清)</div> : null}
+					</div>
 				</Tabs.TabPane>
 				<Tabs.TabPane tab="技法" key="technique">
+					<div className={styles.tabBody}>
 					{layersGate}
 					<div className={styles.inline}>
 						<span className={styles.soft}>技法</span>
 						<Select filterOption={scriptFilterBy('label')} size="small" style={{ minWidth: 160 }} value={techId || undefined} options={techniqueChoices} onChange={setTechKey} data-persona-technique-select="1" showSearch optionFilterProp="label" />
 					</div>
 					<LayerEditor scope="technique" id={techId} title={techId ? `${techLabel}:只在这一技法参与本轮时注入` : ''} hint="没有可选技法。" layers={layers} max={PERSONA_LAYER_TEXT_MAX} />
+					</div>
 				</Tabs.TabPane>
 				<Tabs.TabPane tab="会话" key="session">
+					<div className={styles.tabBody}>
 					{layersGate}
 					<SessionEditor conversation={activeConversation} onSave={onSaveSessionPersona} />
+					</div>
 				</Tabs.TabPane>
 			</Tabs>
 			<div className={styles.divider} />
@@ -180,7 +189,7 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 			</div>
 			{candidates.length ? <div className={styles.stack}>{candidates.map((m)=>(<CandidateRow key={m.id} m={m} onChanged={reload} activeSource={activeSource} />))}</div> : null}
 			<div className={styles.inline}>
-				<Input size="small" placeholder="手工加一条记忆(如:我妻子叫李四,1990 年生)" value={manual} maxLength={200} onChange={(e)=>setManual(e.target.value)} data-memory-manual="1" style={{ flex: '1 1 auto', minWidth: 160 }} onPressEnter={addManual} />
+				<Input size="small" placeholder="手工加一条记忆(如:我妻子叫李四,1990 年生)" value={manual} maxLength={200} onChange={(e)=>setManual(e.target.value)} data-memory-manual="1" className={styles.grow} onPressEnter={addManual} />
 				<Button size="small" data-memory-add="1" onClick={addManual}>加入</Button>
 			</div>
 			{groups.map((g)=>(

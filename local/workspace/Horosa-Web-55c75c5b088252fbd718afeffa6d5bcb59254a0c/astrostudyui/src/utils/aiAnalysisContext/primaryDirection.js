@@ -4,6 +4,7 @@ import DateTime from '../../components/comp/DateTime';
 import request from '../request';
 import * as Constants from '../constants';
 import { buildStarAndLotPositionLines, buildHouseCuspLines } from '../astroAiSnapshot';
+import { classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain } from '../classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';   // 主限法盘无头快照的黄道/宫制标签(纯常量,零组件依赖)
 import { defaultPdChartDateTime } from '../../components/astro/AstroPrimaryDirectionChart';
 // P5 主限法盘快照：弧算法 / 盘面宫制 / 度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。
@@ -222,6 +223,9 @@ export async function buildPrimaryDirChartSnapshotText(chartObj, opts){
 			pdTimeKey,
 			...(pdTimeKeyCustom ? { pdTimeKeyCustom } : {}),
 			showPdBounds: params.showPdBounds,
+			// 与页面 buildRequestParams 同律:本命盘的古典口径与容许度随请求(缺省不发),外圈才与本命段同一口径
+			...classicalBackendOverridesFromPlain(params),
+			...chartOrbOverridesFromPlain(params),
 			...dateSettings,
 			datetime: currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '',
 			direction,

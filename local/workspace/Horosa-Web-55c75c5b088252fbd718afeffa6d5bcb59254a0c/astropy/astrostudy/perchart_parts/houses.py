@@ -2,11 +2,23 @@
 from multiprocessing.dummy import Pool as ThreadPool
 from flatlib import const
 from flatlib import utils
+from flatlib.ephem import swe as _swe
 from astrostudy.perchart_parts.chart_tables import custHouse_Equal_MC_Middle, custHouse_Fortuna_Whole
 
 
 class HousesMixin:
     """宫位:自定义宫制(福点整宫制)/ 南半球盘换算 / 赤经落宫 / 地平上下。"""
+
+    def _cuspEquatorial(self, lon, lat=0.0):
+        """宫头赤经赤纬:按本日真黄赤交角,恒星盘先加回岁差(与 flatlib sweHouses 同一换算)。
+        南半球盘翻转之后,盘上黄经比天上的位置多 180°(只换了星座标签),先转回去再换 —— 赤经赤纬、地平上下是天上的事实,
+        不随标签变;各点自带的 ra / decl 本来也没跟着翻。"""
+        if getattr(self.chart, 'halfTurned', False):
+            lon = (lon + 180.0) % 360.0
+        jd = self.chart.date.jd
+        with self.chart._siderealContext():
+            offset = _swe.tropicalOffset(jd, getattr(self.chart, 'flags', 0))
+        return _swe.eclipticToEquatorial(lon, lat or 0.0, _swe.trueObliquity(jd), offset)
 
     def custHouse(self):
         if self.houseCust == None:
@@ -26,7 +38,7 @@ class HousesMixin:
                 house.relocate(startlon)
                 house.size = 30
                 house.hsys = custHouse_Equal_MC_Middle
-                ra, decl = utils.eqCoords(house.lon, house.lat)
+                ra, decl = self._cuspEquatorial(house.lon, house.lat)
                 house.ra = ra
                 house.decl = decl
                 startlon = (startlon + 30) % 360
@@ -73,7 +85,7 @@ class HousesMixin:
             # 用 WHOLE_SIGN 让 inHouse 走整宫分支(无 -5° 偏移)→ 落宫判定正确;
             # 「福点整宫制」标签由盘级 hsys 参数(24)驱动,不靠逐宫 house.hsys。
             house.hsys = const.HOUSES_WHOLE_SIGN
-            ra, decl = utils.eqCoords(house.lon, house.lat)
+            ra, decl = self._cuspEquatorial(house.lon, house.lat)
             house.ra = ra
             house.decl = decl
             startlon = (startlon + 30) % 360
@@ -95,10 +107,15 @@ class HousesMixin:
         if (not self.southchart) or self.pos.lat >= 0:
             return
 
+        # 站心月先算、再随各点一起翻转:本盘的翻转在首次 reinit 之前,留给 reinit 去算的话,
+        # 月亮会被盖回未翻转的位置、希腊点按「翻转过的日与上升 + 未翻转的月」重投。不开站心月时这一步不动任何点。
+        self._applyTopoMoon()
         self.relocateSouthObjects(self.chart.houses)
         self.relocateSouthObjects(self.chart.angles)
         self.relocateSouthObjects(self.chart.objects)
         self.relocateSouthObjects(self.chart.pars)
+        # 自此盘上黄经 = 天上位置 + 180°;按黄经换赤道坐标的判定(昼夜 / 地平上下 / 福点整宫宫头)据此转回
+        self.chart.halfTurned = True
 
         self.reinit()
 
@@ -131,5 +148,9 @@ class HousesMixin:
         # Get ecliptical positions and check if the
         # planet is above the horizon.
         lat = self.chart.pos.lat
-        mcRA, mcDecl = utils.eqCoords(mc.lon, 0)
-        return utils.isAboveHorizon(planet.ra, planet.decl, mcRA, lat)
+        # 按盘上「此刻」的黄经黄纬判(组合盘等搬点盘随之变):星与天顶同一换算 —— 本日真黄赤交角、恒星盘先加回岁差。
+        # 不用星体自带的 ra:J2000 / B1950 类岁差下它在历元赤道系,与当日天顶赤经不同系。
+        # 十三分 / 调波 / 龙盘等派生盘在 reinit_derived 里改按本命真高度判(地平上下取本命)。
+        ra, decl = self._cuspEquatorial(planet.lon, getattr(planet, 'lat', 0.0) or 0.0)
+        mcRA = self._cuspEquatorial(mc.lon, 0.0)[0]
+        return utils.isAboveHorizon(ra, decl, mcRA, lat)

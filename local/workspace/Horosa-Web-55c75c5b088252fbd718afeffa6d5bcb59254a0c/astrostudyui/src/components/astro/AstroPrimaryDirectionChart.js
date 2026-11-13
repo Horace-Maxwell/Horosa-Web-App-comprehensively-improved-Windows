@@ -43,7 +43,7 @@ import {
 	PD_EXTRA_SETTING_SPECS, pdDisplayMethod,
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
-import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
@@ -871,6 +871,7 @@ class AstroPrimaryDirectionChart extends Component{
 			predictive: true,
 			// 古典设置随盘回显透传(此前逐键手挑丢全部古典回显;FromPlain 条件发送)。
 			...classicalBackendOverridesFromPlain(params),
+			...chartOrbOverridesFromPlain(params),
 			showPdBounds: params.showPdBounds === 0 ? 0 : 1,
 			// 盘的「计算」会重算表格,须保留表格侧的进阶设置(方向类型/顺逆/映点/界),否则会被 clobber 回默认。
 			pdtype: normalizePdTypeValue(params.pdtype),
@@ -1057,6 +1058,10 @@ class AstroPrimaryDirectionChart extends Component{
 			// User 档自定义钥匙率随请求(此前不带 → 后端回落 1.0,数值框拨任何值外圈盘不动)
 			...(this.getSelectedPdTimeKey() === 'User' && Number(this.getSelectedPdTimeKeyCustom()) > 0 ? { pdTimeKeyCustom: Number(this.getSelectedPdTimeKeyCustom()) } : {}),
 			showPdBounds: params.showPdBounds,
+			// 本命盘的古典口径与容许度随请求(与上面表格重算那份构参同源,缺省不发 = 出厂口径逐字节不变):
+			// 不带的话外圈推运盘按出厂口径算,真交点 / 界系 / 特殊点翻转等与内圈本命盘对不上
+			...classicalBackendOverridesFromPlain(params),
+			...chartOrbOverridesFromPlain(params),
 			// 「日期 → 年」随本盘在主限法表扩展里选的日期年长 / 逆向弧口径(与表格同一换算;缺省不发)
 			...pdChartDateRequestParams(params, this.props.pdExtra),
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),

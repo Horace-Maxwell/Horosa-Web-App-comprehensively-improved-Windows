@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
-index 44d225f0..33a2c3cb 100644
+index 3c173488..7749a9a7 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaMain.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
 @@ -7,6 +7,8 @@ import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, st
@@ -11,7 +11,7 @@ index 44d225f0..33a2c3cb 100644
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { definePageSettings } from '../../utils/pageSettingsStore';
  import { Tag, message, Popover, Modal } from 'antd';
-@@ -1601,6 +1603,10 @@ class DunJiaMain extends Component {
+@@ -1602,6 +1604,10 @@ class DunJiaMain extends Component {
  			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
  			this.lastPanSignature = panSignature;
  			this.setState({ pan, panSig: castSourceKey(flds), displaySolarTime: displaySolar, loading: false }, ()=>{

@@ -3,21 +3,22 @@
 // + 算法与口径(定气求根/精度/年份域/回退)+ 注意点(临界/时区/四柱口径/公元前)。
 // 中性表述,纯展示零后端;选项名/取值与界面 label 一致。绝不写章节号或软件名;书名只写公版古籍名,不写现代来源;专名(Placidus 等)与 label 一致,可用。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class JieqiHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>分至盘 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					{/* ───────────────────────── 总览 ───────────────────────── */}
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '分至盘 · 操作手册',
+	groups: [
+		{
+			key: 'jieqi',
+			label: '分至盘',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>分至盘以<b>太阳进入二分二至(春分、夏至、秋分、冬至)的精确时刻</b>为某地起盘,用于看一年四季节令的天象格局。先选年份与地点,再切到某一分至,即可查看那一刻的星盘 / 宿盘 / 3D 盘。</p>
 							<p style={{ ...p, color: MUTED }}>本页从导航页的「卜」分组进入(导航搜索「节气盘 / 分至 / 二分二至」同样可达),占星页的「相关技法」也有入口。</p>
@@ -59,10 +60,14 @@ class JieqiHelpDoc extends Component{
 							<p style={p}>排盘完成后自动向「AI 分析」备好两份快照:<b>四个分至的星盘 + 宿盘汇总</b>(带年份、时区、经纬度参数头),以及<b>当前所看的那一张盘</b>(随你切到哪个分至 / 哪种盘而变)。</p>
 							<p style={{ ...p, color: MUTED }}>页头「AI导出设置」里,本页除「节气盘」总档外,另有「通用参数 / 春分 / 夏至 / 秋分 / 冬至」五个分档,可分别勾选要导出的段落。本页不提供事盘存档(底部「快捷功能」栏没有「保存」键),也不能挂到命盘 / 事盘上,请用页头「AI导出设置」或底部「AI助手」。</p>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 排盘设置 ───────────────────────── */}
-					<TabPane tab="排盘设置" key="input">
+					</div>
+					),
+				},
+				{
+					key: 'input',
+					label: '排盘设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>顶部工具条(查看宿盘时会自动隐藏,以免与宿盘自身设置重复)。</p>
 
@@ -97,10 +102,14 @@ class JieqiHelpDoc extends Component{
 								{kv('切标签', '按需计算:只在切到某个分至标签时才请求那一张盘,未算好时显示「加载中…」')}
 								{kv('重取期间', '旧盘保留可读,主区右上角显示更新角标;同年同地同参数二次打开直接秒回(本机留存缓存)')}</div>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 二十四节气 ───────────────────────── */}
-					<TabPane tab="二十四节气" key="jieqi24">
+					</div>
+					),
+				},
+				{
+					key: 'jieqi24',
+					label: '二十四节气',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>页面默认标签,以网格卡片列出所选年份的<b>全部二十四节气</b>,作为一年节令的总览。</p>
 
@@ -120,10 +129,14 @@ class JieqiHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>二十四节气里的春分、夏至、秋分、冬至四张卡片点一下即打开该节气的星盘,其余节气卡只列时刻与四柱;也可在右侧各自的星盘 / 宿盘 / 3D 盘标签深入查看,底部「快捷功能」栏的「更多」可在三种盘之间切换。</p>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 分至星盘 ───────────────────────── */}
-					<TabPane tab="分至星盘" key="charts">
+					</div>
+					),
+				},
+				{
+					key: 'charts',
+					label: '分至星盘',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>春分 / 夏至 / 秋分 / 冬至四个分至,各有一个标准星盘标签,按该分至的入境时刻、在所选地点起盘。</p>
 
@@ -137,10 +150,14 @@ class JieqiHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>四张分至盘合看,可观察一年四季的主轴与转折。</p>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 分至宿盘 ───────────────────────── */}
-					<TabPane tab="分至宿盘" key="su28">
+					</div>
+					),
+				},
+				{
+					key: 'su28',
+					label: '分至宿盘',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>每个分至另有一个<b>宿盘</b>标签,以二十八宿体系呈现该入境时刻的星曜分布。</p>
 							<ul style={ul}>
@@ -168,31 +185,40 @@ class JieqiHelpDoc extends Component{
 								{kv('取值', '八字公式起盘 / ASC起盘')}
 								{kv('默认', '初值取主盘的人事十二宫起盘(出厂为八字公式起盘);本页改动只改本页各分至宿盘的显示(几张一起变),不记住、不改宿盘页的设置,也不记成新命盘的缺省(新命盘的起宫按宿盘页上次亲手设的)')}
 								{kv('区别', '八字公式起盘由时支与太阳所在推起始宫;ASC起盘直接以上升所在星座为第一宫')}
-								{kv('作用', '只改十二宫的宫序标注(宫宿页与快照同步),不改星曜落点')}</div>
+								{kv('作用', '只改十二宫的宫序标注(宫宿页与快照同步),不改星曜落点')}
+								{kv('上升取法', 'ASC起盘时上升点取真赤经(改进,默认)还是旧版的东点黄经(经典),跟随宿盘页左栏「上升取法」的设置;本页不另设。两档差别见宿盘页帮助;快照的宿盘段写明所用一档')}</div>
 
 							<div style={card}><div style={ct}>时间 / 地点 / 性别</div>
 								{kv('时间 · 地点', '与顶部工具条同源:改地点 / 时区会重取整页')}
 								{kv('只取年份', '本页只用其中的年份 —— 在这里改月 / 日 / 时不会挪动分至时刻(改年份等同于工具条改年份)')}
 								{kv('性别', '未知 / 女 / 男;宿盘不据此改盘,只随资料带出')}</div>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 分至3D盘 ───────────────────────── */}
-					<TabPane tab="分至3D盘" key="chart3d">
+					</div>
+					),
+				},
+				{
+					key: 'chart3d',
+					label: '分至3D盘',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>每个分至还有一个<b>3D 盘</b>标签,以三维球面方式展示该入境时刻的天象,可旋转、缩放观察。</p>
 							<ul style={ul}>
 								<li style={li}>黄道、宫制、日期同样取自顶部工具条,盘内不单独显示(右栏「盘面参数」段因此在本页无可调项)。</li>
-								<li style={li}><b>双击画布</b>进入或退出全屏。</li>
+								<li style={li}><b>双击画布</b>或点画布上方的「全屏」进入全屏:右栏收起,三维盘铺满本页;再双击、点右上角「退出全屏」或按 Esc 回到常态。</li>
 								<li style={li}>右栏五个标签:<b>信息 · 相位 · 行星 · 希腊点 · 显示</b>;其中「显示」是三维视图的显示设置面板(天球元素的开关与外观)。</li>
 								<li style={li}>适合直观感受分至时刻行星在天球上的真实分布。</li>
 							</ul>
 							<p style={{ ...p, color: MUTED }}>星盘 / 宿盘 / 3D 盘是同一入境时刻的三种呈现,可按需切换对照。</p>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 算法与口径 ───────────────────────── */}
-					<TabPane tab="算法与口径" key="algorithm">
+					</div>
+					),
+				},
+				{
+					key: 'algorithm',
+					label: '算法与口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>定气,不是平气</div>
 							<p style={p}>二十四节气按<b>太阳视黄经每 15° 一个</b>划分(定气),不按时间等分(平气)。因太阳视行速度不均,相邻两气的间隔并不相等 —— 冬至前后偏短、夏至前后偏长。</p>
@@ -234,10 +260,14 @@ class JieqiHelpDoc extends Component{
 								{kv('时柱', '按真太阳时定时辰(以所选经度与均时差校正钟面时刻);晚子时(23:00–24:00)的时干按次日日干起子时')}
 								{kv('纳音', '每柱干支对应的纳音,取数成功时随四柱一并给出')}</div>
 						</div>
-					</TabPane>
-
-					{/* ───────────────────────── 注意点 ───────────────────────── */}
-					<TabPane tab="注意点" key="notes">
+					</div>
+					),
+				},
+				{
+					key: 'notes',
+					label: '注意点',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>交节前后的临界</div>
 							<ul style={ul}>
@@ -274,10 +304,19 @@ class JieqiHelpDoc extends Component{
 								<li style={li}>切标签才计算:没打开过的分至盘不会预先算好,首次切入会短暂显示「加载中…」。</li>
 							</ul>
 						</div>
-					</TabPane>
-				</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class JieqiHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

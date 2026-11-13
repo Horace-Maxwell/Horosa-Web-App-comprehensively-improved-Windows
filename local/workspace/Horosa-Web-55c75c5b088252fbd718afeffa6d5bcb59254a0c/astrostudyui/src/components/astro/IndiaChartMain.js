@@ -1,4 +1,5 @@
 import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
+import { trimDecimals } from '../../utils/displayPrecision';
 import { zeriLockProps } from '../../divination/zeri/zeriPageCalibre';
 import { Component, memo } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -10,10 +11,14 @@ import { markPanelReady } from '../../utils/perfMark';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { createPortal } from 'react-dom';
 import moment from 'moment';
-import IndiaChart, { fieldsToParams, requestIndiaChartData } from './IndiaChart';
+import IndiaChart, { fieldsToParams, requestIndiaChartData, indiaTransitEventParams } from './IndiaChart';
+import { INDIA_TABLE_SETTINGS } from '../../utils/indiaExtraTables';
 import { resolveLagnaRefSignNumber } from './IndiaSouthChart';
 import IndiaSbcChart from './IndiaSbcChart';
 import IndiaTripatakiChart from './IndiaTripatakiChart';
+import IndiaYogaRuleTable from './indiaMain/IndiaYogaRuleTable';
+import IndiaExtraTables from './indiaMain/IndiaExtraTables';
+import IndiaTransitEvents from './indiaMain/IndiaTransitEvents';
 import INDIA_JUDGMENT_NOTES from './indiaJudgmentNotes';
 import { safeLocalStorageSet, safeLocalStorageGet } from '../../utils/safeStorage';
 import DateTime from '../comp/DateTime';
@@ -24,7 +29,7 @@ import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
 import * as AstroConst from '../../constants/AstroConst';
 import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs, XQDatePicker as DatePicker, XQInputNumber as InputNumber, XQSideSection, XQDrawer  } from '../xq-ui';
-import XQIcon from '../xq-icons';
+import XQIcon, { XQCurrentMark } from '../xq-icons';
 import { sendScopedFields } from '../../utils/scopedFieldsSink';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { confirmDialog } from '../../utils/confirmDialog';
@@ -288,6 +293,11 @@ const IndiaSettingsPanel = memo(function IndiaSettingsPanel(props){
 	);
 });
 
+// 择日内嵌实例(techniqueScope ≠ india)的快照槽 = 宿主槽名;主印占页 = 无(写印占三槽)
+function indiaSnapshotScope(techniqueScope){
+	return techniqueScope && techniqueScope !== 'india' ? techniqueScope : undefined;
+}
+
 class IndiaChartMain extends Component{
 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
@@ -301,6 +311,9 @@ class IndiaChartMain extends Component{
 
 	constructor(props) {
 		super(props);
+		this.transitEventsMemo = {};   // 穿界表的选择与结果:切页签会卸载组件,记在这里才不丢
+		// 显示口径(判定表 / 补充表三项 + 宿数 / 中栏盘面 / 盘面叠加):上次亲手选的,没存过 = 出厂值
+		const indiaSaved = INDIA_TABLE_SETTINGS.load();
 		this.state = {
 			currentTab: "Natal",
 			currentFractal: 1,
@@ -326,23 +339,27 @@ class IndiaChartMain extends Component{
 			activeJyotishFields: null,
 			activeJyotishKey: '',
 			jyotishTab: '3',
+			// Yoga 判定表与补充表的显示口径:上次亲手选的(没存过 = 改进 / 只看成立),写在两张表的下拉里
+			// (同一份设置件里的宿数 / 中栏盘面 / 盘面叠加三项由下面各自的键按 indiaSaved 覆盖,值相同)
+			...INDIA_TABLE_SETTINGS.load(),
 			dashaSystem: 'vimshottari',
 			dashaSeed: DASHA_SEED_DEFAULT,
 			indiaSthiraStart: 'lagna',   // Sthira 起座:lagna(默认)/brahma(BPHS §10.5)
 			indiaTransitDateValue: null,   // 行运过运日期(null=默认今日);走 indiaTransitDate→transitDate 透传
 			prasnaNumber: 1,               // Praśna 卜卦问数 1-249(纯前端查 KP249 静态表,不透传)
 			kpFullTableOpen: false,        // B2:KP 全 249 段表折叠区
-			indiaOverlayBB: false,         // B4:盘面叠加 Bhrigu Bindu(默认关=零视觉回归)
+			indiaOverlayBB: indiaSaved.indiaOverlayBB === true,   // B4:盘面叠加 Bhrigu Bindu(出厂关;上次亲手选的跨会话保留)
 			kpFullTablePage: 0,            // B2:分页页码(25 行/页)
 			// ── G5/G6/G13/G8/G7:新设置(全部缺省=零 churn / 零回归)──
 			indiaDashaYearLength: AstroConst.INDIA_DASHA_YEAR_DEFAULT,     // 年长(仅非 365.25 下发)
 			indiaVargaVariantMap: {},                                      // W1-A 分盘变体 {chartnum:variant},{}=全标准
 			indiaKarakaScheme: AstroConst.INDIA_KARAKA_SCHEME_DEFAULT,     // W1-B 卡拉卡方案('8' 默认)
 			indiaYuddhaCriterion: AstroConst.INDIA_YUDDHA_CRITERION_DEFAULT, // W1-C 星曜战判据
-			indiaNakshatraCount: AstroConst.INDIA_NAKSHATRA_COUNT_DEFAULT, // 27/28 宿(纯显示,不下发)
+			indiaNakshatraCount: AstroConst.normalizeIndiaNakshatraCount(indiaSaved.indiaNakshatraCount), // 27/28 宿(纯显示,不下发;跨会话保留)
 			indiaAnnualChartType: AstroConst.INDIA_ANNUAL_CHART_TYPE_DEFAULT, // 年盘口径(仅 tithi 下发)
-			indiaStageMode: AstroConst.INDIA_STAGE_MODE_DEFAULT,           // 中栏盘面(纯前端渲染选择)
-			indiaTripatakiOn: false,        // 三旗 opt-in(开启才带 tripataki=1 重取)
+			indiaStageMode: AstroConst.normalizeIndiaStageMode(indiaSaved.indiaStageMode), // 中栏盘面(纯前端渲染选择;跨会话保留)
+			// 三旗 opt-in(开启才带 tripataki=1 重取):上次停在三旗盘 → 首次取数就带上,否则重开后三旗盘无数据
+			indiaTripatakiOn: AstroConst.normalizeIndiaStageMode(indiaSaved.indiaStageMode) === 'tripataki',
 			indiaTripatakiCenter: 'moon',   // 三旗中心(月/土,前端查表零请求)
 			indiaTripatakiMonth: 1,
 			indiaSbcFocus: 'moon',          // SBC 参照(月宿/升宿,前端查表零请求)
@@ -1261,9 +1278,10 @@ class IndiaChartMain extends Component{
 	}
 
 	changeNakshatraCount(value){
-		// 🔴 纯显示口径:不发请求、不进缓存键(28 宿编号 number28 引擎恒出,前端只切显示)
-		this.setState({ indiaNakshatraCount: AstroConst.normalizeIndiaNakshatraCount(
-			value && value.target ? value.target.value : value) });
+		// 🔴 纯显示口径:不发请求、不进缓存键(28 宿编号 number28 引擎恒出,前端只切显示);亲手改 = 跨会话保留
+		const count = AstroConst.normalizeIndiaNakshatraCount(value && value.target ? value.target.value : value);
+		INDIA_TABLE_SETTINGS.save({ indiaNakshatraCount: count });
+		this.setState({ indiaNakshatraCount: count });
 	}
 
 	changeAnnualChartType(value){
@@ -1276,6 +1294,7 @@ class IndiaChartMain extends Component{
 
 	changeStageMode(value){
 		const mode = AstroConst.normalizeIndiaStageMode(value);
+		INDIA_TABLE_SETTINGS.save({ indiaStageMode: mode });   // 亲手改 = 跨会话保留
 		// 左栏为三旗盘唯一入口:选中即 opt-in 计算(12 次逐月过运)并重取,免去右栏二次开启。
 		if(mode === 'tripataki' && !this.state.indiaTripatakiOn){
 			this.setState({ indiaStageMode: mode, indiaTripatakiOn: true }, ()=>{
@@ -1762,6 +1781,8 @@ class IndiaChartMain extends Component{
 								<IndiaChart
 									key={`vgrid_${f}_${opts.indiaChartStyle}_${opts.indiaAyanamsa}_${opts.indiaHsys}_${opts.indiaNodeType}`}
 									chartOnly
+									snapshotScope={indiaSnapshotScope(this.props.techniqueScope)}   /* 择日内嵌:快照只写宿主槽 */
+									composeAiSnapshot={this.props.composeAiSnapshot}
 									aspectSourceId={this.state.indiaAspectSource}
 									aspectParadigm={this.state.indiaAspectParadigm}
 									onPlanetClick={this.toggleIndiaAspect}
@@ -1983,7 +2004,7 @@ class IndiaChartMain extends Component{
 				) : null}
 				{tj && tj.dasas && tj.dasas.patyayini && Array.isArray(tj.dasas.patyayini.order) ? (
 					<div className="horosa-info-card">
-						<div className="horosa-info-card-title">Patyāyinī 年内大运（共 {tj.dasas.patyayini.totalDays != null ? +Number(tj.dasas.patyayini.totalDays).toFixed(4) : '—'} 天）</div>
+						<div className="horosa-info-card-title">Patyāyinī 年内大运（共 {tj.dasas.patyayini.totalDays != null ? trimDecimals(tj.dasas.patyayini.totalDays) : '—'} 天）</div>
 						<div className="horosa-india-data-list">
 							{tj.dasas.patyayini.order.map((m, i)=>(
 								<div className="horosa-india-data-row" key={`pt_${i}`}>
@@ -2163,6 +2184,11 @@ class IndiaChartMain extends Component{
 		);
 	}
 
+	// 穿界表只用时区和岁差;时刻由起始日决定,不随本命盘的生时变
+	transitEventParams(fields){
+		return indiaTransitEventParams(fieldsToParams(fields));
+	}
+
 	renderGocharaPanel(fields){
 		const jyotish = getJyotish(resolveJyotishChartObj(this.state, fields));
 		const g = jyotish ? jyotish.gochara : null;
@@ -2258,6 +2284,7 @@ class IndiaChartMain extends Component{
 						<div className="horosa-india-card-note">联动恒按 {g.dashaLink.systemLabel || 'Vimshottari'} 体系取运主(与大运标签所选体系无关)。大运主被过运激活(吉位无遮)时其象义更易兑现;合参标记,仅信息。</div>
 					</div>
 				) : null}
+				<IndiaTransitEvents params={this.transitEventParams(fields)} start={transitMoment.format('YYYY/MM/DD')} memo={this.transitEventsMemo} snapshotScope={indiaSnapshotScope(this.props.techniqueScope)} />
 			</div>
 		);
 	}
@@ -2329,7 +2356,7 @@ class IndiaChartMain extends Component{
 								<div className="horosa-india-card-note">{/* 适用条件显示 */}适用性：{d.applicability.applicable === true ? '主用' : (d.applicability.applicable === false ? '备览(月亮 navamsa 座不强于 rasi 座)' : '判据不足')}</div>
 							) : null}
 							{def.key === 'kalachakra' && (d.paramayush || d.cycleMethod) ? (
-								<div className="horosa-india-card-note">paramāyus {d.paramayush} 年{d.startRasi ? ` · 起 ${sc(d.startRasi)}(余 ${d.startBalanceYears} 年)` : ''}{d.nextCycle ? ` · 轮终换接:${d.nextCycle.nakshatra} 第${d.nextCycle.pada}pada` : ''}</div>
+								<div className="horosa-india-card-note">paramāyus {d.paramayush} 年{d.startRasi ? ` · 起 ${sc(d.startRasi)}(余 ${trimDecimals(d.startBalanceYears)} 年)` : ''}{d.nextCycle ? ` · 轮终换接:${d.nextCycle.nakshatra} 第${d.nextCycle.pada}pada` : ''}</div>
 							) : null}
 							<div className="horosa-india-data-list horosa-india-rasi-scroll">
 								{renderRows(d.mahadashas, def.key, { showLord: !!def.showLord,
@@ -3119,7 +3146,7 @@ class IndiaChartMain extends Component{
 											<td>{r.baseYears}</td>
 											<td>{`${r.enemySign ? '敌' : ''}${r.combust ? '合' : ''}` || '—'}</td>
 											<td>{r.house}</td>
-											<td>{r.chakrapata > 0 ? r.chakrapata : '—'}</td>
+											<td>{r.chakrapata > 0 ? trimDecimals(r.chakrapata) : '—'}</td>
 											<td>{r.reducedYears}</td>
 										</tr>
 									))}
@@ -3200,7 +3227,7 @@ class IndiaChartMain extends Component{
 								<tbody>
 									{sudarshana.rows.map((r)=>(
 										<tr key={`sud${r.year}`} className={r.current ? 'is-current-year' : ''}>
-											<th className={r.current ? 'is-good' : ''}>{r.year}{r.current ? '◀' : ''}</th>
+											<th className={r.current ? 'is-good' : ''}>{r.year}{r.current ? <XQCurrentMark /> : ''}</th>
 											<td>{r.slLabel}</td>
 											<td>{r.clLabel}</td>
 											<td>{r.jlLabel}</td>
@@ -3802,6 +3829,7 @@ class IndiaChartMain extends Component{
 						<div className="horosa-india-dasha-empty">当前规则目录未命中可显示的 Yoga</div>
 					</div>
 				)}
+				<IndiaYogaRuleTable data={jyotish.yogaTable} variant={this.state.yogaTableVariant} scope={this.state.yogaTableScope} onChange={(patch)=>this.setState(patch)} />
 				{jyotish.kartari && jyotish.kartari.available && Array.isArray(jyotish.kartari.yogas) && jyotish.kartari.yogas.length ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Kartari 夹击格局</div>
@@ -4838,7 +4866,7 @@ class IndiaChartMain extends Component{
 												size="small"
 												style={{ width: '100%' }}
 												value={this.state.indiaOverlayBB ? 'bb' : 'none'}
-												onChange={(v)=>this.setState({ indiaOverlayBB: (v && v.target ? v.target.value : v) === 'bb' })}
+												onChange={(v)=>{ const on = (v && v.target ? v.target.value : v) === 'bb'; INDIA_TABLE_SETTINGS.save({ indiaOverlayBB: on }); this.setState({ indiaOverlayBB: on }); }}
 												dropdownMatchSelectWidth={false}
 											>
 												<Option value="none">无（默认）</Option>
@@ -4993,6 +5021,8 @@ class IndiaChartMain extends Component{
 								<IndiaChart
 									key={`${this.state.currentTab}_${indiaChartStyle}_${indiaAyanamsa}_${indiaHsys}_${indiaNodeType}`}
 									chartOnly
+									snapshotScope={indiaSnapshotScope(this.props.techniqueScope)}   /* 择日内嵌:快照只写宿主槽 */
+									composeAiSnapshot={this.props.composeAiSnapshot}
 									suppressFetch={!this.state.vargaSetOpen}
 									chartObj={this.state.mainChartObj || this.shownLastChartObj()}
 									aspectSourceId={this.state.indiaAspectSource}
@@ -5067,9 +5097,14 @@ class IndiaChartMain extends Component{
 									{ key: '14', tab: '问事', content: ()=>this.renderPrashnaPanel(jyotishFields) },
 									{ key: '15', tab: '校时', content: ()=>this.renderRectifyPanel(jyotishFields) },
 									{ key: '16', tab: '纳迪', content: ()=>this.renderNadiPanel(jyotishFields) },
+									{ key: '17', tab: '补充表', content: ()=>{
+										const jyotish = getJyotish(resolveJyotishChartObj(this.state, jyotishFields));
+										return <IndiaExtraTables data={jyotish ? jyotish.extraTables : null} failed={!!jyotish && !jyotish.extraTables} variant={this.state.dirahVariant} onChange={(patch)=>this.setState(patch)} />;
+									} },
 								].filter((t)=>this.state.visibleTabKeys.indexOf(t.key) >= 0).map((t)=>(
 									// 惰性 content:仅当前活动 tab 构建面板(其余 antd 本就不挂载,此处连「建好再丢」也省去)。
 									// 各面板是 this.state+图数据的纯派生(无 pane 内部 state),激活时重建结果逐字一致、不丢状态。
+									// 唯一带内部 state 的穿界表把选择和结果记在宿主的 transitEventsMemo,切回来照原样恢复。
 									<TabPane tab={t.tab} key={t.key}>{t.key === this.state.jyotishTab ? t.content() : null}</TabPane>
 								))}
 							</Tabs>

@@ -16,10 +16,20 @@ import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import { XQSegmented } from '../xq-ui';
 import { monomoiriaTriplicity } from '../../divination/data/monomoiriaTriplicity';
 import { CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { parseZoneHour, formatZoneHour } from '../../utils/zoneText';
 import styles from '../../css/styles.less';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+
+// 时区行的显示口径:全站统一「UTC±HH:MM」(utils/zoneText 单一来源);认不出的写法原样显示,不猜。
+function zoneLabel(zone){
+	if(zone === undefined || zone === null || `${zone}`.trim() === ''){
+		return '';
+	}
+	const hour = parseZoneHour(zone);
+	return hour === null ? `${zone}` : `UTC${formatZoneHour(hour)}`;
+}
 
 // G16 单度主星体系:迦勒底连续序(默认,后端算)/ 三分序(保罗式,前端派生)。
 const MONOMOIRIA_SYSTEM_OPTIONS = [
@@ -1067,12 +1077,36 @@ class AstroInfo extends Component{
 		const hsys = displayMode.hsys;
 		const mode = this.props.mode || 'full';
 
+		// 关系卡的「有内容」判据 + 卡片壳:古典页与完整模式(3D 星盘信息页)共用一份。
+		const surr = chart.surround || {};
+		const declP = chart.declParallel || {};
+		// 「有内容」判据:部分 gen* 空数据仍返回空 div(非 null),故按源数据判,空则显示占位。
+		const has = {
+			anti: !!antiDom,
+			decl: !!((declP.parallel || []).length || Object.keys(declP.contraParallel || {}).length),
+			recp: !!recpDom,
+			mut: !!mutDom,
+			attacks: Object.keys((surr && surr.attacks) || {}).length > 0,   // 按源数据判(gen* 空数据仍返空 div,!! 恒真)
+			houses: Object.keys(surr.houses || {}).some((k) => (surr.houses[k] || []).length >= 2),
+			planets: Object.keys(surr.planets || {}).some((k) => (function(v){ return Array.isArray(v) ? v.length >= 2 : !!(v && (v.SunMoon || v.id)); })(surr.planets[k])),
+		};
+		const empty = (txt) => <div className="horosa-empty-line">{txt || '暂无'}</div>;
+		// 卡片标题双语(中文 + 英文小字):有的人看不懂中文术语。无 subtab,所有卡片依次排列。
+		const card = (zh, en, dom, ok, emptyTxt) => (
+			<div className="horosa-info-card horosa-classical-card">
+				<div className="horosa-classical-card-title">
+					<span className="horosa-classical-zh">{zh}</span>
+					<span className="horosa-classical-en">{en}</span>
+				</div>
+				{ok ? dom : empty(emptyTxt)}
+			</div>
+		);
 		if(mode === 'summary'){
 			const rows = [
 				['名称', chart.params && chart.params.name ? chart.params.name : '本命盘'],
 				['出生时间', chart.params ? chart.params.birth : ''],
 				['地点', chart.params && chart.params.pos ? chart.params.pos : '未命名地点'],
-				['时区', chart.params ? chart.params.zone : fields.zone],
+				['时区', zoneLabel(chart.params ? chart.params.zone : fields.zone)],
 				['黄道', zodiacal],
 				['宫位制', hsys],
 			];
@@ -1160,29 +1194,6 @@ class AstroInfo extends Component{
 		}
 
 		if(mode === 'classical'){
-			const surr = chart.surround || {};
-			const declP = chart.declParallel || {};
-			// 「有内容」判据:部分 gen* 空数据仍返回空 div(非 null),故按源数据判,空则显示占位。
-			const has = {
-				anti: !!antiDom,
-				decl: !!((declP.parallel || []).length || Object.keys(declP.contraParallel || {}).length),
-				recp: !!recpDom,
-				mut: !!mutDom,
-				attacks: Object.keys((surr && surr.attacks) || {}).length > 0,   // 按源数据判(gen* 空数据仍返空 div,!! 恒真)
-				houses: Object.keys(surr.houses || {}).some((k) => (surr.houses[k] || []).length >= 2),
-				planets: Object.keys(surr.planets || {}).some((k) => (function(v){ return Array.isArray(v) ? v.length >= 2 : !!(v && (v.SunMoon || v.id)); })(surr.planets[k])),
-			};
-			const empty = (txt) => <div className="horosa-empty-line">{txt || '暂无'}</div>;
-			// 卡片标题双语(中文 + 英文小字):有的人看不懂中文术语。无 subtab,所有卡片依次排列。
-			const card = (zh, en, dom, ok, emptyTxt) => (
-				<div className="horosa-info-card horosa-classical-card">
-					<div className="horosa-classical-card-title">
-						<span className="horosa-classical-zh">{zh}</span>
-						<span className="horosa-classical-en">{en}</span>
-					</div>
-					{ok ? dom : empty(emptyTxt)}
-				</div>
-			);
 			// 轻量分节标题(非交互,仅组织视觉)。
 			const section = (zh, en) => (
 				<div className="horosa-classical-section" key={`sec-${en}`}>
@@ -1257,52 +1268,55 @@ class AstroInfo extends Component{
 			);
 		}
 
+		// 完整模式(3D 星盘右栏「信息」页):与主盘「信息 / 古典」两页同一套卡片语汇 ——
+		// 基本信息 / 主星两张键值卡 + 各关系卡(双语标题 + 无内容时占位),不再是一摞裸文字行加分割线。
+		const fullRows = [
+			['昼夜', perchart.isDiurnal === undefined ? '' : (perchart.isDiurnal ? '日生盘' : '夜生盘')],
+			['时间', chart.params ? chart.params.birth : ''],
+			['时区', zoneLabel(chart.params ? chart.params.zone : fields.zone)],
+			['经纬度', [fields.lon, fields.lat].filter(Boolean).join('  ')],
+			['黄道', zodiacal],
+			['宫位制', hsys],
+		];
+		const fullFallback = (perchart.houses && perchart.houses[0] && perchart.houses[0].hsysFallback) || null;
+		if(fullFallback){
+			fullRows.push(['宫制回退', <span key="hfb" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 极区该制无解 · 已回退 {fullFallback}</span>]);
+		}
+		if(polarMcOf(perchart)){
+			fullRows.push(['极区天顶', <span key="pmc" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 天顶在地平下 · MC 按上中天取(各分宫制同值)</span>]);
+		}
+		const starName = (id)=> (id ? (AstroText.AstroMsgCN[id] || id) : '--');
 		return (
-			<div className={`horosa-astro-info-scroll ${styles.scrollbar}`} style={astyle}>
-				<Row gutter={12}>
-					<Col span={24}>
-						<span>{perchart.isDiurnal ? '日生盘' : '夜生盘'}</span>&nbsp;
-					</Col>
-				</Row>
-				<Row gutter={12}>
-					<Col span={24}>
-						<span>{chart.params ? chart.params.birth : ''}</span>&nbsp;
-					</Col>
-				</Row>
-				<Row gutter={12}>
-					<Col span={24}>
-						<span>经度：{fields.lon}</span>&emsp;
-						<span>纬度：{fields.lat}</span>
-					</Col>
-				</Row>
-				<Row gutter={12}>
-					<Col span={24}>
-						<span>{zodiacal}，{hsys}</span>&nbsp;
-					</Col>
-				</Row>
+			<div className={`horosa-astro-info-scroll horosa-astro-content-scroll horosa-astro-info-full ${styles.scrollbar}`} style={astyle}>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">基本信息</div>
+					{fullRows.map((row)=>(
+						<div className="horosa-info-row" key={row[0]}>
+							<span>{row[0]}</span>
+							<strong>{row[1] || '--'}</strong>
+						</div>
+					))}
+				</div>
 				{perchart.dayerStar || perchart.timerStar ? (
-					<Row gutter={12}>
-						<Col span={24}>
-							{perchart.dayerStar ? <span>日主星：{AstroText.AstroMsgCN[perchart.dayerStar] || perchart.dayerStar}</span> : null}
-							{perchart.dayerStar && perchart.timerStar ? <span>&emsp;</span> : null}
-							{perchart.timerStar ? <span>时主星：{AstroText.AstroMsgCN[perchart.timerStar] || perchart.timerStar}</span> : null}
-						</Col>
-					</Row>
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">主星</div>
+						<div className="horosa-info-row">
+							<span>日主星</span>
+							<strong>{starName(perchart.dayerStar)}</strong>
+						</div>
+						<div className="horosa-info-row">
+							<span>时主星</span>
+							<strong>{starName(perchart.timerStar)}</strong>
+						</div>
+					</div>
 				) : null}
-				{antiDom}
-				{recpDom ? <Divider orientation="left">接纳</Divider> : null}
-				{recpDom}
-				{mutDom ? <Divider orientation="left">互容</Divider> : null}
-				{mutDom}
-				<Divider orientation="left">光线围攻</Divider>
-				{surattacks}
-				<Divider orientation="left">夹宫</Divider>
-				{surhouses}
-				<Divider orientation="left">夹星</Divider>
-				{surplanets}
-				<Divider orientation="left">纬照</Divider>
-				{declParaDom}
-
+				{card('映点 / 反映点', 'Antiscia · Contra-antiscia', antiDom, has.anti, '暂无映点 / 反映点')}
+				{card('接纳', 'Reception', recpDom, has.recp, '暂无接纳信息')}
+				{card('互容', 'Mutual Reception', mutDom, has.mut, '暂无互容信息')}
+				{card('光线围攻', 'Besiegement by Rays', surattacks, has.attacks, '暂无围攻信息')}
+				{card('夹宫', 'Enclosure by Houses', surhouses, has.houses, '暂无夹宫信息')}
+				{card('夹星', 'Enclosure by Planets', surplanets, has.planets, '暂无夹星信息')}
+				{card('纬照', 'Declination Parallel', declParaDom, has.decl, '暂无纬照（同/反赤纬）')}
 			</div>
 		);
 	}

@@ -104,12 +104,16 @@ class Path:
         return total
 
 
-def compute(start_lon, partners, settings, phi, eps, terms_variant):
+def compute(start_lon, partners, settings, phi, eps, terms_variant, label_turn=0.0):
     """返回 (distributors, partner_periods),年数从出生起算;settings 已 normalize。"""
     span = float(settings['distYears'])
     path = Path(start_lon, settings['distMethod'], phi, eps)
     start = path.start
     bounds = terms_list(terms_variant)
+    if label_turn:
+        # 星座标签相对真黄经转过的盘(南半球读法):界按标签星座取,真黄经 = 标签黄经 − 转角;界主与星座序不变
+        bounds = sorted(((r, sg, (lo - label_turn) % 360.0, (lo - label_turn) % 360.0 + (hi - lo)) for r, sg, lo, hi in bounds),
+                        key=lambda t: t[2])
     # 起点所在之界,再往后逐界(跨 360° 循环)
     n = len(bounds)
     idx = next(i for i, b in enumerate(bounds) if b[2] <= start < b[3])

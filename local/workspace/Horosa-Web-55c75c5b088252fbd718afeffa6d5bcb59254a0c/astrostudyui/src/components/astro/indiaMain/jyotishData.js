@@ -31,6 +31,8 @@ export function getJyotish(chartObj){
 // 引擎子块失败的落账名(jyotish.partialErrors)→ 中文段名:页面提示与 AI 快照「未能计算」段共用这一张。
 // 子块内部落账名带点(kp.deep / muhurta.panchaka …);整块失败时是块键本身(kp / muhurta / dasha …)。没登记的名字原样写出(不吞)。
 export const INDIA_PARTIAL_LABELS = Object.freeze({
+	yogaTable: 'Yoga 判定表',
+	extraTables: '补充表',
 	'kp.deep': 'KP 深化(六级细分 / 宫头次主星 / 当令星 / 意义者)',
 	'muhurta.panchaka': 'Panchaka 五忌',
 	'muhurta.birthMuhurta': '出生须臾',

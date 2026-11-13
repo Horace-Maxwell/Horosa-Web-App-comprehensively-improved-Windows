@@ -94,6 +94,13 @@ const NOT_IN_BODY = {
 	egypt_petosirisMod: '同上',
 	egypt_godEdition: '同上',
 	useStoredOrbs: '本地开关:控制 orbs 是否从存档播入,自身不下发(orbs 键才进请求体)',
+	// 盘面细节五项走另一条请求(/astroextra/chartdetails,chartDetailSettingsFor → chartDetailRequestFields),不进 /chart 请求体;
+	// 细节请求的逐项生效由 chartDetailsMountCache.test 的请求体差分锁住
+	detailFaces: '盘面细节段的请求(/astroextra/chartdetails),不进 /chart',
+	detailVariant: '同上',
+	detailLunar: '同上',
+	detailMundo: '同上',
+	detailMidpoint: '同上',
 };
 
 // 「非现状值」选择器:现状 = record 无值时的 schema default;从 options 挑第一个 ≠ 现状的档。

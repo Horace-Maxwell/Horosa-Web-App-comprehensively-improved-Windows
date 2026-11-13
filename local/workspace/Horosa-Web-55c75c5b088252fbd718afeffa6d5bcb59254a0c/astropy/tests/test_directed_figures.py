@@ -171,3 +171,31 @@ def test_builders_smoke(fn):
     import jsonpickle
     assert jsonpickle.encode(out, unpicklable=False)   # 与网服务同一编码(盘面对象含 flatlib 对象)
     assert out.get('chart', 'skip') is not None
+
+
+@pytest.mark.parametrize('fn', ['build_neroman', 'build_bezza', 'build_jay'])
+def test_south_reading_chart_is_the_plain_one_turned_half(fn):
+    """南半球读法(全盘黄经 +180°,只换星座标签):搬点在真黄经上做,出的外圈盘 = 普通盘整体转 180°;表格(真黄经)两边相同。"""
+    import jsonpickle
+    import json
+    data = {'date': '2001/09/11', 'time': '05:50:00', 'zone': '+10:00', 'lat': '33s52', 'lon': '151e12', 'hsys': 1,
+            'targetDate': '2030/06/01', 'targetTime': '12:00:00'}
+    plain = json.loads(jsonpickle.encode(getattr(df, fn)(dict(data)), unpicklable=False))
+    south = json.loads(jsonpickle.encode(getattr(df, fn)(dict(data, southchart=True)), unpicklable=False))
+    assert plain['chart'] and south['chart']
+
+    def close(a, b):
+        return abs(((a - b + 180.0) % 360.0) - 180.0) < 1e-6
+    seen = 0
+    for grp in ('objects', 'houses'):
+        pa = {o['id']: o for o in plain['chart']['chart'][grp]}
+        sa = {o['id']: o for o in south['chart']['chart'][grp]}
+        assert pa.keys() == sa.keys()
+        for k, o in pa.items():
+            seen += 1
+            assert close(sa[k]['lon'], o['lon'] + 180.0), (fn, grp, k, o['lon'], sa[k]['lon'])
+    assert seen > 20
+    # 表格一侧不带标签:两边逐项相同
+    for key in ('arc', 'age', 'natalCusps', 'evolvedCusps'):
+        if key in plain:
+            assert plain[key] == pytest.approx(south[key]), key

@@ -107,3 +107,36 @@ describe('packBlocksIntoChunks 装箱(整块最小单位)', ()=>{
 		expect(packBlocksIntoChunks([100, 100], 0, 0)).toEqual([{ start: 0, end: 2 }]);
 	});
 });
+
+// 两张表之间没有空行(印占「星盘信息」宫头表紧接星点表):第二张表的表头 + 分隔行必须另起一表,
+// 不能被吞成第一张表的数据行(此前 Word / PDF 里多出「点位 | 位置 | 逆行」「--- | --- | ---」两行)。
+describe('紧挨着的两张表分开解析', ()=>{
+	it('表头 + 分隔行处另起一表', ()=>{
+		const { parseAiExportDocument } = require('../aiExportDocModel');
+		const doc = parseAiExportDocument(['[星盘信息]', '| 宫位 | 宫头 |', '| --- | --- |', '| 第一宫 | 0˚巨蟹 |', '| 第二宫 | 0˚狮子 |', '| 点位 | 位置 | 逆行 |', '| --- | --- | --- |', '| 日 | 3˚金牛 | — |'].join('\n'));
+		const tables = doc.sections[0].blocks.filter((b)=>b.type === 'table');
+		expect(tables).toHaveLength(2);
+		expect(tables[0].headers).toEqual(['宫位', '宫头']);
+		expect(tables[0].rows).toHaveLength(2);
+		expect(tables[1].headers).toEqual(['点位', '位置', '逆行']);
+		expect(tables[1].rows).toEqual([['日', '3˚金牛', '—']]);
+	});
+	it('数据行里全是「-」占位的一行照样是数据行,不被当成新表的分隔行吞掉', ()=>{
+		const { parseAiExportDocument } = require('../aiExportDocModel');
+		const doc = parseAiExportDocument(['[表]', '| 星 | 宫 | 度 |', '| --- | --- | --- |', '| 日 | 1 | 10 |', '| 月 | 2 | 20 |', '| - | - | - |', '| 金 | 4 | 40 |'].join('\n'));
+		const tables = doc.sections[0].blocks.filter((b)=>b.type === 'table');
+		expect(tables).toHaveLength(1);
+		expect(tables[0].rows).toEqual([['日', '1', '10'], ['月', '2', '20'], ['-', '-', '-'], ['金', '4', '40']]);
+	});
+	it('下一张表的表头格数与分隔行不同 → 不另起(防误切)', ()=>{
+		const { parseAiExportDocument } = require('../aiExportDocModel');
+		const doc = parseAiExportDocument(['[表]', '| a | b |', '| --- | --- |', '| 1 | 2 |', '| x | y |', '| --- | --- | --- |'].join('\n'));
+		const tables = doc.sections[0].blocks.filter((b)=>b.type === 'table');
+		expect(tables[0].rows.slice(0, 2)).toEqual([['1', '2'], ['x', 'y']]);
+	});
+	it('印占段落拼装保留表与表之间的空行(TXT / 喂 AI 的正文也分得开)', ()=>{
+		const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/astro/IndiaChart.js'), 'utf8');
+		expect(src).toContain("const starInfo = [houseCusps, starsAndPoints, info].filter((part)=>part.length)");
+		expect(src).toContain('.filter((line, i, arr)=>line.trim() || (i > 0 && arr[i - 1].trim()));');
+	});
+});

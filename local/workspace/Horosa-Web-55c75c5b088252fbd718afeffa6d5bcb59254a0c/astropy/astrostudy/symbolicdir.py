@@ -2,6 +2,7 @@
 # 波斯向运 / 周期推运（Persian Directed / Symbolic Direction）。
 # 黄经象征向运：所有行星/点每年沿黄经前进固定速率，本命宫头(houses/angles)固定不动。
 # 镜像 solararc.py 的旋转+相位网逻辑，差异：弧=象征弧(age*rate)、houses/angles 不转、向运星对本命宫重挂。
+# 周期律(periodic)：十星各走各的速率(360°/周期)，只推这十星，交点与阿拉伯点不向运。
 from flatlib import const
 from flatlib.chart import Chart
 from flatlib.datetime import Datetime
@@ -13,21 +14,45 @@ RATE = {
     'naibod': 0.9856473,
 }
 
+PERIODIC = 'periodic'
+# 周期律：每星走完一圈的年数。七曜取托勒密《四书》人生七龄的年数(土星段取 30 年)，天海冥取恒星周期。
+PERIODIC_YEARS = {
+    const.MOON: 4, const.MERCURY: 10, const.VENUS: 8, const.SUN: 19, const.MARS: 15,
+    const.JUPITER: 12, const.SATURN: 30, const.URANUS: 84, const.NEPTUNE: 165, const.PLUTO: 248,
+}
+
+# 年长(日)。solar 沿用本技法一直用的回归年常数，缺省路径逐位不变。
+YEAR_DAYS = {'solar': 365.2421904, 'sidereal': 365.256363, 'hellenistic': 360.0, 'bija': 365.258756, 'bijaClassic': 366.256399}   # bija 两档同 timelord_tables
+
+
+def yearDays(yearKey):
+    return YEAR_DAYS.get(yearKey, YEAR_DAYS['solar'])
+
 
 def compute(chart, ageYears, rateKey='persian', asporb=1, nodeRetrograde=False, direction='direct'):
-    arc = ageYears * RATE.get(rateKey, 1.0)
-    # converse(反向向运)：弧取负 => 外盘顺时针转;direct(默认)=> 逆时针。
-    if direction == 'converse':
-        arc = -arc
+    sign = -1 if direction == 'converse' else 1    # converse(反向向运)：弧取负 => 外盘顺时针转;direct(默认)=> 逆时针。
+    periodic = rateKey == PERIODIC
+
+    def arcOf(objId):
+        if periodic:
+            years = PERIODIC_YEARS.get(objId)
+            return None if years is None else sign * ageYears * 360.0 / years
+        return sign * ageYears * RATE.get(rateKey, 1.0)
+
+    arc = arcOf(None)
 
     pChart = chart.copy()
     for obj in pChart.objects:                      # 行星/点 +arc
+        objArc = arcOf(obj.id)
+        if objArc is None:
+            continue
         if nodeRetrograde and (obj.id == const.NORTH_NODE or obj.id == const.SOUTH_NODE):
-            obj.relocate(obj.lon - arc)
+            obj.relocate(obj.lon - objArc)
         else:
-            obj.relocate(obj.lon + arc)
-    for par in pChart.pars:                         # 阿拉伯点也作为「点」向运 +arc
-        par.relocate(par.lon + arc)
+            obj.relocate(obj.lon + objArc)
+    if not periodic:
+        for par in pChart.pars:                     # 阿拉伯点也作为「点」向运 +arc
+            par.relocate(par.lon + arc)
     # houses / angles 不旋转 —— 宫头/ASC/MC 固定本命（与 solararc 唯一差异）。
     # 向运星 house 对「本命」宫头重挂（供入宫判定/AI；flatlib relocate 不改 house）。
     try:
@@ -41,7 +66,7 @@ def compute(chart, ageYears, rateKey='persian', asporb=1, nodeRetrograde=False, 
     natalObjs = [obj for obj in chart.objects]
     natalObjs.extend([obj for obj in chart.angles])
 
-    objs = [obj for obj in pChart.objects]          # 向运角不入（角不动）
+    objs = [obj for obj in pChart.objects if arcOf(obj.id) is not None]   # 向运角不入（角不动）
 
     orb = 1 if asporb < 0 else asporb
     res = []

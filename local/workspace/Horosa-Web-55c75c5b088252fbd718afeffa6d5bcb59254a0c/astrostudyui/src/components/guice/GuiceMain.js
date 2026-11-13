@@ -4,7 +4,7 @@
 // 🔴 起卦所得为冻结值：存于 state.gua，改设置不重起卦（重起须显式点「起卦」）——
 //    重算即伪造一个不同之卦。
 import React, { Component, createRef } from 'react';
-import { Empty, Tabs } from 'antd';
+import { Tabs } from 'antd';
 import { buildGuicePan } from './core/guicePan';
 import { qiGua } from './core/guiceQiGua';
 import { buildGuiceSnapshotText } from './guiceSnapshot';
@@ -568,7 +568,7 @@ class GuiceMain extends Component {
 		const p = this.getPan();
 		if (slot === 'controls') return this.renderControls();
 		if (slot === 'center' || slot === 'aux') {
-			if (!p) return <div className="horosa-huangji-empty"><Empty description={this.state.error || '请择起卦法而起卦'} image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>;
+			if (!p) return <div className="horosa-huangji-empty">{this.state.error || '请择起卦法而起卦'}</div>;
 			return (
 				<div className="horosa-huangji-page horosa-guice-page" ref={this.rootRef}>
 					{slot === 'aux' ? this.renderAux(p) : this.renderCenter(p)}
@@ -576,7 +576,7 @@ class GuiceMain extends Component {
 			);
 		}
 		// 无 slot = 本页签宿主之常道 → 自出三栏(骨架照本页签邻居,令样式与诸兄弟一致)
-		const empty = <div className="horosa-huangji-empty"><Empty description={this.state.error || '请择起卦法而起卦'} image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>;
+		const empty = <div className="horosa-huangji-empty">{this.state.error || '请择起卦法而起卦'}</div>;
 		return (
 			<div className="horosa-huangji-page horosa-guice-page horosa-astro-redesign horosa-huangji-redesign" ref={this.rootRef}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">

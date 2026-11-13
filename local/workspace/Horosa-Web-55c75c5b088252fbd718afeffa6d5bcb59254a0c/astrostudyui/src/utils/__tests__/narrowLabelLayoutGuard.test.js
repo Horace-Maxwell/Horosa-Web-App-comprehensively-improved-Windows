@@ -111,7 +111,8 @@ describe('窄栏文字 / 内容可达 · 源码闸', ()=>{
 		expect(body.decls['flex-direction'] && body.decls['flex-direction'].v).toBe('column');
 		expect(tabs && tabs.decls.height).toEqual({ v: '100%', imp: true });
 		expect(tabs.decls['min-height'] && tabs.decls['min-height'].v).toBe('0');
-		expect(holder && holder.decls['overflow-y']).toEqual({ v: 'auto', imp: true });
+		// 内层内容区接手滚动,且常驻滚动条槽(scroll 不是 auto):子页签之间卡片右缘不随滚动条出没左右跳
+		expect(holder && holder.decls['overflow-y']).toEqual({ v: 'scroll', imp: true });
 		expect(holder.decls['min-height'] && holder.decls['min-height'].v).toBe('0');
 		expect(holder.decls.flex && holder.decls.flex.v).toBe('1 1 auto');
 		// 被覆盖的通用规则(14-page-fixes:height:auto / overflow:visible !important)权重必须严格低于上面两条

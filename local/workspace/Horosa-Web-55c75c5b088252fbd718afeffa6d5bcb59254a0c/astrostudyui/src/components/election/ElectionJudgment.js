@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { XQPolarityMark } from '../xq-icons';
 import { XQTabs, XQSegmented } from '../xq-ui';
 import { runElection } from '../../divination/election/electionEngine';
 import { judgeLayerOverrides } from '../../utils/judgeLayerOverrides';
@@ -84,7 +85,7 @@ class ElectionJudgment extends Component{
 							</tr></thead>
 							<tbody>
 								{ess.map((r) => (
-									<tr key={r.key} style={{ borderTop: '1px dashed rgba(148,163,184,.18)' }}>
+									<tr key={r.key} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 										<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left', fontWeight: 600 }, r.cn)}>{r.cn}</td>
 										<td>{r.signCn} {r.signlon !== undefined ? Math.floor(r.signlon) + '°' : ''}</td>
 										<td style={{ color: 'var(--horosa-jx-ji)' }}>{dot(r.domicile)}</td>
@@ -129,12 +130,12 @@ class ElectionJudgment extends Component{
 								</tr></thead>
 								<tbody>
 									{af.points.map((pt) => (
-										<tr key={pt.label} style={{ borderTop: '1px dashed rgba(148,163,184,.18)' }}>
+										<tr key={pt.label} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 											<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, pt.label)}>{pt.label}</td>
 											{AF_SEVEN.map((k) => <td key={k} style={{ opacity: pt.scores[k] ? 1 : 0.3 }}>{pt.scores[k] || ''}</td>)}
 										</tr>
 									))}
-									<tr style={{ borderTop: '1px solid rgba(148,163,184,.35)', fontWeight: 700 }}>
+									<tr style={{ borderTop: '1px solid var(--horosa-border)', fontWeight: 700 }}>
 										<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, '合计')}>合计</td>
 										{AF_SEVEN.map((k) => <td key={k} style={{ color: af.winners.indexOf(k) >= 0 ? 'var(--horosa-accent-strong)' : 'inherit' }}>{af.totals[k] || ''}</td>)}
 									</tr>
@@ -261,7 +262,7 @@ class ElectionJudgment extends Component{
 							</thead>
 							<tbody>
 								{rows.map((r) => (
-									<tr key={r.id} style={{ borderTop: '1px dashed rgba(148,163,184,.18)', background: topicIds.indexOf(r.id) >= 0 ? 'var(--horosa-accent-soft, rgba(184,134,11,0.08))' : 'transparent' }}>
+									<tr key={r.id} style={{ borderTop: '1px dashed var(--horosa-border)', background: topicIds.indexOf(r.id) >= 0 ? 'var(--horosa-accent-soft, rgba(184,134,11,0.08))' : 'transparent' }}>
 										<td style={{ padding: '4px 6px', fontWeight: topicIds.indexOf(r.id) >= 0 ? 600 : 400 }}>{r.cn}{r.note ? <span style={{ color: 'var(--horosa-text-secondary)' }}>（{r.note}）</span> : ''}</td>
 										<td style={{ padding: '4px 6px' }}>{r.signCn} {r.signlon}°</td>
 										<td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{r.house ? `${r.house} 宫` : '—'}</td>
@@ -367,7 +368,7 @@ class ElectionJudgment extends Component{
 							return (
 								<div key={s.key} className="horosa-divi-card">
 									<div className="horosa-divi-card-head">{s.title} <span className="horosa-divi-sev" style={{ background: verd.color, minWidth: 34 }}>{verd.cn}</span> <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>{s.score}/100</span></div>
-									{s.findings.length ? s.findings.map((f, i) => <div key={i} className={lineCls(f.polarity)}><span className="dot">{f.polarity === 'positive' ? '▲' : (f.polarity === 'negative' ? '▼' : '·')}</span><span>{f.text_zh || f.message}</span></div>) : <div className="horosa-divi-line">无特别证词，状态平平。</div>}
+									{s.findings.length ? s.findings.map((f, i) => <div key={i} className={lineCls(f.polarity)}><span className="dot"><XQPolarityMark polarity={f.polarity} /></span><span>{f.text_zh || f.message}</span></div>) : <div className="horosa-divi-line">无特别证词，状态平平。</div>}
 									{s.detail_md ? <div className="horosa-divi-muted">{s.detail_md}</div> : null}
 								</div>
 							);
@@ -425,7 +426,7 @@ class ElectionJudgment extends Component{
 								const tlNotes = notes.filter((n) => n.kind === 'timelord');
 								const row = (n, i, pre) => (
 									<div key={pre + i} className={'horosa-divi-testi ' + (n.pol === 'positive' ? 'is-pos' : (n.pol === 'negative' ? 'is-neg' : ''))}>
-										<span className="dot">{n.pol === 'positive' ? '▲' : (n.pol === 'negative' ? '▼' : '·')}</span><span>{n.text}</span>
+										<span className="dot"><XQPolarityMark polarity={n.pol} /></span><span>{n.text}</span>
 									</div>
 								);
 								return (
@@ -458,7 +459,7 @@ class ElectionJudgment extends Component{
 										<div className="horosa-divi-card-head">三 · 回归盘与主限（按需拉取）</div>
 										{rows.length ? rows.map((n, i) => (
 											<div key={'r' + i} className={'horosa-divi-testi ' + (n.pol === 'positive' ? 'is-pos' : (n.pol === 'negative' ? 'is-neg' : ''))}>
-												<span className="dot">{n.pol === 'positive' ? '▲' : (n.pol === 'negative' ? '▼' : '·')}</span><span>{n.text}</span>
+												<span className="dot"><XQPolarityMark polarity={n.pol} /></span><span>{n.text}</span>
 											</div>
 										)) : <div className="horosa-divi-line">左栏「拉日/月返盘」后，显示择日时刻所处日返/月返之利钝（日返 365.25 日、月返 27.3 恒星月还度）。</div>}
 										{pd ? (
@@ -481,7 +482,7 @@ class ElectionJudgment extends Component{
 								{j.mundane && j.mundane.available ? (
 									j.mundane.notes.length ? j.mundane.notes.map((n, i) => (
 										<div key={'m' + i} className={'horosa-divi-testi ' + (n.pol === 'positive' ? 'is-pos' : (n.pol === 'negative' ? 'is-neg' : ''))}>
-											<span className="dot">{n.pol === 'positive' ? '▲' : (n.pol === 'negative' ? '▼' : '·')}</span><span>{n.text}</span>
+											<span className="dot"><XQPolarityMark polarity={n.pol} /></span><span>{n.text}</span>
 										</div>
 									)) : <div className="horosa-divi-line">未见明显时势合参要点。</div>
 								) : <div className="horosa-divi-line">左栏「拉时势盘合参」后，显示择日命度 × 时势盘。</div>}

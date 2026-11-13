@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/election/ElectionMain.js b/astrostudyui/src/components/election/ElectionMain.js
-index 2f480cfd..48809a9e 100644
+index 8eb837ee..e4d81912 100644
 --- a/astrostudyui/src/components/election/ElectionMain.js
 +++ b/astrostudyui/src/components/election/ElectionMain.js
 @@ -23,6 +23,7 @@ import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
@@ -7,10 +7,10 @@ index 2f480cfd..48809a9e 100644
  import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
  import { toSlashDate, civilDateStrOfJdn, civilJdnOfDateStr } from '../../utils/dateStrSafe';
 +import { markPanelReady } from '../../utils/perfMark';
+ import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
  
  const Option = XQSelect.Option;
- 
-@@ -506,6 +507,13 @@ class ElectionMain extends Component{
+@@ -507,6 +508,13 @@ class ElectionMain extends Component{
  	}
  
  	renderRight({ chart, extra }){

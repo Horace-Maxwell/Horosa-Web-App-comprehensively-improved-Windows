@@ -40,7 +40,7 @@ export function boxSizeVarsRef(compute){
 	let ro = null;
 	let unreg = null;
 	const apply = ()=>applyBoxSizeVars(el, compute);
-	return (node)=>{
+	const ref = (node)=>{
 		if(ro){ ro.disconnect(); ro = null; }
 		if(unreg){ unreg(); unreg = null; }
 		el = node || null;
@@ -51,6 +51,9 @@ export function boxSizeVarsRef(compute){
 			unreg = registerZoomSyncRemeasure(apply);   // 换档当拍同步跟进(延帧观察器兜底其余尺寸变化)
 		}
 	};
+	// 容器尺寸没变、里面的内容变了(起课 / 换流派)时由组件的 componentDidUpdate 调一次
+	ref.refit = apply;
+	return ref;
 }
 
 // 一个组件里有多块盘(各自 ref)时按 key 各建一只,挂在组件实例上复用(render 里调用,不会每次新建 → 不会反复挂卸观察)。
@@ -67,6 +70,53 @@ export function ownedBoxSizeRef(owner, key, compute){
 export const NARROW_BOARD_WIDTH = 480;
 export function narrowBoardVars(w){
 	return { attrs: { 'data-board-narrow': w < NARROW_BOARD_WIDTH } };
+}
+
+// 中栏盘宿主「矮」(小窗口 / 放大档)时挂 data-host-short:样式收紧盘框上下内边距与行距,让整盘不用下滑就看全。
+// 阈值按各盘常规版式的自然高取(布局域 px);常规高度不挂属性,一字不变。
+export const XCT_HOST_SHORT = 660;       // 小成图洛书九宫
+export const GEOMANCY_HOST_SHORT = 640;  // 地占各盘
+export const XLR_HOST_SHORT = { 2: 520, 3: 720 };   // 小六壬:六宫两行 / 九宫三行
+const SHORT_HOST_FNS = {};
+export function shortHostVars(limit){
+	if(!SHORT_HOST_FNS[limit]){
+		SHORT_HOST_FNS[limit] = (w, h)=>({ attrs: { 'data-host-short': h < limit } });
+	}
+	return SHORT_HOST_FNS[limit];
+}
+
+// 小六壬正方形宫格(六宫 2 行 / 九宫 3 行):格边长 = 列宽,盘高 = 盘框其余部分 + 行数 × 列宽,矮窗口里比中栏高、要下滑才看全。
+// 量出「中栏放得下的格高」(--cnx-cell-cap);它比列宽小时挂 data-cell-capped,样式把格子从正方形改成「列宽 × 该高」的矩形
+// (内容再高就按内容,宁可滚、不能裁)。放得下正方形时不挂属性,一字不变。
+// 宿主挂在 .horosa-huangji-board-host 上;宫格带 data-rows。
+export function squareGridFitVars(w, h, el){
+	const off = { vars: { '--cnx-cell-cap': '0px' }, attrs: { 'data-host-short': false, 'data-cell-capped': false } };
+	const grid = el && el.querySelector ? el.querySelector('.horosa-cnx-grid[data-rows]') : null;
+	const board = grid && grid.closest ? grid.closest('.horosa-cnx-board') : null;
+	const rows = grid ? (parseInt(grid.getAttribute('data-rows'), 10) || 0) : 0;
+	const cell = grid ? grid.querySelector('.horosa-cnx-cell-sq') : null;
+	if(!grid || !board || !cell || !(rows > 0)){
+		return off;
+	}
+	// 先落「矮」开关再量:收紧内边距会改盘框里宫格以外部分的高
+	const short = h < (XLR_HOST_SHORT[rows] || 0);
+	if(short !== el.hasAttribute('data-host-short')){
+		if(short){ el.setAttribute('data-host-short', ''); }else{ el.removeAttribute('data-host-short'); }
+	}
+	const chrome = board.offsetHeight - grid.offsetHeight;   // 盘框里宫格以外的部分(题头 / 三传条 / 内边距 / 间距),与格高无关
+	const side = cell.offsetWidth;                            // 列宽(格子横向撑满列,封不封顶都一样)
+	if(!(side > 0) || !(chrome >= 0)){
+		return { vars: {}, attrs: { 'data-host-short': short } };   // 隐藏页签里量不到:保留上一次读数
+	}
+	let gap = 0;
+	if(typeof window !== 'undefined' && window.getComputedStyle){
+		gap = parseFloat(window.getComputedStyle(grid).rowGap) || 0;
+	}
+	const cap = Math.max(0, Math.floor((h - chrome - (rows - 1) * gap) / rows));
+	return {
+		vars: { '--cnx-cell-cap': `${cap}px` },
+		attrs: { 'data-host-short': short, 'data-cell-capped': cap < side },
+	};
 }
 
 // 方盘(南印 / 分盘集 / 盘面美术南印):4×4 格,格边长 = 盘短边 / 4。

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/taixuan/TaiXuanMain.js b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-index 46105b55..c07f2d88 100644
+index be898865..e1cf3d8f 100644
 --- a/astrostudyui/src/components/taixuan/TaiXuanMain.js
 +++ b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-@@ -17,6 +17,8 @@ import { parseDateParts } from '../../utils/dateStrSafe';
+@@ -18,6 +18,8 @@ import { parseDateParts } from '../../utils/dateStrSafe';
  import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
  import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 四柱须吃全局日界/晚子时(此前后端恒取缺省)
@@ -11,7 +11,7 @@ index 46105b55..c07f2d88 100644
  
  const { TabPane } = Tabs;
  
-@@ -334,6 +336,14 @@ class TaiXuanMain extends Component{
+@@ -335,6 +337,14 @@ class TaiXuanMain extends Component{
  		this.setState({ seed: defaultSeed() });
  	}
  
@@ -26,7 +26,7 @@ index 46105b55..c07f2d88 100644
  	async fetchPan(fields){
  		const dt = parseFieldsDateTime(fields);
  		if(!dt){
-@@ -356,6 +366,8 @@ class TaiXuanMain extends Component{
+@@ -357,6 +367,8 @@ class TaiXuanMain extends Component{
  				return;
  			}
  			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
@@ -35,7 +35,7 @@ index 46105b55..c07f2d88 100644
  				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -575,23 +587,35 @@ class TaiXuanMain extends Component{
+@@ -587,23 +599,35 @@ class TaiXuanMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

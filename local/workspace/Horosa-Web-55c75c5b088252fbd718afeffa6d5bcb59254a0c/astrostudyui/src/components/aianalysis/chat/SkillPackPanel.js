@@ -57,9 +57,9 @@ function SkillEditor({ open, bundle, bundles, onClose, onSaved }){
 	}
 	return (
 		<Modal title={bundle ? `编辑技能:${bundle.name}` : '新建技能包'} open={open} visible={open} onCancel={onClose} onOk={save} okText="保存" destroyOnClose width={640} okButtonProps={{ 'data-skill-save': '1' }}>
-			<div data-skill-editor="1" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+			<div data-skill-editor="1" className={styles.stack}>
 				<Input size="small" placeholder="名字(如:事业)" value={name} onChange={(e)=>setName(e.target.value)} data-skill-name="1" />
-				<div style={{ display: 'flex', gap: 8 }}>
+				<div className={styles.inline}>
 					<Input size="small" placeholder="触发词(空格分隔;打 /事业 即用)" value={triggers} onChange={(e)=>setTriggers(e.target.value)} data-skill-triggers="1" style={{ flex: '1 1 50%' }} />
 					<Select size="small" value={requires} onChange={setRequires} style={{ flex: '0 0 150px' }} data-skill-requires="1" options={SKILL_REQUIRES.map((r)=>({ value: r, label: `需要:${REQ_LABELS[r]}` }))} />
 				</div>
@@ -106,7 +106,7 @@ export default function SkillPackPanel({ bundles, materials, reloadBundles }){
 			{skills.length ? skills.map((b)=>(
 				<div key={b.id} data-skill-row={b.id} className={styles.listRow}>
 					<div className={styles.listMain}>
-						<span style={{ fontWeight: 600 }}>{b.name}</span>
+						<span className={styles.strong}>{b.name}</span>
 						<span className={styles.mono}>{b.skill.triggers.map((t)=>`/${t}`).join(' ')}</span>
 						<Tag style={{ margin: 0 }}>需要:{REQ_LABELS[b.skill.requires] || b.skill.requires}</Tag>
 						{(()=>{ const conf = triggerConflicts(b.skill.triggers); return conf.length ? <Tag color="warning" style={{ margin: 0 }} title="内置命令后来占用了同名触发词;菜单里内置优先,这个触发词已让位——改个触发词即可">触发词 {conf.map((x)=>`/${x}`).join(' ')} 与内置冲突</Tag> : null; })()}
@@ -115,7 +115,7 @@ export default function SkillPackPanel({ bundles, materials, reloadBundles }){
 					<Button size="small" data-skill-edit={b.id} onClick={()=>{ setEditing(b); setEditorOpen(true); }}>编辑</Button>
 					<Button size="small" data-skill-export={b.id} onClick={()=>{ const pack = exportSkillPack(b, materialsById); if(pack){ downloadJson(`${b.name}${SKILL_FILE_EXT}`, pack); } }}>导出</Button>
 				</div>
-			)) : <div className={styles.infoStrip}>还没有自定义技能。点「新建技能」,或从别人分享的 {SKILL_FILE_EXT} 文件导入。</div>}
+			)) : <div className={styles.empty} data-skill-empty="1"><div className={styles.emptyTitle}>还没有自定义技能</div><div className={styles.emptyHint}>点「新建技能」,或从别人分享的 {SKILL_FILE_EXT} 文件导入。</div></div>}
 			<SkillEditor open={editorOpen} bundle={editing} bundles={bundles} onClose={()=>setEditorOpen(false)} onSaved={()=>{ if(typeof reloadBundles === 'function'){ reloadBundles(); } }} />
 		</AdvCard>
 	);

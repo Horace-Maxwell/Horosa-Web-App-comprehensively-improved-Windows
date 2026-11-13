@@ -695,6 +695,8 @@ describe('aiAnalysisContext', ()=>{
 			balbillus: '',
 			yearsystem129: '',   // 本地引擎读本命七星(同 Balbillus),不再依赖随盘 predictives
 			bazi: '八字结构化快照',
+			dongya: '[藏历]',
+			zhufang: '[玛雅历]',   // 诸方杂术:玛雅历本地算,命盘挂载即产出   // 东亚诸术:纯前端按出生资料重算,命盘挂载即产出
 			ziwei: '紫微斗数结构化快照',
 			suzhan: '宿占结构化快照',
 			otherbu: '西洋游戏结构化快照',

@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
-index 66156aeb..58ff163a 100644
+index 6c1a70c4..d2ee4185 100644
 --- a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
 +++ b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
-@@ -29,12 +29,30 @@ import {
- } from './itemText';
+@@ -33,6 +33,14 @@ import { labelCropRect, labelRectCovers, labelPlanePositions, isFullLabelRect }
+ import { LabelUploadQueue } from './labelUploadQueue';
  import { noise2, paintSkySurface, paintHorizonMistSurface, planetTextureSize, paintPlanetSurface, paintMoonPhase } from './textures';
  
 +import { planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled } from '../../../utils/perfFlags';
@@ -14,9 +14,10 @@ index 66156aeb..58ff163a 100644
 +const PLANETARIUM_IDLE_FRAME_MS = 100;
 +const PLANETARIUM_SETTLE_MS = 600;
 +
- export class PlanetariumRenderer {
- 	constructor(canvas, onPick, onMetrics, onInteraction){
- 		this.canvas = canvas;
+ // 星官分片建造:每帧最多占这么多毫秒(一帧 16.7ms 里留足渲染 + 重投影的余量)。
+ const ASTERISM_BUILD_SLICE_MS = 6;
+ 
+@@ -42,6 +50,16 @@ export class PlanetariumRenderer {
  		this.onPick = onPick;
  		this.onMetrics = onMetrics;
  		this.onInteraction = onInteraction;
@@ -33,7 +34,7 @@ index 66156aeb..58ff163a 100644
  		this.engine = new BABYLON.Engine(canvas, true, {
  			preserveDrawingBuffer: false,
  			stencil: false,
-@@ -150,6 +168,7 @@ export class PlanetariumRenderer {
+@@ -163,6 +181,7 @@ export class PlanetariumRenderer {
  				return;
  			}
  			evt.preventDefault();
@@ -41,7 +42,7 @@ index 66156aeb..58ff163a 100644
  			if(this.viewMode === 'orbit'){
  				this.camera.radius = clamp(this.camera.radius + (evt.deltaY > 0 ? 64 : -64), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
  				return;
-@@ -165,6 +184,7 @@ export class PlanetariumRenderer {
+@@ -178,6 +197,7 @@ export class PlanetariumRenderer {
  			if(this.onInteraction){
  				this.onInteraction();
  			}
@@ -49,7 +50,7 @@ index 66156aeb..58ff163a 100644
  			this.pointerDrag = {
  				id: evt.pointerId,
  				x: evt.clientX,
-@@ -200,6 +220,7 @@ export class PlanetariumRenderer {
+@@ -213,6 +233,7 @@ export class PlanetariumRenderer {
  				if(this.camera){ this.camera.lockedTarget = null; }
  			}
  			evt.preventDefault();
@@ -57,7 +58,7 @@ index 66156aeb..58ff163a 100644
  			if(this.viewMode === 'orbit'){
  				if(this.onInteraction){
  					this.onInteraction();
-@@ -326,21 +347,8 @@ export class PlanetariumRenderer {
+@@ -339,22 +360,8 @@ export class PlanetariumRenderer {
  			}
  		});
  
@@ -66,6 +67,7 @@ index 66156aeb..58ff163a 100644
 -				this.updateGroundScenePosition();
 -				this.applyLabelVisibility();
 -				this.applyGridLod();
+-				this._labelUploads.tick();
 -				this.scene.render();
 -				if(this.onMetrics){
 -					const fps = Math.round(this.engine.getFps());
@@ -81,7 +83,7 @@ index 66156aeb..58ff163a 100644
  		this.resizeHandler = ()=>{
  			if(this.engine){
  				// Keep the backing store at full device resolution; re-apply on resize so
-@@ -3008,8 +3016,108 @@ export class PlanetariumRenderer {
+@@ -3466,8 +3473,112 @@ export class PlanetariumRenderer {
  		return true;
  	}
  
@@ -98,7 +100,9 @@ index 66156aeb..58ff163a 100644
 +			const live = this._renderRequested
 +				|| this._playing
 +				|| (this.scene.animatables && this.scene.animatables.length > 0)
-+				|| (t < this._settleUntil);
++				|| (t < this._settleUntil)
++				// 名牌上传队列按「帧」计龄、每帧只传一小片:队列未空时保持满帧,否则静止降帧会把几十张名牌拖成数秒才露齐
++				|| (this._labelUploads.size > 0);
 +			if(!live){
 +				if(this._lastIdleRender && (t - this._lastIdleRender) < PLANETARIUM_IDLE_FRAME_MS){
 +					return;
@@ -110,6 +114,7 @@ index 66156aeb..58ff163a 100644
 +		this.updateGroundScenePosition();
 +		this.applyLabelVisibility();
 +		this.applyGridLod();
++		this._labelUploads.tick();
 +		this.scene.render();
 +		if(this.onMetrics){
 +			// B:FPS/网格调试读数节流到 ~2Hz(getFps 本就是滚动均值,2Hz 与 60Hz 读同一值类、零精度损失)。
@@ -161,6 +166,7 @@ index 66156aeb..58ff163a 100644
 +		this.updateGroundScenePosition();
 +		this.applyLabelVisibility();
 +		this.applyGridLod();
++		this._labelUploads.tick();
 +		this.scene.render();
 +		this._renderRequested = false;
 +		this._lastIdleRender = nowMs();

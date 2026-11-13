@@ -19,6 +19,44 @@ export function dispatchModuleSnapshotRefresh(moduleName){
 	return detail;
 }
 
+// 导出前请页面把「页面上还没算、正文却要用」的内容补算齐(异步;与存案前的补算同一个宿主钩子,导出与存案两边一致)。
+// 页面监听 horosa:prepare-module-snapshot:detail.module 是自己的槽名就把补算的 Promise 推进 detail.pending。
+// 没人监听 / 没有要补的 → 立即返回;最多等 timeoutMs,超时按已有的导出(补不上只少那一段)。
+export const MODULE_SNAPSHOT_PREPARE_EVENT = 'horosa:prepare-module-snapshot';
+// 补算最多等这么久(导出前补算与存案前补算同一上限):补不上只少那一段,不让导出 / 存案一直挂着
+export const MODULE_SNAPSHOT_PREPARE_TIMEOUT_MS = 30000;
+
+// 等一组补算全部落定(失败当作落定),最多等 timeoutMs;返回 true = 全部按时落定
+export async function settleWithin(pending, timeoutMs = MODULE_SNAPSHOT_PREPARE_TIMEOUT_MS){
+	const list = (Array.isArray(pending) ? pending : [pending]).filter((p)=>p !== undefined && p !== null);
+	if(!list.length){
+		return true;
+	}
+	let timer = null;
+	const settled = await Promise.race([
+		Promise.all(list.map((p)=>Promise.resolve(p).catch(()=>null))).then(()=>true),
+		new Promise((resolve)=>{ timer = setTimeout(()=>resolve(false), timeoutMs); }),
+	]);
+	if(timer){ clearTimeout(timer); }
+	return settled;
+}
+
+export async function prepareModuleSnapshot(moduleName, timeoutMs = MODULE_SNAPSHOT_PREPARE_TIMEOUT_MS){
+	if(!moduleName || typeof window === 'undefined'){
+		return;
+	}
+	const detail = { module: moduleName, pending: [] };
+	try{
+		window.dispatchEvent(new CustomEvent(MODULE_SNAPSHOT_PREPARE_EVENT, { detail }));
+	}catch(e){
+		return;
+	}
+	if(!detail.pending.length){
+		return;
+	}
+	await settleWithin(detail.pending, timeoutMs);
+}
+
 // 同步版:只派发一次、不轮询。页面在场且同步应答 → 返回页面此刻的正文(槽也已换成它);
 // 页面不在场(无人监听)→ 立即返回 '',零等待。
 export function requestModuleSnapshotRefreshSync(moduleName){

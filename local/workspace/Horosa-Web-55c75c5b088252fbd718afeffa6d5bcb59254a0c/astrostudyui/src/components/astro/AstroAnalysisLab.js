@@ -119,7 +119,7 @@ class AstroAnalysisLab extends Component{
 				{patterns && patterns.length ? (
 					<div style={gridStyle}>
 						{patterns.map((item, idx)=>(
-							<div key={`${item.type}-${idx}`} style={{padding: 8, border: '1px solid rgba(148,163,184,.22)', borderRadius: 6}}>
+							<div key={`${item.type}-${idx}`} style={{padding: 8, border: '1px solid var(--horosa-border)', borderRadius: 6}}>
 								<strong>{item.label}</strong>
 								<div>{astroSymbolList(item.points)}</div>
 								{item.apex ? <div>顶点：{astroSymbol(item.apex)}</div> : null}

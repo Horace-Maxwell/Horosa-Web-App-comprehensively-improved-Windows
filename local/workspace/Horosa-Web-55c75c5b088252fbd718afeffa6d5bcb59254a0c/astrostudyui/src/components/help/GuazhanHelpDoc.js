@@ -2,21 +2,23 @@
 // 逐一写清左栏每个起卦方式/断卦设置项的取值与差别 + 右栏每块内容，便于使用者理解每个开关怎么影响装卦断卦。
 // 中性表述，纯展示零后端；只写公版古籍名，不写现代来源；不写软件名或内部章节号。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
 
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class GuazhanHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>六爻纳甲 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '六爻纳甲 · 操作手册',
+	groups: [
+		{
+			key: 'guazhan',
+			label: '六爻纳甲',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>六爻纳甲以<b>起卦得本卦</b>为始：六爻自下（初爻）而上（上爻），阳爻为一、阴爻为断；遇<b>动爻</b>则该爻变出对位之爻，由本卦变出<b>之卦（变卦）</b>。再按京房纳甲给每爻配上<b>地支、五行、六亲、世应</b>，结合起卦当时的<b>年月日时干支</b>，看用神旺衰生克以断吉凶。</p>
 							<p style={p}>本页布局：<b>左栏</b>填起卦时间地点、选起卦方式、并设断卦口径；<b>中栏</b>为六爻盘（四宫格：本卦、之卦、伏神、互卦，逐爻装纳甲、六神、世应、动爻标记，盘内标题另标流派/卦序/用神/卦身）；<b>右栏</b>分<b>概览、装卦、断诀、占类、参考、卦辞</b>六个标签，列旬空、用神原忌仇、动变、神煞、断诀命中、应期、占类对照与卦爻辞。</p>
@@ -39,9 +41,14 @@ class GuazhanHelpDoc extends Component{
 							</div>
 							<p style={{ ...p, color: MUTED }}>下面分「起卦装卦 / 起卦须知与边界 / 用神动变 / 流派分歧 / 断卦设置 / 右栏标签 / 断诀与应期 / 占类与古籍 / 算法与口径 / 案例与 AI」逐项说明。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="起卦装卦" key="setup">
+					</div>
+					),
+				},
+				{
+					key: 'setup',
+					label: '起卦装卦',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏各起卦方式：怎么起 / 动爻怎么定 / 与别法差在哪。起卦后六爻自动按京房纳甲装上地支五行六亲世应。</p>
 
@@ -129,9 +136,14 @@ class GuazhanHelpDoc extends Component{
 								<li style={li}><b>保存</b>：把当前卦象与设置存为案例，便于回看与导出；未起卦即点保存会提示先完成起卦，翻动中点保存会提示先停止翻动。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="起卦须知与边界" key="guiju">
+					</div>
+					),
+				},
+				{
+					key: 'guiju',
+					label: '起卦须知与边界',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>摇卦的规矩、掷钱结果的传统名相、外应起卦，以及与相邻术数的界限；均为古籍通例，供参考。</p>
 
@@ -169,9 +181,14 @@ class GuazhanHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>凡「装天干地支、配六亲、按日干起六神」者，皆属六爻纳甲法；否则属他术。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="用神动变" key="yong">
+					</div>
+					),
+				},
+				{
+					key: 'yong',
+					label: '用神动变',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>用神是断卦的核心：先按所测之事定出用神六亲，再推原神、忌神、仇神，配合旺衰与动变看成败。</p>
 
@@ -247,9 +264,14 @@ class GuazhanHelpDoc extends Component{
 								<li style={li}><b>盲派扩展</b>：把「变爻范围」切为盲派后，另列变爻对本卦其他各爻的生、克、冲、合逐条（默认传统口径只论回头本位）。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派分歧" key="schools">
+					</div>
+					),
+				},
+				{
+					key: 'schools',
+					label: '流派分歧',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「断卦设置（流派）」顶部下拉选预设，一键套一组开关；之后任改一项，流派自动转为「自定义」，可再微调。各预设只是默认口径，不强求唯一。</p>
 
@@ -282,9 +304,14 @@ class GuazhanHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>预设之间的差别都落在下面「断卦设置」各开关上；切预设即批量改这些开关，单独改某项则脱离预设成「自定义」。选中某预设时，设置区底部会显示该派一句口径提要。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="断卦设置" key="options">
+					</div>
+					),
+				},
+				{
+					key: 'options',
+					label: '断卦设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「断卦设置（流派）」各开关逐项：取值 / 默认 / 区别。改任一项即重算中右栏，不重新起卦。</p>
 
@@ -424,9 +451,14 @@ class GuazhanHelpDoc extends Component{
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>占测事项与「用神（手选）」的取值见「用神动变」一节；它们与上述开关同属「断卦设置」，决定用神而非显示口径。</p>
 							<p style={{ ...p, color: MUTED }}>凡上述任一项改动，中栏盘、右栏六个标签与 AI 快照一并重算，起出的卦象（六爻阴阳与动爻）始终不动。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="右栏标签" key="panels">
+					</div>
+					),
+				},
+				{
+					key: 'panels',
+					label: '右栏标签',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>右栏分<b>概览、装卦、断诀、占类、参考、卦辞</b>六个标签，随左栏起卦与设置实时刷新。</p>
 							<div style={card}><div style={ct}>概览</div>
@@ -470,9 +502,14 @@ class GuazhanHelpDoc extends Component{
 							<p style={{ ...p, color: MUTED }}>中栏盘为四宫格：<b>本卦</b>（左上）、<b>之卦</b>（右上，无动爻时不画）、<b>伏神</b>（左下，即本宫首卦）、<b>互卦</b>（右下）；盘内标题三行依次为起卦时刻（随时间算法标作真太阳时 / 直接时间 / 平太阳时）、农历与四柱八字、以及当前流派/卦序/用神（含所临爻）/卦身。</p>
 							<p style={{ ...p, color: MUTED }}>底部快捷功能条八个按钮：<b>时间卦 / 再摇一卦 / 数字卦 / 自定义 / 蓍草起卦 / 保存 / 载入 / AI助手</b>（速查类信息一律常驻右栏标签，快捷条只放动作）。「载入」打开事盘列表，可把存过的卦连同设置调回。「再摇一卦」与左栏「整卦随机」是同一动作：点一下开始翻动，按钮变成「停止随机」；再点一下（或点左栏「停止随机」）才定卦。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="断诀与应期" key="duanjue">
+					</div>
+					),
+				},
+				{
+					key: 'duanjue',
+					label: '断诀与应期',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>右栏「断诀」页各卡逐一说明：判什么、受哪个勾选控。不命中的项不显（不占位）。</p>
 
@@ -518,9 +555,14 @@ class GuazhanHelpDoc extends Component{
 							</div>
 							<p style={{ ...p, color: MUTED }}>「月建六神」是与古法进阶并列的<b>独立勾选</b>（默认关），不随古法进阶开关一起开；它按月令定局另注一套六神，不替代按日干起的六神。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="占类与古籍" key="zhanlei">
+					</div>
+					),
+				},
+				{
+					key: 'zhanlei',
+					label: '占类与古籍',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>「占类」页</div>
 							<div style={card}>
@@ -544,9 +586,14 @@ class GuazhanHelpDoc extends Component{
 								{kv('按需加载', '刚进页面时卡片会短暂显示「载入中」；起卦后立即保存的情形，系统会先等断语就绪再写入案例快照，故存档不会缺这一段')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="算法与口径" key="algo">
+					</div>
+					),
+				},
+				{
+					key: 'algo',
+					label: '算法与口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本节写清各处判据、公式、取整取模与边界回退，便于核对与复现。凡分歧处均以左栏设置为准，本节只述默认口径与各取值之差。</p>
 
@@ -617,9 +664,14 @@ class GuazhanHelpDoc extends Component{
 								{kv('六爻未齐备', '任一爻未定（如清空后）时不出断卦分析，勾动爻亦不生效')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="案例与 AI" key="case">
+					</div>
+					),
+				},
+				{
+					key: 'case',
+					label: '案例与 AI',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页与「案例（事盘）」「AI 分析」的关系，以及一条关键铁律。</p>
 
@@ -644,10 +696,19 @@ class GuazhanHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>提示：若想让 AI 看到某派口径下的判读（如古法诸卡、扩展神煞、应期），先在左栏把对应开关打开再挂载——关掉的块不会进入快照。</p>
 						</div>
-					</TabPane>
-			</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class GuazhanHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

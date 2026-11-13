@@ -3,7 +3,7 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import AstroChart13 from './AstroChart13';
 
 // 十二分盘(Dwadasamsa,D12):与十三分盘同一 UI/设置/缓存逻辑(复用 AstroChart13),
-// 仅把请求端点指向 /chart12(newlon = lon × 12 mod 360)。用户指定观感与十三分盘完全一致。
+// 仅把请求端点指向 /chart12(十二分:自本座起按 2.5° 一段数十二座,不是 12 次谐波)。用户指定观感与十三分盘完全一致。
 class Dwadasamsa12Main extends Component{
 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。

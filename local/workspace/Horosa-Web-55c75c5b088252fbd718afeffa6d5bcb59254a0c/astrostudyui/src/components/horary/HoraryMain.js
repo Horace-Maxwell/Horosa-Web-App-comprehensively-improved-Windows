@@ -262,7 +262,7 @@ class HoraryMain extends Component{
 					onChange={(e)=>setExtra({ castingCamp: e && e.target ? e.target.value : e })}
 					options={CAMP_OPTIONS} />
 				{camp !== 'astrologer' ? (
-					<div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'rgba(148,163,184,.08)', border: '1px dashed rgba(148,163,184,.25)' }}>
+					<div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--horosa-panel-soft)', border: '1px dashed var(--horosa-border)' }}>
 						<div className="horosa-field-grid">
 							<div className="horosa-field-block" style={{ marginBottom: 0 }}>
 								<div className="horosa-field-label" style={{ fontSize: 12 }}>问卜者时刻</div>

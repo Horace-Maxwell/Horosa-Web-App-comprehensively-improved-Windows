@@ -40,6 +40,19 @@ function fitText(txt, width, fontSize){
 	return `${text.substring(0, Math.max(1, max - 1))}…`;
 }
 
+// 行标签列的字号:整列用同一个字号,按最长的标签缩到列宽内(不低于 min),标签不截成「人…」。
+function fitLabelFontSize(labels, width, base, min){
+	let longest = 1;
+	(labels || []).forEach((one)=>{
+		const len = safeText(one, '').length;
+		if(len > longest){
+			longest = len;
+		}
+	});
+	const fit = Math.floor(width / (longest * 0.95));
+	return Math.max(min, Math.min(base, fit));
+}
+
 function extractBranch(value){
 	if(value === undefined || value === null){
 		return '';
@@ -425,6 +438,8 @@ class JinKouPanChart {
 			.attr('height', h)
 			.attr('fill', AstroConst.AstroColor.ChartBackgroud)
 			.attr('stroke', 'none');
+		const labelPad = 4;
+		const labelFont = fitLabelFontSize(rows.map((r)=>r.label), w * widths[0] - labelPad * 2, 17, 11);
 		for(let i=0; i<rows.length; i++){
 			const row = rows[i];
 			const showContent = cleanVal(row.content);
@@ -458,7 +473,8 @@ class JinKouPanChart {
 					h: rowH,
 					text: data[j].text,
 					color: data[j].color,
-					fontSize: 17,
+					fontSize: j === 0 ? labelFont : 17,
+					padding: j === 0 ? labelPad : undefined,
 					align: data[j].align,
 					allowEmpty: true,
 					fontWeight: 600,
@@ -512,8 +528,10 @@ class JinKouPanChart {
 			return;
 		}
 		const rowH = h / rows.length;
-		const labelW = w * 0.20;
+		const labelW = w * 0.22;
 		const valueW = w - labelW;
+		const labelPad = 4;
+		const labelFont = fitLabelFontSize(rows.map((r)=>r.label), labelW - labelPad * 2, 16, 11);
 		for(let i=0; i<rows.length; i++){
 			const row = rows[i];
 			const cy = y + rowH * i;
@@ -524,7 +542,8 @@ class JinKouPanChart {
 				w: labelW,
 				h: rowH,
 				text: row.label,
-				fontSize: 16,
+				fontSize: labelFont,
+				padding: labelPad,
 				fontWeight: 600,
 			});
 			this.drawCell(x + labelW, cy, valueW, rowH, AstroConst.AstroColor.ChartBackgroud);

@@ -168,7 +168,7 @@ class MidpointMain extends Component{
 		let dt = new DateTime();
 		if(dtstr){
 			if(dtstr.length > 11){
-				dt = dt.parse(dtstr, 'YYYY-MM-DD HH:mm');
+				dt = dt.parse(dtstr, 'YYYY-MM-DD HH:mm:ss');
 			}else{
 				dt = dt.parse(dtstr, 'YYYY-MM-DD');
 			}

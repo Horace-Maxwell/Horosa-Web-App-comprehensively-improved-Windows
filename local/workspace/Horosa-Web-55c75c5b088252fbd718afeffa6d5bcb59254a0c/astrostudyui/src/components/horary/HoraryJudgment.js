@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { XQPolarityMark } from '../xq-icons';
 import { XQTabs, XQSelect } from '../xq-ui';
 import { runHorary, ASPECT_CN } from '../../divination/horary/horaryEngine';
 import { horaryJudgeOpts, schoolOf } from '../../divination/horary/horarySchools';
@@ -242,8 +243,8 @@ class HoraryJudgment extends Component{
 							<div className="horosa-divi-card">
 								<div className="horosa-divi-card-head">断法要点 · {guide.title}</div>
 								<div className="horosa-divi-kv" style={{ opacity: 0.85 }}>{guide.focus}</div>
-								<div className="horosa-divi-testi is-pos"><span className="dot">▲</span><span>偏成之征：{guide.yes}</span></div>
-								<div className="horosa-divi-testi is-neg"><span className="dot">▼</span><span>偏阻之征：{guide.no}</span></div>
+								<div className="horosa-divi-testi is-pos"><span className="dot"><XQPolarityMark polarity="positive" /></span><span>偏成之征：{guide.yes}</span></div>
+								<div className="horosa-divi-testi is-neg"><span className="dot"><XQPolarityMark polarity="negative" /></span><span>偏阻之征：{guide.no}</span></div>
 							</div>
 						) : null}
 						{j.topic ? (
@@ -251,18 +252,18 @@ class HoraryJudgment extends Component{
 								<div className="horosa-divi-card-head">专题深化 · {j.topic.title}</div>
 								{j.topic.lines.map((t, i) => (
 									<div key={i} className={'horosa-divi-testi ' + (t.polarity === 'positive' ? 'is-pos' : (t.polarity === 'negative' ? 'is-neg' : ''))}>
-										<span className="dot">{t.polarity === 'positive' ? '▲' : (t.polarity === 'negative' ? '▼' : '·')}</span><span>{t.text}</span>
+										<span className="dot"><XQPolarityMark polarity={t.polarity} /></span><span>{t.text}</span>
 									</div>
 								))}
 							</div>
 						) : null}
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-subhead pos">有利证词（{v.positive.length}）</div>
-							{v.positive.length ? v.positive.map((p, i) => <div key={i} className="horosa-divi-testi is-pos"><span className="dot">▲</span><span>{p.text}</span></div>) : <div className="horosa-divi-line">暂无明显有利证词。</div>}
+							{v.positive.length ? v.positive.map((p, i) => <div key={i} className="horosa-divi-testi is-pos"><span className="dot"><XQPolarityMark polarity="positive" /></span><span>{p.text}</span></div>) : <div className="horosa-divi-line">暂无明显有利证词。</div>}
 						</div>
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-subhead neg">不利证词（{v.negative.length}）</div>
-							{v.negative.length ? v.negative.map((n, i) => <div key={i} className="horosa-divi-testi is-neg"><span className="dot">▼</span><span>{n.text}</span></div>) : <div className="horosa-divi-line">暂无明显不利证词。</div>}
+							{v.negative.length ? v.negative.map((n, i) => <div key={i} className="horosa-divi-testi is-neg"><span className="dot"><XQPolarityMark polarity="negative" /></span><span>{n.text}</span></div>) : <div className="horosa-divi-line">暂无明显不利证词。</div>}
 						</div>
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-card-head">六类问法（Sibly Query）</div>
@@ -388,7 +389,7 @@ class HoraryJudgment extends Component{
 								<div key={k} className="horosa-divi-card">
 									<div className="horosa-divi-card-head">{cn(k)}<span style={{ fontWeight: 400, opacity: 0.7 }}>{role}</span> <span className="horosa-divi-sev" style={{ background: c.score > 0 ? 'var(--horosa-jx-ji)' : (c.score < 0 ? 'var(--horosa-jx-xiong)' : 'var(--horosa-sev-low)'), minWidth: 52 }}>力量 {c.score > 0 ? '+' : ''}{c.score}</span></div>
 									<div className="horosa-divi-kv" style={{ opacity: 0.85 }}>{plainState(facts, k)}</div>
-									{c.findings.map((f, i) => <div key={i} className={'horosa-divi-testi ' + (f.polarity === 'positive' ? 'is-pos' : (f.polarity === 'negative' ? 'is-neg' : ''))}><span className="dot">{f.polarity === 'positive' ? '▲' : (f.polarity === 'negative' ? '▼' : '·')}</span><span>{f.text_zh}</span></div>)}
+									{c.findings.map((f, i) => <div key={i} className={'horosa-divi-testi ' + (f.polarity === 'positive' ? 'is-pos' : (f.polarity === 'negative' ? 'is-neg' : ''))}><span className="dot"><XQPolarityMark polarity={f.polarity} /></span><span>{f.text_zh}</span></div>)}
 								</div>
 							);
 						})}
@@ -438,7 +439,7 @@ class HoraryJudgment extends Component{
 										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '星')}>星</th><th style={withLabelCell({ padding: '2px 6px' }, '映点')}>映点</th><th style={withLabelCell({ padding: '2px 6px' }, '命中')}>命中</th><th style={withLabelCell({ padding: '2px 6px' }, '对映点')}>对映点</th><th style={withLabelCell({ padding: '2px 6px' }, '命中')}>命中</th></tr></thead>
 										<tbody>
 											{buildAntisciaTable(facts, opts.antisciaOrb).map((r) => (
-												<tr key={r.key} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
+												<tr key={r.key} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 													<td style={withLabelCell({ padding: '2px 6px' }, r.cn)}>{r.cn}</td>
 													<td style={{ padding: '2px 6px' }}>{r.antiText}</td>
 													<td style={{ padding: '2px 6px', color: r.antiHits.length ? 'var(--horosa-accent, #b8860b)' : undefined, fontWeight: r.antiHits.length ? 600 : 400 }}>{r.antiHits.join('、') || '—'}</td>
@@ -505,7 +506,7 @@ class HoraryJudgment extends Component{
 											{['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].filter((k) => facts.planets[k]).map((k) => {
 												const p = facts.planets[k];
 												return (
-													<tr key={k} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
+													<tr key={k} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 														<td style={withLabelCell({ padding: '2px 6px' }, cn(k))}>{cn(k)}</td>
 														<td style={{ padding: '2px 6px' }}>{(SIGNS[p.sign] || {}).cn || p.sign} {p.signlon !== undefined ? p.signlon.toFixed(1) + '°' : ''}</td>
 														<td style={{ padding: '2px 6px' }}>{(p.selfDignity && p.selfDignity.length) ? dignCn(p.selfDignity) : (p.peregrine ? '游走（无尊贵）' : '—')}</td>
@@ -574,7 +575,7 @@ class HoraryJudgment extends Component{
 											{[0, 12].map((base) => {
 												const d0 = CHALDEAN_SEQ.indexOf(facts.meta.dayRuler);
 												return (
-													<tr key={base} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
+													<tr key={base} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 														<td style={withLabelCell({ padding: '2px 6px', opacity: 0.7 }, base === 0 ? '昼(日出起)' : '夜(日落起)')}>{base === 0 ? '昼(日出起)' : '夜(日落起)'}</td>
 														{Array.from({ length: 12 }, (_, i) => {
 															const ruler = CHALDEAN_SEQ[(d0 + base + i) % 7];
@@ -601,7 +602,7 @@ class HoraryJudgment extends Component{
 											<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '点')}>点</th><th style={withLabelCell({ padding: '2px 6px' }, '位置')}>位置</th><th style={withLabelCell({ padding: '2px 6px' }, '定位星')}>定位星</th><th style={withLabelCell({ padding: '2px 6px' }, '用途')}>用途</th></tr></thead>
 											<tbody>
 												{j.lots.extended.filter((l) => l.id !== 'fortune' && l.id !== 'spirit').map((l) => (
-													<tr key={l.id} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
+													<tr key={l.id} style={{ borderTop: '1px dashed var(--horosa-border)' }}>
 														<td style={withLabelCell({ padding: '2px 6px' }, l.cn)}>{l.cn}</td>
 														<td style={{ padding: '2px 6px' }}>{l.signCn}座 {l.signlon.toFixed(1)}°</td>
 														<td style={withLabelCell({ padding: '2px 6px' }, l.dispCn || '—')}>{l.dispCn || '—'}</td>

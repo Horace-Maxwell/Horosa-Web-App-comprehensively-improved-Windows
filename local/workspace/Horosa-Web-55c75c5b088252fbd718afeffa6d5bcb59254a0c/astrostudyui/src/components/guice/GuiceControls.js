@@ -2,8 +2,8 @@
 //
 // 🔴 死控件一律隐藏、不留「勾了不生效」之惑（schoolNeeds 声明式）。
 import React, { Component } from 'react';
-import { Input, InputNumber, Select, Collapse, Button, Checkbox } from 'antd';
-import { XQSideSection } from '../xq-ui';
+import { Input, InputNumber, Select, Collapse, Checkbox } from 'antd';
+import { XQSideSection, XQButton as Button } from '../xq-ui';
 import {
 	GUICE_OPTION_META, GUICE_SCHOOL_OPTIONS, applyPreset, setOption, schoolNeeds, qiguaFaInputs,
 } from './guiceSchools';
@@ -241,7 +241,7 @@ class GuiceControls extends Component {
 				])}
 				{/* [左栏精简] 三要十应手录面板移除(用户指示清理):七项选填输入把吸底「起卦」顶出/致其浮遮
 				    滚动内容。正应/互应/变应仍由卦自出、于中右栏照显;renderShiYing() 方法保留待恢复。 */}
-				<Button className="horosa-guice-qigua-btn" type="primary" block size="large"
+				<Button className="horosa-guice-qigua-btn" type="primary" block size="small"
 					onClick={() => { if (this.props.onQiGua) this.props.onQiGua(); }}>起卦</Button>
 				{/* 「分歧做成可切换、未载之格显式标缺」的处置原则详见帮助文档「卜·其他 · 象数推演 · 皇极轨策」
 				    ——「左边栏永不放大段解释」铁律。 */}

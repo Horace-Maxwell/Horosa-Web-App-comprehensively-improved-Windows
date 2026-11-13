@@ -81,7 +81,7 @@ const GRID_BREAKPOINT_REGISTRY = {
 	'components/comp/DateTimeSelector.js|Col lg,xl': 10,
 	'components/lrzhan/LiuRengBirthInput.js|Col lg,xl': 1,
 	'components/lrzhan/LiuRengInput.js|Col lg,xl': 2,
-	'components/suzhan/SuZhanInput.js|Col lg,xl': 6,
+	'components/suzhan/SuZhanInput.js|Col lg,xl': 6,   // 含「上升取法」下拉(只在上升起盘时出现),与同栏其余下拉同一栅格;右对齐的独占列已并进快捷栏(-1)
 };
 const GRID_BP = ['xs', 'sm', 'md', 'lg', 'xl', 'xxl'];
 function gridBreakpointCounts(text, rel){

@@ -21,3 +21,12 @@ export function isTableBodyLine(s){
 	const t = `${s || ''}`;
 	return t.includes('|') && !!t.trim();
 }
+
+// 表体扫描时判「这一行是不是下一张表的表头」:下一行是严格分隔行(每格至少三个连字符)且列数相同。
+// 两张表紧挨着(中间没空行)时,不判就会把第二张的表头和分隔行吞成第一张的两行正文;
+// 「|---|」三连字符以上才算(表体里的「| - | - |」占位行不当分隔行)。各条 md→docx 链共用。
+const STRICT_TABLE_SEP = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
+export function isNextTableStart(line, next){
+	if(!next || !STRICT_TABLE_SEP.test(next)){ return false; }
+	return splitDocxTableRow(line).length === splitDocxTableRow(next).length;
+}

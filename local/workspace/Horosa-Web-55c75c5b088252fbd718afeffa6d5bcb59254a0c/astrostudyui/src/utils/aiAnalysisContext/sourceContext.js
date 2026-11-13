@@ -2,6 +2,7 @@
 // 由 utils/aiAnalysisContext.js 门面统一对外导出。
 import request from '../request';
 import * as Constants from '../constants';
+import { CHART_DETAIL_SETTINGS, buildChartDetailsText, chartDetailRequestFields, chartDetailSettingsFor } from '../chartDetails';
 import { buildAstroSnapshotContent, loadAstroAISnapshot, buildClassicalAnalysisSection, ASTRO_SNAPSHOT_FORMAT_VERSION } from '../astroAiSnapshot';
 import { recordHasCaptureMark } from '../recordFieldsRestore';
 import {
@@ -209,6 +210,28 @@ export async function fetchClassicalAnalysisSection(params){
 	}
 }
 
+// 古典分析段 + 盘面细节段,各自失败不牵连对方
+// detailSettings:盘面细节的五项设置(缺省 = 细节页本机保存值;挂载按记录上的齿轮值覆盖,见 chartDetailSettingsFor)
+export async function fetchChartDerivedSections(params, detailSettings){
+	const parts = await Promise.all([fetchClassicalAnalysisSection(params), fetchChartDetailsSection(params, detailSettings)]);
+	return parts.filter(Boolean).join('\n\n');
+}
+
+// 盘面细节段:失败不影响主体快照
+async function fetchChartDetailsSection(params, detailSettings){
+	if(!params || !params.date || !params.zone || params.lat === undefined || params.lat === null || params.lon === undefined || params.lon === null){
+		return '';
+	}
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/chartdetails`, {
+			body: JSON.stringify({ ...params, ...chartDetailRequestFields(detailSettings || CHART_DETAIL_SETTINGS.load()) }), silent: true, timeoutMs: 20000,
+		});
+		return buildChartDetailsText(data && data.Result ? data.Result : data);
+	}catch(e){
+		return '';
+	}
+}
+
 export async function buildChartContext(source){
 	const record = source && source.record ? source.record : null;
 	if(!record){
@@ -254,7 +277,7 @@ export async function buildChartContext(source){
 		};
 	}
 	// 古典格局派生分析(护卫/优势相位/相位动态/逐题主星/偶然尊贵/恒星/行星时/埃及历/巴比伦)按需拼入 → AI 挂载不遗漏。
-	const analysisSection = await fetchClassicalAnalysisSection(params);
+	const analysisSection = await fetchChartDerivedSections(params, chartDetailSettingsFor(record));
 	if(analysisSection){
 		content = `${content}\n\n${analysisSection}`.trim();
 	}

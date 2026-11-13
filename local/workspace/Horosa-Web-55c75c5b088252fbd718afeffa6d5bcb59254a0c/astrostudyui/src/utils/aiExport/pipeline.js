@@ -6,6 +6,7 @@ import request from '../request';
 import * as ExportConstants from '../constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../dayBoundary';
 import { buildClassicalAnalysisSection } from '../astroAiSnapshot';
+import { CHART_DETAIL_SETTINGS, buildChartDetailsText, chartDetailRequestFields } from '../chartDetails';
 import { buildAcgSectionText } from '../acgSnapshot';
 import { buildAIExportLegendSection } from '../aiExportLegend';
 import { fixedStarOrbParamsFor } from '../classicalChartGlobals';   // 导出 [古典格局] 恒星轨与右栏/挂载同全局仓
@@ -89,7 +90,7 @@ function getCandidateExportKeys(context){
 		context && context.displayName ? context.displayName : '',
 		stateContext && stateContext.displayName ? stateContext.displayName : '',
 	].join(' ');
-	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon'];
+	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon', 'timelords'];
 	const primaryIsPredictive = isPredictiveExportKey(primary);
 	const stateIsPredictive = isPredictiveExportKey(stateKey);
 	// 仅在上下文无法定位具体推运子模块时，才展开推运候选全量兜底；
@@ -220,7 +221,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	}
 	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
-		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon');
+		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon', 'timelords');
 	}
 	if(topInfo.includes('三式合一')){
 		push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi', 'astrochart');
@@ -265,7 +266,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 		'astrochart', 'astrochart_like', 'indiachart',
 		'relative', 'germany', 'jieqi',
 		'primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials',
-		'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon',
+		'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon', 'timelords',
 		'sanshiunited', 'qimen', 'liureng', 'jinkou', 'sixyao', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'taiyi', 'suzhan',
 		'guolao', 'qizhengkin', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'xianqin', 'cetian', 'otherbu', 'fengshui',
 		'bazi', 'ziwei',
@@ -275,7 +276,9 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 
 // 「简单模块」预测技法：内容来自前端保存的模块快照(saveModuleAISnapshot)而非预测后端 payload。
 // 路由与自检共用此单一真值表 —— 防「登记进 predictive 却漏配 extractContentByKey 路由」(extrareturns 曾正是漏此条 → AI导出/挂载拿不到多重回归快照)。
-export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon'];
+// 择日页内嵌宿主各自的快照槽(奇门择日走下方卜卦 / 择日同路分支)
+export const AI_EXPORT_ZERI_SCOPE_KEYS = ['huanglizeri', 'bazizeri', 'taiyizeri', 'ziweizeri', 'liurengzeri', 'sanshizeri', 'qizhengzeri', 'indiazeri'];
+export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon', 'timelords'];
 
 async function extractContentByKey(exportKey, context){
 	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey) || exportKey === 'indiachart'){
@@ -289,7 +292,7 @@ async function extractContentByKey(exportKey, context){
 	}
 	if(exportKey === 'guice' || exportKey === 'xiaoliuren' || exportKey === 'xiaochengtu' || exportKey === 'feigong'
 		|| exportKey === 'geomancy' || exportKey === 'tarot' || exportKey === 'lingqi'
-		|| exportKey === 'babylon'
+		|| exportKey === 'babylon' || exportKey === 'dongya' || exportKey === 'zhufang'
 	){
 		// 皇极轨策/小六壬/小成图/飞宫/天文地占/塔罗:与卜卦/择日同路 —— 读 saveModuleAISnapshot 存的模块快照
 		// (geomancy/tarot 此前无分支 → 落 extractGenericContent 且 generic 亦无其 case → 导出恒空,X1 审计抓出补齐)。
@@ -300,6 +303,11 @@ async function extractContentByKey(exportKey, context){
 		//    按段过滤拿 Promise 去比字符串 → 恒失配。是文档生成器印出 10 个「[object Promise]」
 		//    才露的马脚(段表 grep 得到、四本账测试也绿 —— 它们只查「登记了没」,不查「值是什么」)。
 		return extractSimpleModuleContent(exportKey);
+	}
+	if(AI_EXPORT_ZERI_SCOPE_KEYS.indexOf(exportKey) >= 0){
+		// 择日内嵌宿主:读本宿主快照槽(母技法全文 + 择日三段,母组件经 composeAiSnapshot 存入 scope 槽)。
+		// 此前这八个键在本分派里没有分支 → 落 extractGenericContent(也没有)→ 导出恒报「当前页面没有可导出文本」。
+		return extractSimpleModuleContent(snapshotModuleKeyByContextKey(exportKey));
 	}
 	if(exportKey === 'huangli' || exportKey === 'tongshu'){
 		// 黄历子 tab 独立导出:两键 preset/挂载早有,extractContentByKey 曾无分支(恒 ''=
@@ -463,6 +471,30 @@ async function fetchAstroClassicalAnalysisSectionForExport(){
 	}
 }
 
+// 盘面细节段:参数与古典分析段同一来源,各自失败不牵连对方
+async function fetchChartDetailsSectionForExport(){
+	try{
+		const store = getStore();
+		const raw = store && store.astro && store.astro.chartObj ? store.astro.chartObj.params : null;
+		if(!raw){
+			return '';
+		}
+		const birthParts = `${raw.birth || ''}`.split(' ');
+		const params = { ...raw, date: raw.date || birthParts[0], time: raw.time || birthParts[1] || '12:00:00' };
+		if(!params.date || !params.zone || params.lat === undefined || params.lat === null || params.lon === undefined || params.lon === null){
+			return '';
+		}
+		const data = await request(`${ExportConstants.ServerRoot}/astroextra/chartdetails`, {
+			body: JSON.stringify({ ...params, ...chartDetailRequestFields(CHART_DETAIL_SETTINGS.load()) }),
+			silent: true,
+			timeoutMs: 20000,
+		});
+		return buildChartDetailsText(data && data.Result ? data.Result : data);
+	}catch(e){
+		return '';
+	}
+}
+
 // opts.omitSubjectFacts:外部客户端读「当前页正文」时不附命主实况(私人内容只经「私人内容可读」那条路给)
 async function buildPayload(opts){
 	const context = resolveExportContextForPayload(withStoreContextFallback(resolveActiveContext()));
@@ -512,13 +544,16 @@ async function buildPayload(opts){
 	// [YD 口径修] 改变黄道读数框架的派生盘(十三/十二分盘/调波/龙盘)跳过:后端 /astroextra/analysis
 	// 按常规黄道以本命参数重算,挂到这些盘上=本命结论冒充派生盘结论(审计实锚:13分盘导出的
 	// 「古典格局」实为本命口径)。占星地图/重置盘保留(本命语义仍成立)。
-	const CLASSICAL_SKIP_KEYS = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic'];
-	const CLASSICAL_SKIP_DERIVED = ['十三分', '十二分', '调波', '谐波', '龙盘', '黄道分盘'];
+	const CLASSICAL_SKIP_KEYS = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'transformchart', 'zodiacsystems'];
+	const CLASSICAL_SKIP_DERIVED = ['十三分', '十二分', '调波', '谐波', '龙盘', '黄道分盘', '变换盘', '黄道制'];
 	const derivedName = `${(context && context.displayName) || ''}`;
 	const skipClassical = CLASSICAL_SKIP_KEYS.includes(usedExportKey)
 		|| (usedExportKey === 'astrochart_like' && CLASSICAL_SKIP_DERIVED.some((word)=>derivedName.includes(word)));
 	if((usedExportKey === 'astrochart' || isAstroLikeExportKey(usedExportKey)) && !skipClassical){
-		const classicalAnalysis = await fetchAstroClassicalAnalysisSectionForExport();
+		// 重置盘的「盘面细节」「古典格局」都按重置后地点算,已随重置盘快照进正文;这里不再按本命出生地另补
+		const relocated = usedExportKey === 'relocation' || (usedExportKey === 'astrochart_like' && derivedName.includes('重置'));
+		const derived = relocated ? [] : await Promise.all([fetchAstroClassicalAnalysisSectionForExport(), fetchChartDetailsSectionForExport()]);
+		const classicalAnalysis = derived.filter(Boolean).join('\n\n');
 		if(classicalAnalysis){
 			content = `${`${content || ''}`.trim()}\n\n${classicalAnalysis}`.trim();
 		}

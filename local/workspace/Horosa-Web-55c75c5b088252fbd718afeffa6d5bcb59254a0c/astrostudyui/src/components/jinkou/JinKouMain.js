@@ -1352,7 +1352,7 @@ class JinKouMain extends Component{
 		const flds = getAppliedBirth(this.state);
 		const calcFields = this.state.calcFields ? this.state.calcFields : this.props.fields;
 		const guaDate = calcFields && calcFields.date && calcFields.date.value ? calcFields.date.value.format('YYYY-MM-DD') : '';
-		const guaTime = calcFields && calcFields.time && calcFields.time.value ? calcFields.time.value.format('HH:mm') : '';
+		const guaTime = calcFields && calcFields.time && calcFields.time.value ? calcFields.time.value.format('HH:mm:ss') : '';
 		const guaAd = calcFields && calcFields.ad && calcFields.ad.value !== undefined
 			? calcFields.ad.value
 			: (calcFields && calcFields.date && calcFields.date.value ? calcFields.date.value.ad : 1);
@@ -1369,7 +1369,7 @@ class JinKouMain extends Component{
 		return {
 			ad: flds.date.value.ad,
 			date: flds.date.value.format('YYYY-MM-DD'),
-			time: flds.time.value.format('HH:mm'),
+			time: flds.time.value.format('HH:mm:ss'),
 			zone: flds.date.value.zone,
 			lon: flds.lon.value,
 			lat: flds.lat.value,
@@ -1440,7 +1440,7 @@ class JinKouMain extends Component{
 		}else{
 			params = {
 				date: flds.date.value.format('YYYY-MM-DD'),
-				time: flds.time.value.format('HH:mm'),
+				time: flds.time.value.format('HH:mm:ss'),
 				zone: flds.date.value.zone,
 				ad: flds.date.value.ad,
 				lon: flds.lon.value,
@@ -1460,7 +1460,7 @@ class JinKouMain extends Component{
 		}
 		const key = [
 			flds.date.value.format('YYYY-MM-DD'),
-			flds.time.value.format('HH:mm'),
+			flds.time.value.format('HH:mm:ss'),
 			flds.date.value.ad,
 			flds.date.value.zone,
 			flds.lon.value,
@@ -1478,7 +1478,7 @@ class JinKouMain extends Component{
 		const params = {
 			ad: flds.date.value.ad,
 			date: flds.date.value.format('YYYY-MM-DD'),
-			time: flds.time.value.format('HH:mm'),
+			time: flds.time.value.format('HH:mm:ss'),
 			zone: flds.date.value.zone,
 			lon: flds.lon.value,
 			lat: flds.lat.value,

@@ -119,7 +119,7 @@ function NotifyHookBlock(){
 			<AdvSwitchRow title="通知脚本钩(自动化动作「运行我的通知脚本」)" desc={stateText} checked={!!st.enabled}
 				control={<Switch checked={!!st.enabled} disabled={!!st.killSwitch || busy} data-notify-hook-switch="1" checkedChildren="开" unCheckedChildren="关"
 					onChange={(on)=>{ if(!on){ apply(false); return; } if(!`${path || ''}`.trim()){ message.warning('先填脚本的绝对路径'); return; } Modal.confirm({ title: '启用通知脚本钩?', content: NOTIFY_HOOK_CONFIRM_COPY, okText: '启用', cancelText: '取消', onOk: ()=>apply(true) }); }} />}>
-				<div className={styles.stack} style={{ marginTop: 8 }}>
+				<div className={[styles.stack, styles.gapTop].join(' ')}>
 					<Input size="small" addonBefore="脚本路径" value={path} onChange={(e)=>setPath(e.target.value)} placeholder="/Users/你/bin/horosa-notify.sh" data-notify-hook-path="1" />
 					<div className={styles.inline}>
 						<Button size="small" disabled={!st.enabled || busy} data-notify-hook-test="1" onClick={async ()=>{ const r = await desktopNotifyHookRun({ event: 'test', title: '星阙测试', text: '通知脚本钩测试运行', at: new Date().toISOString(), payload: { note: '测试运行:真实事件载荷为 { event, title, at, payload }' } }, true); if(r && r.ran){ message.success(`脚本已运行(exit ${r.exit == null ? '?' : r.exit}${r.timedOut ? ',超时被停' : ''})`); }else{ message.warning(`未运行:${(r && r.reason) || '不可用'}`); } }}>测试运行</Button>
@@ -140,7 +140,7 @@ function ExternalPolicyBlock(){
 	React.useEffect(()=>subscribeAgentPrefs(()=>setPolicy(getExternalPolicy())), []);
 	const isDefault = policy.approval === DEFAULT_EXTERNAL_POLICY.approval && policy.maxCallsPerMinute === DEFAULT_EXTERNAL_POLICY.maxCallsPerMinute && policy.maxAdditivePerHour === DEFAULT_EXTERNAL_POLICY.maxAdditivePerHour && policy.uiConfirm === DEFAULT_EXTERNAL_POLICY.uiConfirm;
 	return (
-		<div data-external-policy="1" className={styles.stack} style={{ marginTop: 8 }}>
+		<div data-external-policy="1" className={[styles.stack, styles.gapTop].join(' ')}>
 			<AdvRow label="外部客户端审批" help="外部程序经本机服务调用时的写入审批档:全自动=直接执行但可撤销;每次确认=写入前弹到本机审批台;只读=拒绝一切写入。缺省全自动(令牌持有者=受信本机进程)。">
 				<Radio.Group className={styles.segment} size="small" value={policy.approval} data-external-policy-approval="1" onChange={(e)=>setExternalPolicy({ approval: e.target.value })}>
 					{AGENT_EXTERNAL_APPROVALS.map((v)=>(<Radio.Button key={v} value={v}>{EXTERNAL_POLICY_APPROVAL_LABELS[v] || v}</Radio.Button>))}
@@ -231,7 +231,7 @@ export default function ExternalAgentPanel({ onStatus }){
 			<AdvSwitchRow title="外部智能体连接(本机 MCP 服务)" desc={stateText} checked={enabled}
 				control={<Switch checked={enabled} disabled={!status.available || busy} loading={busy} onChange={onToggle} data-mcp-server-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
 				{running ? (
-					<div className={styles.stack} style={{ marginTop: 8 }}>
+					<div className={[styles.stack, styles.gapTop].join(' ')}>
 						<div className={styles.inline}>
 							<Tag style={{ margin: 0 }}>端口 {status.port}</Tag>
 							<Button size="small" data-mcp-copy="codex" onClick={()=>copyWithToken(codexConfig, 'Codex 接入命令')}>复制 Codex 命令</Button>
@@ -253,7 +253,7 @@ export default function ExternalAgentPanel({ onStatus }){
 				<AdvSwitchRow title="REST 接口(/api/v1)" desc={restText} checked={restOn}
 					control={<Switch checked={restOn} disabled={!status.available || !enabled || busy} loading={busy} onChange={onToggleRest} data-mcp-rest-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
 					{restOn && running && status.restUrl ? (
-						<div className={styles.inline} style={{ marginTop: 8 }}>
+						<div className={[styles.inline, styles.gapTop].join(' ')}>
 							<Button size="small" data-mcp-rest-copy="curl" onClick={()=>copyWithToken(restCurlExample, 'curl 示例')}>复制 curl 示例</Button>
 							<Button size="small" data-mcp-rest-copy="openapi" onClick={()=>copyWithToken(restOpenApiCurl, '接口文档命令')}>复制接口文档命令</Button>
 						</div>

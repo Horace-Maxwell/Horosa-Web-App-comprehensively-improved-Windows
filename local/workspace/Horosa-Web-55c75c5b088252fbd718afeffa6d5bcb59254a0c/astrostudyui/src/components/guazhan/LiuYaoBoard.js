@@ -1,6 +1,7 @@
 // 六爻装卦表 + 用神 + 动变 + 旬空(展示层)。纯展示:吃 analyzeLiuyao 产出,流派/开关一变即随之刷新。
 // 配色统一走 --horosa-* 暗黑令牌 + 五行(八字)色板,明暗两态均清晰。
 import React from 'react';
+import { XQCurrentMark } from '../xq-icons';
 import { CHISHI_JUE, FADONG_JUE, LIUSHEN_FADONG, YAOWEI_XIANG, ZHANLEI_GANGYAO, GU_FU, MINGJIA_TABLE } from '../gua/liuyaoReference';
 import { ZHI_CANGGAN, TIANGAN_HE, TIANGAN_HE_HUA, LIUCHONG, LIUHE, SANHE, SANHUI, HAI, PO, DIZHI, TIANGAN, CHANGSHENG_START, CHANGSHENG_START_ALT, LIUSHEN_START, JIANYAO_ROLE, JIANYAO_DONG_NOTE, jianYaoSpanText } from '../gua/LiuYaoConst';
 
@@ -23,7 +24,7 @@ const WX_COLOR = {
 	木: 'var(--horosa-bazi-wood, #66c486)',
 	火: 'var(--horosa-bazi-fire, #ff5f50)',
 	土: 'var(--horosa-bazi-earth, #c08a4c)',
-	金: 'var(--horosa-bazi-metal, #f0c979)',
+	金: 'var(--horosa-bazi-metal, #ab5500)',
 	水: 'var(--horosa-bazi-water, #5f8fff)',
 };
 const WANGSHUAI_COLOR = { 旺: C.jade, 相: C.jade, 休: C.muted, 囚: C.danger, 死: C.danger };
@@ -553,7 +554,7 @@ function RefBlock({ title, children }){
 function RefRow({ k, v, hi, i, n }){
 	return (
 		<div style={{ display: 'flex', padding: '5px 9px', fontSize: 12, background: hi ? C.accentSoft : (i % 2 ? 'transparent' : 'rgba(127,127,127,0.04)'), borderBottom: i < n - 1 ? `1px solid ${C.line}` : 'none' }}>
-			<div style={{ width: 92, flex: '0 0 auto', color: hi ? C.cinnabar : C.label, fontWeight: 600 }}>{k}{hi ? ' ◀持世' : ''}</div>
+			<div style={{ width: 92, flex: '0 0 auto', color: hi ? C.cinnabar : C.label, fontWeight: 600 }}>{k}{hi ? <span style={{ marginLeft: 4 }}><XQCurrentMark />持世</span> : ''}</div>
 			<div style={{ flex: 1, color: C.text }}>{v}</div>
 		</div>
 	);

@@ -13,7 +13,10 @@ it('🔴 进阶页七卡标签逐一出现在手册「进阶」页签;七卡 id 
 	const s = src();
 	expect(ADV_SECTIONS.length).toBe(7);
 	expect(ADV_SECTIONS.map((x)=>x.id)).toEqual([ADV_SECTION_IDS.context, ADV_SECTION_IDS.bestof, ADV_SECTION_IDS.routes, ADV_SECTION_IDS.persona, ADV_SECTION_IDS.skills, ADV_SECTION_IDS.systemone, ADV_SECTION_IDS.agent]);
-	const tab = s.slice(s.indexOf('<TabPane tab="进阶"'), s.indexOf('</TabPane>', s.indexOf('<TabPane tab="进阶"')));
+	// 手册(HelpBook)里「进阶」那一章:从「label: '进阶'」切到下一章开头
+	const at = s.indexOf("label: '进阶'");
+	const ends = [s.indexOf('\n\t\t\t\t{\n', at), s.indexOf('\n\t\t\t],', at)].filter((x)=>x > at);
+	const tab = at < 0 ? '' : s.slice(at, ends.length ? Math.min(...ends) : undefined);
 	expect(tab.length).toBeGreaterThan(500);
 	ADV_SECTIONS.forEach((x)=>expect(tab).toContain(x.label));
 });

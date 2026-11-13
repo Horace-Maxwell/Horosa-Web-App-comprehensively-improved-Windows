@@ -32,6 +32,13 @@
 // 这条没换 ⇒ 在 rect 不反映缩放的引擎(较旧的 macOS WebKit;rect 域 = 布局域,可见视口 = 物理 ÷ 缩放)上,max() 被物理值顶回去,
 // 放大档靠下的下拉不翻转、伸出窗口底边(headless 双引擎闸 E2 语义实抓)。修:两条读数同乘视口系数;rect 反映缩放的引擎系数恒 1,逐位不变。
 //
+// v4 —— 入场动画起点是 scale(0) 的浮层(下拉 / 选择器 / 日期面板等 slide 族)首次对齐量不到自己的尺寸:
+// getWH 先读 getBoundingClientRect(rect 域),读数 ≤ 0 时回落 getComputedStyle 的 width / height —— 那是**布局域**读数,
+// 却被当成 rect 域去和触发器的 rect 位置做加减。壳缩放档 ≠ 1 时,居中 / 右对齐的浮层首帧横向偏 (布局宽 − rect 宽) 的一半或全量,
+// 上置浮层纵向偏 (布局高 − rect 高);动画结束后的再对齐才量到真尺寸,于是「先偏着出现、再跳回正位」(0.8 档页头「设置」菜单实测跳 12px,
+// 缩小档先偏左后右移、放大档反向)。修:回落读数乘同一个实测有效缩放换到 rect 域(含非 border-box 分支补的 padding / border);
+// 系数 === 1 时 x*1 逐位不变(零回归)。
+//
 // 幂等:首行标记存在即 skip;已打旧版的产物原地升级(只补缺的锚,不重复已有的)。挂载点见 package.json 的 postinstall / build / build:file
 // 三处(build_desktop_release.sh 的 npm install 在 Installer 目录而非本目录,前端 build
 // 是手工步骤,只挂 postinstall 会漏)。完整性由 jest 哨兵 + release_preflight 双锁。
@@ -41,7 +48,8 @@ const path = require('path');
 
 const MARK_V1 = '/* horosa:dom-align-zoom v1 */';
 const MARK_V2 = '/* horosa:dom-align-zoom v2 */';
-const MARK = '/* horosa:dom-align-zoom v3 */';
+const MARK_V3 = '/* horosa:dom-align-zoom v3 */';
+const MARK = '/* horosa:dom-align-zoom v4 */';
 
 const PREAMBLE = MARK + `
 function __horosaAlignScale(elem){
@@ -161,6 +169,22 @@ const EDITS_V3 = [
 	},
 ];
 
+// v4:getWH 量不到 rect 尺寸(scale(0) 入场)时回落的布局域读数换到 rect 域(见文件头 v4 注)。
+const EDITS_V4 = [
+	{
+		id: 'P8a-getWH-fallback',
+		find: /cssBoxValue = Math\.floor\(parseFloat\(cssBoxValue\)\) \|\| 0;/g,
+		replace: 'cssBoxValue = Math.floor(parseFloat(cssBoxValue) * __horosaAlignScale(elem)) || 0;',
+		count: 1,
+	},
+	{
+		id: 'P8b-getWH-fallback-pbm',
+		find: /return cssBoxValue \+ getPBMWidth\(elem, BOX_MODELS\.slice\(extra\), which\);/g,
+		replace: 'return cssBoxValue + getPBMWidth(elem, BOX_MODELS.slice(extra), which) * __horosaAlignScale(elem);',
+		count: 1,
+	},
+];
+
 const TARGETS = ['node_modules/dom-align/dist-node/index.js', 'node_modules/dom-align/dist-web/index.js'];
 
 function patchFile(rel){
@@ -170,8 +194,12 @@ function patchFile(rel){
 	if(src.indexOf(MARK) >= 0){ return { file: rel, status: 'unchanged' }; }
 	const hasV1 = src.indexOf(MARK_V1) >= 0;
 	const hasV2 = src.indexOf(MARK_V2) >= 0;
+	const hasV3 = src.indexOf(MARK_V3) >= 0;
+	const oldMark = hasV3 ? MARK_V3 : (hasV2 ? MARK_V2 : (hasV1 ? MARK_V1 : null));
 	// 已打旧版 → 只补缺的锚并把标记升到当前版(前导函数已在);未打 → 全打。
-	const edits = hasV2 ? EDITS_V3 : (hasV1 ? EDITS_V2.concat(EDITS_V3) : EDITS.concat(EDITS_V2, EDITS_V3));
+	const chain = [EDITS, EDITS_V2, EDITS_V3, EDITS_V4];
+	const from = hasV3 ? 3 : (hasV2 ? 2 : (hasV1 ? 1 : 0));
+	const edits = chain.slice(from).reduce((acc, list) => acc.concat(list), []);
 	for(const e of edits){
 		const hits = (src.match(e.find) || []).length;
 		if(hits !== e.count){
@@ -180,8 +208,8 @@ function patchFile(rel){
 		}
 		src = src.replace(e.find, e.replace);
 	}
-	if(hasV1 || hasV2){
-		fs.writeFileSync(full, src.replace(hasV2 ? MARK_V2 : MARK_V1, MARK), 'utf8');
+	if(oldMark){
+		fs.writeFileSync(full, src.replace(oldMark, MARK), 'utf8');
 		return { file: rel, status: 'patched' };
 	}
 	fs.writeFileSync(full, PREAMBLE + src, 'utf8');

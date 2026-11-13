@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain, CHART_ORB_KEYS } from '../../utils/classicalChartGlobals';
 import { CLASSICAL_PARAM_SPEC, CLASSICAL_SPEC_KEYS } from '../../utils/classicalParamSpec';   // 古典口径全键单源
 import { userAyanParamsFrom } from '../../utils/customCalibreStores';   // 'user' 恒星黄道历元参数
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -9,7 +9,8 @@ import XQIcon from '../xq-icons';
 import QuickDockBar from '../common/QuickDockBar';
 import AstroChartMain from '../astro/AstroChartMain';
 import GeoCoordModal from '../amap/GeoCoordModal';
-import SuZhanMain from '../suzhan/SuZhanMain';
+import SuZhanMain, { suzhanAscRaModeOf } from '../suzhan/SuZhanMain';
+import { withAscRaModeRoot, ascRaModeSnapshotLine } from '../../utils/ascRaMode';
 // 🔴 3D 盘必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
 //   静态引它 → AstroChartMain3D → AstroChart3D → Astro3D → three + OrbitControls/GLTFLoader/
 //   DRACOLoader/Stats/lil-gui/FontLoader + 两个大 JSON 字体&模型资产,整条链成为本页 chunk 的
@@ -24,7 +25,7 @@ const AstroChartMain3D = makeLazyBoundary(
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import request from '../../utils/request';
-import { gcj02ToGps, randomStr } from '../../utils/helper';
+import { randomStr } from '../../utils/helper';
 import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import styles from '../../css/styles.less';
@@ -324,7 +325,7 @@ function fieldsToState(fields){
 }
 
 // fields(wrapper 形) → state 平面键:spec 全键 + 自定义界表体 + 'user' 档历元(缺=''，与旧手写形态同)。
-const CLASSICAL_STATE_KEYS = [...CLASSICAL_SPEC_KEYS, 'customTermsDay', 'customTermsNight', 'userAyanT0', 'userAyanDeg'];
+const CLASSICAL_STATE_KEYS = [...CLASSICAL_SPEC_KEYS, 'customTermsDay', 'customTermsNight', 'userAyanT0', 'userAyanDeg', ...CHART_ORB_KEYS];
 function classicalStateFromFields(fields){
 	const out = {};
 	CLASSICAL_STATE_KEYS.forEach((k)=>{
@@ -337,6 +338,8 @@ function classicalStateFromFields(fields){
 function classicalCalibreSig(params){
 	const p = params || {};
 	const ov = classicalBackendOverridesFromPlain(p);
+	// 随盘容许度也进签名:改了容许度,四季盘的缓存键 / 兼容判定要跟着变(默认态不产键,签名不变)
+	Object.assign(ov, chartOrbOverridesFromPlain(p));
 	if(`${p.siderealAyanamsa}` === 'user'){
 		if(p.userAyanT0 !== undefined && p.userAyanT0 !== null && p.userAyanT0 !== ''){ ov.userAyanT0 = p.userAyanT0; }
 		if(p.userAyanDeg !== undefined && p.userAyanDeg !== null && p.userAyanDeg !== ''){ ov.userAyanDeg = p.userAyanDeg; }
@@ -617,6 +620,7 @@ function buildChartRequestParams(params, birth){
 		...((params.geminiBoundEmended) ? { geminiBoundEmended: 1 } : {}),
 		// 2026-07 二批九键:共享 helper(平面版)条件透传。
 		...classicalBackendOverridesFromPlain(params),
+		...chartOrbOverridesFromPlain(params),
 		...((params.triplicity && params.triplicity !== 'Dorothean') ? { triplicity: params.triplicity } : {}),
 		...((params.lotReversal === 0 || params.lotReversal === '0') ? { lotReversal: 0 } : {}),
 		...((params.westNodeType === 'true') ? { westNodeType: 'true' } : {}),
@@ -810,11 +814,17 @@ function houseFullLabel(house, idx, ascSignIndex){
 	return `${zi}—${area}—${signName}座—${houseName}`;
 }
 
-function buildJieQiSuSection(chartObj, fields, planetDisplay){
+function buildJieQiSuSection(rawChartObj, fields, planetDisplay){
+	// 内嵌宿盘的上升取法跟随宿占页设置(只在 ASC 起盘时起作用):与页签里画出来的宿盘同一份盘数据
+	const ascRaMode = suzhanAscRaModeOf(fields);
+	const chartObj = withAscRaModeRoot(rawChartObj, ascRaMode);
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 	const houses = chart.houses || [];
 	const objects = chart.objects || [];
 	const lines = [];
+	if(resolveHouseStartMode(fields) === SZConst.SZHouseStart_ASC && houses.length){
+		lines.push(ascRaModeSnapshotLine(ascRaMode, chart));
+	}
 	const ascSignIndex = computeAscSignIndex(chartObj, chart, fields);
 	let visibleSet = null;
 	if(planetDisplay && planetDisplay.length){
@@ -1212,6 +1222,8 @@ export class JieQiChartsMain extends Component{
 		// 后端名映射与「仅非默认才下发」纪律 —— 🔴 曾按前端名直发,恒星容许度两键后端 data.get
 		// 恒未命中(16 键断链只真通了 14 键),且默认值也进请求体与主盘构参纪律分叉。
 		Object.assign(params, classicalBackendOverridesFromPlain(this.state));
+		// 随盘容许度(设置 → 容许度设置):二分二至盘的相位与主盘同一套
+		Object.assign(params, chartOrbOverridesFromPlain(this.state));
 		// 'user' 恒星黄道:历元两键随 params(fields 有值优先,缺读当前槽)。
 		if(`${this.state.siderealAyanamsa}` === 'user'){
 			Object.assign(params, userAyanParamsFrom((k)=>this.state[k]));
@@ -1580,9 +1592,8 @@ export class JieQiChartsMain extends Component{
 	}
 
 	onLatChanged(value){
-		let lon = convertLonStrToDegree(this.state.lon);
-		let lat = convertLatStrToDegree(value);
-		let geo = gcj02ToGps(lat, lon);
+		// 经纬度文本即真坐标(WGS84,与选点弹窗 / AI 地名解析同口径):gps 直接取它,不再当高德加偏点反算
+		let geo = { lat: convertLatStrToDegree(value), lon: convertLonStrToDegree(this.state.lon) };
 
 		this.setState({
 			lat: value,
@@ -1593,9 +1604,7 @@ export class JieQiChartsMain extends Component{
 	}
 
 	onLonChanged(value){
-		let lat = convertLatStrToDegree(this.state.lat);
-		let lon = convertLonStrToDegree(value);
-		let geo = gcj02ToGps(lat, lon);
+		let geo = { lat: convertLatStrToDegree(this.state.lat), lon: convertLonStrToDegree(value) };   // 同上:文本即真坐标
 		this.setState({
 			lon: value,
 			gpsLat: geo.lat,

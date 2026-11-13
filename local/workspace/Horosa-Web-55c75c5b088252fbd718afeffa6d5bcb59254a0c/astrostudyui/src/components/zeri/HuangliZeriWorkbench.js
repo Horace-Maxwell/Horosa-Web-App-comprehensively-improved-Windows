@@ -4,9 +4,10 @@
 // 差异仅四点:注册表=HUANGLI_CONDITION_TYPES(日粒度本地求值);无地点/参数区(黄历零参数,
 // 「从主盘重载」无意义故无);结果表「日课」列(建除·宿·黄黑道)替「局」;概览=HuangLiDayCard 浮窗。
 import { useState, useEffect, useRef } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
-import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
+import { XQButton, XQSelect, XQCheckItem, XQInput } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
 import ZeriRowBadge from './ZeriRowBadge';
 import { JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
@@ -16,6 +17,8 @@ import {
 import { huangliZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import HuangliDayPopup from './HuangliDayPopup';
 import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
+import { ZERI_WB_TOP_STYLE, ZERI_WB_COND_BODY_STYLE } from './zeriWorkbenchLayout';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -35,7 +38,7 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	const ui = uiLeaves[counter.i];
 	counter.i += 1;
 	return (
-		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
+		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed var(--horosa-border)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
 				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? huangliLeafSummary(ui) : ((HUANGLI_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
@@ -166,7 +169,7 @@ export default function HuangliZeriWorkbench({
 	const setNodeProp = (path, patch) => onTreeChange(mapAt(tree, path, (n) => ({ ...n, ...patch })));
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
-		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
+		<div style={{ padding: '8px 10px', borderTop: '1px solid var(--horosa-border)' }}>
 			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
@@ -195,7 +198,7 @@ export default function HuangliZeriWorkbench({
 		return (
 			<div key={path.join('.')}
 				style={{
-					border: isSel ? '1px solid rgba(212,175,55,.85)' : '1px solid rgba(148,163,184,.25)',
+					border: isSel ? '1px solid var(--horosa-accent)' : '1px solid var(--horosa-border)',
 					borderRadius: 8, padding: '7px 10px', marginBottom: 6, cursor: 'pointer',
 					background: node.negate ? 'rgba(229,72,77,.06)' : (isSel ? 'rgba(212,175,55,.06)' : 'transparent'),
 				}}
@@ -253,15 +256,15 @@ export default function HuangliZeriWorkbench({
 	const editView = (
 		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
-			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div className="horosa-zeri-wb-top" style={ZERI_WB_TOP_STYLE}>
 					<div style={{ fontWeight: 600, marginBottom: 8 }}>时间范围(日粒度)</div>
 					<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-						<input type="date" className="horosa-native-date" style={{ width: 130 }} value={cfg.startDate}
-							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
+						<IsoDateTimeField showTime={false} date={cfg.startDate}
+							onChange={(v) => onCfgChange({ ...cfg, startDate: v.date })} />
 						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
-						<input type="date" className="horosa-native-date" style={{ width: 130 }} value={cfg.endDate}
-							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
+						<IsoDateTimeField showTime={false} date={cfg.endDate}
+							onChange={(v) => onCfgChange({ ...cfg, endDate: v.date })} />
 						{/* 预设钮组:整组 nowrap+marginLeft:auto——flex:1 占位与 wrap 互斥(同九家) */}
 						<span style={{ display: 'inline-flex', gap: 6, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
 							{[['本月', 30], ['三月', 91], ['半年', 183], ['一年', 365]].map(([label, days]) => (
@@ -271,8 +274,8 @@ export default function HuangliZeriWorkbench({
 					</div>
 					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>黄历日课与地点/时刻无关;逐日判定,连续吉日自动并为一段。</div>
 				</div>
-				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
-				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)' }}>构造条件</div>
+				<div className="horosa-zeri-wb-cond" style={ZERI_WB_COND_BODY_STYLE}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
@@ -302,7 +305,7 @@ export default function HuangliZeriWorkbench({
 					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
-				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+				<div style={{ padding: 10, borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
 					<XQButton size="small" onClick={doAdd} disabled={!!draftError}>
 						添加到列表{selectedIsGroup ? '(选中组)' : ''}
 					</XQButton>
@@ -318,8 +321,8 @@ export default function HuangliZeriWorkbench({
 			</div>
 			{/* 右列:已选条件链 + 方案排 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10 }}>
-				<div style={{ flex: 1, minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
-					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
+				<div style={{ flex: 1, minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
+					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
@@ -327,8 +330,8 @@ export default function HuangliZeriWorkbench({
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
 					</div>
-					<div style={{ padding: '6px 10px', borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, alignItems: 'center' }}>
-						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
+					<div style={{ padding: '6px 10px', borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, alignItems: 'center' }}>
+						<XQInput size="small" placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
 							const r = huangliZeriSchemeStore.saveScheme(schemeName, { cfg }, tree);
@@ -367,8 +370,8 @@ export default function HuangliZeriWorkbench({
 					⚠ 条件/时间范围已被修改:下方结果对应「上一次择吉」——请重新点「择吉」。
 				</div>
 			) : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>起日(点击=跳该日)</span>
 					<span style={{ flex: 1 }}>止日(点击=跳该日)</span>
@@ -381,7 +384,7 @@ export default function HuangliZeriWorkbench({
 					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的日子。' : '尚未择吉。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
-					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={i} style={{ borderBottom: '1px dashed var(--horosa-border)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
 							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="跳到该日(黄历页选中)"
@@ -405,7 +408,7 @@ export default function HuangliZeriWorkbench({
 											setExplainMap((mp) => ({ ...mp, [ck]: { err: (e && e.message) || '判读失败' } }));
 										});
 									}
-								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起 ▲' : '详情 ▼'}</XQButton>
+								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起' : '详情'}<XQToggleCaret open={expandKey === `${scanEpoch || 0}:${i}`} /></XQButton>
 							</span>
 							<span style={{ width: 52, textAlign: 'center' }}>
 								<XQButton size="small" onClick={() => setPreviewRow(row)}>卡</XQButton>
@@ -458,8 +461,8 @@ export default function HuangliZeriWorkbench({
 				</XQButton>
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
@@ -467,10 +470,10 @@ export default function HuangliZeriWorkbench({
 				</div>
 				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
-					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed var(--horosa-border)' }}>
 						{renameId === s.id ? (
 							<span style={{ flex: 1, display: 'inline-flex', gap: 6 }}>
-								<input value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
+								<XQInput size="small" value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
 								<XQButton size="small" type="primary" onClick={() => {
 									const r = huangliZeriSchemeStore.renameScheme(s.id, renameText);
 									setSchemeMsg(r.ok ? '已重命名' : r.msg);

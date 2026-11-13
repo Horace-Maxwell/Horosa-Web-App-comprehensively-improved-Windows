@@ -1,20 +1,23 @@
 // AI 导出 · 各技法的页面内容抽取(星盘 / 六爻 / 六壬 / 金口 / 奇门 / 三式 / 推运各页 / 历法 / 通用)。
 // 由 utils/aiExport.js 门面统一对外导出。
-import { isAstroLikeExportKey } from './presets';
+import { isAstroLikeExportKey, DERIVED_ASTRO_MODULE_KEYS, DERIVED_ASTRO_NO_NATAL_FALLBACK_KEYS } from './presets';
 import { snapshotModuleKeyByContextKey, requestModuleSnapshotRefresh } from './settingsModel';
 import { findIndiaActivePane } from './contextResolve';
-import { applyAIExportSectionFilterToSnapshot } from './settingsGroups';
+import { applyAIExportSectionFilterToSnapshot, getAIExportEffectiveSectionsForTechnique } from './settingsGroups';
+import { getStore } from '../storageutil';
 import {
 	getAstroCachedContent, getModuleCachedContent, getModuleSnapshotPayload, getSanshiDisplayFieldSignature,
 	isSanshiSnapshotMatchedCurrent, getIndiaCachedContent,
 } from './snapshotLookup';
 import { escapeRegExp } from './meaning';
 import { normalizeExportKey } from './exportKeys';
+import { prepareModuleSnapshot } from '../moduleSnapshotRefresh';
+import { isUserSectionsExplicitlyCleared } from './sectionFilter';
 
 // 五个派生键的模块快照(各页出盘即存)优先——此前恒读 astro 单例=
 // 本命盘冒充分盘(用户看十三分/调波/龙盘/重置盘,AI 读到的却是本命)。无模块快照(老会话/未出盘)
 // 回落单例(旧行为,不硬断)。astrochart_like 聚合键与 locastro(ACG 自有链)不在此列。
-const DERIVED_ASTRO_MODULE_KEYS = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation'];
+// (键表在 presets.js:DERIVED_ASTRO_MODULE_KEYS / DERIVED_ASTRO_NO_NATAL_FALLBACK_KEYS)
 
 export async function extractAstroContent(context){
 	const isAstroLike = !!(context && isAstroLikeExportKey(context.key));
@@ -22,9 +25,15 @@ export async function extractAstroContent(context){
 	const isIndia = (context && context.key === 'indiachart') || topLabel.includes('印度占星') || topLabel.includes('印度律盘');
 	if(!isIndia){
 		if(context && DERIVED_ASTRO_MODULE_KEYS.indexOf(context.key) >= 0){
+			// 页面上还在取 / 口径已变的段(如重置盘按重置地点取的盘面细节、古典格局)先补齐再读
+			await prepareModuleSnapshot(context.key);
 			const derived = getModuleCachedContent(context.key);
 			if(`${derived || ''}`.trim()){
 				return derived;
+			}
+			// 这两页没有老会话要兼容:没出过盘就是没有内容,不能把本命盘标成它们
+			if(DERIVED_ASTRO_NO_NATAL_FALLBACK_KEYS.indexOf(context.key) >= 0){
+				return '';
 			}
 		}
 		// 星盘系导出固定走计算快照，不读取右侧栏目DOM。
@@ -37,10 +46,29 @@ export async function extractAstroContent(context){
 	// reload 后未重排时懒存缓存为空,只读缓存会「显示有盘却报没有可导出文本」(用户实机抓获)。
 	const refreshed = await requestModuleSnapshotRefresh('indiachart');
 	if(refreshed){
-		return refreshed;
+		return withIndiaTransitSection(refreshed);
 	}
 	const indiaCached = getIndiaCachedContent(indiaActive ? indiaActive.label : '');
-	return indiaCached || '';
+	return indiaCached ? withIndiaTransitSection(indiaCached) : '';
+}
+
+// 印占「穿界时刻」段:行运页签没打开过时页面快照里没有,导出按本机保存的所选现取补上(与挂载同一取法);
+// 用户在导出设置里取消了这一段就不取。印占页模块按需载入,不进导出的静态链。
+async function withIndiaTransitSection(text){
+	try{
+		const wanted = getAIExportEffectiveSectionsForTechnique('indiachart') || [];
+		// 显式全清:导出本就为空,不必再取;勾了别的段却没勾这段:不取
+		if(isUserSectionsExplicitlyCleared('indiachart')){ return text; }
+		if(wanted.length && wanted.indexOf('穿界时刻') < 0){ return text; }
+		const store = getStore();
+		const fields = store && store.astro ? store.astro.fields : null;
+		if(!fields){ return text; }
+		const m = await import(/* webpackChunkName: "india-transit-export" */ '../../components/astro/IndiaChart');
+		const out = m && typeof m.appendIndiaTransitSection === 'function' ? await m.appendIndiaTransitSection(text, fields) : '';
+		return `${out || ''}`.trim() || text;
+	}catch(e){
+		return text;
+	}
 }
 
 export async function extractSixYaoContent(context){
@@ -461,6 +489,8 @@ export async function extractRelativeContent(context){
 }
 
 export async function extractSimpleModuleContent(moduleName){
+	// 先请页面补算正文要用、页面上还没算的段(如世俗盘周期类的「世运周期表」;与存案前补算同一钩子)
+	try{ await prepareModuleSnapshot(moduleName); }catch(e){ /* 补不上只少那一段 */ }
 	const refreshed = await requestModuleSnapshotRefresh(moduleName);
 	if(refreshed){
 		return refreshed;
@@ -580,7 +610,7 @@ export async function extractGenericContent(context){
 		|| context.key === 'planetaryarc' || context.key === 'persiandirected' || context.key === 'yearsystem129'
 		|| context.key === 'balbillus' || context.key === 'triplicityrulers' || context.key === 'keypoints'
 		|| context.key === 'lunationphase' || context.key === 'extrareturns'
-		|| context.key === 'neroman' || context.key === 'bezzafigure' || context.key === 'jayprofection' || context.key === 'michon'){
+		|| context.key === 'neroman' || context.key === 'bezzafigure' || context.key === 'jayprofection' || context.key === 'michon' || context.key === 'timelords'){
 		const cached = getModuleCachedContent(context.key);
 		if(cached){
 			return cached;

@@ -45,6 +45,9 @@ def pcLon(jd, lat, lon, flags=swe.SEDEFAULT_FLAG):
 
     """
     res = 188.6849 + 360 * (jd - 2451543.5) / 10226.78132
+    # 这条匀速式给出的是回归黄经(起点与周期按回归年对得上;若当成恒星黄经,两千年内与实测逐年偏离一个岁差)。
+    # 恒星盘的黄经一律从回归值减岁差,与同盘行星同一个零点;回归盘 tropicalOffset 为 0,逐字节不变。
+    res = res - swe.tropicalOffset(jd, flags)
     res = res % 360
     return res if res >= 0 else res + 360
 
@@ -58,15 +61,10 @@ def isDiurnal(jd, lat, lon, flags=swe.SEDEFAULT_FLAG):
     of a given date and location. 
     
     """
+    # 日心真地平高度 > 0 即昼:按回归、本日坐标求(任何岁差模式都对);旧写法用固定 23.44° 交角、恒星盘直接拿恒星黄经换
     sun = swe.sweObject(const.SUN, jd, flags)
-    sidflag = flags & swe.SEFLG_SIDEREAL
-    if sidflag == 0:
-        mc = swe.sweHousesLon(jd, lat, lon, const.HOUSES_DEFAULT)[1][1]
-    else:
-        mc = swe.sweHousesLon(jd, lat, lon, const.HOUSES_DEFAULT, swe.SEFLG_SIDEREAL)[1][1]
-    ra, decl = utils.eqCoords(sun['lon'], sun['lat'])
-    mcRA, _ = utils.eqCoords(mc, 0.0)
-    return utils.isAboveHorizon(ra, decl, mcRA, lat)
+    alt = swe.horizontal(jd, [lon, lat, 0.0], sun['lon'], sun['lat'], swe.tropicalOffset(jd, flags))[1]
+    return alt > 0.0
     
 
 # === Iterative algorithms === #

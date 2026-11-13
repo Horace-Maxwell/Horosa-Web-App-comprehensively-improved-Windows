@@ -2,21 +2,23 @@
 // 逐一写清左栏每个输入/设置项的取值与差别 + 右栏每块内容，便于使用者理解每个开关怎么影响排盘。
 // 中性表述，纯展示零后端；绝不写软件名或内部章节号；书名只写公版古籍名，不写现代来源。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
 
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class BaziHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>八字四柱 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '八字四柱 · 操作手册',
+	groups: [
+		{
+			key: 'bazi',
+			label: '八字四柱',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>八字以出生的<b>年、月、日、时</b>四组天干地支（四柱八字）为本，配上胎元、命宫、身宫等三元，再排五行力量、格局用神、神煞与大运流年，综合断命。</p>
 							<p style={p}>本页布局：<b>左栏</b>填出生时间地点并设置各项排盘口径；<b>中栏</b>为四柱盘（可切简盘/细盘/古法盘）与下方的大运·流年·流月·流日行运轴；<b>右栏</b>列基本信息、五行力量、格局用神、月令司令、神煞与三元宫位。</p>
@@ -37,9 +39,14 @@ class BaziHelpDoc extends Component{
 							</div>
 							<p style={{ ...p, color: MUTED }}>下面分「排盘设置 / 格局用神 / 流派分歧 / 神煞·显示 / 行运 / 盘面与右栏 / 算法与口径」逐项说明。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="排盘设置" key="setup">
+					</div>
+					),
+				},
+				{
+					key: 'setup',
+					label: '排盘设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「时间与地点」与「起盘选项」逐项：取值 / 默认 / 区别。</p>
 
@@ -127,9 +134,14 @@ class BaziHelpDoc extends Component{
 								{kv('正月初一', '以农历正月初一为生肖换年界线（民俗常用）')}
 								{kv('影响', '仅影响所显示的生肖属相，不改四柱干支')}</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="格局用神" key="geju">
+					</div>
+					),
+				},
+				{
+					key: 'geju',
+					label: '格局用神',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>右栏「五行力量」「格局·用神」综合呈现旺衰、格局与多派喜忌；其取用受左栏「断命流派 · 主用流派」与部分起盘口径影响。</p>
 
@@ -167,9 +179,14 @@ class BaziHelpDoc extends Component{
 								{kv('备注', '鼠标悬停某行可看该派的取用依据')}</div>
 							<p style={{ ...p, color: MUTED }}>各派结论可异，属正常；本页只做并列对照，不裁定唯一答案。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派分歧" key="school">
+					</div>
+					),
+				},
+				{
+					key: 'school',
+					label: '流派分歧',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>断命流派 · 主用流派</div>
 							<p style={{ ...p, color: MUTED }}>左栏「断命流派」下拉，决定右栏以哪一派为主用并高亮；其余各派仍并列对照。</p>
@@ -218,9 +235,14 @@ class BaziHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>这些分歧点不预设唯一答案，按需切换即可对照不同传统的结果。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="神煞·显示" key="display">
+					</div>
+					),
+				},
+				{
+					key: 'display',
+					label: '神煞·显示',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「显示」组与「只显示地支藏干十神」勾选项：多为即改即生效的展示开关，不重排盘。</p>
 							<p style={{ ...p, color: MUTED }}>几项开关在用不到它的版式下会置灰，鼠标悬停有说明：刑冲破害在古法盘和旧星阙UI下置灰；神煞、小运在旧星阙UI下置灰；流派标记在「传统综合」「纳音古法」或旧星阙UI下置灰。</p>
@@ -281,9 +303,14 @@ class BaziHelpDoc extends Component{
 								<li style={li}>旧星阙UI 下取消勾选，则四柱卡里多出一行「地支」（列出地支的阴阳、五行与十神）。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="行运" key="luck">
+					</div>
+					),
+				},
+				{
+					key: 'luck',
+					label: '行运',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>中栏盘下方为行运轴，四行自上而下：<b>大运 → 流年 → 流月 → 流日</b>，逐级联动。点选某一步，上方盘与右栏神煞会随之联动。</p>
 							<div style={h}>各级含义</div>
@@ -319,9 +346,14 @@ class BaziHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>节气月以真实节气时刻为界，故流月格的公历日期逐年不同；一个命理年的第十二个节气月（小寒起）其公历日期落在次年年初，属正常。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="盘面与右栏" key="layout">
+					</div>
+					),
+				},
+				{
+					key: 'layout',
+					label: '盘面与右栏',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>中栏顶部摘要行</div>
 							<div style={card}>
@@ -371,9 +403,14 @@ class BaziHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>新旧UI仅版式不同，底层四柱与算法一致；可在左栏「界面样式」随时切换。旧版式无盘式按钮，也无行运轴与右栏行运神煞卡片。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="算法与口径" key="algo">
+					</div>
+					),
+				},
+				{
+					key: 'algo',
+					label: '算法与口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>本页各项数值的换算口径与边界。看不明白某个字段是怎么来的，先查此处。</p>
 
@@ -441,10 +478,19 @@ class BaziHelpDoc extends Component{
 
 							<p style={{ ...p, color: MUTED }}>各家口径本有分歧，本页凡有分歧处都尽量做成可选项并标明默认；未做成选项的部分按通行取法处理，并在此处写明，不做无据的自创。</p>
 						</div>
-					</TabPane>
-				</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class BaziHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

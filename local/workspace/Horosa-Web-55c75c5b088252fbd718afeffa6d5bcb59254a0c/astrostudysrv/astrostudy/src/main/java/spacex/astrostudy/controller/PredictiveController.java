@@ -201,6 +201,9 @@ public class PredictiveController {
 		if(TransData.containsParam("direction")) {
 			params.put("direction", TransData.get("direction"));
 		}
+		if(TransData.containsParam("persianYear")) {
+			params.put("persianYear", TransData.get("persianYear"));
+		}
 
 		return params;
 	}

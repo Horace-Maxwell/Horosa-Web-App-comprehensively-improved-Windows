@@ -7,8 +7,7 @@
 import { Component } from 'react';
 import DunJiaMain, { dunjiaFactoryOptions } from '../dunjia/DunJiaMain';
 import QimenZeriWorkbench from './QimenZeriWorkbench';
-import { XQButton, XQSideSection } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons';
+import ZeriHostEntry from './ZeriHostEntry';
 import DateTime from '../comp/DateTime';
 import { getStore } from '../../utils/storageutil';
 import { caseRestoreKey } from '../../utils/kentangCaseSave';
@@ -564,18 +563,8 @@ export default class QimenZeriMain extends Component{
 	}
 
 	renderLeftExtra(){
-		return (
-			<XQSideSection iconName={sideSectionIcon('search')} title="择日" collapsible={false}>
-				<div style={{ padding: '4px 0' }}>
-					<XQButton type="primary" style={{ width: '100%' }} onClick={this.openSearch}>
-						奇门择日…
-					</XQButton>
-					<div className="horosa-divi-note" style={{ marginTop: 6 }}>
-						工作台内选时间范围/地点/参数与格局·盘面条件,逐时辰找局,结果点击即起盘。
-					</div>
-				</div>
-			</XQSideSection>
-		);
+		// 与其余择日页签同一块入口(ZeriHostEntry):左栏顶、只留按钮不放说明文字;存盘走本页自带的「保存」(左栏动作行 + 快捷栏)。
+		return <ZeriHostEntry label="奇门择日" onOpen={this.openSearch} />;
 	}
 
 	render(){
@@ -593,7 +582,6 @@ export default class QimenZeriMain extends Component{
 					value={this.props.chart}
 					techniqueScope="qimenzeri"
 					caseEventPrefix="奇门择日"
-					showQuickDock={false}
 					composeAiSnapshot={this.composeAiSnapshot}
 					casePayloadExtra={this.casePayloadExtra}
 					onOptionsChange={this.onBoardOptionsChange}

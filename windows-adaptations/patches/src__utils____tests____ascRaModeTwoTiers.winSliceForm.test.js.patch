@@ -1,0 +1,21 @@
+diff --git a/astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js b/astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js
+index 30be243b..04b7ced8 100644
+--- a/astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js
++++ b/astrostudyui/src/utils/__tests__/ascRaModeTwoTiers.test.js
+@@ -116,7 +116,15 @@ describe('三式:只在外圈赤道分宫时起作用', ()=>{
+ 	test('设置件收了上升取法(出厂改进);左栏只在外圈 = 赤道时显示;缓存键 / 去重签名带上档位', ()=>{
+ 		expect(SANSHI_PAGE_SETTINGS.defaults().ascRaMode).toBe(ASC_RA_MODE_IMPROVED);
+ 		const src = read('components/sanshi/SanShiUnitedMain.js');
+-		expect(src).toContain("{this.state.outerCoord === 'equatorial' ? (");
++		// horosa_win_slice_form_v1(Windows 侧移植适配):合一页左栏在我方渲染切片里是独立组件,state 经 props 进入,
++		// 同一判据的代码形是 `{this.props.outerCoord === 'equatorial' ? (`;两形皆认(判据零放宽:仍必须是「外圈 = 赤道才显示」),
++		// 切片形另须宿主把 outerCoord / ascRaMode / 处理器三项都传进去(少传一项 = 下拉不显示或一改就 TypeError)。
++		const hostForm = src.includes("{this.state.outerCoord === 'equatorial' ? (");
++		const sliceForm = src.includes("{this.props.outerCoord === 'equatorial' ? (")
++			&& src.includes('outerCoord={this.state.outerCoord}')
++			&& src.includes('ascRaMode={this.state.ascRaMode}')
++			&& src.includes('onAscRaModeChange={(mode)=>this.onAscRaModeChange(mode)}');
++		expect(hostForm || sliceForm).toBe(true);
+ 		expect(src).toContain('SANSHI_PAGE_SETTINGS.save({ ascRaMode: m });');
+ 		expect(src).toContain('`${this.outerCoordCacheKey()}`,');
+ 		expect(read('components/sanshi/SanshiUnitedBoard.js')).toContain('buildOuterData(astroChartTop, outerCoord, ascRaMode)');

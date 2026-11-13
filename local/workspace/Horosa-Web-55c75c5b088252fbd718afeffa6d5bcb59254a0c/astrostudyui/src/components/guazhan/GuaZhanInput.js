@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
-import { gcj02ToGps, randomStr } from '../../utils/helper';
+import { randomStr } from '../../utils/helper';
 import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';

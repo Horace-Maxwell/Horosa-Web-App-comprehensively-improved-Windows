@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroRelative.js b/astrostudyui/src/components/astro/AstroRelative.js
-index 77a0d617..72901696 100644
+index 43935ee3..64f55ccc 100644
 --- a/astrostudyui/src/components/astro/AstroRelative.js
 +++ b/astrostudyui/src/components/astro/AstroRelative.js
-@@ -25,6 +25,8 @@ import UpdatingBadge from '../common/UpdatingBadge';
+@@ -27,6 +27,8 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { recordSeedsForFieldWrite } from '../../utils/newChartSeeds';
  import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
@@ -11,7 +11,7 @@ index 77a0d617..72901696 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -622,6 +624,11 @@ class AstroRelative extends Component{
+@@ -648,6 +650,11 @@ class AstroRelative extends Component{
  			if(sentTab !== this.state.currentTab){
  				return;
  			}
@@ -23,10 +23,10 @@ index 77a0d617..72901696 100644
  			let hook = this.state.hook[sentTab];
  			if(hook && hook.fun){
  				hook.fun(res);
-@@ -766,6 +773,10 @@ class AstroRelative extends Component{
- 						{(!this.state.chartA || !this.state.chartB) ? (
- 							<div className="horosa-empty-line horosa-relative-empty-hint" role="note">先在上方选择星盘 A 与星盘 B,再点「排盘」</div>
- 						) : null}
+@@ -792,6 +799,10 @@ class AstroRelative extends Component{
+ 				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
+ 					<Col span={24}>
+ 						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
 +						{/* horosa_freeze_subtabs_v1:六个合盘子页签此前全部常驻重渲(每次排盘/改选项都画 6 套)。
 +						    state.currentTab 本就由 changeTab 与 antd 同步,直接拿来做 active;
 +						    Tabs 仍保持原非受控写法(defaultActiveKey),行为逐字不变。
@@ -34,7 +34,7 @@ index 77a0d617..72901696 100644
  						<Tabs 
  							defaultActiveKey={this.state.currentTab} tabPosition='right'
  							onChange={this.changeTab}
-@@ -773,6 +784,7 @@ class AstroRelative extends Component{
+@@ -799,6 +810,7 @@ class AstroRelative extends Component{
  							style={{ height: height }}
  						>
  							<TabPane tab="比较盘" key="Comp">
@@ -42,7 +42,7 @@ index 77a0d617..72901696 100644
  									<AstroCompare
  										value={hook.Comp.result}
  									height={height}
-@@ -793,8 +805,10 @@ class AstroRelative extends Component{
+@@ -819,8 +831,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Comp}	
  									/>
@@ -53,7 +53,7 @@ index 77a0d617..72901696 100644
  									<AstroComposite 
  										relativeContext={this.relativeContextFor('Composite')}
  										wheelArt={this.props.wheelArt}
-@@ -817,8 +831,10 @@ class AstroRelative extends Component{
+@@ -843,8 +857,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Composite}	
  									/>
@@ -64,7 +64,7 @@ index 77a0d617..72901696 100644
  									<AstroSynastry 
  										relativeContext={this.relativeContextFor('Synastry')}
  										wheelArt={this.props.wheelArt}
-@@ -841,8 +857,10 @@ class AstroRelative extends Component{
+@@ -867,8 +883,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Synastry}	
  									/>
@@ -75,7 +75,7 @@ index 77a0d617..72901696 100644
  									<AstroTimeSpace 
  										relativeContext={this.relativeContextFor('TimeSpace')}
  										wheelArt={this.props.wheelArt}
-@@ -865,8 +883,10 @@ class AstroRelative extends Component{
+@@ -891,8 +909,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.TimeSpace}	
  									/>
@@ -86,7 +86,7 @@ index 77a0d617..72901696 100644
  										<AstroMarks 
  										relativeContext={this.relativeContextFor('Marks')}
  											wheelArt={this.props.wheelArt}
-@@ -889,13 +909,16 @@ class AstroRelative extends Component{
+@@ -915,21 +935,26 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Marks}	
  										/>
@@ -98,6 +98,16 @@ index 77a0d617..72901696 100644
  											params={this.genParams()}
  											height={height}
  											onResult={(r)=>{ hook.Score.result = r; this.saveRelativeSnapshot(); }}
+ 										/>
++									</FreezeSubTab>
+ 								</TabPane>
+ 								<TabPane tab="八重合" key="Ashtakoota">
++									<FreezeSubTab active={this.state.currentTab === 'Ashtakoota'}>
+ 										<AstroAshtakoota
+ 											params={this.genParams()}
+ 											height={height}
+ 											maleDefault={maleSideOf(this.state.chartA && this.state.chartA.record.gender, this.state.chartB && this.state.chartB.record.gender)}
+ 											onResult={(r)=>{ hook.Ashtakoota.result = r; this.saveRelativeSnapshot(); }}
  										/>
 +									</FreezeSubTab>
  								</TabPane>

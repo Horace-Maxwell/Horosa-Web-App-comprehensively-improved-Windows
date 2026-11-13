@@ -1,20 +1,24 @@
 // 天文馆 · 操作手册(帮助页内容组件,天文馆页右上角「帮助」打开)。
 // 强调纯天文定位;逐图层分组写清;中性表述,纯展示零后端。
 import { Component } from 'react';
-import { Tabs } from 'antd';
+import HelpBook from './HelpBook';
 
-const { TabPane } = Tabs;
 import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
 
 const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class PlanetariumHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>天文馆 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '天文馆 · 操作手册',
+	groups: [
+		{
+			key: 'planetarium',
+			label: '天文馆',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}><b>天文馆</b>是一座可交互的三维真实星空:按当前命盘的出生时间与出生地(别的页换了盘,这里会跳到新盘时间并暂停),把恒星、行星、二十八宿等投影到真实可见的天空,鼠标可自由旋转、缩放、点选查看任一天体的坐标;在天文馆里改时间、换观测点只影响这里的星空,不改动命盘。左侧栏顶部为时间与观测点,下分「定位 / 观察模式 / 显示 / 时间播放 / 图层」分组;右侧栏为实时观测状态、天体详情与性能日志。</p>
 							<div style={card}><div style={ct}>纯天文定位（务必明白）</div>
@@ -31,9 +35,14 @@ class PlanetariumHelpDoc extends Component{
 							<p style={{ ...p, color: MUTED }}>图层开关、星等上限和观察模式会自动记住;观测时间、观测点、搜索与测量每次重新开始。</p>
 							<p style={{ ...p, color: MUTED }}>开场分两段:先出基础天空(日月行星与参考圈),随后在后台补齐恒星与已开图层。期间画面上会短暂出现「准备基础天空 / 补全天空 / 补全恒星 / 后台校准天空」等提示,属正常后台补算,不必等它结束即可操作。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="视角与操作" key="ops">
+					</div>
+					),
+				},
+				{
+					key: 'ops',
+					label: '视角与操作',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>两种观察模式</div>
 							<ul style={ul}>
@@ -63,9 +72,14 @@ class PlanetariumHelpDoc extends Component{
 							<div style={h}>左栏收合</div>
 							<p style={p}>左栏标题旁的箭头按钮可收合 / 展开整条左栏,腾出更大观星画面。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="定位与搜索" key="search">
+					</div>
+					),
+				},
+				{
+					key: 'search',
+					label: '定位与搜索',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>左侧栏顶部<b>「定位」</b>区有一个搜索框,输入天体名后按回车或点「定位」,视野自动转向并选中该目标。</p>
 							<div style={h}>可输入</div>
@@ -80,9 +94,14 @@ class PlanetariumHelpDoc extends Component{
 							<p style={{ ...p, color: MUTED }}>命中后左栏提示「已定位：⋯」,右栏同时显示该天体详情,视野转向并持续跟随(拖动即解除)。</p>
 							<p style={{ ...p, color: MUTED }}>星官名(如天船)、垣墙名(如天市左垣)与星座的拉丁名不参与搜索——星官、垣墙与星座只作连线与标名之用,不是可点选、可定位的目标。星座缩写本身也不是搜索目标,但拜耳名里带的缩写(如「α CMa」)随星名一起能搜到。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="图层开关" key="layers">
+					</div>
+					),
+				},
+				{
+					key: 'layers',
+					label: '图层开关',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左侧「图层」把所有图层收进六个可折叠分组,各项独立勾选、叠加显示;点分组标题即可折叠 / 展开(「刻度与标注」「极点与高阶」两组默认收起)。部分默认关闭的图层在首次开启时才构建,故偶有一瞬构建等待,属正常。</p>
 							<div style={card}><div style={ct}>两个一键按钮</div>
@@ -140,9 +159,14 @@ class PlanetariumHelpDoc extends Component{
 								{kv('点空白读坐标', '不在测量态时,点击空白天区即读出该方向的赤经赤纬 / 黄经黄纬 / 方位高度。')}</div>
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>升落时刻默认精确、无需开关:每次都自动算出日月五星与天王 / 海王 / 冥王共十个真实天体当日的升起 / 上中天 / 落下 本地时刻(极区永昼永夜则标不升 / 不落),见点选详情;月交点是数学点,无升落。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="时间播放" key="time">
+					</div>
+					),
+				},
+				{
+					key: 'time',
+					label: '时间播放',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>左侧「时间播放」区让星空动起来,观察天体随时间的真实运动(东升西落、行星顺逆、月相变化等)。</p>
 							<div style={h}>正向倍率</div>
@@ -164,9 +188,14 @@ class PlanetariumHelpDoc extends Component{
 							<p style={{ ...p, color: MUTED }}>播放时先按估算平滑走,隔一会儿用精确星历校正一次(偶见「后台校准天空⋯」);「日进」以上的高速档,两次校正之间位置略有偏差,校正时自动归位。</p>
 							<p style={{ ...p, color: MUTED }}>画面左下角实时显示儒略日(JD)、本地恒星时(LST)与黄赤交角(ε);右上角另有性能读数(帧率 / 网格数 / 载入 / 接口 / 渲染 / 首次 / 渲染核心耗时;沉浸模式下让到「退出沉浸」按钮下方)。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="点选详情" key="detail">
+					</div>
+					),
+				},
+				{
+					key: 'detail',
+					label: '点选详情',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>点中任一天体,右栏「天体详情」按需列出下列各行(该天体没有的行自动隐去,不留空占位):</p>
 							<ul style={ul}>
@@ -187,9 +216,14 @@ class PlanetariumHelpDoc extends Component{
 							<p style={p}>右栏另有<b>「观测状态」</b>实时面板:当前恒星数、天空状态、太阳高度、月相、黄赤交角、本地恒星时;最下方<b>「性能日志」</b>面板逐条列出各次操作(载入 / 重取 / 渲染等)的耗时,便于排查卡顿。</p>
 							<p style={{ ...p, color: MUTED }}>行星位置取自高精度星历,再结合观测地经纬换算为地平坐标。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="坐标口径" key="frames">
+					</div>
+					),
+				},
+				{
+					key: 'frames',
+					label: '坐标口径',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>方位角约定(先看这条)</div>
 							<p style={p}>本页所有「方位」读数——天体详情、空白天区读数、地平网格与方位刻度上的度数——都用<b>同一套约定:正南 0°、正西 90°、正北 180°、正东 270°</b>(即自南起、向西增)。它与画面上贴着地平线的<b>东 / 南 / 西 / 北</b>四方大字严格一致:对着「南」字看,读数就是 0° 附近。换算成常见的「自北起」写法,只需加减 180°。</p>
@@ -217,10 +251,19 @@ class PlanetariumHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>右栏「观测状态」的「恒星」一项是<b>已载入</b>的星表星数(后台补全后会增长),不等于当前星等上限下正在显示的颗数。</p>
 						</div>
-					</TabPane>
-				</Tabs>
-			</div>
-		);
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class PlanetariumHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

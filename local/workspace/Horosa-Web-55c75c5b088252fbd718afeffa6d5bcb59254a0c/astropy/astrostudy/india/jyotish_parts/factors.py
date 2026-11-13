@@ -252,6 +252,20 @@ class FactorsMixin:
                 'error': str(exc),
             }
 
+    def yoga_table(self):
+        from astrostudy.india.yoga_rule_table import build_yoga_table
+        return build_yoga_table(self.perchart, self.d1_perchart)
+
+    def _gulika_lon(self):
+        for item in self._time_based_upagrahas() or []:
+            if item['key'] == 'Gulika':
+                return item['lon']
+        return None
+
+    def extra_tables(self):
+        from astrostudy.india.extra_tables import build_extra_tables
+        return build_extra_tables(self.d1_perchart, self._gulika_lon())
+
     def nakshatras(self):
         result = {}
         for obj_id in JYOTISH_PLANETS:

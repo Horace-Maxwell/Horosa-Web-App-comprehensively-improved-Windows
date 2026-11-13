@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroChartMain3D.js b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
-index 974573a3..c46ef025 100644
+index a5385a6e..1cd45946 100644
 --- a/astrostudyui/src/components/astro3d/AstroChartMain3D.js
 +++ b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
 @@ -3,6 +3,7 @@ import { message } from 'antd';
@@ -10,7 +10,7 @@ index 974573a3..c46ef025 100644
  import AstroInfo from '../astro/AstroInfo';
  import AstroAspect from '../astro/AstroAspect';
  import AstroPlanet from '../astro/AstroPlanet';
-@@ -28,6 +29,8 @@ import * as AstroConst from '../../constants/AstroConst';
+@@ -29,6 +30,8 @@ import * as AstroConst from '../../constants/AstroConst';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
  import { visualFloorPx } from '../../utils/zoomDomain';
@@ -19,7 +19,7 @@ index 974573a3..c46ef025 100644
  
  const TabPane = XQTabs.TabPane;
  const Option = XQSelect.Option;
-@@ -57,7 +60,12 @@ class AstroChartMain3D extends Component{
+@@ -58,8 +61,13 @@ class AstroChartMain3D extends Component{
  		this.state = {
  			centerMode: 'geo',
  			tabH: null,   // [右栏满高] 实测 tabs 内容高;null=回退旧扣高公式
@@ -27,12 +27,13 @@ index 974573a3..c46ef025 100644
 +			// 拿不到 activeKey 就无法冻结。改受控:初值仍是 '1'(信息),onChange 记进 state,
 +			// 用户可见行为逐字不变。
 +			sideTab: '1',
+ 			immersive: false,   // 页内全屏:收右栏与标题行,画布铺满本页(双击画布 / 按钮进出,Esc 退出)
  		}
 +		this.changeSideTab = (key)=>{ this.setState({ sideTab: key }); };
  		// 右栏 tabs 实测高:写死扣高(height-252)与各卡实际高度脱节 → 底部大空白;RO 量真值。
  		this.attachSideTabsRO = (node)=>{
  			if(!node || node === this._sideTabsNode || typeof ResizeObserver === 'undefined'){ return; }
-@@ -131,9 +139,10 @@ class AstroChartMain3D extends Component{
+@@ -135,9 +143,10 @@ class AstroChartMain3D extends Component{
  
  	// —— WS-2 全行星中心盘(中心体切换) ——
  
@@ -46,7 +47,18 @@ index 974573a3..c46ef025 100644
  		if(!f || !f.date || !f.date.value || !f.time || !f.time.value || !f.lat || !f.lon){
  			return null;
  		}
-@@ -224,6 +233,18 @@ class AstroChartMain3D extends Component{
+@@ -237,10 +246,6 @@ class AstroChartMain3D extends Component{
+ 		this.toggleImmersive();
+ 	}
+ 
+-	componentDidMount(){
+-		window.addEventListener('keydown', this.onImmersiveKeyDown);
+-	}
+-
+ 	componentDidUpdate(prevProps){
+ 		// 非地心模式下盘数据变化(改时间/地点)→ 同中心重取 3D 状态原地刷新;
+ 		// 地心默认路径零涉(条件恒假)
+@@ -249,6 +254,18 @@ class AstroChartMain3D extends Component{
  			&& this.props.value && !this.props.value.err){
  			this.applyCenterMode(this.state.centerMode);
  		}
@@ -65,12 +77,12 @@ index 974573a3..c46ef025 100644
  	}
  
  	changeGeo(rec){
-@@ -265,7 +286,36 @@ class AstroChartMain3D extends Component{
+@@ -290,11 +307,38 @@ class AstroChartMain3D extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
--	componentWillUnmount(){ clearTimeout(this._sideROT); if(this._sideRO){ this._sideRO.disconnect(); } }
 +	componentDidMount(){
++		window.addEventListener('keydown', this.onImmersiveKeyDown);
 +		// horosa_prefetch_registry_v1(PERF-R10 P6):3D 星盘步进预取 —— 仅非地心中心盘打后端
 +		// (geo=纯前端引擎零网络);构参与真点同一 buildChart3DParams 路径(fieldsOverride 版),
 +		// fetchChart3DState 自带 stateMem+在途合流,叠加 dedupe '/chart3d' 前缀三层落桶。
@@ -92,18 +104,19 @@ index 974573a3..c46ef025 100644
 +		registerStepPrefetcher('astrochart3D', this._stepPrefetcher);
 +	}
 +
-+	componentWillUnmount(){
-+		clearTimeout(this._sideROT);
-+		if(this._sideRO){ this._sideRO.disconnect(); }
+ 	componentWillUnmount(){
+ 		clearTimeout(this._sideROT);
+ 		clearTimeout(this._immersiveT);
+ 		if(this._sideRO){ this._sideRO.disconnect(); }
+ 		window.removeEventListener('keydown', this.onImmersiveKeyDown);
 +		if(this._stepPrefetcher){
 +			unregisterStepPrefetcher('astrochart3D', this._stepPrefetcher);
 +			this._stepPrefetcher = null;
 +		}
-+	}
+ 	}
  
  	render(){
- 		let chartObj = this.props.value;
-@@ -289,7 +339,6 @@ class AstroChartMain3D extends Component{
+@@ -319,7 +363,6 @@ class AstroChartMain3D extends Component{
  		let height = this.props.height ? this.props.height : 760;
  		let chartHeight = Math.max(visualFloorPx(360), height - 28);
  		let tabHeight = this.state.tabH || (height - 252);
@@ -111,7 +124,7 @@ index 974573a3..c46ef025 100644
  		let showzodical = true;
  		let showhsys = true;
  		let showdateselector = true;
-@@ -320,6 +369,16 @@ class AstroChartMain3D extends Component{
+@@ -350,6 +393,16 @@ class AstroChartMain3D extends Component{
  			showhsys = false;
  		}
  
@@ -128,10 +141,10 @@ index 974573a3..c46ef025 100644
  		let needChart3D = false;
  		if((this.props.currentTab && this.props.currentTab === 'astrochart3D') || this.props.needChart3D){
  			needChart3D = true;
-@@ -439,16 +498,24 @@ class AstroChartMain3D extends Component{
+@@ -478,16 +531,24 @@ class AstroChartMain3D extends Component{
  					<div className="horosa-3d-tabs-fill" ref={this.attachSideTabsRO}>
  					{/* 非地心时右栏四页签仍是地心盘(/chart3d/state 只重算球体与轨道)→ 明说,不再让帮助的「整盘重算」误导 */}
- 					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note" style={{ fontSize: 12, opacity: 0.75, padding: '2px 8px' }}>以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；单击提示按黄道设置取座）</div> : null}
+ 					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note">以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；单击提示按黄道设置取座）</div> : null}
 -					<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-3d-tabs">
 +					{/* horosa_freeze_subtabs_v1：右栏 5 个面板此前全内联 —— 首次激活后永久挂载，
 +					    此后每次改时间/改宫制/切中心体都把看不见的相位表、行星表、希腊点表一并重渲，
@@ -154,7 +167,7 @@ index 974573a3..c46ef025 100644
  							<AstroAspect
  								value={chartObj} height={tabHeight}
  								lotsDisplay={this.props.lotsDisplay}
-@@ -456,26 +523,36 @@ class AstroChartMain3D extends Component{
+@@ -495,26 +556,36 @@ class AstroChartMain3D extends Component{
  								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>

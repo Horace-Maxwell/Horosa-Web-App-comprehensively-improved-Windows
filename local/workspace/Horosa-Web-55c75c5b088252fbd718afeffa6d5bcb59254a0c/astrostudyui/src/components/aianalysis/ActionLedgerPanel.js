@@ -61,7 +61,10 @@ export default function ActionLedgerPanel({ limit = LEDGER_MAX, title = null }){
 					{rows.length > PAGE_SIZE ? <div data-ledger-pagination="1" style={{ display: 'contents' }}><Pagination size="small" simple current={page} pageSize={PAGE_SIZE} total={rows.length} onChange={setPage} /></div> : null}
 				</div>
 			) : (
-				<div className={styles.soft} data-ledger-empty="1">暂无动作记录</div>
+				<div className={styles.empty} data-ledger-empty="1">
+					<span className={styles.emptyTitle}>暂无动作记录</span>
+					<span className={styles.emptyHint}>AI 在对话、任务或外部客户端里做过写入后，会逐条记在这里，可撤销的在行尾给出按钮。</span>
+				</div>
 			)}
 		</div>
 	);

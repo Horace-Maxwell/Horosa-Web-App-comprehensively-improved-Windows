@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroChartMain.js b/astrostudyui/src/components/astro/AstroChartMain.js
-index b77b3d57..97797358 100644
+index 676b81ed..65fef40f 100644
 --- a/astrostudyui/src/components/astro/AstroChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroChartMain.js
-@@ -40,6 +40,8 @@ import XQIcon from '../xq-icons';
+@@ -41,6 +41,8 @@ import XQIcon from '../xq-icons';
  // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
  import { visualFloorPx } from '../../utils/zoomDomain';
  import { confirmDialog } from '../../utils/confirmDialog';
@@ -11,7 +11,7 @@ index b77b3d57..97797358 100644
  
  const TabPane = XQTabs.TabPane;
  const Option = XQSelect.Option;
-@@ -67,6 +69,161 @@ function formatTrueSolarTime(value){
+@@ -68,6 +70,166 @@ function formatTrueSolarTime(value){
  	return `${value}`.replace(' ', '，');
  }
  
@@ -160,6 +160,11 @@ index b77b3d57..97797358 100644
 +							<AstroEgypt value={chartObj} height={tabHeight} />
 +						))}</FreezeSubTab>
 +					</TabPane>
++					<TabPane tab="细节" key="details">
++						<FreezeSubTab active={activeTab === 'details'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
++							<AstroChartDetails value={chartObj} height={tabHeight} />
++						))}</FreezeSubTab>
++					</TabPane>
 +				</XQTabs>
 +			</div>
 +		);
@@ -173,7 +178,7 @@ index b77b3d57..97797358 100644
  class AstroChartMain extends Component{
  
  	constructor(props) {
-@@ -96,7 +253,6 @@ class AstroChartMain extends Component{
+@@ -97,7 +259,6 @@ class AstroChartMain extends Component{
  		this.navigateDirectionTool = this.navigateDirectionTool.bind(this);
  		this.renderInputOptionPopovers = this.renderInputOptionPopovers.bind(this);
  		this.renderInputPanel = this.renderInputPanel.bind(this);
@@ -181,7 +186,7 @@ index b77b3d57..97797358 100644
  		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
  
  		if(this.props.hook){
-@@ -891,113 +1047,6 @@ class AstroChartMain extends Component{
+@@ -899,118 +1060,6 @@ class AstroChartMain extends Component{
  		);
  	}
  
@@ -287,6 +292,11 @@ index b77b3d57..97797358 100644
 -							<AstroEgypt value={chartObj} height={tabHeight} />
 -						))}
 -					</TabPane>
+-						<TabPane tab="细节" key="details">
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
+-							<AstroChartDetails value={chartObj} height={tabHeight} />
+-						))}
+-					</TabPane>
 -					</XQTabs>
 -				</div>
 -			);
@@ -295,7 +305,7 @@ index b77b3d57..97797358 100644
  
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
-@@ -1009,6 +1058,31 @@ class AstroChartMain extends Component{
+@@ -1022,6 +1071,31 @@ class AstroChartMain extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
@@ -327,7 +337,7 @@ index b77b3d57..97797358 100644
  	render(){
  		let chartObj = this.props.value;
  		let fields = this.props.fields;
-@@ -1101,7 +1175,21 @@ class AstroChartMain extends Component{
+@@ -1114,7 +1188,21 @@ class AstroChartMain extends Component{
  									)
  								}
  						</div>

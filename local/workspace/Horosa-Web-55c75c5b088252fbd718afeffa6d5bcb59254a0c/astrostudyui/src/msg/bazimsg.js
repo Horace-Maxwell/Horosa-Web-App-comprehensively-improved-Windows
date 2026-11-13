@@ -26,8 +26,8 @@ export const BaZiMsg = {
 const WX_VAR = {
 	Wood: 'var(--horosa-bazi-wood, #237a45)',
 	Fire: 'var(--horosa-bazi-fire, #c72d22)',
-	Earth: 'var(--horosa-bazi-earth, #805526)',
-	Metal: 'var(--horosa-bazi-metal, #866a00)',
+	Earth: 'var(--horosa-bazi-earth, #7a4f2a)',
+	Metal: 'var(--horosa-bazi-metal, #ab5500)',
 	Water: 'var(--horosa-bazi-water, #275fc7)',
 };
 export const BaZiColor = {

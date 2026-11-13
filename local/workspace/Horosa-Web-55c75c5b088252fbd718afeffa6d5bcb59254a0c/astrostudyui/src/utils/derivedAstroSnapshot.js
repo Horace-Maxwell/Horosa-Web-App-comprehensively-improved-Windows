@@ -32,18 +32,21 @@ function fv(fields, key){
 }
 
 // 出盘即存(惰性构建不阻塞渲染):specialtyLines 为函数(返回行数组,含专属段头),缺省无专属段。
+// 派生盘快照正文:盘面通用段(有盘时)+ 本技法专属行。页面出盘即存与 AI 无头复算同一份
+export function derivedAstroSnapshotText(rawChart, fields, specialtyLines){
+	const co = coerceDerivedChartObj(rawChart);
+	const base = co ? `${buildAstroSnapshotContent(co, fields || null) || ''}`.trim() : '';
+	let spec = '';
+	try{
+		const arr = typeof specialtyLines === 'function' ? (specialtyLines() || []) : [];
+		spec = arr.filter(Boolean).join('\n').trim();
+	}catch(e){ spec = ''; }
+	return [base, spec].filter(Boolean).join('\n\n');
+}
+
 export function saveDerivedAstroSnapshot(moduleKey, rawChart, fields, specialtyLines){
 	try{
-		saveModuleAISnapshotLazy(moduleKey, ()=>{
-			const co = coerceDerivedChartObj(rawChart);
-			const base = co ? `${buildAstroSnapshotContent(co, fields || null) || ''}`.trim() : '';
-			let spec = '';
-			try{
-				const arr = typeof specialtyLines === 'function' ? (specialtyLines() || []) : [];
-				spec = arr.filter(Boolean).join('\n').trim();
-			}catch(e){ spec = ''; }
-			return [base, spec].filter(Boolean).join('\n\n');
-		}, {
+		saveModuleAISnapshotLazy(moduleKey, ()=>derivedAstroSnapshotText(rawChart, fields, specialtyLines), {
 			date: fv(fields, 'date'),
 			time: fv(fields, 'time'),
 			zone: fv(fields, 'zone'),

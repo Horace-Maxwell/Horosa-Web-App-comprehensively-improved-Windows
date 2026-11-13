@@ -22,6 +22,7 @@ from websrv.kentang.kinastro_common import (
     parse_datetime,
     row,
     source_text,
+    format_timezone_label,
     timezone_to_float,
     to_int,
 )
@@ -416,7 +417,7 @@ class ChunZiSrv:
                 "timeStr": data.get("time", dt.strftime("%H:%M:%S")),
                 "gender": gender_cn(data.get("gender"), "男"),
                 "timezone": timezone_value,
-                "timezoneText": f"UTC{timezone_value:+g}",
+                "timezoneText": format_timezone_label(timezone_value),
                 "chunzi": chunzi,
                 "classics": kinastro_source_sections("蠢子数", "接入 kinastro 的蠢子数纏度资料库，以二十八宿、七政四余、度数和地支组成代码，按时辰、刻数、农历月日与关键词检索候选条文。"),
                 "capabilities": {

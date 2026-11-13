@@ -21,7 +21,7 @@ class JinKouRelationMini extends Component {
 		const colorOf = (t)=>((t === '合' || t === '三合') ? 'var(--horosa-jx-he, #3d8f74)' : (t === '冲' ? 'var(--horosa-jx-chong, #c0392b)' : 'var(--horosa-jx-other, #c98a2f)'));
 		const dashedOf = (t)=>(t === '刑' || t === '害' || t === '破');
 		return (
-			<svg viewBox={`0 -24 ${size} ${size + 28}`} width="100%" style={{ display: 'block', height: 'auto', maxWidth: 320, margin: '0 auto' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 -24 ${size} ${size + 28}`} width="100%" style={{ display: 'block', height: 'auto', maxWidth: 320, margin: '0 auto' }}>
 				<circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--horosa-border, #e0d9c0)" strokeWidth="1" />
 				{relations.map((rel, k)=>{
 					const ia = ZI.indexOf(rel.a);

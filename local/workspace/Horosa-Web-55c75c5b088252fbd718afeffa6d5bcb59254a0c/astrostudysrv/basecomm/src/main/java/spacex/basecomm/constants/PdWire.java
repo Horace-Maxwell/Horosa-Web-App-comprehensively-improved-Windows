@@ -14,7 +14,7 @@ package spacex.basecomm.constants;
  * 禁止 pd_method_sync_ 字面量出现在本文件之外的 Java 源里。
  */
 public final class PdWire {
-	public static final String REV = "pd_method_sync_v26";
+	public static final String REV = "pd_method_sync_v28";
 
 	/**
 	 * 主限法设置项登记表的键(与前端 primaryDirectionSync.PD_EXTRA_SETTING_KEYS、Python perchart 同名):

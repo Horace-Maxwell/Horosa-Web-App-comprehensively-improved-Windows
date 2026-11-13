@@ -1,27 +1,43 @@
 """量化盘「中点坐标」:赤经中点 / 赤纬中点(/germany/midpoint 请求带 mpCoord=ra|decl 时才算,作为【新增】字段下发)。
 
 不改 MidPoint 任何输出(黄经中点表与相位照旧);点集 = 量化盘已算好的 midpoint.objects(行星 + Asc/MC + TNP)。
-坐标按出生时刻的真黄赤交角用 swisseph.cotrans 黄→赤现算(flatlib utils.eqCoords 用的是固定交角常数,差到 0.001° 量级,
-这里不用它);四轴按黄道点取,黄纬 0 —— 不用 flatlib 给 Asc 写的 decl,那是地理纬度,见 declination.py 说明。
+各点赤经赤纬读 flatlib 已算好的 obj.ra / obj.decl(赤道坐标单源 flatlib/ephem/swe.py:恒星盘先加回岁差,
+四轴是黄纬 0 的黄道点、南交取北交对点,虚星按回归黄道直算)。不能拿 obj.lon 现算:恒星盘的 lon 是恒星黄经,
+直接换赤道会差一个岁差;而且恒星盘里虚星的 lon 仍是回归黄经,点集两种黄道混在一起,只有赤道坐标是一致的。
+对象缺赤道坐标时才按黄经现算兜底(flatlib 盘上的点都带,恒星盘的点不会走到兜底)。
 
  · 赤经中点:两点赤经的近轴中点(与黄经中点同一取法:离 A 超过 90° 翻到对面);接触 = 某点赤经与中点折叠到
    合 / 刑 / 冲(0 / 90 / 180)在容许度内 —— 与黄经中点相位判定同一套(_getAspectsUranian)。
  · 赤纬中点:两点赤纬的平均;接触 = 某点赤纬与之相等(平行)或互为相反数(反平行),容许度内。
+   定义上的对点(南北交)赤纬恒互为相反数,中点恒为 0,不成中点对(与主盘赤纬平行排除同一组对点)。
 中点对与接触目标都排除构成该中点的两点本身。
 """
 import math
 
 import swisseph
 
+from astrostudy.perchart_parts.aspects import _ANTIPODE_PAIRS
+
+
+def _finite_pair(ra, decl):
+    try:
+        ra, decl = float(ra), float(decl)
+    except (TypeError, ValueError):
+        return None
+    if not (math.isfinite(ra) and math.isfinite(decl)):
+        return None
+    return ra % 360.0, decl
+
 
 def _eq(obj, eps):
+    ra, decl = getattr(obj, 'ra', None), getattr(obj, 'decl', None)
+    if ra is not None and decl is not None:
+        return _finite_pair(ra, decl)
     try:
         ra, decl = swisseph.cotrans((float(obj.lon), float(getattr(obj, 'lat', 0.0) or 0.0), 1.0), -float(eps))[:2]
     except Exception:
         return None
-    if not (math.isfinite(ra) and math.isfinite(decl)):
-        return None
-    return float(ra) % 360.0, float(decl)
+    return _finite_pair(ra, decl)
 
 
 def _near_midpoint(a, b):
@@ -50,6 +66,8 @@ def coord_midpoints(objects, coord, orb, jd_ut):
         for j in range(i + 1, n):
             ida, va = pts[i]
             idb, vb = pts[j]
+            if coord == 'decl' and frozenset((ida, idb)) in _ANTIPODE_PAIRS:
+                continue
             value = _near_midpoint(va, vb) if coord == 'ra' else (va + vb) / 2.0
             mids.append({'idA': ida, 'idB': idb, 'value': value})
     contacts = []

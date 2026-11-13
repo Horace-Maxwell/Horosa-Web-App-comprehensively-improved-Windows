@@ -192,7 +192,7 @@ export default class SanShiZiWeiSihua extends Component {
 		const lnIdx = Math.min(this.state.liunianIdx, Math.max(0, liunianItems.length - 1));
 		const ln = liunianItems[lnIdx] || null;
 		return (
-			<div className="horosa-sanshi-ziwei-sihua" style={{ padding: '8px 10px', overflowY: 'auto', height: '100%' }}>
+			<div className="horosa-sanshi-ziwei-sihua">
 				{this.renderSection(`生年四化（${yearGan || '—'}）`, this.renderHuaChips(yearGan))}
 				{this.renderSection('大运四化', (
 					<div>

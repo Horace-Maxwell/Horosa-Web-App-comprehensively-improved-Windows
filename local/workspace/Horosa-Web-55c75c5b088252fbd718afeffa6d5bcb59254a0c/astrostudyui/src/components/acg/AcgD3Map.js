@@ -7,6 +7,7 @@ import * as AstroText from '../../constants/AstroText';
 import world from './world.geo.json';
 import { pointerToLocal } from '../../utils/zoomDomain';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { climesLines, ECLIPSE_TYPE_CN } from '../../utils/acgLayers';
 
 // Two appearance themes (follow the app's data-horosa-appearance). Planet colours stay
 // recognisable but are deepened in light mode; the casing/label-chip flip so lines and
@@ -16,7 +17,7 @@ const THEMES = {
 		ocean: '#0e1521', land: '#1d2735', border: '#33445a', grid: '#2a384d', gridOpacity: 0.55,
 		casing: 'rgba(7,11,18,0.62)',
 		chipBg: '#0f141c', chipBorder: 'rgba(222,228,238,0.9)',
-		geo: { equator: '#7f8a99', ecliptic: '#c9a227', tropic: '#6f7a8a', paran: '#9aa6cc' },
+		geo: { equator: '#7f8a99', ecliptic: '#c9a227', tropic: '#6f7a8a', paran: '#9aa6cc', eclipse: '#ff8f6b', climes: '#6fb3a8' },
 		markerFill: '#ffffff', markerStroke: 'rgba(7,11,18,0.7)',
 		tipBg: 'rgba(16,20,28,0.95)', tipFg: '#f0f3f8', tipBorder: 'rgba(255,255,255,0.12)',
 		colors: {
@@ -31,7 +32,7 @@ const THEMES = {
 		ocean: '#e9eff6', land: '#f4f2ea', border: '#c6ccd5', grid: '#d4dbe3', gridOpacity: 0.85,
 		casing: 'rgba(255,255,255,0.92)',
 		chipBg: '#ffffff', chipBorder: 'rgba(40,46,58,0.88)',
-		geo: { equator: '#7d8896', ecliptic: '#b07d14', tropic: '#798595', paran: '#5b6b86' },
+		geo: { equator: '#7d8896', ecliptic: '#b07d14', tropic: '#798595', paran: '#5b6b86', eclipse: '#c2410c', climes: '#2f7a6f' },
 		markerFill: '#222831', markerStroke: 'rgba(255,255,255,0.92)',
 		tipBg: 'rgba(28,33,42,0.96)', tipFg: '#f4f6fa', tipBorder: 'rgba(0,0,0,0.18)',
 		// 亮底标签字 ≥ 3:1(日 #DD8E12 / 婚神 #C48328 / 回归线 #9aa3af 旧值在白底片 2.2–2.7:1,同色相压深);
@@ -176,6 +177,7 @@ class AcgD3Map extends Component {
 			prevProps.showCuspLines !== this.props.showCuspLines ||
 			prevProps.showStars !== this.props.showStars || prevProps.showStarParans !== this.props.showStarParans ||
 			prevProps.showTreasure !== this.props.showTreasure ||
+			prevProps.climes !== this.props.climes || prevProps.climesObliquity !== this.props.climesObliquity ||
 			prevProps.clickMarker !== this.props.clickMarker
 		) {
 			this.drawAll();
@@ -340,6 +342,9 @@ class AcgD3Map extends Component {
 				});
 			});
 		}
+
+		this.drawClimes(data, th);
+		this.drawEclipse(data, th);
 
 		// parans: thin, BRIGHT, dashed latitude lines — no casing so they actually show.
 		if (this.props.showParans && data && data.parans && data.parans.length) {
@@ -844,6 +849,74 @@ class AcgD3Map extends Component {
 			.attr('href', this._heatUrl).attr('xlink:href', this._heatUrl)
 			.attr('x', 0).attr('y', 0).attr('width', w).attr('height', h)
 			.attr('preserveAspectRatio', 'none').attr('opacity', 0.9);
+	}
+
+	// 气候带 / 托勒密纬圈:横贯全图的纬线,中线实线、边界与纬圈虚线。
+	// 中线标签进标签层(画在行星线之上),带底片保证明暗两主题都读得清;相邻两带只差 3–4°,单双号错开经度放,免得叠在一起。
+	drawClimes(data, th) {
+		const mode = this.props.climes;
+		if (!this.geoG || (mode !== 'klimata' && mode !== 'parallels')) return;
+		const obliquity = data && data.meta ? data.meta.obliquity : null;
+		const labels = [];
+		climesLines(mode, this.props.climesObliquity, obliquity).forEach((row) => {
+			const coords = [];
+			for (let lon = -180; lon <= 180; lon += 10) coords.push([lon, row.lat]);
+			const center = row.kind === 'center';
+			const line = this.stroke(this.geoG, this.path({ type: 'LineString', coordinates: coords }), {
+				color: th.geo.climes, width: center ? 1 : 0.7, dash: center ? null : (row.kind === 'edge' ? '2,4' : '6,4'),
+				casing: false, t: `${row.label} · ${Math.abs(row.lat).toFixed(2)}°${row.lat >= 0 ? 'N' : 'S'}`,
+			});
+			line.attr('opacity', center ? 0.85 : 0.6);
+			if (center && this.props.showLabels !== false) labels.push(row);
+		});
+		if (!this.labelG) return;
+		labels.forEach((row) => {
+			const lon = (row.band || 0) % 2 ? -172 : -112;
+			const xy = this.projection([lon, row.lat]);
+			if (!xy || !isFinite(xy[0]) || !isFinite(xy[1])) return;
+			const g = this.labelG.append('g').attr('class', 'acg-clime-label')
+				.attr('transform', `translate(${(xy[0] + 4).toFixed(1)},${xy[1].toFixed(1)})`);
+			const text = g.append('text').attr('x', 0).attr('y', 0).attr('dominant-baseline', 'central').attr('font-size', 10.5)
+				.attr('fill', th.geo.climes).style('stroke', 'none').style('font-weight', 600).text(row.label);
+			let bb;
+			try { bb = text.node().getBBox(); } catch (e) { bb = { x: 0, y: -7, width: 80, height: 14 }; }
+			g.insert('rect', 'text')
+				.attr('x', (bb.x - 3).toFixed(1)).attr('y', (bb.y - 1.5).toFixed(1))
+				.attr('width', (bb.width + 6).toFixed(1)).attr('height', (bb.height + 3).toFixed(1))
+				.attr('rx', 3).attr('ry', 3)
+				.attr('fill', th.chipBg).attr('stroke', th.geo.climes).attr('stroke-width', 0.8).attr('opacity', 0.92);
+		});
+	}
+
+	// 日食路径:中心线实线 + 两侧食带边界虚线 + 食甚点;偏食只有最大食分轨迹(虚线)
+	drawEclipse(data, th) {
+		const e = data && data.eclipse;
+		if (!this.geoG || !e || !e.greatest) return;
+		const kind = ECLIPSE_TYPE_CN[e.type] || e.type;
+		const tip = `${kind} · 食甚 ${e.local ? `${e.local}(出生地时区)` : `${e.utc || ''}(UT)`}`;
+		const draw = (pts, width, dash, label) => {
+			if (!pts || pts.length < 2) return;
+			splitAtDateline(pts).forEach((seg) => {
+				this.stroke(this.geoG, this.path({ type: 'LineString', coordinates: seg }),
+					{ color: th.geo.eclipse, width, dash, casing: !dash, t: `${tip} · ${label}` });
+			});
+		};
+		if (e.central) {
+			draw(e.track, 1.8, null, '中心线');
+			draw(e.north, 1, '4,3', '食带北界');
+			draw(e.south, 1, '4,3', '食带南界');
+		} else {
+			draw(e.track, 1.2, '6,4', '最大食分点轨迹');
+		}
+		const xy = this.projection([e.greatest.lon, e.greatest.lat]);
+		if (xy && isFinite(xy[0]) && isFinite(xy[1])) {
+			this.geoG.append('circle').attr('cx', xy[0]).attr('cy', xy[1]).attr('r', 4.5)
+				.attr('fill', th.geo.eclipse).attr('stroke', th.casing).attr('stroke-width', 1.5)
+				.style('cursor', 'pointer')
+				.on('mouseover', (ev) => this.showTip(ev, null, `${tip} · 食甚点`))
+				.on('mousemove', (ev) => this.showTip(ev, null, `${tip} · 食甚点`))
+				.on('mouseout', () => this.hideTip());
+		}
 	}
 
 	drawMarkers() {

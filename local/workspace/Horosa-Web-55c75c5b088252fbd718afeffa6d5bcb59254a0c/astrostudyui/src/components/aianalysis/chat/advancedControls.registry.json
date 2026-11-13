@@ -3890,6 +3890,10 @@
    "file": "chat/SkillPackPanel.js"
   },
   {
+   "anchor": "data-skill-empty",
+   "file": "chat/SkillPackPanel.js"
+  },
+  {
    "anchor": "data-agent-ability-panel",
    "file": "AgentAbilityPanel.js"
   },

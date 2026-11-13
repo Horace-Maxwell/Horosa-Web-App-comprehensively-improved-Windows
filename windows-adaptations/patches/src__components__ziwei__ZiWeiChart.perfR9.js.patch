@@ -1,13 +1,14 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiChart.js b/astrostudyui/src/components/ziwei/ZiWeiChart.js
-index 1dc25781..e2568ad1 100644
+index cbcc641a..15976c0f 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiChart.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiChart.js
-@@ -3,10 +3,52 @@ import { watchChartAppearance } from '../../utils/chartDrawGuard';
+@@ -3,11 +3,53 @@ import { watchChartAppearance } from '../../utils/chartDrawGuard';
  import React, { Component } from 'react';
  import {randomStr, setupFloatingTooltip} from '../../utils/helper';
  import * as AstroConst from '../../constants/AstroConst';
 -import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 +import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+ import { sameJsonContent } from '../../utils/sameContent';
  import ZWChart from './ZWChart';
  import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
  
@@ -56,7 +57,7 @@ index 1dc25781..e2568ad1 100644
  class ZiWeiChart extends Component{
  	constructor(props) {
  		super(props);
-@@ -181,6 +223,47 @@ class ZiWeiChart extends Component{
+@@ -184,6 +226,47 @@ class ZiWeiChart extends Component{
  		this.zwchart.draw();
  	}
  

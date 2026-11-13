@@ -60,6 +60,24 @@
         box-shadow: none;
     }
 
+    /* 禁用态:不分主题、不靠外壳祖先(抽屉 / 弹层挂在 body 下,外壳那条够不着)。主 / 幽灵 / 危险按钮同一副灰。 */
+    .xq-button.ant-btn[disabled],
+    .xq-button.ant-btn[disabled]:hover,
+    .xq-button.ant-btn[disabled]:focus,
+    .xq-button.ant-btn[disabled]:active,
+    .xq-icon-button.ant-btn[disabled],
+    .xq-icon-button.ant-btn[disabled]:hover,
+    .xq-icon-button.ant-btn[disabled]:focus,
+    .xq-icon-button.ant-btn[disabled]:active {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-sunken);
+        color: var(--horosa-muted);
+        font-weight: 400;
+        opacity: 0.55;
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
     .xq-switch.ant-switch {
         min-width: 38px;
         height: 20px;
@@ -74,10 +92,37 @@
         height: 14px;
     }
 
+    /* 把手 14px:开态左缘按 14px 把手算(antd 默认按 18px / small 按 12px 算,套在 14px 把手上会偏);small 与默认同一尺寸 */
+    .xq-switch.ant-switch.ant-switch-checked .ant-switch-handle {
+        left: calc(~"100% - 16px");
+    }
+    .xq-switch.ant-switch .ant-switch-inner {
+        margin: 0 6px 0 22px;
+        font-size: 11px;
+        line-height: 18px;
+    }
+    .xq-switch.ant-switch.ant-switch-checked .ant-switch-inner {
+        margin: 0 22px 0 6px;
+    }
+
     .xq-switch.ant-switch-checked {
         border-color: var(--horosa-accent);
         background: linear-gradient(135deg, var(--horosa-accent), var(--horosa-cyan, var(--horosa-accent)));
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    }
+    /* 开态外发光只留给暗色(亮底上 3px 淡环发虚,像没对齐的描边);键盘聚焦三套主题都给环。 */
+    :root[data-horosa-appearance='dark'] .xq-switch.ant-switch-checked {
         box-shadow: 0 0 0 3px var(--horosa-cyan-soft), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    }
+    .xq-switch.ant-switch:focus-visible {
+        box-shadow: 0 0 0 3px var(--horosa-accent-soft);
+    }
+    /* 轨道里不带「开 / 关」字的开关:亮色关态不必托白字,用浅中性灰(全站亮色那条为托字把轨道压成近黑,
+       不带字时像一粒实心药丸、读不出「关」)。权重须高过那条(:root + :not + 3 类),故带上同样的前缀再多一个类。 */
+    :root:not([data-horosa-appearance='dark']) .xq-switch.xq-switch-plain.ant-switch:not(.ant-switch-checked):not(.ant-switch-disabled) {
+        border-color: var(--horosa-border-strong, var(--horosa-border));
+        background-color: rgba(96, 86, 70, 0.26);
+        box-shadow: none;
     }
 
     .xq-icon-button.ant-btn {
@@ -111,7 +156,9 @@
         background: var(--horosa-tab-seg-track, var(--horosa-panel-soft));
     }
 
-    .xq-segmented .ant-radio-button-wrapper {
+    /* 特异度特意写到 (0,3,0):壳内通用 radio-button 规则(.horosa-workspace-shell .ant-radio-button-wrapper)
+       与本规则同为 (0,2,0) 时后者靠样式表先后取胜,壳内与弹层里的分段钮就成了两种观感。 */
+    .xq-segmented.ant-radio-group .ant-radio-button-wrapper {
         position: relative;
         z-index: 1;
         display: inline-flex;
@@ -139,6 +186,14 @@
 
     .xq-segmented .ant-radio-button-wrapper-checked {
         color: var(--horosa-tab-on-thumb, var(--horosa-on-accent, #fff)) !important;
+    }
+
+    /* 选中观感单一来源:滑块在位时选中项自己不上底、不描边 —— antd 的 solid 选中规则和壳内通用 radio-button 规则
+       都会给它主色实底,盖在滑块上就是「金底金字」。底色只由滑块(或下面的兜底实底)出,两者都读 --horosa-tab-seg-* 一族;
+       各页只许改版式(宽度 / 折行 / 字号),不再各自给选中态上色。合同:xqSegmentedSingleSource.test.js。 */
+    .xq-segmented.xq-segmented-sliding .ant-radio-button-wrapper.ant-radio-button-wrapper-checked {
+        border-color: transparent !important;
+        background: transparent !important;
     }
 
     /* CSS 兜底:无 JS 滑块(测量不可用)时选中项自己实底
@@ -176,6 +231,20 @@
         outline: none;
         border-radius: 6px;
         box-shadow: 0 0 0 3px var(--horosa-tab-focus-ring, var(--horosa-cyan-soft));
+    }
+
+    /* 停用态:整组降透明度、各项保持透明底(组件库默认给停用项灰白实底,暗色下是一块亮斑) */
+    .xq-segmented.xq-segmented-disabled {
+        opacity: 0.55;
+    }
+
+    .xq-segmented.ant-radio-group .ant-radio-button-wrapper.ant-radio-button-wrapper-disabled {
+        cursor: not-allowed;
+    }
+
+    .xq-segmented.ant-radio-group .ant-radio-button-wrapper.ant-radio-button-wrapper-disabled:not(.ant-radio-button-wrapper-checked) {
+        background: transparent !important;
+        color: var(--horosa-tab-inactive-text, var(--horosa-text)) !important;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -356,6 +425,11 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    // 勾选条顶上那道白高光只在亮色下要:近黑底上它会泛成一块灰凸起,与金线扁平的其余控件不搭。
+    :root:not([data-horosa-appearance='light']) {
+        --xq-check-sheen: transparent;
+    }
+
     .xq-check-item {
         display: grid;
         grid-template-columns: 22px minmax(0, 1fr) auto;
@@ -367,12 +441,12 @@
         border: 1px solid var(--horosa-border);
         border-radius: 8px;
         background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+            linear-gradient(180deg, var(--xq-check-sheen, rgba(255, 255, 255, 0.16)), transparent),
             var(--horosa-panel-soft);
         color: var(--horosa-text);
         text-align: left;
         cursor: pointer;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        box-shadow: inset 0 1px 0 var(--xq-check-sheen, rgba(255, 255, 255, 0.16));
         transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
     }
 
@@ -380,7 +454,7 @@
     .xq-check-item:focus {
         border-color: var(--horosa-border-strong);
         color: var(--horosa-accent-strong);
-        box-shadow: 0 0 0 3px var(--horosa-cyan-soft), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        box-shadow: 0 0 0 3px var(--horosa-cyan-soft), inset 0 1px 0 var(--xq-check-sheen, rgba(255, 255, 255, 0.18));
         outline: none;
     }
 
@@ -392,7 +466,7 @@
     .xq-check-item-checked {
         border-color: var(--horosa-accent);
         background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent),
+            linear-gradient(180deg, var(--xq-check-sheen, rgba(255, 255, 255, 0.2)), transparent),
             var(--horosa-accent-soft);
         color: var(--horosa-accent-strong);
     }
@@ -452,6 +526,19 @@
         min-height: var(--horosa-control-height);
     }
 
+    // 单选下拉:框被 min-height 撑高后,已选文字仍按 antd 小号行高贴在上沿(真机比预览明显)。
+    // 这里统一在框内垂直居中;搜索输入跟着铺满,光标才不会落在上沿。已自带居中写法的页面不受影响。
+    .xq-select.ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+        align-items: center;
+    }
+
+    .xq-select.ant-select.ant-select-single:not(.ant-select-customize-input):not(.ant-select-customize-input) .ant-select-selection-search-input {
+        height: 100%;
+    }
+
+    // 下拉箭头颜色的全局地基:抽屉 / 浮层 / 弹窗都 portal 到 body,吃不到 workspace-shell 下那条 → 暗色里箭头是 antd 默认的近黑、看不见。
+    .xq-select.ant-select .ant-select-arrow { color: var(--horosa-muted); }
+
     .xq-select-popup {
         border: 1px solid var(--horosa-border);
         border-radius: var(--horosa-radius);
@@ -476,8 +563,17 @@
         transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
     }
 
+    // 外框高度抬到统一控件高之后,里头的输入框仍是 antd 的原高,数字 / 占位字会贴上沿;
+    // 外框改成弹性行并竖向居中,任何高度下字都在正中(步进钮是绝对定位,不受影响)。
     .xq-input-number.ant-input-number {
+        display: inline-flex;
+        align-items: center;
         width: 100%;
+    }
+
+    .xq-input-number.ant-input-number > .ant-input-number-input-wrap {
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     .xq-textarea.ant-input {
@@ -492,6 +588,33 @@
 
     .xq-search.ant-input-search .ant-input-search-button {
         color: var(--horosa-text);
+    }
+
+    // 带清除钮(allowClear)的搜索框:输入框外面多一层外框。外框取统一控件高,里面的 input 不再各自撑到控件高
+    // (否则外框 = 控件高 + 上下内边距,比右边的搜索钮和同排下拉高出 10px)。外框的底色 / 边色仍由各页主题规则给。
+    .xq-search.ant-input-search .ant-input-affix-wrapper {
+        min-height: var(--horosa-control-height);
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    .xq-search.ant-input-search .ant-input-affix-wrapper > .ant-input {
+        min-height: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    // 搜索钮的图标色随主题(组件库自带一条更具体的规则把它定成固定的半透明黑,暗色下看不清)
+    .xq-search.ant-input-search > .ant-input-group > .ant-input-group-addon:last-child .ant-input-search-button:not(.ant-btn-primary) {
+        color: var(--horosa-text-soft);
+    }
+
+    // 暗色:搜索钮与输入框同一块平底(亮色那道高光渐变在暗底上是一块灰)
+    :root[data-horosa-appearance='dark'] .xq-search.ant-input-search .ant-input-group-addon .ant-btn:not(.ant-btn-primary) {
+        background: var(--horosa-astro-panel, #090b0e);
+        box-shadow: none;
     }
 
     .xq-input-number .ant-input-number-input,
@@ -625,6 +748,16 @@
         transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
     }
 
+    /* 横排页签条:末页签不留尾间距。原先末签也带 18px 尾 margin,页签刚好排满一行时
+       只因这截空白就被判溢出、冒出「···」折叠钮(窄右栏五六个页签时常见)。
+       页签列表末子是指示条,故末签 = 倒数第二子;可增删页签(末尾是「+」钮)不命中。 */
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs .ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs .ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2) {
+        margin-right: 0;
+    }
+
     .xq-tabs.ant-tabs .ant-tabs-tab:hover {
         color: var(--horosa-tab-hover-text, var(--horosa-text));
     }
@@ -699,6 +832,81 @@
         .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab::before {
             transition: none;
         }
+    }
+
+    /* 竖排页签条原生纵向滚动(XQTabRailBar 自绘,见 xq-ui/index.js):页签比页面长时滚轮 / 触控板直接滚,
+       不出省略号菜单;滚动条隐藏,上 / 下还有内容时由边缘渐隐提示(data-more 由组件按滚动位置回写)。 */
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail {
+        min-height: 0;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+        transform: none;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* 右缘页签条滚到底时,末项停在窗口右下角那颗后端状态灯之上(灯固定在右下 12px 处,不让它压着末项)。 */
+    .xq-tabs-rail.ant-tabs-right > .xq-tab-rail > .xq-tab-rail-wrap > .ant-tabs-nav-list {
+        padding-bottom: 22px;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::before,
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::after {
+        content: none;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='top'] {
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='bottom'] {
+        -webkit-mask-image: linear-gradient(to top, transparent 0, #000 30px);
+        mask-image: linear-gradient(to top, transparent 0, #000 30px);
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='both'] {
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 ~"calc(100% - 30px)", transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 ~"calc(100% - 30px)", transparent 100%);
+    }
+
+    /* 横排页签条放不下时:不出「···」更多菜单;滚轮 / 触控板在页签条上直接横滚(页签库自带,选中项自动滚入视野),
+       哪一端还有内容,哪一端边缘渐隐 —— 与竖排页签条(xq-tab-rail)同一套溢出手感。 */
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-operations,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-operations {
+        display: none;
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap::before,
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap::after,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap::before,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap::after {
+        box-shadow: none;
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left {
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px);
+        mask-image: linear-gradient(to right, transparent 0, #000 26px);
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-right,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-right {
+        -webkit-mask-image: linear-gradient(to left, transparent 0, #000 26px);
+        mask-image: linear-gradient(to left, transparent 0, #000 26px);
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left.ant-tabs-nav-wrap-ping-right,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left.ant-tabs-nav-wrap-ping-right {
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 ~"calc(100% - 26px)", transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 ~"calc(100% - 26px)", transparent 100%);
     }
 
     .xq-nav-list {
@@ -1270,42 +1478,60 @@
         animation: xqNavMaskOut 0.14s ease both;
     }
 
+    // ── 设置面板:安静的分组卡 + 行式设置。
+    // 一组设置 = 一张细边卡(XQSettingGroup);一行 = 左标签(可带第二行灰字说明)+ 右控件(XQSettingRow);
+    // 布尔项用开关,多选一用分段钮 / 下拉;勾选型显示项是轻量复选列表。无渐变、无辉光、无装饰线、无悬浮位移。
+    // 星盘设置抽屉(宽)带左侧分组导航;同一组件装进窄浮层时分段钮另起一行铺满。
     .horosa-selector-drawer {
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 12px;
         color: var(--horosa-text);
         padding-bottom: 18px;
-    }
-
-    // ── 几何终案 v3(2026-08-18):**全宽单列·行式面板**。双列(静态分栏/CSS columns)两案均因
-    // 段高悬殊留块状空洞+窄列逼 segmented 换行(JS 滑块按单行测量=金块错位叠印;grid 1fr 均分
-    // +nowrap=文本左溢出被裁)已废。单列全宽=长组天然单行,滑块机制完好,零空洞零割断零溢出;
-    // 行内「标签左·控件右」是成熟设置面板范式。抽屉宽 760 控制行内留白。
-    // 勾选网格:auto-fit 自适应列数且行内拉满(卡少不留空轨),窄 popover 自动降列。
-    .horosa-selector-drawer .xq-check-list.xq-check-list-2,
-    .horosa-selector-drawer .xq-check-list.xq-check-list-3 {
-        display: grid;
-        grid-template-columns: ~"repeat(auto-fit, minmax(150px, 1fr))";
-        align-items: stretch;
-    }
-
-    .horosa-selector-drawer .xq-check-list .xq-check-item {
-        min-height: 40px;
-        height: 100%;
     }
 
     .horosa-selector-drawer .xq-tabs.ant-tabs .ant-tabs-nav {
         margin-bottom: 12px;
     }
 
-    .horosa-selector-drawer .xq-check-content {
-        white-space: normal;
+    // 选择器里的勾选片 = 轻量复选列表:透明底、无边框,勾框自身表达选中;悬停只换一层淡底。
+    .horosa-selector-drawer .xq-check-list.xq-check-list-2,
+    .horosa-selector-drawer .xq-check-list.xq-check-list-3 {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(150px, 1fr))";
+        gap: 2px 8px;
+        align-items: stretch;
     }
 
-    .horosa-selector-drawer .xq-check-item {
+    .horosa-selector-drawer .xq-check-item,
+    .horosa-selector-drawer .xq-check-item-checked {
         align-items: flex-start;
-        min-height: 38px;
+        min-height: 34px;
+        height: auto;
+        padding: 6px 8px;
+        border-color: transparent;
+        border-radius: 7px;
+        background: transparent;
+        box-shadow: none;
+        color: var(--horosa-text);
+        transform: none;
+    }
+
+    .horosa-selector-drawer .xq-check-item:hover,
+    .horosa-selector-drawer .xq-check-item:focus {
+        border-color: transparent;
+        background: var(--horosa-accent-soft);
+        box-shadow: none;
+        transform: none;
+    }
+
+    .horosa-selector-drawer .xq-check-item:focus-visible {
+        outline: 2px solid var(--horosa-accent);
+        outline-offset: -2px;
+    }
+
+    .horosa-selector-drawer .xq-check-content {
+        white-space: normal;
     }
 
     .horosa-selector-drawer .xq-check-box {
@@ -1321,8 +1547,15 @@
         letter-spacing: 0;
     }
 
-    // 次级提示（如「仅托勒密界生效」）：弱化、跟在标签后另起视觉层次。
-    .horosa-selector-drawer .horosa-selector-label-hint {
+    .horosa-selector-drawer .horosa-selector-label-mark {
+        margin-left: 4px;
+        color: var(--horosa-muted);
+        font-size: 11px;
+    }
+
+    // 次级提示（如「仅经典传本生效」）：小胶囊。
+    .horosa-selector-drawer .horosa-selector-label-hint,
+    .xq-setting-row-badge {
         display: inline-block;
         margin-left: 6px;
         padding: 1px 7px;
@@ -1332,11 +1565,16 @@
         font-size: 11px;
         font-weight: 600;
         letter-spacing: 0;
+        line-height: 1.5;
         vertical-align: middle;
         white-space: nowrap;
     }
 
-    // 禁用态：置灰 + 禁手势（如非托勒密界时「狮子土星优先」）。
+    .xq-setting-row-control > .horosa-selector-label-hint {
+        margin-left: 0;
+    }
+
+    // 禁用态：置灰 + 禁手势。
     .horosa-selector-drawer .xq-check-item-disabled,
     .xq-check-item.xq-check-item-disabled {
         opacity: 0.5;
@@ -1344,8 +1582,6 @@
         filter: grayscale(0.35);
     }
 
-    .horosa-selector-drawer .xq-check-item-disabled:hover,
-    .horosa-selector-drawer .xq-check-item-disabled:focus,
     .xq-check-item.xq-check-item-disabled:hover,
     .xq-check-item.xq-check-item-disabled:focus {
         border-color: var(--horosa-border);
@@ -1353,282 +1589,455 @@
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
     }
 
-    // ── 分组卡片(2026-08-18 顶级美化):渐变面+顶缘金饰线+段头印记,组与组呼吸感统一。──
-    .horosa-selector-drawer .horosa-selector-section {
-        position: relative;
-        margin: 0;
-        padding: 14px 16px 16px;
+    .horosa-selector-drawer .xq-check-item-disabled:hover,
+    .horosa-selector-drawer .xq-check-item-disabled:focus {
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    // ── 设置组:细边卡 + 小标题。
+    .xq-setting-group {
+        min-width: 0;
         border: 1px solid var(--horosa-border);
-        border-radius: 14px;
-        background:
-            linear-gradient(180deg, var(--horosa-accent-soft) 0%, transparent 46px),
-            var(--horosa-panel-soft);
-        box-shadow: var(--horosa-small-shadow, 0 6px 18px rgba(39, 59, 91, 0.06));
-        overflow: hidden;
-    }
-
-    // 卡片顶缘一线金:从金到透明的横向渐隐,给每张设置卡一个「星阙印」。
-    .horosa-selector-drawer .horosa-selector-section::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, var(--horosa-gold, #b8893f) 0%, var(--horosa-accent) 34%, transparent 82%);
-        opacity: 0.85;
-    }
-
-    // 段标题:左侧菱形金印 + 右侧渐隐延伸线,占星文献题签气质。
-    .horosa-selector-drawer .horosa-selector-section .xq-section-title {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 0 12px;
-        font-size: 13.5px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        color: var(--horosa-text);
-    }
-
-    .horosa-selector-drawer .horosa-selector-section .xq-section-title::before {
-        content: '';
-        flex: 0 0 auto;
-        width: 7px;
-        height: 7px;
-        transform: rotate(45deg);
-        border-radius: 1.5px;
-        background: linear-gradient(135deg, var(--horosa-gold, #b8893f), var(--horosa-accent));
-        box-shadow: 0 0 0 3px var(--horosa-accent-soft);
-    }
-
-    .horosa-selector-drawer .horosa-selector-section .xq-section-title::after {
-        content: '';
-        flex: 1 1 auto;
-        height: 1px;
-        margin-left: 4px;
-        background: linear-gradient(90deg, var(--horosa-border), transparent);
-    }
-
-    .horosa-selector-drawer .horosa-selector-section .xq-check-list {
-        gap: 8px;
-    }
-
-    // 勾选卡:圆角统一/hover 浮起/选中=浅金渐变底+金框+左缘金竖条(比实底块更有层次)。
-    .horosa-selector-drawer .xq-check-item {
-        position: relative;
         border-radius: 10px;
-        transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+        background: var(--horosa-panel-soft);
     }
 
-    .horosa-selector-drawer .xq-check-item:not(.xq-check-item-disabled):hover {
-        border-color: var(--horosa-accent);
-        transform: translateY(-1px);
-        box-shadow: 0 3px 10px rgba(39, 59, 91, 0.10);
+    .xq-setting-group-head {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 2px 10px;
+        padding: 11px 14px 5px;
     }
 
-    .horosa-selector-drawer .xq-check-item-checked {
-        background:
-            linear-gradient(135deg, var(--horosa-accent-soft) 0%, transparent 72%),
-            var(--horosa-surface-solid);
-        border-color: var(--horosa-accent);
+    .xq-setting-group-title {
+        color: var(--horosa-accent-strong);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.4;
     }
 
-    .horosa-selector-drawer .xq-check-item-checked::before {
-        content: '';
-        position: absolute;
-        left: -1px;
-        top: 7px;
-        bottom: 7px;
-        width: 3px;
-        border-radius: 0 3px 3px 0;
-        background: linear-gradient(180deg, var(--horosa-gold, #b8893f), var(--horosa-accent));
+    .xq-setting-group-hint {
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.4;
     }
 
-    // 古典计算 / 判读组的「设置行」面板：一张浅底卡容器,行内=标签左·控件右,行间虚线分隔——
-    // 成熟设置面板范式,取代散装小卡片。⚠ LESS 会把 grid-column: 1 / -1 当除法求值(须 ~"…" 转义),
-    // 本面板刻意全用 flex 规避该坑(紫微 app.less:9682 有同款前科)。
-    .horosa-selector-drawer .horosa-terms-grid {
+    .xq-setting-group-body {
         display: flex;
         flex-direction: column;
-        margin: 8px 0 0;
-        padding: 2px 14px;
-        border-radius: 12px;
-        background: var(--horosa-surface-raised);
-        border: 1px solid var(--horosa-border);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        padding-bottom: 4px;
     }
 
-    .horosa-selector-drawer .horosa-terms-cell {
+    // ── 设置行:标签左、控件右;放不下时控件整体换到下一行右靠。行与行之间一道内缩细线。
+    .xq-setting-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         flex-wrap: wrap;
-        gap: 6px 12px;
-        padding: 8px 6px;
-        margin: 0;
-        border-radius: 8px;
+        gap: 6px 16px;
+        min-height: 42px;
+        margin: 0 14px;
+        padding: 7px 0;
+    }
+
+    .xq-setting-row + .xq-setting-row,
+    .xq-setting-note + .xq-setting-row,
+    .xq-setting-block + .xq-setting-row {
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    .xq-setting-row-text {
+        display: flex;
+        flex: 1 1 150px;
+        flex-direction: column;
+        gap: 1px;
         min-width: 0;
-        min-height: 44px;
-        transition: background-color 0.15s ease;
     }
 
-    .horosa-selector-drawer .horosa-terms-cell:hover {
-        background: var(--horosa-accent-soft);
+    .xq-setting-row-label {
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.45;
+        letter-spacing: 0;
     }
 
-    .horosa-selector-drawer .horosa-terms-cell + .horosa-terms-cell {
-        border-top: 1px dashed var(--horosa-border);
-        border-top-left-radius: 0;
-        border-top-right-radius: 0;
+    .xq-setting-row-hint {
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.4;
     }
 
-    // 行标签:左侧小金点视觉锚,扫读时逐行有落点。
-    .horosa-selector-drawer .horosa-terms-label {
+    .xq-setting-row-control {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        flex: 0 1 auto;
-        font-size: 12.5px;
-        font-weight: 650;
-        color: var(--horosa-text-soft);
-        opacity: 1;
-        line-height: 1.5;
-    }
-
-    .horosa-selector-drawer .horosa-terms-label::before {
-        content: '';
-        flex: 0 0 auto;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: var(--horosa-gold, #b8893f);
-        opacity: 0.75;
-    }
-
-    // 控件右靠;放不下时整体换行到下一行仍右对齐,不挤压不溢出。
-    .horosa-selector-drawer .horosa-terms-cell .horosa-terms-control {
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 0;
+        max-width: 100%;
         margin-left: auto;
-        display: inline-flex;
-        align-items: center;
-        max-width: 100%;
-        min-width: 0;
     }
 
-    // segmented 保持基座 grid(JS 滑块依赖单行测量,绝不 flex 换行);行内控件按内容宽右靠:
-    // width:auto+auto 列宽取代基座 100%+1fr 均分(等分在 flex cell 里会吃满整行把标签挤走)。
-    // ⚠ 仅限宽抽屉(760):popover 版(显示与样式浮层)容器窄,nowrap+auto 会横溢,维持基座原样。
-    .horosa-chart-settings-drawer .horosa-terms-cell .xq-segmented.ant-radio-group {
+    .xq-setting-row-disabled .xq-setting-row-text {
+        opacity: 0.55;
+    }
+
+    // 行内分段钮:按内容宽、右靠(基座是 100% 宽 + 均分列,用在这里会把短选项拉成长条)。
+    .xq-setting-row-control > .xq-segmented.ant-radio-group {
         width: auto;
-        grid-auto-columns: auto;
         max-width: 100%;
+        grid-auto-columns: auto;
     }
 
-    .horosa-chart-settings-drawer .horosa-terms-cell .xq-segmented .ant-radio-button-wrapper {
+    .xq-setting-row-control > .xq-segmented .ant-radio-button-wrapper {
+        padding-inline: 10px;
         text-align: center;
-        padding-inline: 9px;
         white-space: nowrap;
     }
 
-    // 行式面板与散排勾选卡相邻时的安全距离(卡贴面板边缘=悬空孤儿观感,用户明令):双向都隔。
-    .horosa-selector-drawer .horosa-terms-grid + .xq-check-list,
-    .horosa-selector-drawer .xq-check-list + .horosa-terms-grid {
-        margin-top: 12px;
+    // 竖排行(窄宿主):标签在上,控件另起一行铺满、分段钮均分。
+    .xq-setting-row-stacked {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: 6px;
+        padding: 9px 0;
     }
 
-    // 面板内嵌说明行(迦勒底警示等):整行弱化正文,带上分隔线节奏。
-    .horosa-selector-drawer .horosa-terms-note {
-        padding: 7px 0 9px;
-        border-top: 1px dashed var(--horosa-border);
-        font-size: 11px;
-        line-height: 1.6;
-        color: var(--horosa-muted);
+    .xq-setting-row-stacked .xq-setting-row-text {
+        flex: 0 0 auto;
     }
 
-    /* 星盘组件抽屉是 body 级 portal,出了 .horosa-workspace-shell 作用域 → redesign 的金色选中态
-       规则(app.less)够不着,antd 实底蓝漏出(占星地图抽屉 .horosa-acg-drawer 同款前科同款修法)。
-       此处按全站统一「实心金底 + on-accent 字」补齐选中态;滑块金块同色,两模式观感一致。 */
-    .horosa-selector-drawer .xq-segmented .ant-radio-button-wrapper-checked {
-        border-color: var(--horosa-accent) !important;
-        background: var(--horosa-accent) !important;
-        color: var(--horosa-on-accent, #fff) !important;
-        box-shadow: none !important;
-    }
-
-    // 盘面显示四子组：子组小标题=小盖帽(左短金杠+字距+右延伸虚线),低 XQSectionTitle 一级。
-    .horosa-selector-drawer .horosa-selector-subgroup {
-        margin: 10px 0 2px;
-    }
-
-    .horosa-selector-drawer .horosa-selector-subgroup:first-of-type {
-        margin-top: 4px;
-    }
-
-    .horosa-selector-drawer .horosa-selector-subtitle {
+    .xq-setting-row-stacked .xq-setting-row-control {
         display: flex;
-        align-items: center;
-        gap: 7px;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-control > .xq-segmented.ant-radio-group {
+        width: 100%;
+        grid-auto-columns: 1fr;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-control > .xq-segmented .ant-radio-button-wrapper {
+        padding-inline: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    // 组内小块:小标题 + 复选列表。
+    .xq-setting-block {
+        padding: 0 6px 6px;
+    }
+
+    .xq-setting-block + .xq-setting-block {
+        margin-top: 2px;
+    }
+
+    .xq-setting-subtitle {
+        padding: 6px 8px 3px;
+        color: var(--horosa-muted);
         font-size: 11.5px;
         font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.4;
+    }
+
+    .xq-setting-checks {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(168px, 1fr))";
+        gap: 2px 8px;
+    }
+
+    // 组内说明小字。
+    .xq-setting-note {
+        margin: 0 14px;
+        padding: 2px 0 8px;
         color: var(--horosa-muted);
-        letter-spacing: 0.08em;
-        margin: 2px 0 8px;
+        font-size: 11.5px;
+        line-height: 1.6;
     }
 
-    .horosa-selector-drawer .horosa-selector-subtitle::before {
-        content: '';
-        flex: 0 0 auto;
-        width: 12px;
-        height: 2.5px;
-        border-radius: 2px;
-        background: linear-gradient(90deg, var(--horosa-gold, #b8893f), var(--horosa-accent));
-        opacity: 0.9;
+    .xq-setting-note-warn {
+        padding: 6px 0 8px;
+        color: var(--horosa-text-secondary);
     }
 
-    .horosa-selector-drawer .horosa-selector-subtitle::after {
-        content: '';
-        flex: 1 1 auto;
-        height: 0;
-        border-top: 1px dashed var(--horosa-border);
-        opacity: 0.7;
+    // ── 面板骨架:窄 = 单列;宽(抽屉)= 左导航 + 右正文。
+    // 组头右侧的小动作(全选 / 清空 / 套用预设):文字钮,不抢正文。
+    .xq-setting-group-extra {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
     }
 
-    // 分区作用域说明:信息条(左金竖线+浅金底),比散落小字更有版面归属。
-    .horosa-selector-drawer .horosa-selector-scope-note {
-        font-size: 11px;
-        line-height: 1.65;
-        color: var(--horosa-muted);
-        margin: 2px 0 10px;
-        padding: 7px 11px;
-        border-left: 3px solid var(--horosa-gold, #b8893f);
+    .xq-setting-group-action {
+        padding: 2px 8px;
+        border: 0;
         border-radius: 6px;
+        background: transparent;
+        color: var(--horosa-accent-strong);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.5;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    // :focus-visible 不与普通选择器同列(旧内核会把整条规则丢掉,连悬停态一起没了)。
+    .xq-setting-group-action:hover {
         background: var(--horosa-accent-soft);
     }
 
-    // 单控件行(行星列表密度/盘面美术):与 terms 行同范式的「标签左·控件右」,控件给足宽度。
-    .horosa-selector-drawer .horosa-selector-inline-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 6px 12px;
-        padding: 4px 0 2px;
+    .xq-setting-group-action:focus-visible {
+        background: var(--horosa-accent-soft);
+        outline: none;
     }
 
-    .horosa-selector-drawer .horosa-selector-inline-row .horosa-selector-subtitle {
-        margin: 0;
-        flex: 0 1 auto;
+    // 勾选格(显示星体 / 希腊点 / 相位):符号定宽居中,名称左对齐,整列竖直成线。
+    .xq-pick-grid {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(132px, 1fr))";
+        gap: 2px 8px;
+        padding: 0 6px 6px;
     }
 
-    .horosa-selector-drawer .horosa-selector-inline-row .horosa-selector-subtitle::after {
-        display: none;
+    .xq-pick-grid-bare {
+        padding: 0;
     }
 
-    .horosa-selector-drawer .horosa-selector-inline-row .horosa-selector-inline-control {
-        margin-left: auto;
+    .xq-pick-item {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .xq-pick-glyph {
+        flex: none;
+        width: 20px;
+        text-align: center;
+        font-size: 15px;
+        line-height: 1.3;
+    }
+
+    .xq-pick-name {
+        min-width: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    @supports not (overflow-wrap: anywhere) {
+        .xq-pick-name {
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+    }
+
+    .xq-pick-sub {
+        flex: none;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        font-weight: 400;
+    }
+
+    .xq-setting-row.xq-pick-row {
+        min-height: 38px;
+        padding: 5px 0;
+    }
+
+    .xq-setting-row.xq-pick-row .xq-setting-row-text {
+        flex: 1 1 96px;
+    }
+
+    .xq-setting-row.xq-pick-row .xq-setting-row-label {
         display: inline-flex;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+    }
+
+    .xq-setting-subtitle-ruled {
+        margin-top: 12px;
+        padding: 12px 2px 6px;
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    // 容许度:缩放滑杆 + 数值框同一行;数值框定宽,逐星各行右缘对齐。
+    .horosa-orb-scale {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 14px;
+        padding: 4px 0 8px;
+    }
+
+    .horosa-orb-scale-slider.ant-slider {
+        flex: 1 1 auto;
         min-width: 0;
+        margin: 0 4px;
+    }
+
+    .horosa-orb-input.ant-input-number {
+        flex: none;
+        width: 84px;
+    }
+
+    // 面板底部的动作条:滚动时吸在抽屉底,正文从下面滑过。
+    .horosa-setting-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        gap: 10px;
+        padding: 12px 0 14px;
+        border-top: 1px solid var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    // 抽屉里:动作条出血到抽屉左右下三边(吸附参照是抽屉正文的内容盒,要把 24px 内边距吃回来),
+    // 不然条下面还会露出一截滚过去的正文。
+    .ant-drawer-body > .horosa-orb-panel {
+        padding-bottom: 0;
+    }
+
+    .ant-drawer-body > .horosa-orb-panel > .horosa-setting-actions {
+        bottom: -24px;
+        margin: 0 -24px -24px;
+        padding: 12px 24px 16px;
+    }
+
+    .horosa-setting-actions > .ant-btn {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    // 左栏设置浮层 portal 到 body,workspace-shell 作用域下的字段版式解析不到 —— 浮层自带一份(两下拉并排,标题在上)。
+    .horosa-settings-popover .horosa-popover-style-fields { padding: 2px 14px 12px; }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-grid {
+        display: grid;
+        grid-template-columns: ~"repeat(2, minmax(0, 1fr))";
+        gap: 12px;
+    }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-block { display: grid; gap: 6px; min-width: 0; }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-label {
+        color: var(--horosa-muted);
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+    .horosa-settings-popover .horosa-popover-style-fields .ant-select { width: 100%; min-width: 0; }
+    // 单一滚动流:浮层面板自己不滚,只让里面的设置列表滚(原先面板 + 列表两层都滚,滚轮在两层之间打架)。
+    .horosa-settings-popover-panel.horosa-settings-popover-panel-flow {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .horosa-settings-popover-panel-flow > .horosa-settings-popover-title { flex: none; }
+    .horosa-settings-popover .horosa-settings-popover-panel-flow > .horosa-selector-drawer {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .horosa-setting-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .horosa-setting-part {
+        margin: 6px 2px -4px;
+        color: var(--horosa-text);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1.4;
+    }
+
+    .horosa-setting-body > .horosa-setting-part:first-child {
+        margin-top: 0;
+    }
+
+    .horosa-setting-scope {
+        margin: 0 2px -2px;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.6;
+    }
+
+    .horosa-setting-panel-wide {
+        display: grid;
+        grid-template-columns: 156px minmax(0, 1fr);
+        column-gap: 22px;
+        align-items: start;
+    }
+
+    .horosa-setting-nav {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .horosa-setting-nav-part {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .horosa-setting-nav-part-title {
+        padding: 0 10px 4px;
+        color: var(--horosa-muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        line-height: 1.4;
+    }
+
+    .horosa-setting-nav-item {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--horosa-text-secondary);
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.4;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .horosa-setting-nav-item:hover {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-text);
+    }
+
+    .horosa-setting-nav-item:focus-visible {
+        outline: 2px solid var(--horosa-accent);
+        outline-offset: -2px;
+    }
+
+    .horosa-setting-nav-item-active,
+    .horosa-setting-nav-item-active:hover {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+        font-weight: 700;
+    }
+
+    .horosa-chart-settings-drawer .ant-drawer-content-wrapper {
+        max-width: calc(100 * var(--horosa-lvw, 1vw));
     }
 
     // 时间微调条(adjustOnly 变体,散布各技法左栏):窄栏下 5 元素固定栅格会把「步长下拉」压到只剩箭头。
@@ -1652,6 +2061,30 @@
 
     .xq-datetime-adjust-only .ant-btn {
         min-width: 34px;
+    }
+
+    // —— 中栏盘面空态 XQStageEmpty:提示落在舞台正中(宿主是顶 / 左对齐的可滚 flex 容器,靠 margin:auto 居中) ——
+    .xq-stage-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: auto;
+        min-height: 120px;
+        max-width: 100%;
+        padding: 24px;
+        text-align: center;
+        color: var(--horosa-muted);
+        font-size: 13px;
+        line-height: 1.7;
+    }
+
+    .xq-stage-empty-hint {
+        font-size: 12px;
+        color: var(--horosa-text-soft, var(--horosa-muted));
+        opacity: 0.86;
     }
 
     // —— 观象左栏设计语言:小节容器 XQSideSection ————————————————

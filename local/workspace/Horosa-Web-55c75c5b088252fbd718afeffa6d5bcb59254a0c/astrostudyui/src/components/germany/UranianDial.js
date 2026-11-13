@@ -349,6 +349,6 @@ export default class UranianDial extends Component {
 		const size = this.props.size || 600;
 		// textRendering:geometricPrecision + liga 开启 ywastrochart 的「星座名→符号」连字（与全站星盘一致），
 		// 否则扇区里的 Aries/Taurus/Gemini 会按原文 5 字母渲染而非 ♈♉♊ 字形。
-		return <svg id={this.svgid} width={size} height={size} className="horosa-uranian-dial xq-chart-renderer xq-chart-renderer-astro" style={{ maxWidth: '100%', display: 'block', margin: '0 auto', touchAction: 'none', textRendering: 'geometricPrecision', fontFeatureSettings: '"liga" 1, "dlig" 1, "calt" 1' }} />;
+		return <svg id={this.svgid} width={size} height={size} className="horosa-uranian-dial horosa-plain-text-board xq-chart-renderer xq-chart-renderer-astro" style={{ maxWidth: '100%', display: 'block', margin: '0 auto', touchAction: 'none', textRendering: 'geometricPrecision', fontFeatureSettings: '"liga" 1, "dlig" 1, "calt" 1' }} />;
 	}
 }

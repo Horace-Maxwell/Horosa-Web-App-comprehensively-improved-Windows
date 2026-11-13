@@ -1,9 +1,10 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
-index 71ddc3ab..745ebde5 100644
+index a5525aa8..153da48b 100644
 --- a/astrostudyui/src/components/astro/IndiaChartMain.js
 +++ b/astrostudyui/src/components/astro/IndiaChartMain.js
-@@ -1,9 +1,12 @@
+@@ -1,10 +1,13 @@
  import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
+ import { trimDecimals } from '../../utils/displayPrecision';
  import { zeriLockProps } from '../../divination/zeri/zeriPageCalibre';
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
@@ -16,7 +17,7 @@ index 71ddc3ab..745ebde5 100644
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { createPortal } from 'react-dom';
  import moment from 'moment';
-@@ -52,6 +55,239 @@ export { DASHA_SEED_OPTIONS, INDIA_OPTION_FIELD_STATE_MAP, seedIndiaOptionState
+@@ -57,6 +60,239 @@ export { DASHA_SEED_OPTIONS, INDIA_OPTION_FIELD_STATE_MAP, seedIndiaOptionState
  const TabPane = Tabs.TabPane;
  const {Option, OptGroup} = Select;
  
@@ -253,10 +254,10 @@ index 71ddc3ab..745ebde5 100644
 +	);
 +});
 +
- class IndiaChartMain extends Component{
- 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
- 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -319,9 +555,19 @@ class IndiaChartMain extends Component{
+ // 择日内嵌实例(techniqueScope ≠ india)的快照槽 = 宿主槽名;主印占页 = 无(写印占三槽)
+ function indiaSnapshotScope(techniqueScope){
+ 	return techniqueScope && techniqueScope !== 'india' ? techniqueScope : undefined;
+@@ -336,9 +572,19 @@ class IndiaChartMain extends Component{
  		this.hideDashaSubPopover = this.hideDashaSubPopover.bind(this);
  		this.changeJyotishTab = this.changeJyotishTab.bind(this);
  		this.handleMainChartLoad = this.handleMainChartLoad.bind(this);
@@ -276,7 +277,7 @@ index 71ddc3ab..745ebde5 100644
  
  		this.tmHook = {
  			getValue: null,
-@@ -366,10 +612,56 @@ class IndiaChartMain extends Component{
+@@ -383,10 +629,56 @@ class IndiaChartMain extends Component{
  				delete rest.chartnum;
  				return rest;
  			};
@@ -333,7 +334,7 @@ index 71ddc3ab..745ebde5 100644
  
  	changeTab(key){		
  		let hook = this.state.hook;
-@@ -419,8 +711,13 @@ class IndiaChartMain extends Component{
+@@ -436,8 +728,13 @@ class IndiaChartMain extends Component{
  		if(values && values.confirmed === false){
  			return;
  		}
@@ -349,7 +350,7 @@ index 71ddc3ab..745ebde5 100644
  		let hook = this.state.hook[this.state.currentTab];
  		if(hook.fun){
  			hook.fun(flds);
-@@ -645,6 +942,59 @@ class IndiaChartMain extends Component{
+@@ -662,6 +959,59 @@ class IndiaChartMain extends Component{
  		this.setState({ indiaCounterClockwise: !!checked });
  	}
  
@@ -409,7 +410,7 @@ index 71ddc3ab..745ebde5 100644
  	// WP-B 换第1宫参照:纯显示重数房号(三盘 + 星曜面板宫位),零请求、零后端、不动黄经。
  	changeIndiaLagnaRef(value){
  		const next = value && value.target ? value.target.value : value;
-@@ -671,10 +1021,57 @@ class IndiaChartMain extends Component{
+@@ -688,10 +1038,57 @@ class IndiaChartMain extends Component{
  			</span>
  		);
  	}
@@ -467,7 +468,7 @@ index 71ddc3ab..745ebde5 100644
  		const indiaHsys = optionOverrides.indiaHsys !== undefined && optionOverrides.indiaHsys !== null
  			? AstroConst.normalizeIndiaHouseSystem(optionOverrides.indiaHsys)
  			: (this.state.indiaHsysValue !== null && this.state.indiaHsysValue !== undefined
-@@ -711,7 +1108,7 @@ class IndiaChartMain extends Component{
+@@ -728,7 +1125,7 @@ class IndiaChartMain extends Component{
  			: (this.state.indiaTransitDateValue !== null && this.state.indiaTransitDateValue !== undefined
  			? this.state.indiaTransitDateValue
  			: (fields.indiaTransitDate ? fields.indiaTransitDate.value : null));
@@ -476,7 +477,7 @@ index 71ddc3ab..745ebde5 100644
  			...fields,
  			indiaHsys: {
  				...(fields.indiaHsys || { name: ['indiaHsys'] }),
-@@ -815,6 +1212,12 @@ class IndiaChartMain extends Component{
+@@ -832,6 +1229,12 @@ class IndiaChartMain extends Component{
  				value: this.state.prashnaCast ? this.state.prashnaCast.primaryHouse : undefined,
  			},
  		};
@@ -489,7 +490,7 @@ index 71ddc3ab..745ebde5 100644
  	}
  
  	// ── G5/G13/G8/G1 设置变更 → 重取(与 changeDashaSystem 同范式) ──
-@@ -1169,6 +1572,18 @@ class IndiaChartMain extends Component{
+@@ -1188,6 +1591,18 @@ class IndiaChartMain extends Component{
  				this.setState({
  					activeJyotishFields: jyotishFields,
  					activeJyotishKey: dashaFieldsKey,
@@ -508,7 +509,7 @@ index 71ddc3ab..745ebde5 100644
  				});
  			}
  			return;
-@@ -1214,6 +1629,12 @@ class IndiaChartMain extends Component{
+@@ -1233,6 +1648,12 @@ class IndiaChartMain extends Component{
  					...(hasJyotishPayload(dashaChartObj) ? { lastChartObj: dashaChartObj, lastChartObjSig: activeNatalSig } : {}),
  					dashaLoading: false,
  					dashaUpdating: false,
@@ -521,7 +522,7 @@ index 71ddc3ab..745ebde5 100644
  				});
  			}
  		}catch(e){
-@@ -4191,39 +4612,20 @@ class IndiaChartMain extends Component{
+@@ -4219,39 +4640,20 @@ class IndiaChartMain extends Component{
  			: AstroConst.INDIA_NODE_TYPE_DEFAULT;
  		let jyotishFields = this.state.activeJyotishFields || fields;
  		let chartHeight = '100%';

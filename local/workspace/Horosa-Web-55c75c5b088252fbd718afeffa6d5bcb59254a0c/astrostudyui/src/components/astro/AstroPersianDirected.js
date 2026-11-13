@@ -18,19 +18,33 @@ const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 
 import { SmallTable, symbolWithMeaning, natalClassicalParams, transitOrbDefault, followTransitOrb } from './AstroExtraCommon';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { pointerLocalRatio } from '../../utils/zoomDomain';
 import DateTime from '../comp/DateTime';
 import CompactTimeField from '../comp/CompactTimeField';
 import { SideColumn, SidePanelHead, WheelSplit } from './progPageLayout';
 import { XQSelect as Select } from '../xq-ui';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
+import { TIME_LORD_YEAR_TYPES } from '../../utils/timeLordYears';
 
 const Option = Select.Option;
-const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473 };
-export const RATE_LABEL = { persian: '波斯 1°/年', prophected: 'Prophected 30°/年', naibod: 'Naibod 59′08″/年' };
+const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473, periodic: null };
+export const RATE_LABEL = { persian: '波斯 1°/年', prophected: 'Prophected 30°/年', naibod: 'Naibod 59′08″/年', periodic: '周期律（每星一周期）' };
+// 周期律:每星走完一圈的年数。七曜取托勒密《四书》人生七龄的年数(土星段取 30 年),天海冥取恒星周期;与 symbolicdir.PERIODIC_YEARS 同表
+export const PERIODIC_YEARS = {
+	[AstroConst.MOON]: 4, [AstroConst.MERCURY]: 10, [AstroConst.VENUS]: 8, [AstroConst.SUN]: 19, [AstroConst.MARS]: 15,
+	[AstroConst.JUPITER]: 12, [AstroConst.SATURN]: 30, [AstroConst.URANUS]: 84, [AstroConst.NEPTUNE]: 165, [AstroConst.PLUTO]: 248,
+};
+// 年长(日):solar 沿用本技法一直用的回归年常数,缺省路径逐位不变;其余三档与时主类共用一张表。与 symbolicdir.YEAR_DAYS 同值
+const SOLAR_YEAR_DAYS = 365.2421904;
+export const PERSIAN_YEAR_LABEL = { solar: TIME_LORD_YEAR_TYPES.solar.label, sidereal: TIME_LORD_YEAR_TYPES.sidereal.label, hellenistic: TIME_LORD_YEAR_TYPES.hellenistic.label, bija: TIME_LORD_YEAR_TYPES.bija.label, bijaClassic: TIME_LORD_YEAR_TYPES.bijaClassic.label };
+function persianYearDays(key){
+	return (key === 'solar' || !PERSIAN_YEAR_LABEL[key]) ? SOLAR_YEAR_DAYS : TIME_LORD_YEAR_TYPES[key].days;
+}
 // AI 挂载「波斯向运」可调项默认（=组件初始 state / 无头默认：波斯速率 + 顺向）。不调任何项 → 输出逐字不变。
-const PERSIAN_DEFAULT_OPTS = { rateKey: 'persian', direction: 'direct' };
+const PERSIAN_DEFAULT_OPTS = { rateKey: 'persian', direction: 'direct', persianYear: 'solar' };
 const MOVERS = [AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN];
+const PERIODIC_MOVERS = [...MOVERS, AstroConst.URANUS, AstroConst.NEPTUNE, AstroConst.PLUTO];
 const ASPECTS = [0, 60, 90, 120, 180];
 
 function norm360(v){ let n = Number(v) % 360; if(n < 0){ n += 360; } return n; }
@@ -58,10 +72,12 @@ function natalParams(chartObj){
 }
 
 // 应期 hit-list（纯前端算术）：direct: directed_lon=natalLon+age*rate；converse: -age*rate（反向）。
-export function buildPersianHits(chartObj, rateKey, maxAge, direction){
+export function buildPersianHits(chartObj, rateKey, maxAge, direction, persianYear){
 	const chart = (chartObj && chartObj.chart) ? chartObj.chart : {};
 	const objects = Array.isArray(chart.objects) ? chart.objects : [];
-	const rate = RATE[rateKey] || 1.0;
+	const periodic = rateKey === 'periodic';
+	const baseRate = RATE[rateKey] || 1.0;
+	const yearDays = persianYearDays(persianYear);
 	const cap = maxAge || 90;
 	const converse = direction === 'converse';
 	const byId = {};
@@ -75,9 +91,10 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 		? momentOfCivilDateTimeStr(`${chartObj.params.birth}`)   // 民用历单源(公元前 / 公元 1–99 年 / 五位年不误读)
 		: null;
 	const hits = [];
-	MOVERS.forEach((p) => {
+	(periodic ? PERIODIC_MOVERS : MOVERS).forEach((p) => {
 		const pl = byId[p];
 		if(pl === undefined){ return; }
+		const rate = periodic ? 360 / PERIODIC_YEARS[p] : baseRate;
 		targets.forEach((t) => {
 			if(t.id === p){ return; }
 			ASPECTS.forEach((a) => {
@@ -90,7 +107,7 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 						const age = (arc + 360 * k) / rate;
 						if(age > cap){ break; }
 						if(age > 0){
-							const date = (birth && birth.isValid()) ? civilDateAfterDays(birth, age * 365.2421904) : '';   // 民用历日期标签
+							const date = (birth && birth.isValid()) ? civilDateAfterDays(birth, age * yearDays) : '';   // 民用历日期标签
 							hits.push({ age: Math.round(age * 100) / 100, promittor: p, aspect: a, significator: t.id, date });
 						}
 						if(rate <= 1.0){ break; }
@@ -111,7 +128,8 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	const rateKey = RATE[o.rateKey] !== undefined ? o.rateKey : 'persian';
 	const direction = o.direction === 'converse' ? 'converse' : 'direct';
 	const maxYears = (Number(o.maxYears) > 0 ? Number(o.maxYears) : 90);
-	const hits = buildPersianHits(chartObj, rateKey, maxYears, direction);
+	const persianYear = PERSIAN_YEAR_LABEL[o.persianYear] ? o.persianYear : 'solar';
+	const hits = buildPersianHits(chartObj, rateKey, maxYears, direction, persianYear);
 	if(!hits.length){ return ''; }
 	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);
@@ -120,7 +138,12 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[波斯向运（Persian Directed）]');
 	// 速率/方向按所选写(此前写死 1°/年、每年 +1°)
-	lines.push(`黄经象征向运(${RATE_LABEL[rateKey] || rateKey})：所有行星/点按此速率${direction === 'converse' ? '逆向(Converse)' : '顺向'}推进,本命宫头不动；下表为向运星触及本命的应期。`);
+	if(rateKey === 'periodic'){
+		lines.push(`周期律：十星各按自身周期${direction === 'converse' ? '逆向(Converse)' : '顺向'}推进(月 4、金 8、水 10、木 12、火 15、日 19、土 30、天 84、海 165、冥 248 年一周),交点与阿拉伯点不向运,本命宫头不动；下表为向运星触及本命的应期。`);
+	}else{
+		lines.push(`黄经象征向运(${RATE_LABEL[rateKey] || rateKey})：所有行星/点按此速率${direction === 'converse' ? '逆向(Converse)' : '顺向'}推进,本命宫头不动；下表为向运星触及本命的应期。`);
+	}
+	if(persianYear !== 'solar'){ lines.push(`年长：${PERSIAN_YEAR_LABEL[persianYear]}`); }
 	lines.push('');
 	lines.push('| 年龄 | 日期 | 向运星 | 相位 | 本命对象 |');
 	lines.push('| --- | --- | --- | --- | --- |');
@@ -132,10 +155,11 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	const birthStr = (chartObj && chartObj.params) ? chartObj.params.birth : '';
 	const dtRaw = o.datetime;
 	const dtStr = (dtRaw && dtRaw.format) ? dtRaw.format('YYYY-MM-DD HH:mm:ss') : (dtRaw ? `${dtRaw}` : '');
-	let currentAge = dtStr ? directedAgeYears(birthStr, dtStr) : null;
+	const yearDays = persianYearDays(persianYear);
+	let currentAge = dtStr ? directedAgeYears(birthStr, dtStr, yearDays) : null;
 	let ageBasis = `按推运时间 ${dtStr}`;
 	if(currentAge === null){
-		currentAge = directedAgeYears(birthStr, moment().format('YYYY-MM-DD HH:mm:ss'));
+		currentAge = directedAgeYears(birthStr, moment().format('YYYY-MM-DD HH:mm:ss'), yearDays);
 		ageBasis = '按导出时刻';
 	}
 	// bug 修:UI「邻近应期（距今最近）」表此前未导出 → 复用 selectNearbyPersianHits(同 UI limit 12),
@@ -166,13 +190,13 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 // 当前推运年龄（向运盘时刻相对出生的年数）。与 buildPersianHits 的 hit.age 同单位(年)，
 // 黄经象征向运下「推运时间」对应的弹性年龄即 (datetime − birth)，对所有速率/顺逆都成立。
 // birthStr/datetimeStr 任一无效返回 null（守「无生时不强标年龄」）。
-export function directedAgeYears(birthStr, datetimeStr){
+export function directedAgeYears(birthStr, datetimeStr, yearDays = SOLAR_YEAR_DAYS){
 	if(!birthStr || !datetimeStr){ return null; }
 	// 两个时刻都经民用历单源(1582 以前儒略历、公元前历史纪年;现代与 moment(串, 格式) 逐值相同)
 	const b = momentOfCivilDateTimeStr(`${birthStr}`);
 	const d = momentOfCivilDateTimeStr(`${datetimeStr}`);
 	if(!b.isValid() || !d.isValid()){ return null; }
-	return d.diff(b, 'days', true) / 365.2421904;
+	return d.diff(b, 'days', true) / yearDays;
 }
 
 // 距当前推运时刻最近的应期：先按 |age−currentAge| 取最近 limit 条，再按 age 重排为时间线，
@@ -195,7 +219,7 @@ class AstroPersianDirected extends Component{
 		const np = natalParams(props.value);
 		const dt = DateTime.nowForChart(np.zone);   // 「此刻」按本盘时区
 		dt.addDate(1);
-		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: DIRECTION_PAGE_SETTINGS.load().persianRateKey, direction: DIRECTION_PAGE_SETTINGS.load().persianDirection, maxYears: DIRECTION_PAGE_SETTINGS.load().persianMaxYears }, dirChart: null };
+		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: DIRECTION_PAGE_SETTINGS.load().persianRateKey, persianYear: DIRECTION_PAGE_SETTINGS.load().persianYear, direction: DIRECTION_PAGE_SETTINGS.load().persianDirection, maxYears: DIRECTION_PAGE_SETTINGS.load().persianMaxYears }, dirChart: null };
 		// 终生应期长表的滚动定位：fullListRef=滚动盒、anchorRowNode=当前向运年龄锚点行、lastScrolledAge=去抖。
 		this.fullListRef = null;
 		this.anchorRowNode = null;
@@ -206,6 +230,7 @@ class AstroPersianDirected extends Component{
 		this.requestData = this.requestData.bind(this);
 		this.changeRate = this.changeRate.bind(this);
 		this.changeDirection = this.changeDirection.bind(this);
+		this.changeYear = this.changeYear.bind(this);
 		this.handleTimeChanged = this.handleTimeChanged.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		this.getCurrentAge = this.getCurrentAge.bind(this);
@@ -253,7 +278,7 @@ class AstroPersianDirected extends Component{
 		const birthStr = this.props.value && this.props.value.params ? this.props.value.params.birth : '';
 		const curDt = this.state.params.datetime;
 		const curStr = (curDt && curDt.format) ? curDt.format('YYYY-MM-DD HH:mm:ss') : `${curDt || ''}`;
-		return directedAgeYears(birthStr, curStr);
+		return directedAgeYears(birthStr, curStr, persianYearDays(this.state.params.persianYear));
 	}
 
 	// render 时按行回传 DOM 节点；只留住「当前向运年龄锚点行」(anchorIdx) 供 scrollToCurrentAge 用。
@@ -268,7 +293,9 @@ class AstroPersianDirected extends Component{
 		const box = this.fullListRef;
 		const row = this.anchorRowNode;
 		if(box && row && row.getBoundingClientRect && box.getBoundingClientRect){
-			const offsetWithin = (row.getBoundingClientRect().top - box.getBoundingClientRect().top) + box.scrollTop;
+			// 矩形是整页缩放后的尺寸,scrollTop 是缩放前的:先折回同一单位
+			const boxRect = box.getBoundingClientRect();
+			const offsetWithin = (row.getBoundingClientRect().top - boxRect.top) * pointerLocalRatio(box, boxRect).ky + box.scrollTop;
 			box.scrollTop = Math.max(0, offsetWithin - (box.clientHeight / 2));
 		}
 	}
@@ -335,6 +362,16 @@ class AstroPersianDirected extends Component{
 		});
 	}
 
+	changeYear(v){
+		DIRECTION_PAGE_SETTINGS.save({ persianYear: v });
+		const params = { ...this.state.params, persianYear: v };
+		this.setState({ params }, () => {
+			const p = { ...params, datetime: params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime };
+			if(this.props.value){ this.requestDirection(p); }
+			this.saveSnapshot();
+		});
+	}
+
 	// 应期表计算年数(右侧长表不再固定 90 年):仅影响 hits 计算与快照,无需重算左盘。
 	// 同步重存模块快照 → AI 导出按所选年数输出（挂载另由 record.maxYears 经 aiAnalysisContext 透传）。
 	changeMaxYears(v){
@@ -363,7 +400,8 @@ class AstroPersianDirected extends Component{
 		const rateKey = this.state.params.rateKey;
 		const direction = this.state.params.direction || 'direct';
 		const maxYears = (Number(this.state.params.maxYears) > 0 ? Number(this.state.params.maxYears) : 90);
-		const hits = buildPersianHits(this.props.value, rateKey, maxYears, direction);
+		const persianYear = this.state.params.persianYear || 'solar';
+		const hits = buildPersianHits(this.props.value, rateKey, maxYears, direction, persianYear);
 		let birthDt = null;
 		try{
 			const b = this.props.value && this.props.value.params ? this.props.value.params.birth : '';
@@ -416,9 +454,11 @@ class AstroPersianDirected extends Component{
 				)} side={(
 					<React.Fragment>
 							{/* 右栏与星运其它带盘页同一个件:固定头(时间选择 + 设置,不随滚动)+ 下半两张应期表各自滚动;顶部留安全距离 */}
-							<SideColumn style={{ height: '100%' }} head={(
+							{/* 表格区里是两张各自滚动的表(下限 120 / 160)加两条分隔与说明:把它们的下限合计告诉右栏,
+							    矮窗口里右栏整列滚,而不是把下面那张表的下沿裁掉 */}
+							<SideColumn style={{ height: '100%' }} bodyMin={nearbyHits.length ? 460 : 380} head={(
 								<div>
-								<SidePanelHead title="波斯向运" sub={currentAge != null ? `当前推运 ${currentAge.toFixed(1)} 岁` : ''} desc="左侧双盘:内圈本命、外圈向运(宫头固定本命)。向运星按所选速率在黄道上均匀推进,与本命点成相位即为应期;调时间即推运左盘。" />
+								<SidePanelHead title={rateKey === 'periodic' ? '周期向运' : '波斯向运'} sub={currentAge != null ? `当前推运 ${currentAge.toFixed(1)} 岁` : ''} desc={rateKey === 'periodic' ? '左侧双盘:内圈本命、外圈向运(宫头固定本命)。十星各按自身周期走完一圈:月 4 年、金 8、水 10、木 12、火 15、日 19、土 30、天 84、海 165、冥 248;七曜的年数即托勒密人生七龄。与本命点成相位即为应期。' : '左侧双盘:内圈本命、外圈向运(宫头固定本命)。向运星按所选速率在黄道上均匀推进,与本命点成相位即为应期;调时间即推运左盘。'} />
 								<Divider orientation="left" className="horosa-prog-side-divider">时间选择<span className="horosa-prog-side-divider-extra">驱动左盘 · 时区随本命</span></Divider>
 								<CompactTimeField
 									inline
@@ -433,7 +473,7 @@ class AstroPersianDirected extends Component{
 										handler 预取的是 natal /chart(与本轴无关=纯空烧);函数型 prop 屏蔽全局。
 										正轴(/predict/persian 族)预取待实测价值后补。 */ }}
 								/>
-								<Divider orientation="left" className="horosa-prog-side-divider">波斯向运设置</Divider>
+								<Divider orientation="left" className="horosa-prog-side-divider">{rateKey === 'periodic' ? '周期向运设置' : '波斯向运设置'}</Divider>
 								<Row gutter={8} style={{ marginBottom: 8 }}>
 									<Col span={12}>
 										<div style={{ marginBottom: 4 }}>向运速率</div>
@@ -456,6 +496,12 @@ class AstroPersianDirected extends Component{
 											{[50, 90, 120, 150, 200].map((y) => <Option value={y} key={y}>{y} 年</Option>)}
 										</Select>
 									</Col>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>年长</div>
+										<Select value={persianYear} onChange={this.changeYear} style={{ width: '100%' }}>
+											{Object.keys(PERSIAN_YEAR_LABEL).map((k) => <Option value={k} key={k}>{PERSIAN_YEAR_LABEL[k]}</Option>)}
+										</Select>
+									</Col>
 								</Row>
 								</div>
 							)}>
@@ -474,7 +520,7 @@ class AstroPersianDirected extends Component{
 								)}
 								<Divider orientation="left">终生应期（向运 → 本命）</Divider>
 								<div ref={(node) => { this.fullListRef = node; }}
-									style={{ position: 'relative', flex: '2 1 0', minHeight: 160, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
+									style={{ position: 'relative', flex: '2 1 0', minHeight: 160, overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--horosa-border-soft)', borderRadius: 4 }}>
 									<SmallTable
 										rowKey={(r, i) => i}
 										rows={fullHits}

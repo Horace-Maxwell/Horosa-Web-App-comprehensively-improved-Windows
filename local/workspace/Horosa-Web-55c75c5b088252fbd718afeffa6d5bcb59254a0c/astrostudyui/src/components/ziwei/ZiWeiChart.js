@@ -4,6 +4,7 @@ import React, { Component } from 'react';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+import { sameJsonContent } from '../../utils/sameContent';
 import ZWChart from './ZWChart';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
@@ -201,8 +202,9 @@ class ZiWeiChart extends Component{
 				h: svgdom ? svgdom.clientHeight : 0,
 			};
 			const last = this._lastDrawnSig;
+			// value:引用相同,或内容逐字相同(切走再切回:中途可能换过别的盘又换回来,拿到的是内容相同的新对象)
 			if(last
-				&& last.value === sig.value
+				&& sameJsonContent(last.value, sig.value)
 				&& last.fields === sig.fields
 				&& last.rules === sig.rules
 				&& last.dirHouseIndex === sig.dirHouseIndex
@@ -214,6 +216,7 @@ class ZiWeiChart extends Component{
 				&& last.zwDisplayRev === sig.zwDisplayRev
 				&& last.w === sig.w
 				&& last.h === sig.h){
+				this._lastDrawnSig = sig;   // 记住最新的引用:下次引用没变就不用再比内容
 				return; // 输入未变,跳过整树重建
 			}
 			this.zwchart.draw();

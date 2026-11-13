@@ -15,6 +15,7 @@ from websrv.kentang.kinastro_common import (
     parse_datetime,
     row,
     to_int,
+    format_timezone_label,
     timezone_to_float,
 )
 
@@ -235,7 +236,7 @@ class BeiJiSrv:
                 "timeStr": data.get("time", dt.strftime("%H:%M:%S")),
                 "gender": gender,
                 "timezone": timezone_value,
-                "timezoneText": f"UTC{timezone_value:+g}",
+                "timezoneText": format_timezone_label(timezone_value),
                 "beiji": beiji,
                 "classics": kinastro_source_sections("北极神数", "接入 kinastro 的北极神数，以出生年、月、日、时、刻与性别推定年干支、时辰、九项条文查询与八步大运。"),
                 "capabilities": {

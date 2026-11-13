@@ -91,6 +91,30 @@ export function buildSceneSyncParams(fields, time, extras){
 	};
 }
 
+// 一次全量请求「问的是哪片天」的指纹:scene = 除星表条数、时刻外的全部参数(观测点 / 时区 / 宫制 / 附带项…),
+// time = 时刻。后台补全星表的回包拿它和「场景里现有数据」的指纹比:场景没变 → 只换星表、不整场重建。
+// starLimit 只决定回几颗星(星表坐标是 J2000,不随时刻地点变),所以不进指纹。
+export function sceneRequestSignature(params){
+	const src = params || {};
+	const timeKeys = ['date', 'time', 'ad'];
+	const scene = {};
+	Object.keys(src).sort().forEach((key)=>{
+		if(key === 'starLimit' || timeKeys.indexOf(key) >= 0){
+			return;
+		}
+		scene[key] = src[key];
+	});
+	return {
+		scene: JSON.stringify(scene),
+		time: timeKeys.map((key)=>`${src[key]}`).join('|'),
+	};
+}
+
+// 「只为补全星表」的那类全量请求(场景别的都不该变)。
+export function isStarOnlyReason(reason){
+	return reason === 'star-complete' || reason === 'star-complete-cache';
+}
+
 function clonePlanetariumState(data){
 	if(!data){
 		return null;

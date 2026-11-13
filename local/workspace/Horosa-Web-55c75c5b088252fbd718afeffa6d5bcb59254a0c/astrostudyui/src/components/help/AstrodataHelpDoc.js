@@ -1,12 +1,10 @@
 // 名人星盘数据库 · 操作手册(帮助页内容组件,「工具 · 数据库」页右上角「帮助」打开)。
 // 逐控件写清「取值 / 含义 / 区别 / 默认 + 看哪里」;中性表述,纯展示零后端。页面本体为离线内嵌目录。
 import { Component } from 'react';
-import { Tabs } from 'antd';
+import HelpBook from './HelpBook';
 
-const { TabPane } = Tabs;
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
 // 键帽样式:与详情/筛选卡视觉一致的小方块
 const keyCap = (t) => <kbd style={{ display: 'inline-block', minWidth: 18, textAlign: 'center', padding: '1px 6px', margin: '0 2px', borderRadius: 4, border: '1px solid var(--horosa-border, rgba(120,120,120,0.35))', fontSize: 12, fontFamily: 'ui-monospace, Menlo, monospace', lineHeight: 1.5 }}>{t}</kbd>;
@@ -20,14 +18,18 @@ const EL_LEGEND = [
 ];
 const elDot = (c) => <span style={{ display: 'inline-block', width: 11, height: 11, borderRadius: '50%', background: c, marginRight: 6, verticalAlign: 'middle' }} />;
 
-class AstrodataHelpDoc extends Component{
-	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>名人星盘数据库 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '名人星盘数据库 · 操作手册',
+	groups: [
+		{
+			key: 'astrodata',
+			label: '名人星盘数据库',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}><b>数据库</b>是一份内置的名人生辰资料目录:可按姓名、分类、太阳星座、资料等级等条件检索人物,查看其出生资料与日月升速览轮,并<b>一键把某人的出生数据加入你的「星盘列表」</b>——之后在任一技法页(占星 / 七政 / 紫微 / 八字 …)打开星盘列表选中该条,即按其出生资料排盘。</p>
 							<div style={h}>怎么用(三步)</div>
@@ -51,9 +53,14 @@ class AstrodataHelpDoc extends Component{
 								<li style={li}>明暗主题跟随 App:App 切昼夜,本页同步切换(本页不再单独提供主题钮)。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="检索与筛选" key="search">
+					</div>
+					),
+				},
+				{
+					key: 'search',
+					label: '检索与筛选',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>以下控件全部位于<b>左栏</b>面板。改关键词、出生年或任一下拉,结果马上重查并回到第 1 页(打字停顿约 0.2 秒才查)。分类搜索框只筛下方的词条列表,点选词条后结果才变。</p>
 
@@ -114,9 +121,14 @@ class AstrodataHelpDoc extends Component{
 								{kv('不复位', '「每页」条数、当前语言、明暗主题——这三项保持你的设定')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="结果与分页" key="results">
+					</div>
+					),
+				},
+				{
+					key: 'results',
+					label: '结果与分页',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>两处数字别混淆</div>
 							<div style={card}>
@@ -156,9 +168,14 @@ class AstrodataHelpDoc extends Component{
 							<div style={h}>空结果</div>
 							<p style={p}>无命中时结果区显示一枚月牙符号 + 「没有符合条件的记录 / 试试放宽筛选条件」。最常见原因:出生年填了范围式的年代数字(须精确年)、分类多选交集为空、或关键词与当前语言的检索列不匹配。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="详情与导入" key="detail">
+					</div>
+					),
+				},
+				{
+					key: 'detail',
+					label: '详情与导入',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>日月升速览轮</div>
 							<p style={p}>抽屉顶部这张圆图是<b>三点速览</b>,<b>不是完整星盘</b>——只画太阳、月亮、上升三个位置,没有其它行星、没有宫位分割线。要看完整盘,请先「导入为命盘」,再到占星 / 七政 / 紫微 / 八字等技法页排盘。</p>
@@ -221,9 +238,14 @@ class AstrodataHelpDoc extends Component{
 							<div style={h}>两个外部链接</div>
 							<p style={p}>抽屉里另有两个带 ↗ 的浅色按钮:「<b>Astro-Databank 原页</b>」和「<b>Wikipedia</b>」,分别打开该条在 Astro-Databank 的原始记录页与 Wikipedia 条目。桌面版内不能开新标签页,所以点击会交<b>系统默认浏览器</b>打开;这也是本页唯一联网的动作。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="资料范围" key="scope">
+					</div>
+					),
+				},
+				{
+					key: 'scope',
+					label: '资料范围',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>了解库的边界,能避免把「库里没有」当成「查不出来」。</p>
 
@@ -269,9 +291,14 @@ class AstrodataHelpDoc extends Component{
 								<li style={li}>库内容随应用版本更新,本页不联网增补;因此上面的量级说明以你当前版本的实际显示为准。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="语言 · 快捷键 · 配色" key="lang">
+					</div>
+					),
+				},
+				{
+					key: 'lang',
+					label: '语言 · 快捷键 · 配色',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>中英文切换</div>
 							<div style={card}><div style={ct}>语言分段(顶栏右侧)</div>
@@ -309,11 +336,19 @@ class AstrodataHelpDoc extends Component{
 							</ul>
 							<p style={{ ...p, color: MUTED }}>此配色纯为视觉分组,不改变任何数值;元素归属依通例(白羊·狮子·射手=火,金牛·处女·摩羯=土,双子·天秤·水瓶=风,巨蟹·天蝎·双鱼=水)。</p>
 						</div>
-					</TabPane>
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
 
-				</Tabs>
-			</div>
-		);
+class AstrodataHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

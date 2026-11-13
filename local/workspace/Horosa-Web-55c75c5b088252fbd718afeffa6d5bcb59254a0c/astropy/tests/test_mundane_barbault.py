@@ -82,3 +82,16 @@ def test_extrema_and_params_echo():
     # 范围上限保护:>300 年自动收口
     big = compute_barbault({'startYear': 1000, 'endYear': 2000})
     assert big['endYear'] - big['startYear'] <= 300
+
+
+def test_barbault_harmonic_folds_multiplied_separations():
+    import pytest
+    from astrostudy.astroextra_parts.cycles import compute_barbault
+    base = compute_barbault({'startYear': 2000, 'endYear': 2000, 'stepMonths': 12, 'planets': ['Jupiter', 'Saturn']})
+    two = compute_barbault({'startYear': 2000, 'endYear': 2000, 'stepMonths': 12, 'planets': ['Jupiter', 'Saturn'], 'harm': 2})
+    assert base['harm'] == 1 and two['harm'] == 2
+    d = base['points'][0]['index']
+    expected = (2 * d) % 360.0
+    expected = 360.0 - expected if expected > 180.0 else expected
+    assert two['points'][0]['index'] == pytest.approx(expected, abs=0.02)
+    assert compute_barbault({'startYear': 2000, 'endYear': 2000, 'harm': 99})['harm'] == 1

@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-index d19ed28f..c5f3aea7 100644
+index fc0560f5..e754fcb9 100644
 --- a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 +++ b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 @@ -18,6 +18,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
  import { scriptFilterBy } from '../../utils/scriptMode';
- import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+ import { ownedBoxSizeRef, narrowBoardVars, shortHostVars, XCT_HOST_SHORT } from '../../utils/boxSizeVars';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
@@ -24,7 +24,7 @@ index d19ed28f..c5f3aea7 100644
 @@ -565,9 +568,19 @@ class XiaoChengTuMain extends Component {
  			</div>
  		);
- 		const wait = (t)=><div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: '6px 2px' }}>{t}</div>;
+ 		const wait = (t)=><div className="horosa-cnx-wait">{t}</div>;
 +		// 受控化的兜底:「股市」目只在 qi.mode==='stock' 时存在。非受控 antd 在当前目消失时会自行落回,
 +		// 受控则不会 —— 故此处按【当前实际存在的目】校验一次,失效即落回首目,绝不出现空白右栏。
 +		const auxKeys = ['tuidao', 'sixiang', 'yingqi', 'gongyi'].concat(qi && qi.mode === 'stock' ? ['stock'] : []).concat(['qigua']);
@@ -44,7 +44,7 @@ index d19ed28f..c5f3aea7 100644
  					{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td), 1) : row('推导', '—', 1)}
 @@ -575,8 +588,10 @@ class XiaoChengTuMain extends Component {
  					{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i + 10)) : null}
- 					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{PANG_TUI_ZONG_TEXT}</div>
+ 					<div className="horosa-cnx-note horosa-cnx-note-foot">{PANG_TUI_ZONG_TEXT}</div>
  					</>}
 +					</>)}</FreezeSubTab>
  				</TabPane>
@@ -72,10 +72,10 @@ index d19ed28f..c5f3aea7 100644
  				</TabPane>
  				<TabPane tab="宫义" key="gongyi">
 +					<FreezeSubTab active={auxTab === 'gongyi'}>{() => (<>
- 					{/* 九宫八方各有所主(原文八条),此前只入快照一行、UI 零处可见。 */}
- 					<div style={{ fontSize: 12, lineHeight: 1.85 }}>
- 						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>(
-@@ -650,9 +669,11 @@ class XiaoChengTuMain extends Component {
+ 					{/* 九宫八方各有所主(原文八条):一宫一卡 —— 宫数徽标 + 卦宫 + 方位月令 + 所主,正文为原文;用宫描金置顶标。 */}
+ 					<div className="horosa-xct-gong-list">
+ 						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>{
+@@ -667,9 +686,11 @@ class XiaoChengTuMain extends Component {
  						<div>{SHENG_JIANG_TEXT}</div>
  						<div style={{ marginTop: 4 }}>{ZHONG_GONG_NOTE}</div>
  					</div>
@@ -87,10 +87,10 @@ index d19ed28f..c5f3aea7 100644
  						{(()=>{ const fd = fuDu(qi.ben.up); return fd ? row('幅度三分', `${fd.gua} 主爻位 ${fd.zhuYao} · 幅度${fd.fudu}`) : null; })()}
  						{(()=>{ const zd = zhangDie(qi.ben.up); return zd ? row('涨跌两分', `上卦${qi.ben.up} → ${zd}`) : null; })()}
  						{(()=>{ const k = this.klineOpt(); if(!k){ return (this.state.inputs.klineBody === 'doji') ? row('K线定用宫', '十字星阴阳莫辨,须手动择用宫') : null; }
-@@ -661,9 +682,11 @@ class XiaoChengTuMain extends Component {
+@@ -678,9 +699,11 @@ class XiaoChengTuMain extends Component {
  						{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
- 						<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
- 						<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
+ 						<div className="horosa-cnx-note horosa-cnx-note-foot">{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
+ 						<pre className="horosa-cnx-pre horosa-xct-pre-foot">{STOCK_QI_GUA_TEXT}</pre>
 +						</>)}</FreezeSubTab>
  					</TabPane>
  				) : null}
@@ -99,7 +99,7 @@ index d19ed28f..c5f3aea7 100644
  					{!qi ? wait('起卦后显示起卦步骤明细。') : <>
  					{(qi.steps || []).map((s, i)=>row(s.label, `${s.detail} → ${s.value}`, i))}
  					{!((qi.steps || []).length) ? row('起卦', `手动:${qi.ben.name} 动 ${(qi.dongYaos || []).join('、') || '无'}`) : null}
-@@ -676,6 +699,7 @@ class XiaoChengTuMain extends Component {
+@@ -693,6 +716,7 @@ class XiaoChengTuMain extends Component {
  						</div>
  					) : null}
  					</>}

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
-index 95994483..57cbb83f 100644
+index 63c242e7..92e8432b 100644
 --- a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
 +++ b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
 @@ -29,12 +29,18 @@ export function claudeDesktopConfig(st){

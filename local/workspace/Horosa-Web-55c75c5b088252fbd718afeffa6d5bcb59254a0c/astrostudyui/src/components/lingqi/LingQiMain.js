@@ -5,10 +5,11 @@
 // 🔴 中栏=十二枚棋子实体(上4/中4/下4,逐枚正/覆):空态(未起卦,虚框幽灵棋)≠ 纯阴镘(实体全覆)。
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { XQSideSection } from '../xq-ui';
-import { Tabs, Input, InputNumber, Radio, Button, Switch, Checkbox, Select, Tag } from 'antd';
+import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSwitch as Switch, XQSelect as Select } from '../xq-ui';
+import { Tabs, Checkbox, Tag } from 'antd';
 import { LINGQI_GUA, findLingqiGua, lingqiOrdinalCn } from './data/lingqiJing';
 import { lingqiToSimp } from './data/lingqiT2S';
+import { rareSafeText } from '../../utils/rareChars';
 import { LINGQI_RITUAL } from './data/lingqiRitual';
 import {
 	castLingqi, facesFromCounts, resolveLingqiSeed, sanCaiOf, isWuDay, splitVerse,
@@ -32,6 +33,12 @@ import {
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
 const STORE_KEY = 'horosa.lingqi.settings.v1';
+// 掷棋动画节拍:单枚翻落时长与样式里 horosa-lingqi-toss 的 1.05s 同值,十二枚逐枚错峰;
+// 收尾计时必须等最后一枚落定再撤 is-tossing,早撤 = 后排棋子翻到一半被掐断跳回原位。
+const TOSS_MS = 1050;
+const TOSS_STAGGER_MS = 55;
+const TOSS_CHIPS = 12;
+const TOSS_TOTAL_MS = TOSS_MS + (TOSS_CHIPS - 1) * TOSS_STAGGER_MS + 80;
 const LAYER_META = [
 	{ label: '上', role: '君', realm: '天' },
 	{ label: '中', role: '臣', realm: '人' },
@@ -160,7 +167,7 @@ class LingQiMain extends Component {
 			this.castTimer = setTimeout(() => {
 				this.castTimer = null;
 				this.setState({ casting: false });
-			}, 1150);
+			}, TOSS_TOTAL_MS);
 		});
 	}
 	toggleChip(layer, idx) {
@@ -276,7 +283,8 @@ class LingQiMain extends Component {
 	}
 
 	// ── 文本工具:简/原文 + 问类高亮 ──
-	t(str) { return this.state.display === 'orig' ? `${str || ''}` : lingqiToSimp(str); }
+	// 四库原文档:本机字体画不出的异体字换成通行写法(数据与存档仍是原字)
+	t(str) { return this.state.display === 'orig' ? rareSafeText(`${str || ''}`) : lingqiToSimp(str); }
 	renderRich(text, keyPrefix) {
 		const body = this.t(text);
 		if (!body) { return null; }
@@ -313,19 +321,19 @@ class LingQiMain extends Component {
 		const counts = s.counts;
 		return (
 			<>
-			{/* 时地面板自带「时间/当地时间/地点」逐项标签,节头「时间与地点」冗余 —— 裸卡呈现(用户定夺) */}
-			<section className="xq-side-section horosa-lingqi-timegeo">
+			{/* 与其它卜页左栏同一张分区卡(图标 + 「时间与地点」节头,不可折叠) */}
+			<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
 					value={buildDateTimeFromFields(fields)}
 					onTimeChange={this.onTimeChanged}
 					onGeoChange={this.changeGeo}
 				/>
-			</section>
+			</XQSideSection>
 			<XQSideSection iconName={sideSectionIcon('target')} title="起卦" storageKey="lingqi.cast" className="horosa-side-input-section">
 				<div className="horosa-xlr-controls horosa-cnx-controls">
 					{this.field('种子来源', (
-						<Radio.Group size="small" optionType="button" value={s.seedMode} disabled={s.manualMode}
+						<XQSegmented value={s.seedMode} disabled={s.manualMode}
 							onChange={(e) => this.setPersisted('seedMode', e.target.value)}
 							options={[{ value: 'random', label: '随机' }, { value: 'time_seed', label: '时间' }, { value: 'manual', label: '手动' }]} />
 					), s.seedMode === 'time_seed' ? '同一分钟同种子,可复现' : null)}
@@ -358,7 +366,7 @@ class LingQiMain extends Component {
 			<XQSideSection iconName={sideSectionIcon('display')} title="显示与注家" storageKey="lingqi.display" className="horosa-side-input-section">
 				<div className="horosa-xlr-controls horosa-cnx-controls">
 					{this.field('文字', (
-						<Radio.Group size="small" optionType="button" value={s.display}
+						<XQSegmented value={s.display}
 							onChange={(e) => this.setPersisted('display', e.target.value, true)}
 							options={[{ value: 'simp', label: '简体' }, { value: 'orig', label: '四库原文' }]} />
 					))}
@@ -406,7 +414,7 @@ class LingQiMain extends Component {
 		else { cls.push(up ? 'is-up' : 'is-down'); }
 		if (s.casting) { cls.push('is-tossing'); }
 		if (s.manualMode && !empty) { cls.push('is-clickable'); }
-		const delay = s.casting ? { animationDelay: `${(layer * 4 + idx) * 55}ms` } : undefined;
+		const delay = s.casting ? { animationDelay: `${(layer * 4 + idx) * TOSS_STAGGER_MS}ms` } : undefined;
 		// 单面条件渲染(不用 CSS 3D 双面):棋枰 overflow 容器会 flatten 3D 上下文致 backface 失效
 		// (正覆两面叠印实测复现)——直接按 up/覆 渲染对应面,零 3D 依赖恒确定;翻滚动画仍在 inner。
 		return (

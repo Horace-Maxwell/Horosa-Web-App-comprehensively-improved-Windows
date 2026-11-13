@@ -395,8 +395,9 @@ export function dashaContainsNow(item){
 	if(!item || !item.start || !item.end){
 		return false;
 	}
-	const sm = item.start.valueOf ? item.start : dashaMoment(item.startIso, item.start);
-	const em = item.end.valueOf ? item.end : dashaMoment(item.endIso, item.end);
+	// 判「已是时刻对象」用 moment.isMoment:字符串也带原型上的 valueOf,拿它当判据会把没解析的字符串原样放过去,后面比大小恒假
+	const sm = moment.isMoment(item.start) ? item.start : dashaMoment(item.startIso, item.start);
+	const em = moment.isMoment(item.end) ? item.end : dashaMoment(item.endIso, item.end);
 	if(!sm || !em){ return false; }
 	const s = sm.valueOf();
 	const e = em.valueOf();

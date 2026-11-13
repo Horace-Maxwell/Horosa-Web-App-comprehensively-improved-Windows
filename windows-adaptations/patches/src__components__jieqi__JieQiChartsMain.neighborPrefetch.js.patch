@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index a5630ee5..89c63fb4 100644
+index b97fe93e..b2cf3bbb 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -37,15 +37,51 @@ import * as Su28Helper from '../su28/Su28Helper';
+@@ -38,15 +38,51 @@ import * as Su28Helper from '../su28/Su28Helper';
  import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
  import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
@@ -55,7 +55,7 @@ index a5630ee5..89c63fb4 100644
  const {Option, OptGroup} = Select
  const JIEQI_STD = [
  	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
-@@ -308,6 +344,41 @@ function classicalCalibreSig(params){
+@@ -311,6 +347,41 @@ function classicalCalibreSig(params){
  	return JSON.stringify(Object.keys(ov).sort().reduce((acc, k)=>{ acc[k] = ov[k]; return acc; }, {}));
  }
  
@@ -97,7 +97,7 @@ index a5630ee5..89c63fb4 100644
  function getSeedCacheKey(params){
  	return [
  		params && params.year,
-@@ -1006,16 +1077,9 @@ function jieqiSnapshotMeta(params, currentTab){
+@@ -1016,16 +1087,9 @@ function jieqiSnapshotMeta(params, currentTab){
  }
  
  export class JieQiChartsMain extends Component{
@@ -117,7 +117,7 @@ index a5630ee5..89c63fb4 100644
  	constructor(props) {
  		super(props);
  
-@@ -1230,10 +1294,19 @@ export class JieQiChartsMain extends Component{
+@@ -1242,10 +1306,19 @@ export class JieQiChartsMain extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -141,7 +141,7 @@ index a5630ee5..89c63fb4 100644
  	}
  
  	async requestJieQiCharts(seedParams, seedSeq, tab){
-@@ -1341,6 +1414,11 @@ export class JieQiChartsMain extends Component{
+@@ -1353,6 +1426,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -153,7 +153,7 @@ index a5630ee5..89c63fb4 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
-@@ -1623,7 +1701,15 @@ export class JieQiChartsMain extends Component{
+@@ -1632,7 +1710,15 @@ export class JieQiChartsMain extends Component{
  			return dom;
  		}
  
@@ -170,7 +170,7 @@ index a5630ee5..89c63fb4 100644
  			const fourCols = getJieqiFourColumns(item);
  			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
  			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
-@@ -1692,6 +1778,7 @@ export class JieQiChartsMain extends Component{
+@@ -1701,6 +1787,7 @@ export class JieQiChartsMain extends Component{
  				{cols}
  			</Row>
  		);
@@ -178,7 +178,7 @@ index a5630ee5..89c63fb4 100644
  		return dom;
  	}
  
-@@ -1879,6 +1966,16 @@ export class JieQiChartsMain extends Component{
+@@ -1888,6 +1975,16 @@ export class JieQiChartsMain extends Component{
  		}
  	}
  

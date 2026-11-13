@@ -35,7 +35,7 @@ describe('飞宫 · 渲染冒烟', ()=>{
 	test('左栏三起支模式+定局钮', ()=>{
 		const h = render('controls');
 		expect(h).toMatch(/定\s*局/);
-		expect(h).toContain('按占时');
+		expect(h).toContain('占时·');   // 起支下拉首项「占时·<时支>」(已选项直出)
 	});
 	test('自出三栏+未定局空态;ctx 真源(午时丙申日)', ()=>{
 		expect(render(undefined)).toContain('局面判读');

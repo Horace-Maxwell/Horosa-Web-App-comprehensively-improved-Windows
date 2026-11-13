@@ -58,6 +58,10 @@ const RECORD = {
 const LOCAL = {
 	qimen: { payload: { options: { paiPanType: 2, school: '转盘', qijuMethod: 'zhirun', sex: 1 } }, cond: { '日家占方（古籍金函系）': '金函形态专段(qimenSectionsParity 专测覆盖)' } },
 	bazi: { via: 'chart' },
+	// 东亚诸术:纯前端;易卦星盘读本命盘,取不到时该段写一句「未出」(段头照出)
+	dongya: { via: 'chart' },
+	// 诸方杂术:玛雅历 / 十三月亮历本地算;人类图 / 灵名后端取不到时写「未算出」(段头照出)
+	zhufang: { via: 'chart' },
 	huangji: { payload: { options: {} } },
 	huangli: {},
 	tongshu: {},
@@ -97,7 +101,7 @@ const SOFT = {
 	planetaryages: '行星年龄走后端 chart', prog: '二次推运走后端 chart(/astroextra/progressions)', vedicprog: '吠陀推运走后端 chart', balbillus: 'Balbillus 走后端 chart',
 	triplicityrulers: '三分主星走后端 chart', keypoints: '关键点走后端 chart', lunationphase: '月相推运走后端 chart',
 	extrareturns: '多重回归走后端 chart', yearsystem129: '129年系统走后端 chart', planetaryarc: '行星弧走后端 chart',
-	neroman: '演进推运走后端 /astroextra/neroman', bezzafigure: '推运图走后端 /astroextra/bezzafigure', jayprofection: '周日小限走后端 /astroextra/jayprofection', michon: '双黄道走后端 /astroextra/michon',
+	neroman: '演进推运走后端 /astroextra/neroman', bezzafigure: '推运图走后端 /astroextra/bezzafigure', jayprofection: '周日小限走后端 /astroextra/jayprofection', michon: '双黄道走后端 /astroextra/michon', timelords: '时主轮转走后端 /astroextra/timelords',
 	persiandirected: '波斯向运走后端 chart', jaynesprog: 'Jaynes 推运走后端 chart', primarydirect: '主限走后端 chart',
 };
 
@@ -106,7 +110,7 @@ const EXEMPT = {
 	astrochart: '本命盘走 astroAiSnapshot 独立链(store 快照)',
 	astrochart_like: '占星派生盘聚合键(同上)',
 	hellenastro: '希腊星术=astro 派生(store 快照链)', dwadasamsa: '十二分盘=astro 派生', harmonic: '调波盘=astro 派生',
-	draconic: '龙盘=astro 派生', relocation: '重置盘=astro 派生', locastro: '占星地图=astro 派生',
+	draconic: '龙盘=astro 派生', transformchart: '变换盘=astro 派生(辅盘页出盘即存快照)', zodiacsystems: '黄道制=辅盘页出盘即存快照(无盘体,只有专属段)', relocation: '重置盘=astro 派生', locastro: '占星地图=astro 派生',
 	relative: '合盘 sectionsOnly(读合盘页已存快照)', primarydirchart: '主限法盘=astro 派生',
 	zodialrelease: '黄道星释走后端 chart(入口在 direction 复合页)', solararc: '太阳弧同上', solarreturn: '太阳返照同上',
 	lunarreturn: '月亮返照同上', givenyear: '流年法同上', decennials: '十年大运同上', profection: '小限法同上',
@@ -121,7 +125,7 @@ const EXEMPT = {
 	huanglizeri: '黄历择日=huangli 段+三附加段(huangliZeriLedger 锁)', bazizeri: '八字择日=bazi 段+三附加段(baziZeriLedger 锁)',
 	taiyizeri: '太乙择日=taiyi 段+三附加段(taiyiZeriLedger 锁)', ziweizeri: '紫微择日=ziwei 段+三附加段(ziweiZeriLedger 锁)',
 	liurengzeri: '六壬择日=liureng 段+三附加段(liurengZeriLedger 锁)', sanshizeri: '三式择日=sanshiunited 段+三附加段(sanshiZeriLedger 锁)',
-	qizhengzeri: '七政择日=guolao 段+三附加段(qizhengZeriLedger 锁)', indiazeri: '印度择日=三附加段(indiaZeriLedger 锁;盘体走印占主页)',
+	qizhengzeri: '七政择日=guolao 段+三附加段(qizhengZeriLedger 锁)', indiazeri: '印度择日=indiachart 段+三附加段(indiaZeriLedger 锁)',
 	// 节气分键=jieqi 整键的四节切片+参数段(jieqi 整键已豁免:走后端 chart 多次取数,非单盘)。
 	jieqi_meta: '节气盘参数段=jieqi 切片', jieqi_chunfen: '春分三段=jieqi 切片', jieqi_xiazhi: '夏至三段=jieqi 切片',
 	jieqi_qiufen: '秋分三段=jieqi 切片', jieqi_dongzhi: '冬至三段=jieqi 切片',

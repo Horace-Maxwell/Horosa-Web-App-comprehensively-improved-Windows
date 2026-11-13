@@ -531,27 +531,8 @@
 	    	margin-top: 14px;
 	    }
 
-	    // 🔴 吸底者必须【不透明】—— 本页签有一条通用钮样式
-	    //    `.horosa-huangji-redesign .ant-btn { background: rgba(0,0,0,.2) !important }`：
-	    //    半透之底给浮在卡上的普通钮本无妨，而【吸底】的钮不然 —— 其下之字会直透上来，
-	    //    与钮面之字叠成一团（窄屏左栏一滚即现；box-shadow 挡不住，那只是层影）。
-	    //    ⚠️ 那条带 !important，通吃一切特异度 —— 只提高选择器权重是白费（栽过一次：
-	    //    规则明明进了 CSSOM、选择器也命中、position 都生效了，独 background 纹丝不动，
-	    //    正是这个缘故）。故此处只得以 !important 对之，且只压这一个钮、不动其余。
-	    & .horosa-guice-page .horosa-guice-qigua-btn.ant-btn.ant-btn-primary {
-	    	// 那条一并 !important 了 border-color / background / color 三样（其为输入框与钮之共用样式）
-	    	// → 三样须一并压过，只压 background 则字色仍是给暗底调的米白，落在金底上糊作一片。
-	    	background: var(--horosa-huangji-cta-bg, var(--horosa-huangji-accent)) !important;
-	    	border-color: var(--horosa-huangji-cta-bg, var(--horosa-huangji-accent)) !important;
-	    	color: var(--horosa-huangji-ink-on-accent, #1a1408) !important;
-	    	font-weight: 600;
-
-	    	&:hover, &:focus {
-	    		background: var(--horosa-huangji-accent-strong) !important;
-	    		border-color: var(--horosa-huangji-accent-strong) !important;
-	    		color: var(--horosa-huangji-ink-on-accent, #1a1408) !important;
-	    	}
-	    }
+	    // 起卦钮已不吸底(随内容流排),不再需要专属实底:底 / 边 / 字一律走全站「页面内主按钮单一皮」
+	    // (22-tail-fixes.less 的 #mainContent .ant-btn.ant-btn-primary),与起课 / 定局 / 起盘同一长相,亮暗同款。
 	    .horosa-guice-error {
 	    	margin-top: 8px; padding: 7px 10px; border-radius: 8px;
 	    	font-size: 12px; line-height: 1.5;

@@ -157,9 +157,14 @@ export const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //        本版才诞生的段名,用户无从取消过 → 同 v49…v57 的键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
 // 量化盘补「赤纬接触」段(自[汉堡学派要素]里拆出成独立段:缺省流派也进快照,与 90°中点盘右栏同一开关同一数据)。
 //        本版才诞生的段名,用户无从取消过 → 同 v49…v58 的键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
+// v61 补:占星「盘面细节」段(右栏细节页签的结论摘要,挂载与导出同一段)、世俗「世运周期表」段。
+//        本版才诞生的段名,用户无从取消过 → 同 v49…v60 的键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
 // v60 补:量化盘「中点坐标」「公式求解」两段(行星中点页选赤经 / 赤纬、90°中点盘右栏写了公式才进快照,不受汉堡门控)。
 //        本版才诞生的段名,用户无从取消过 → 同 v49…v59 的键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
-export const AI_EXPORT_SETTINGS_VERSION = 60;
+// v64 补:命·其他「东亚诸术」(dongya)、「诸方杂术」(zhufang)新技法键;新键老用户本无自定义 → 走 preset 全量,🔴 不动 MIGRATION_VERSION。
+// v65 补:印占「穿界时刻」段(行运页穿界表按所选的星、事件、范围进快照);本版才诞生的段名,自定义过印占导出段的用户一次性并入。
+//        🔴 不动 MIGRATION_VERSION。
+export const AI_EXPORT_SETTINGS_VERSION = 65;
 // 🔴 新技法不动此闸：其键老用户本无（未自定义）→ 走 preset 全量、本就含其全部段；
 // union 迁移唯「已自定义过某技法而该技法新增段」者需之。误升此闸会令 v45 存档重走 union，
 // 违「v45 起不再 union 强推、用户取消=真取消」之铁律（其测试锁之）。
@@ -262,6 +267,31 @@ export const AI_EXPORT_V60_UNION_VERSION = 60;
 export const AI_EXPORT_V60_SECTION_UNION = {
 	germany: ['中点坐标', '公式求解'],
 };
+// 同机制的下一窗(占星「盘面细节」段)。
+export const AI_EXPORT_V61_UNION_VERSION = 61;
+export const AI_EXPORT_V61_SECTION_UNION = {
+	astrochart: ['盘面细节'],
+	astrochart_like: ['盘面细节'],
+	relocation: ['盘面细节'],
+	locastro: ['盘面细节'],
+	mundane: ['世运周期表'],
+};
+// v64 补:巴比伦「天象实算」段(七曜三道、ziqpu 星钟、目标年实算);本版才诞生的段名,自定义过巴比伦导出段的用户一次性并入。
+export const AI_EXPORT_V64_UNION_VERSION = 64;
+export const AI_EXPORT_V64_SECTION_UNION = {
+	babylon: ['天象实算'],
+};
+// 同机制的下一窗(印占「穿界时刻」段)。
+export const AI_EXPORT_V65_UNION_VERSION = 65;
+export const AI_EXPORT_V65_SECTION_UNION = {
+	indiachart: ['穿界时刻'],
+};
+// 同机制的下一窗(印占判定表、补充表与合盘八重合)。
+export const AI_EXPORT_V62_UNION_VERSION = 62;
+export const AI_EXPORT_V62_SECTION_UNION = {
+	indiachart: ['Yoga 判定表', '印占补充表'],
+	relative: ['八重合'],
+};
 // 拆段映射(单源):「自某段拆出的独立段」← 母段,随 union 窗一起登记(新段的 union 窗版本、适用的导出键 = 该窗的键)。
 // 导出设置的键内段级白名单由 union 窗迁移;数据源级的逐源段白名单(segments)不走导出设置,
 // 载入 / 导入时按本表一次性补新段:白名单里勾了母段、没有新段 → 紧跟母段补上(拆段前母段里本就含这块内容);
@@ -295,10 +325,14 @@ export const AI_EXPORT_FORMAT_DEFAULT = 'v2';
 // astrochart_like 拆出独立导出键(此前六盘塌一键,段勾选永远无法分盘)。astrochart_like 保留=
 // 老用户设置遗产 + AI挂载聚合键(衍生盘挂载语义仍走它,四同步豁免已登)。抽取/缓存/派生附加等
 // 判断一律走本谓词,禁再散写 === 'astrochart_like'。
-const ASTRO_LIKE_EXPORT_KEYS = ['astrochart_like', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro'];
+const ASTRO_LIKE_EXPORT_KEYS = ['astrochart_like', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'transformchart', 'zodiacsystems'];
 export function isAstroLikeExportKey(key){
 	return ASTRO_LIKE_EXPORT_KEYS.includes(`${key || ''}`);
 }
+// 派生盘键:导出正文读各页自己的模块快照(出盘即存);其中两页没有本命回落(没出盘=没内容)。
+// 抽取(extractors)与段全集(settingsModel.getOptionsForTechniqueKey)共用这一份,勿各写一份。
+export const DERIVED_ASTRO_MODULE_KEYS = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems'];
+export const DERIVED_ASTRO_NO_NATAL_FALLBACK_KEYS = ['transformchart', 'zodiacsystems'];
 export const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v46 补：神数正传（数算新子tab，三流派段头并集）
 	'zhengchuan',
@@ -311,6 +345,8 @@ export const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'draconic',
 	'relocation',
 	'locastro',
+	'transformchart',
+	'zodiacsystems',
 	'indiachart',
 	'mundane',
 	'relative',
@@ -400,10 +436,13 @@ export const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'bezzafigure',
 	'jayprofection',
 	'michon',
+	'timelords',
 	'canping',
 	'heluo',
 	'zhengchuan',
 	'yizhangjing',
+	'dongya',
+	'zhufang',
 	// v43 补:黄历(工具组首个导出键,只导出不挂载照 jieqi/fengshui 先例)。
 	// v44 补:六壬[七政]/果老[虚实][本命化曜] 三段(键已在册,union 自动并入自定义)。
 	'calendar',
@@ -429,29 +468,43 @@ export const AI_EXPORT_PLANET_INFO_DEFAULT = {
 export const AI_EXPORT_ASTRO_MEANING_DEFAULT = {
 	enabled: 0,
 };
+// 「星曜后天信息」(落宫 / 主宰宫括注)两项开关只列给正文里真带这种括注的技法:
+// 导出设置与挂载面板按这张表显示开关,过滤也只对它们生效。正文不带括注的技法(期表类时主、推运图类、七政等)
+// 不在表里 —— 列进来就是两个勾了没反应的开关。释义开关另见下一张表。
 export const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'astrochart',
 	'indiachart',
 	'astrochart_like',
 	// 衍生盘拆键后六个独立导出键也进「星曜后天信息 / 释义」两个集合:此前只留 astrochart_like →
 	// 选这六盘时弹窗不出现两组设置、存了也不生效;挂载仍走聚合键 → 同盘导出与挂载吃不同开关。无自身设置时回落聚合键设置(见 getter)。
-	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro',
+	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'transformchart',
 	'relative',
 	'primarydirect',
 	'primarydirchart',
-	'zodialrelease',
 	'firdaria',
 	'profection',
 	'solararc',
 	'solarreturn',
 	'lunarreturn',
 	'givenyear',
-	'decennials',
-	'planetaryages',
 	'prog',
 	'vedicprog',
 	'jaynesprog',
 	'planetaryarc',
+	'jieqi',
+	'jieqi_meta',
+	'jieqi_chunfen',
+	'jieqi_xiazhi',
+	'jieqi_qiufen',
+	'jieqi_dongzhi',
+	'sanshiunited',
+	'germany',
+]);
+// 正文不带后天括注、但有星 / 座 / 宫名可加释义的技法(只进释义表)
+export const AI_EXPORT_MEANING_ONLY_TECHNIQUES = [
+	'zodialrelease',
+	'decennials',
+	'planetaryages',
 	'persiandirected',
 	'yearsystem129',
 	'balbillus',
@@ -463,18 +516,12 @@ export const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'bezzafigure',
 	'jayprofection',
 	'michon',
-	'jieqi',
-	'jieqi_meta',
-	'jieqi_chunfen',
-	'jieqi_xiazhi',
-	'jieqi_qiufen',
-	'jieqi_dongzhi',
-	'sanshiunited',
+	'timelords',
 	'guolao',
-	'germany',
-]);
+];
 export const AI_EXPORT_ASTRO_MEANING_TECHNIQUES = new Set([
 	...Array.from(AI_EXPORT_PLANET_INFO_TECHNIQUES),
+	...AI_EXPORT_MEANING_ONLY_TECHNIQUES,
 	'otherbu',
 	'qimen',
 	'liureng',
@@ -508,7 +555,9 @@ export const AI_EXPORT_TECHNIQUES = [
 	{ key: 'dwadasamsa', label: '十二分盘' },
 	{ key: 'harmonic', label: '调波盘' },
 	{ key: 'draconic', label: '龙盘' },
-	{ key: 'relocation', label: '换置盘' },
+	{ key: 'transformchart', label: '变换盘' },
+	{ key: 'zodiacsystems', label: '黄道制' },
+	{ key: 'relocation', label: '重置盘' },
 	{ key: 'locastro', label: '占星地图' },
 	{ key: 'mundane', label: '世俗盘' },
 	{ key: 'babylon', label: '巴比伦占星' },
@@ -544,6 +593,7 @@ export const AI_EXPORT_TECHNIQUES = [
 	{ key: 'bezzafigure', label: '星运-推运图' },
 	{ key: 'jayprofection', label: '星运-周日小限' },
 	{ key: 'michon', label: '星运-双黄道' },
+	{ key: 'timelords', label: '星运-时主轮转' },
 	{ key: 'bazi', label: '八字' },
 	{ key: 'ziwei', label: '紫微斗数' },
 	{ key: 'suzhan', label: '宿占' },
@@ -580,6 +630,8 @@ export const AI_EXPORT_TECHNIQUES = [
 	{ key: 'xianqin', label: '万化仙禽' },
 	{ key: 'cetian', label: '策天飞星' },
 	{ key: 'yizhangjing', label: '一掌经' },
+	{ key: 'dongya', label: '东亚诸术' },
+	{ key: 'zhufang', label: '诸方杂术' },
 	{ key: 'germany', label: '量化盘' },
 	{ key: 'jieqi', label: '节气盘' },
 	...JIEQI_SPLIT_TECHNIQUES,
@@ -618,13 +670,14 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// 选中时刻星盘=整张盘 headerless 并入的单一父段(审计修:右栏七页签判读底盘曾零快照)。
 	tianxing: ['起盘信息', '征象搜索配置', '征象条件', '命中区间', '选中时刻星盘'],
 	// 古典·衍化四段=本命盘专属 opt-in(builder options.classicalDerived;派生盘/嵌套消费方不产);世界范式盘=恒定教义默认关段。
-	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '古典·世界范式盘', '古典格局', '埃及历', '寿命格局', '可能性'],
+	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '盘面细节', '古典·世界范式盘', '古典格局', '埃及历', '寿命格局', '可能性'],
 	// [MU] '古典':buildIndiaSnapshotText 实测不产出该段头(死复选框,勾了永远空,无害不删内容)。
 	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha', '附加分盘',
 		// buildJyotishSnapshotLines 无条件派生段(约 40 段,条件产出⊆语义):此前未登记→自定义过 india 导出段的用户被静默删、纳入面板勾不到。
 		'Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）', '星曜状态', '分盘吉位 Vaiśeṣikāṁśa', '八分点 SAV', 'Sodhya Pinda 凝量', 'Shadbala 六力', 'Ishta/Kashta 吉凶果', 'Vimśopaka 分盘 20 分力', 'Hora 行星时', 'Choghadia 民用择时', '择时 Panchaka/Abhijit', 'Mūla 大运', 'Sudarśana Chakra 大运', 'Naisargika 自然大运', '补充上升（Supplementary Lagnas）', 'Nāḍī · Bhrigu Bindu 福点', 'Nāḍī · D150 纳地盘', 'Āyurdāya 寿命基础', '特殊上升 Special Lagnas', 'D60 六十分盘吉凶', '分盘变体对照', '功能吉凶（Functional Nature）', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '扩展大运（Conditional / Chara）', 'Kartari 夹击格局', 'Sudarshana 三盘（命/日/月起）', 'KP 宫头次主星 CSL', 'KP 意义者 Significators', 'KP 六级细分 / 当令星', '敌友（复合五分）', '行运 Gochara（从月·八分点）', '化解（信息·非处方）', 'Jaimini Argala 干涉', 'Tajika Harsha Bala', 'Tajika Pancha-Vargeeya', 'Tajika Mudda 年运', '行运 Gochara（从命）', '座运·X',
 		// A 类硬缺:Yoga 面板成立清单/副星本体位置(含外行星) 显示了却不入快照。
 		'瑜伽格局 Yogas', '副星 Upagraha',
+		'Yoga 判定表', '印占补充表', '穿界时刻',
 		// G2/G3/G4/G7/G1 新段(2026-07-21 KP 补齐;加段不升迁移版本)
 		'敏感点 Sphuta', '全吉盘 SBC', '问事 Praśna',
 		'Nāḍī · 行星组合(同座合)', 'Nāḍī · 星座交换', 'Nāḍī · 木星推进时间轴',
@@ -636,7 +689,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		// 流派开关挂载合同补齐的页面已显段(加段不升迁移版本):从日过运 / 过运×大运联动 / 年主 / 年 Yoginī / Patyāyinī
 		'行运 Gochara（从日）', '过运×大运联动', 'Tajika 年主', 'Tajika 年 Yoginī', 'Tajika Patyāyinī 年运'
 	],
-	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
+	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '盘面细节', '埃及历', '寿命格局', '可能性', '占星地图'],
 	// [YD 拆键] 六衍生盘独立段表:占星地图含[占星地图]段;其余五盘无该段。改黄道框架的四盘
 	// (hellenastro/dwadasamsa/harmonic/draconic)在派生分析 skip 名单(buildPayload skipClassical),
 	// 其 preset 不列「古典格局」——列了=死勾选项(独立复核咬出);relocation/locastro 不 skip 故保留。
@@ -644,13 +697,16 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	dwadasamsa: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性'],
 	harmonic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性', '调波盘'],
 	draconic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性', '龙盘'],
-	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '重置盘'],
-	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
-	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '恒星派入境', '吠陀世运', '世运卜卦', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '角化', '年之九主', '世运问判',
+	// 变换盘不产「可能性」(星落星座断语随变换后的位置而变,后端变换不跑推断;此前列着却恒无内容 = 勾了也没用)
+	transformchart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '变换盘'],
+	zodiacsystems: ['黄道制'],
+	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '盘面细节', '埃及历', '寿命格局', '可能性', '重置盘'],
+	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '盘面细节', '埃及历', '寿命格局', '可能性', '占星地图'],
+	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世运周期表', '恒星派入境', '吠陀世运', '世运卜卦', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '角化', '年之九主', '世运问判',
 		// 右栏其余卡折入快照(与 render*Card 同源;按需拉取物算过才成段)
 		'年盘概要', '四季入境盘', '新月图判读', '满月图判读', '日食图判读', '月食图判读', '食族 Saros', '天象占参考', '地区盘·12世俗宫', '时刻校正', '天气占星', '四轴特殊点', '会合指示星', '盘型格局', '世运恒星命中', '赤纬平行', '恒星派入境·概览', '吠陀世运·年度盘', '世运大运', 'KP 副主链', '天气与农业', '世运问判·得力明细', '木土纪元', '大年时代', 'Barbault 聚散指数', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性'],
 	// 时空中点/马克斯 独立段名(此前与组合盘/影响盘撞名,永远无法分选、导出不辨盘型)。
-	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '比较盘-星盘A', '比较盘-星盘B', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
+	relative: ['八重合', '关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '比较盘-星盘A', '比较盘-星盘B', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
 	// 星运族 21 键补厚三段(起盘信息/当前时点/方法说明,builder=astroAiSnapshot 共享 helper):
 	//   A 组(此前零盘境)加全三段;B/C 组生辰行并入既有 [本命盘配置](段内纯增,不撞 C 组 [起盘信息]=推运时间);
 	//   D/E 组已有生辰,只补 当前时点/方法说明;primarydirchart 三项天然齐全不动。
@@ -688,6 +744,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	bezzafigure: ['起盘信息', '推运图', '推运图位置', '推运图接触', '当前时点', '方法说明'],
 	jayprofection: ['起盘信息', '周日小限', '当前小限', '逐年小限', '当前时点', '方法说明'],
 	michon: ['起盘信息', '双黄道', '叠合', '互动', '当前时点', '方法说明'],
+	timelords: ['起盘信息', '时主轮转', '当前时段', '后续', '当前时点', '方法说明'],
 	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '五行力量', '格局·用神', '盲派结构', '月令司令（分野）', '干支合冲', '大运', '流年行运概略', '多运限·指定时段'],
 	// [Windows #80] '运限概览' = 无条件段(全大限表 + 当前流年/小限),与八字 '大运'/'流年行运概略' 对称;
 	//   '运限' 仍是条件段(挂载设置里显式选了年/月/日/时才产)。两段各自可勾。
@@ -887,7 +944,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	xianqin: ['起盘', '三宫', '三星·元辰', '大限', '流年小限', '神煞·待校', '衍生星', '十二宫', '吞啖合战', '情性与格局', '二十八宿禽', '十二宫顺序', '三元起宿', '合宿表', '科名月宿', '四季得时', '情性赋全表', '二十八宿正像', '吞啖合战规则', '贵贱赋摘要', '演法·流派', '演法·起禽', '演法·择日', '演法·占卜', '演法·投胎'],
 	cetian: ['起盘', '农历与命身', '四化', '飞星', '格局', '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮', '遷移宮', '交友宮', '官祿宮', '田宅宮', '福德宮', '父母宮', '男女宮', '奴僕宮', '妻妾宮', '相貌宮', '衣鉢宮', '徒弟宮', '本師宮', '小師宮', '人刀宮', '僧道宮', '遊行宮', '師號宮', '相品宮', '运限', '童限', '凶限提示', '会照', '流年飞星', '流年七煞', '十七飞星', '神煞·岁前', '神煞·岁后', '神煞·年干', '神煞·月煞', '三日宫', '廿八宿分野', '十干变曜', '杂曜', '断诀', '星曜别名', '阴阳宫', '星解与运限歌', '星曜属性', '正曜副曜', '宫干四化表', '飞化规则', '古法格局规则', '三合组'],
 	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '六宫框落宫', '赤纬接触', '校时预览', '中点坐标', '公式求解', '汉堡学派要素', '组合盘', '戴维森盘', '虚星参考'],   // 六宫框全表 / 赤纬接触 / 校时预览 / 公式求解
-	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '数理星历', '吉日历', '年历预测', '微黄道'],   // 三页签候选段(默认关);微黄道保持居末(v50 union 迁移锚)
+	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '数理星历', '吉日历', '年历预测', '天象实算', '微黄道'],   // 三页签候选段(默认关);微黄道保持居末(v50 union 迁移锚)
 	jieqi: ['节气盘参数', '二十四节气', '春分星盘', '春分宿盘', '春分3D盘', '夏至星盘', '夏至宿盘', '夏至3D盘', '秋分星盘', '秋分宿盘', '秋分3D盘', '冬至星盘', '冬至宿盘', '冬至3D盘'],
 	...JIEQI_SETTING_PRESETS,
 	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体', '骰子盘相位', '天象盘相位'],   // 两盘相位段
@@ -899,6 +956,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'十二宫与六亲宫', '六亲属相', '妻室姓氏', '玄机卦动爻', '八刻分命', '条文秘数查询', '性情项查询', '古籍未载之格'],
 	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '起卦详情', '大限·岁运', '流年·岁运', '断验'],   // 起卦详情 随 builder 段序
 	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '四世与权重', '人事十二宫寓意', '格局判定', '九品定格', '年上运程', '位置速断', '各柱逢星速断', '六道分布', '主星象义与星性', '重犯', '交互格', '职业适性', '大限', '童限', '小限与流年十二神', '流月流日流时', '流年总论', '叠断', '神煞合参', '诗文', '逐日值星', '时辰细断', '四柱文献'],
+	// 段名与 utils/eastAsiaSnapshot 的 [段头] 逐字一致(合同测试锁)
+	dongya: ['藏历', '藏占', '蒙古 Zurkhai', '算命学', '九星气学', '洛书流年', '易卦星盘'],
+	zhufang: ['玛雅历', '十三月亮历', '人类图', '灵名字母'],
 	// 黄历:段名与 NongLiMain.buildNongliSnapshotText 的 [X] 段头一一对应(v43;refresh-event 实时快照)。
 	// huangli/tongshu:段名与 huangliSnapshot/tongshuSnapshot 的 [X] 段头一一对应;
 	// 同时供导出(module:calendar-huangli/-tongshu 提取)与挂载内容勾选(此前 schema=null → 面板空白)。
@@ -927,8 +987,12 @@ AI_EXPORT_PRESET_SECTIONS.liurengzeri = [...(AI_EXPORT_PRESET_SECTIONS.liureng |
 AI_EXPORT_PRESET_SECTIONS.sanshizeri = [...(AI_EXPORT_PRESET_SECTIONS.sanshiunited || []), '择时搜索配置', '择时条件', '命中时段'];
 // 七政择日 = 七政快照段(guolao 段表单源自动跟随) + 择时三段(段头与 qizhengZeriSnapshot builder 🔒逐字成对)。
 AI_EXPORT_PRESET_SECTIONS.qizhengzeri = [...(AI_EXPORT_PRESET_SECTIONS.guolao || []), '择时搜索配置', '择时条件', '命中时段'];
-// 印度择日 = 择时三段自足(印度页 A 类星盘系无 module 快照槽,盘全文见主印度页——builder 段头🔒逐字成对)。
-AI_EXPORT_PRESET_SECTIONS.indiazeri = ['择时搜索配置', '择时条件', '命中时段'];
+// 印度择日 = 印占快照段(indiachart 段表单源自动跟随) + 择时三段(段头与 indiaZeriSnapshot builder 🔒逐字成对)。
+// 择日页内嵌的印占盘按宿主槽写「印占全文 + 择时三段」(与八字 / 紫微等择日宿主同律);段表只列三段时,
+// 用户一动勾选就只存下三段,印占正文整份被过滤掉。
+AI_EXPORT_PRESET_SECTIONS.indiazeri = [...(AI_EXPORT_PRESET_SECTIONS.indiachart || []), '择时搜索配置', '择时条件', '命中时段'];
+// 自定义过印度择日段的用户(此前只能勾三段)一次性并入印占段,与 v65 同一窗(本版才有印占正文进这个槽)。
+AI_EXPORT_V65_SECTION_UNION.indiazeri = [...(AI_EXPORT_PRESET_SECTIONS.indiachart || [])];
 
 // 自检用:返回所有「有 preset 段表」的技法 key。配合测试断言 preset key ⊆ AI_EXPORT_TECHNIQUES,
 // 堵住「有 preset 却没登记进 AI_EXPORT_TECHNIQUES → 在导出设置下拉隐身 + 不被 getAIExportAuditMatrix 自检」的回归

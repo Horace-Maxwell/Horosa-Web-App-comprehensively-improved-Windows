@@ -521,6 +521,7 @@ const EMBED_CALIBRE = {
 		yearShenShaSort: ex('只改六壬家右栏年神参考表与快照;择日条件的太岁神取神煞表'),
 		tuWangShuai: ex('只改六壬家旺衰 / 空亡判读;择日条件不判旺衰'),
 		outerCoord: ex('外圈坐标是显示'),
+		ascRaMode: ex('外圈赤道分宫的上升取法只改外圈显示;择日条件不读外圈'),
 		showWeakSolid: ex('虚实标记是显示'),
 		mode: ex('命局 / 事局只管这一盘存去哪,不改盘'),
 		faRelatedPeople: ex(`法奇门相关人是${SAME_CAST}`),

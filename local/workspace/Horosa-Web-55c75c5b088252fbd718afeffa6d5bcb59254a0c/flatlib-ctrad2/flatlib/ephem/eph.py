@@ -29,15 +29,20 @@ def getObject(ID, jd, lat, lon, flags=swe.SEDEFAULT_FLAG):
     """
     if ID == const.SOUTH_NODE:
         obj = swe.sweObject(const.NORTH_NODE, jd, flags)
+        # 南交是北交的对点:黄经、赤经各加 180°,黄纬、赤纬取反(连同速度)
         obj.update({
             'id': const.SOUTH_NODE,
             'lon': angle.norm(obj['lon'] + 180),
-            'ra': angle.norm(obj['ra'] + 180)
+            'lat': -obj['lat'],
+            'latspeed': -obj['latspeed'],
+            'ra': angle.norm(obj['ra'] + 180),
+            'decl': -obj['decl'],
+            'declspeed': -obj['declspeed'],
         })
     elif ID == const.PARS_FORTUNA:
         pflon = tools.pfLon(jd, lat, lon, flags)
-        ra = utils.eqCoords(pflon, 0)
-        realra = ra[0] if ra[0] >= 0 else (ra[0] +  360) % 360
+        ra = swe.eclipticToEquatorial(pflon, 0.0, swe.trueObliquity(jd), swe.tropicalOffset(jd, flags))   # 恒星盘先加回岁差
+        realra = ra[0]
         obj = {
             'id': ID,
             'lon': pflon,
@@ -51,8 +56,8 @@ def getObject(ID, jd, lat, lon, flags=swe.SEDEFAULT_FLAG):
         }
     elif ID == const.PURPLE_CLOUDS:
         pclon = tools.pcLon(jd, lat, lon, flags)
-        pcRA = utils.eqCoords(pclon, 0)
-        realra = pcRA[0] if pcRA[0] >= 0 else (pcRA[0] + 360) % 360
+        pcRA = swe.eclipticToEquatorial(pclon, 0.0, swe.trueObliquity(jd), swe.tropicalOffset(jd, flags))
+        realra = pcRA[0]
         obj = {
             'id': ID,
             'lon': pclon,

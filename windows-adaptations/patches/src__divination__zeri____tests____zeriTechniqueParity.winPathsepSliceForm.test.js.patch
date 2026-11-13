@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js b/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
-index 4c8662ef..57ae2ad9 100644
+index 7c7a8b1c..a6d5058a 100644
 --- a/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
 +++ b/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
-@@ -612,17 +612,38 @@ describe('内嵌页口径 × 扫描口径:四个内嵌页的每个可改键都
+@@ -613,17 +613,38 @@ describe('内嵌页口径 × 扫描口径:四个内嵌页的每个可改键都
  	});
  
  	test('锁定的控件在内嵌页里置灰,宿主把锁定表交给内嵌页;锁定判据带控件当前值(与控件 value 同一表达式)', ()=>{
@@ -43,7 +43,7 @@ index 4c8662ef..57ae2ad9 100644
  			});
  			// 全文件不许有不带当前值 / 不带存案标记的锁定判据
  			expect(t.match(/zeriLockProps\(this\.props\.zeriLocked, '\w+'\)/g)).toBe(null);
-@@ -780,7 +801,10 @@ function dayBoundaryScanFiles(){
+@@ -781,7 +802,10 @@ function dayBoundaryScanFiles(){
  		if(!/^\.\.?\//.test(r.from)){ return; }
  		const base = path.join(path.dirname(rel(r.file)), r.from);
  		const f = fs.existsSync(`${base}.js`) ? `${base}.js` : (fs.existsSync(path.join(base, 'index.js')) ? path.join(base, 'index.js') : null);

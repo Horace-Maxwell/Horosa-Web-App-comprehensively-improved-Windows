@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/MidpointMain.js b/astrostudyui/src/components/germany/MidpointMain.js
-index b0c1bd1a..b978b6cc 100644
+index 685dc148..897b1a93 100644
 --- a/astrostudyui/src/components/germany/MidpointMain.js
 +++ b/astrostudyui/src/components/germany/MidpointMain.js
 @@ -12,6 +12,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';

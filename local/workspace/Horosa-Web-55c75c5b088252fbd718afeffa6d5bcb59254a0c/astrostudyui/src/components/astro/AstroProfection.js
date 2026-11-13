@@ -65,6 +65,8 @@ class AstroProfection extends Component{
 				tmType: 'y',
 				nodeRetrograde: DIRECTION_PAGE_SETTINGS.load().nodeRetrograde,   // 上次亲手设的值(星运族共用)
 				asporb: transitOrbDefault(),
+				// 首次请求就带本命盘的古典口径与容许度(与 genNatalParams 同源);不带的话第一张推运盘按出厂口径算,换一次盘才对上
+				...natalClassicalParams(qryparam),
 			},
 			dirChart: null,
 			// G9:小限粒度(年/月/日,默认年=现状) + 起点(上升默认)。纯前端摘要,不影响后端年盘请求。

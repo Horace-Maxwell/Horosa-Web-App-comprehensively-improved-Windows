@@ -3,7 +3,7 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from './SZConst';
-import { gcj02ToGps, randomStr } from '../../utils/helper';
+import { randomStr } from '../../utils/helper';
 import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -12,6 +12,7 @@ import { XQSelect as Select } from '../xq-ui';
 import { SU28_MODE_GROUPS } from '../guolao/guolaoData';
 import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { setStoredGuolaoSu28Mode } from '../guolao/GuoLaoChartStyle';
+import { SUZHAN_ASC_SETTINGS, ASC_RA_MODE_OPTIONS, normalizeAscRaMode } from '../../utils/ascRaMode';
 
 const {Option} = Select;
 
@@ -28,6 +29,11 @@ class SuZhanInput extends Component{
 		this.onGenderChange = this.onGenderChange.bind(this);
 		this.onDoubingSu28Change = this.onDoubingSu28Change.bind(this);
 		this.onHouseStartModeChange = this.onHouseStartModeChange.bind(this);
+		this.onAscRaModeChange = this.onAscRaModeChange.bind(this);
+		// 上升取法(ASC 起盘时才起作用):上次亲手选的,没存过 = 改进(真赤经)
+		this.state = {
+			ascRaMode: normalizeAscRaMode(SUZHAN_ASC_SETTINGS.load().ascRaMode),
+		};
 
 		let type = localStorage.getItem('suzhanChartType');
 		if(type !== undefined && type !== null){
@@ -151,6 +157,18 @@ class SuZhanInput extends Component{
 		}
 	}
 
+	onAscRaModeChange(val){
+		const mode = normalizeAscRaMode(val);
+		// 只读嵌入(分至页内的宿盘)不显示这个下拉;防御起见也不落盘
+		if(!this.props.embeddedReadOnly){
+			SUZHAN_ASC_SETTINGS.save({ ascRaMode: mode });
+		}
+		this.setState({ ascRaMode: mode });
+		if(this.props.onAscRaModeChange){
+			this.props.onAscRaModeChange(mode);
+		}
+	}
+
 	changeGeo(rec){
 		if(this.props.onFieldsChange){
 			const payload = {
@@ -266,9 +284,14 @@ class SuZhanInput extends Component{
 						<Option value={SZConst.SZHouseStart_ASC}>ASC起盘</Option>
 					</Select>
 				</Col>
-				<Col lg={12} xl={8} style={{textAlign: 'right'}}>
-					<span style={{width:'100%', textAlign: 'center'}}>{fields.lon.value + ' ' + fields.lat.value}</span>
-				</Col>
+				{/* 上升取法只在 ASC 起盘时起作用(八字公式起盘不读上升赤经);节气页内嵌的只读宿盘跟随宿占页的设置,不显示 */}
+				{houseStartMode === SZConst.SZHouseStart_ASC && !this.props.embeddedReadOnly ? (
+					<Col lg={12} xl={8}>
+						<Select value={this.state.ascRaMode} onChange={this.onAscRaModeChange} size='small' style={{width:'100%'}} title='上升取法:改进 = 上升点真赤经;经典 = 旧版取的东点黄经'>
+							{ASC_RA_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>上升·{o.label}</Option>))}
+						</Select>
+					</Col>
+				) : null}
 			</Row>
 			</div>
 		);

@@ -19,7 +19,7 @@ const cn = (k) => (PLANETS[k] || {}).cn || k;
 const short = (k) => ({ sun: '日', moon: '月', mercury: '水', venus: '金', mars: '火', jupiter: '木', saturn: '土' })[k] || k;
 
 const tableStyle = { width: '100%', fontSize: 12, borderCollapse: 'collapse', textAlign: 'center' };
-const cellB = { padding: '3px 5px', borderTop: '1px dashed rgba(148,163,184,.2)' };
+const cellB = { padding: '3px 5px', borderTop: '1px dashed var(--horosa-border)' };
 
 // 迦勒底序(慢→快)行星时环:任一日第 1 时=值日星,逐时进一位。
 const CHALDEAN_HOUR_RING = ['saturn', 'jupiter', 'mars', 'sun', 'venus', 'mercury', 'moon'];

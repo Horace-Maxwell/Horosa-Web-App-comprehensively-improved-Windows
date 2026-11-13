@@ -174,6 +174,13 @@ public class AcgController {
 		if(TransData.containsParam("ccgMix")) {
 			params.put("ccgMix", TransData.get("ccgMix"));
 		}
+		// 日食路径(出生前 / 后最近一次日食;缺省不下发 = 关)
+		if(TransData.containsParam("eclipse")) {
+			params.put("eclipse", TransData.get("eclipse"));
+		}
+		if(TransData.containsParam("eclipseFilter")) {
+			params.put("eclipseFilter", TransData.get("eclipseFilter"));
+		}
 		// 关系盘(davison/composite/synastry)+ B 盘出生数据
 		if(TransData.containsParam("relMode")) {
 			params.put("relMode", TransData.get("relMode"));

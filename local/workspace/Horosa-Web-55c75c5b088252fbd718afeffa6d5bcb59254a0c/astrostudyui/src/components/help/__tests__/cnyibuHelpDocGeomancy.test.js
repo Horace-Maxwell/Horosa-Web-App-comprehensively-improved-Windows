@@ -1,27 +1,24 @@
-// 卜·其他 帮助文档:两层页签结构 + 逐技法渲染冒烟 + 地占章内容锚点 + 禁词洁净。
+// 卜·其他 帮助文档:HelpBook 结构 + 逐章渲染冒烟 + 地占章内容锚点 + 禁词洁净。
 //
 // 🔴 三个坑决定了本文件的写法:
 //   ① 帮助文档是**惰性挂载的抽屉**,JSX 写坏只在用户点开帮助那一刻才炸 —— 故须有渲染冒烟。
-//   ② 改两层页签后,正文改由 groups[].items[].render **按需**构建:整篇 render() 只构造
-//      当前所选那一项。旧写法「渲染整篇即等于构造了全部章节」**不再成立** —— 故本文件
-//      改为逐技法各调一次 render 方法,把冒烟覆盖面显式补回来(否则十五章里十四章失守)。
+//   ② HelpBook 只构建当前那一章:整篇 render() 不等于构造了全部章节 —— 故本文件逐章各调一次 render,
+//      把冒烟覆盖面显式补回来(否则十五章里十四章失守)。
 //   ③ 内容锚点仍查源文而非渲染串:确定性高,且能同时守住「文案里不得混进 HTML 标签」。
+//      地占章 = 源文里 `function chGeomancy(` 到下一个顶层 `function` 之间。
 import React from 'react';
 import fs from 'fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import CnyibuHelpDoc from '../CnyibuHelpDoc';
+import CnyibuHelpDoc, { HELP_BOOK } from '../CnyibuHelpDoc';
+import { bookChapters } from '../HelpBook';
+import { CNYIBU_SUBTABS } from '../../../constants/SubTabRegistry';
 
 const SRC = fs.readFileSync(require.resolve('../CnyibuHelpDoc'), 'utf8');
 const GEO = (() => {
-	const i = SRC.indexOf('\trenderGeomancy(){');
-	const j = SRC.indexOf('\trenderGuice(){', i);
+	const i = SRC.indexOf('\nfunction chGeomancy(');
+	const j = SRC.indexOf('\nfunction ', i + 1);
 	return SRC.slice(i, j);
 })();
-
-// 十五子技法 + 总览,逐一对应一个 render 方法(顺序照 CNYIBU_SUBTABS 之外的可读顺序)
-// Tarot 章已迁 TarotHelpDoc(塔罗升一级,2026-08-15);其冒烟由 helpDocsGuard 总闸按 registry 键覆盖。
-const CHAPTERS = ['Overview', 'Suzhan', 'Jinkou', 'Xiaoliuren', 'Wuzhao', 'Taixuan', 'Jingjue', 'Lingqi',
-	'Tongshefa', 'Huangji', 'Guice', 'Xiaochengtu', 'Feigong', 'Shenyishu', 'Geomancy'];
 
 describe('卜·其他 帮助文档 · 结构与地占章', () => {
 	test('整篇渲染不抛且非空(默认落在总览)', () => {
@@ -31,35 +28,30 @@ describe('卜·其他 帮助文档 · 结构与地占章', () => {
 		expect(html).toContain('其他术数 · 操作手册');
 	});
 
-	test('🔴 十五章逐一可渲染且非空壳(惰性构建后必须逐章冒烟;塔罗章已迁 TarotHelpDoc 2026-08-15)', () => {
-		const inst = new CnyibuHelpDoc({});
+	test('🔴 十五章逐一可渲染且非空壳(HelpBook 惰性构建后必须逐章冒烟;塔罗章已迁 TarotHelpDoc)', () => {
 		const thin = [];
-		CHAPTERS.forEach((name) => {
-			const fn = inst[`render${name}`];
-			expect([name, typeof fn]).toEqual([name, 'function']);
+		bookChapters(HELP_BOOK).forEach((c) => {
+			expect([c.key, typeof c.render]).toEqual([c.key, 'function']);
 			let html = '';
-			expect(() => { html = renderToStaticMarkup(<div>{fn.call(inst)}</div>); }).not.toThrow();
-			if (html.length < 600) { thin.push(`${name}:${html.length}`); }
+			expect(() => { html = renderToStaticMarkup(<div>{c.render()}</div>); }).not.toThrow();
+			if (html.length < 2000) { thin.push(`${c.key}:${html.length}`); }
 		});
 		expect(thin).toEqual([]);
 	});
 
-	test('两层页签配置齐备:四大类共十五项,键唯一且与 render 方法一一对应(塔罗已升一级)', () => {
-		const inst = new CnyibuHelpDoc({});
-		const groups = renderToStaticMarkup.length >= 0 ? inst.render().props.children[1].props.groups : null;
-		expect(Array.isArray(groups)).toBe(true);
-		expect(groups.length).toBe(4);
-		const items = groups.reduce((acc, g) => acc.concat(g.items), []);
-		expect(items.length).toBe(15);
-		expect(new Set(items.map((it) => it.key)).size).toBe(15);
-		items.forEach((it) => {
-			expect([it.key, typeof it.render]).toEqual([it.key, 'function']);
-			expect([it.key, typeof it.label === 'string' && it.label.length > 0]).toEqual([it.key, true]);
+	test('章节齐备:总览 + 十四子技法,键唯一且与运行时子页签键一一对应(塔罗已升一级)', () => {
+		const chapters = bookChapters(HELP_BOOK);
+		expect(chapters.length).toBe(15);
+		const keys = chapters.map((c) => c.key);
+		expect(new Set(keys).size).toBe(15);
+		expect(keys[0]).toBe('overview');
+		expect(keys.filter((k) => k !== 'overview').sort()).toEqual([...CNYIBU_SUBTABS].sort());
+		chapters.forEach((c) => {
+			expect([c.key, typeof c.label === 'string' && c.label.length > 0]).toEqual([c.key, true]);
 		});
 	});
 
 	test('地占章确已切出且体量合理(改动不至于把整章削掉)', () => {
-		// 现况约 16.9k 字符 / 258 行;阈值留余量,只防「整章被削掉」这一类事故
 		expect(GEO.length).toBeGreaterThan(14000);
 		expect(GEO.split('\n').length).toBeGreaterThan(200);
 	});
@@ -83,7 +75,7 @@ describe('卜·其他 帮助文档 · 结构与地占章', () => {
 
 	test('🔴 文案里不得混进 HTML 标签(误写即原样显示给用户)', () => {
 		const bad = [];
-		GEO.split('\n').forEach((line, i) => {
+		SRC.split('\n').forEach((line, i) => {
 			const m = line.match(/'((?:[^'\\]|\\.)*)'/g) || [];
 			m.forEach((s) => {
 				if (/<\/?(?:td|tr|div|span|p|b|em|strong|ul|li)\b/.test(s)) { bad.push(`${i + 1}: ${s.slice(0, 60)}`); }

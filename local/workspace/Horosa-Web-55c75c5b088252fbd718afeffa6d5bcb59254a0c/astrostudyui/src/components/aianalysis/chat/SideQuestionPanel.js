@@ -74,7 +74,7 @@ export default function SideQuestionPanel({ open, initialQuestion, onClose, deps
 					{busy ? <Button size="small" onClick={()=>{ if(abortRef.current){ abortRef.current.abort(); } }}>停止</Button> : null}
 					<Button size="small" disabled={!`${q || ''}`.trim() || busy} onClick={()=>{ if(typeof onMainline === 'function'){ onMainline(`${q}`.trim()); } }} data-side-mainline="1">转入主线</Button>
 				</div>
-				<div data-side-answer="1" style={{ whiteSpace: 'pre-wrap', minHeight: 80, padding: 8, border: '1px dashed var(--horosa-border, #e5e7eb)', borderRadius: 8, color: answer ? 'inherit' : 'var(--horosa-text-soft, #8a8f99)' }}>{answer || '答案只显示在这里,关掉就没了。'}</div>
+				<div data-side-answer="1" style={{ whiteSpace: 'pre-wrap', minHeight: 80, padding: 8, border: '1px solid var(--horosa-border, #e5e7eb)', borderRadius: 8, color: answer ? 'inherit' : 'var(--horosa-text-soft, #8a8f99)' }}>{answer || '答案只显示在这里,关掉就没了。'}</div>
 			</div>
 		</Drawer>
 	);

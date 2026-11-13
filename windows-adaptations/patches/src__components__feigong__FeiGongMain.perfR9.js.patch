@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
-index 138afe3a..562c8093 100644
+index 6275ee89..30829496 100644
 --- a/astrostudyui/src/components/feigong/FeiGongMain.js
 +++ b/astrostudyui/src/components/feigong/FeiGongMain.js
 @@ -18,6 +18,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'

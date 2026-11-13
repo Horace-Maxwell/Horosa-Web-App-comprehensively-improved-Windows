@@ -11,6 +11,8 @@ import { normalizeTechniqueKey, getTechniqueAliasList } from './techniqueKey';
 import { hashPromptText } from './contextLayers';
 import { toSlashDate } from '../dateStrSafe';
 import { registerProcessCache } from '../processCacheRegistry';
+import { chartOrbOverridesFromFields, chartOrbSignature } from '../classicalChartGlobals';
+import { getTechniqueSettingsSchema } from '../techniqueMountSettings';
 
 function normalizeDateText(value){
 	const raw = `${value || ''}`.trim();
@@ -263,12 +265,34 @@ export function getTechniqueSnapshotFromCache(moduleName, source){
 			meta: snapshot.meta || {},
 			// 出生签名之外再比全局口径签名:改过「星盘设置」全局口径/日界偏好后,带旧签名的模块快照不再直喂;
 			// 无签名的旧存量(升级前写的)不拦(部分技法只有页面能产快照,拦了会退化为 missing),其后页面一重算即带签。
-			compatible: isCacheSnapshotConfidentMatch(snapshot.meta, source) && isModuleSnapshotCalibreCurrent(snapshot),
+			compatible: isCacheSnapshotConfidentMatch(snapshot.meta, source) && isModuleSnapshotCalibreCurrent(snapshot)
+				&& isModuleSnapshotOrbCurrent(moduleName, snapshot, source),
 			fromPayload: false,
 			specificity: Math.max(2, 40 - idx),
 		};
 	}).filter(Boolean);
 	return pickSnapshotCandidate(candidates);
+}
+
+// 容许度口径:页面快照是按页面当时的容许度(逐星表 + 整体倍率)算的相位;挂载自己的口径是「整体倍率随存盘记录、
+// 逐星表只在齿轮里打开『沿用本盘自定义容许度』时才用」。两边对不上就不复用,由调用方按挂载口径重算 —— 否则同一张盘
+// 走复用是页面容许度下的相位、走重算是挂载口径下的相位。只管挂载设置里带容许度项的技法;没打签的旧快照不拦。
+export function mountOrbSignatureOf(record){
+	// recordFields 反过来依赖本文件(源签名):用到时再取,不在模块顶层互相引用
+	const { buildFieldObject } = require('./recordFields');
+	return chartOrbSignature(chartOrbOverridesFromFields(buildFieldObject(record || {})));
+}
+function techniqueUsesChartOrb(moduleName){
+	const schema = getTechniqueSettingsSchema(normalizeTechniqueKey(moduleName));
+	return !!(schema && Array.isArray(schema.fields) && schema.fields.some((f)=>f && f.name === 'orbScale'));
+}
+function isModuleSnapshotOrbCurrent(moduleName, snapshot, source){
+	if(!snapshot || typeof snapshot.orbSig !== 'string'){ return true; }
+	if(!source || source.sourceType !== 'chart' || !source.record){ return true; }
+	let uses = false;
+	try{ uses = techniqueUsesChartOrb(moduleName); }catch(e){ uses = false; }
+	if(!uses){ return true; }
+	try{ return snapshot.orbSig === mountOrbSignatureOf(source.record); }catch(e){ return true; }
 }
 
 function isModuleSnapshotCalibreCurrent(snapshot){

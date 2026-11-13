@@ -18,7 +18,8 @@ const TabPane = Tabs.TabPane;
 
 // 「择日」主导航模块宿主。布局**逐字照抄辅盘**(horosa-auxchart-page/-layout/-tabs 三类
 // 复用其整条高度链与栏位链,用户明令勿自创);差异仅两点,均锁 .horosa-zeri-host 作用域:
-//   ① 无底部 QuickDock → layout 的 64px dock 行去掉(app.less zeri 覆盖条)
+//   ① 宿主层自己没有底部 QuickDock → layout 的 64px dock 行去掉(app.less zeri 覆盖条);
+//      内嵌的技法盘页照主页面带各自的快捷栏(主页面有就有:奇门 / 太乙 / 紫微 / 六壬 / 三式 / 七政 / 印度)
 //   ② 右栏(征象搜索区)大屏加宽(app.less 6850 区 zeri 覆盖条)
 // 新增择日技法在 ZERI_SUBTABS + 此处 TabPane 成对追加。
 export default class ZeriMain extends Component{

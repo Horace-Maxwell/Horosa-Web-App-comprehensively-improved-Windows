@@ -9,6 +9,7 @@ import ZWCommHouse from './ZWCommHouse';
 import D3Arrow from '../graph/D3Arrow';
 import { drawTextV, drawDashLine, } from '../graph/GraphHelper';
 import { formatLonDms, formatLatDms } from '../astro/AstroHelper';   // 中宫经纬度按度分秒显示
+import { formatZoneLabel } from '../../utils/zoneText';   // 中宫时区按 UTC±HH:MM 显示
 import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:河洛一六共宗连线
 
 // 中宫文本按可用宽自适应。
@@ -170,9 +171,23 @@ class ZWCenterHouse extends ZWCommHouse {
 			// 塞进 chart.lon/lat,直接拼出来就是 119.31666666666666 这种(用户实报「不要变成一长串」)。
 			// 非数值(已格式化过的串/缺值)原样保留,不二次加工。
 			const geoNum = (v)=>(v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
-			metaLines.push('时区：' + chart.zone
-				+ '；经度：' + (geoNum(chart.lon) ? formatLonDms(chart.lon) : chart.lon)
-				+ '；纬度：' + (geoNum(chart.lat) ? formatLatDms(chart.lat) : chart.lat));
+			const zoneSeg = '时区：' + (formatZoneLabel(chart.zone) || chart.zone);
+			const geoSeg = '经度：' + (geoNum(chart.lon) ? formatLonDms(chart.lon) : chart.lon)
+				+ '；纬度：' + (geoNum(chart.lat) ? formatLatDms(chart.lat) : chart.lat);
+			// 一行放得下就一行;放不下拆成两行,不靠「…」截掉经纬度(截掉的是数据,不是修饰)。
+			// 宽度按字估:汉字与全角标点 1 字宽、其余约 0.56 字宽;缩到 0.72 倍字号仍超宽才拆。
+			const estWidth = (str)=>Array.from(`${str}`).reduce((sum, ch)=>sum + (ch.charCodeAt(0) > 0x2e7f ? 1 : 0.56), 0) * u * 0.92;
+			const oneLine = zoneSeg + '；' + geoSeg;
+			// 借用本中宫的盘里有不带经纬度的(按农历入式、与地点无关):经纬度两项都没有就只写时区,不拼一串「—」
+			const geoBlank = (v)=>(v === undefined || v === null || `${v}`.trim() === '' || `${v}`.trim() === '—');
+			if(geoBlank(chart.lon) && geoBlank(chart.lat)){
+				metaLines.push(zoneSeg);
+			}else if(estWidth(oneLine) * 0.72 > bw){
+				metaLines.push(zoneSeg);
+				metaLines.push(geoSeg);
+			}else{
+				metaLines.push(oneLine);
+			}
 			const ygl = nongli.yearGZByLunar;
 			if(ygl && bz && bz.year && ygl !== bz.year.ganzi){ metaLines.push('初一口径年柱：' + ygl); }
 			if(this.yearDoujun){ metaLines.push(this.yearDoujun); }

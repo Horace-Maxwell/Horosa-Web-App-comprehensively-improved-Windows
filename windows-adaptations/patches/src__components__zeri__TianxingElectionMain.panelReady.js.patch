@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/zeri/TianxingElectionMain.js b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-index 56e5d31f..31b1f84f 100644
+index 5499c8a8..d416af42 100644
 --- a/astrostudyui/src/components/zeri/TianxingElectionMain.js
 +++ b/astrostudyui/src/components/zeri/TianxingElectionMain.js
 @@ -21,6 +21,8 @@ import AstroKlimata from '../astro/AstroKlimata';
@@ -52,7 +52,7 @@ index 56e5d31f..31b1f84f 100644
  	}
  
  	componentWillUnmount(){
-@@ -297,15 +329,29 @@ export default class TianxingElectionMain extends Component{
+@@ -294,15 +326,29 @@ export default class TianxingElectionMain extends Component{
  	renderRight({ chart, fields, patchFields }){
  		this._patchFields = patchFields;
  		const chartObj = chart;
@@ -83,7 +83,7 @@ index 56e5d31f..31b1f84f 100644
  					<AstroInfo mode="summary" height={tabHeight}
  						value={chartObj} fields={fields}
  						planetDisplay={this.props.planetDisplay}
-@@ -313,8 +359,10 @@ export default class TianxingElectionMain extends Component{
+@@ -310,8 +356,10 @@ export default class TianxingElectionMain extends Component{
  						showAstroMeaning={this.props.showAstroMeaning}
  						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  					/>
@@ -94,7 +94,7 @@ index 56e5d31f..31b1f84f 100644
  					<AstroAspect
  						value={chartObj} height={tabHeight}
  						lotsDisplay={this.props.lotsDisplay}
-@@ -322,8 +370,10 @@ export default class TianxingElectionMain extends Component{
+@@ -319,8 +367,10 @@ export default class TianxingElectionMain extends Component{
  						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  						showAstroMeaning={this.props.showAstroMeaning}
  					/>
@@ -105,7 +105,7 @@ index 56e5d31f..31b1f84f 100644
  					<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  						<AstroPlanet
  							value={chartObj}
-@@ -336,8 +386,10 @@ export default class TianxingElectionMain extends Component{
+@@ -333,8 +383,10 @@ export default class TianxingElectionMain extends Component{
  							<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  						</div>
  					</div>
@@ -116,7 +116,7 @@ index 56e5d31f..31b1f84f 100644
  					<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
  						<AstroInfo mode="classical" height={tabHeight}
  							value={chartObj} fields={fields}
-@@ -357,23 +409,30 @@ export default class TianxingElectionMain extends Component{
+@@ -354,23 +406,30 @@ export default class TianxingElectionMain extends Component{
  							<AstroKlimata value={chartObj} fields={fields} />
  						</div>
  					</div>
@@ -147,7 +147,7 @@ index 56e5d31f..31b1f84f 100644
  				</TabPane>
  			</XQTabs>
  		);
-@@ -468,13 +527,7 @@ export default class TianxingElectionMain extends Component{
+@@ -469,13 +528,7 @@ export default class TianxingElectionMain extends Component{
  					scanEpoch={this._scanEpoch || 0}
  					frozenTree={this._scanUiTree}
  					resultsStale={!!(this.state.results && this._scanUiJson && this.currentUiJson() !== this._scanUiJson)}

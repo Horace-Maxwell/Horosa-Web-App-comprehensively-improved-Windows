@@ -4,6 +4,7 @@
 // ① 7 气候带固定常量(带/城/纬度/最长昼),高亮当前纬度所在带;② 当前纬度 12 座斜升时度(闭式,座和=360);
 // ③ 巨蟹至射手半圆上升时度(= 15 × 最长昼)标当前带。气候带为地理/术语固定值;中性表述。
 import { Component } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { SmallTable } from './AstroExtraCommon';
 import { SIGN_CN } from '../../divination/data/hellenisticData';
 import { buildBands, readLatDeg, currentBandIndex, obliqueAscensions, toSiderealHour, OBLIQUITY } from '../../utils/astroClassicalDerived';
@@ -45,7 +46,7 @@ class AstroKlimata extends Component{
 						<span className="horosa-classical-zh">七气候带</span>
 						<span className="horosa-classical-en">Klimata · 斜升时间</span>
 					</span>
-					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起' : '展开'}<XQToggleCaret open={open} /></span>
 				</div>
 				{open ? (
 					<div style={{ marginTop: 8 }}>

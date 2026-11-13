@@ -248,6 +248,7 @@ export function resolveActiveContext(){
 		{ label: '推运图', key: 'bezzafigure', name: '星运-推运图' },
 		{ label: '周日小限', key: 'jayprofection', name: '星运-周日小限' },
 		{ label: '双黄道', key: 'michon', name: '星运-双黄道' },
+		{ label: '时主轮转', key: 'timelords', name: '星运-时主轮转' },
 	];
 	const predictiveByTop = predictiveLabelMap.find((item)=>topLabel && topLabel.includes(item.label));
 	if(predictiveByTop){
@@ -355,7 +356,9 @@ export function resolveActiveContext(){
 			{ label: '占星地图', key: 'locastro', name: '占星地图' },
 			{ label: '调波盘', key: 'harmonic', name: '调波盘' },
 			{ label: '龙盘', key: 'draconic', name: '龙盘' },
-			{ label: '换置盘', key: 'relocation', name: '换置盘' },
+			{ label: '变换盘', key: 'transformchart', name: '变换盘' },
+			{ label: '黄道制', key: 'zodiacsystems', name: '黄道制' },
+			{ label: '重置盘', key: 'relocation', name: '重置盘' },
 			{ label: '骰子', key: 'otherbu', name: '骰子' },
 			{ label: '量化盘', key: 'germany', name: '量化盘' },
 		];
@@ -492,7 +495,8 @@ export function resolveActiveContext(){
 			return context;
 		}
 
-		if(subLabel.includes('六壬')){
+		// 「小六壬」含「六壬」二字:不排除就被判成大六壬(小六壬页点导出拿到大六壬正文)。留给下方统称键,由页签 key 精确定位
+		if(subLabel.includes('六壬') && !subLabel.includes('小六壬')){
 			context.key = 'liureng';
 			context.domain = 'liureng';
 			context.displayName = '大六壬';
@@ -548,7 +552,9 @@ export function resolveActiveContext(){
 		const subPane = getDirectActivePane(subTabs) || topPane;
 		context.scopeRoot = subPane;
 		context.subLabel = subLabel;
-		if(subLabel.includes('八字')){
+		// 「八字规则」是速查页,不是八字盘:不排除就被判成八字(没开过八字页时点导出报「没有可导出文本」,开过则导出八字盘),
+		// 与同组的八卦类象 / 十二串宫(都按辅助页处理)不一致
+		if(subLabel.includes('八字') && !subLabel.includes('规则')){
 			context.key = 'bazi';
 			context.displayName = '八字';
 			return context;
@@ -596,6 +602,8 @@ export function resolveContextByAstroState(){
 			decennials: { key: 'decennials', displayName: '星运-十年大运', domain: 'predictive_raw' },
 			planetaryages: { key: 'planetaryages', displayName: '星运-行星年龄', domain: 'predictive_raw' },
 			prog: { key: 'prog', displayName: '星运-二次推运', domain: 'predictive_raw' },
+			// 「推运」页签的 key 是 progressions(页面快照模块是 prog):不登记就回落到主限法,推运页点导出拿到主限法正文
+			progressions: { key: 'prog', displayName: '星运-二次推运', domain: 'predictive_raw' },
 			vedicprog: { key: 'vedicprog', displayName: '星运-恒星推运', domain: 'predictive_raw' },
 			jaynesprog: { key: 'jaynesprog', displayName: '星运-赤纬推运', domain: 'predictive_raw' },
 			planetaryarc: { key: 'planetaryarc', displayName: '星运-行星弧', domain: 'predictive_raw' },
@@ -610,15 +618,18 @@ export function resolveContextByAstroState(){
 			bezzafigure: { key: 'bezzafigure', displayName: '星运-推运图', domain: 'predictive_raw' },
 			jayprofection: { key: 'jayprofection', displayName: '星运-周日小限', domain: 'predictive_raw' },
 			michon: { key: 'michon', displayName: '星运-双黄道', domain: 'predictive_raw' },
+			timelords: { key: 'timelords', displayName: '星运-时主轮转', domain: 'predictive_raw' },
 		};
 		const auxchartMap = {
 			germanytech: { key: 'germany', displayName: '量化盘' },
 			hellenastro: { key: 'hellenastro', displayName: '十三分盘' },
-			// 十二分盘/谐波盘/黄道分盘/换置盘 皆由本命盘派生的占星式衍生盘,导出复用星盘式预设。
+			// 十二分盘 / 调波盘 / 龙盘 / 重置盘 皆由本命盘派生的占星式衍生盘,导出复用星盘式预设(显示名与辅盘页签同名)。
 			dwadasamsa: { key: 'dwadasamsa', displayName: '十二分盘' },
-			harmonic: { key: 'harmonic', displayName: '谐波盘' },
-			draconic: { key: 'draconic', displayName: '黄道分盘' },
-			relocation: { key: 'relocation', displayName: '换置盘' },
+			harmonic: { key: 'harmonic', displayName: '调波盘' },
+			draconic: { key: 'draconic', displayName: '龙盘' },
+			transformchart: { key: 'transformchart', displayName: '变换盘' },
+			zodiacsystems: { key: 'zodiacsystems', displayName: '黄道制' },
+			relocation: { key: 'relocation', displayName: '重置盘' },
 			locastro: { key: 'locastro', displayName: '占星地图' },
 			otherbu: { key: 'otherbu', displayName: '骰子' },
 			mundane: { key: 'mundane', displayName: '世俗盘' },
@@ -718,6 +729,12 @@ export function resolveContextByAstroState(){
 			const mingTech = getRuntimeKinAstroTechnique('mingother');
 			if(mingTech === 'yizhangjing'){
 				return KINASTRO_EXPORT_CONTEXTS.yizhangjing;
+			}
+			if(mingTech === 'dongya'){
+				return KINASTRO_EXPORT_CONTEXTS.dongya;
+			}
+			if(mingTech === 'zhufang'){
+				return KINASTRO_EXPORT_CONTEXTS.zhufang;
 			}
 			// 演禽页签在命·其他内激活时 runtime 技法=xianqin,此前只认一掌经、其余回策天 → 导出拿到策天盘。
 			if(mingTech === 'xianqin'){
@@ -879,6 +896,8 @@ const KINASTRO_EXPORT_CONTEXTS = {
 	heluo: { key: 'heluo', displayName: '河洛理数' },
 	zhengchuan: { key: 'zhengchuan', displayName: '神数正传' },   // 原生·模块快照（非 kentang）
 	yizhangjing: { key: 'yizhangjing', displayName: '一掌经' },
+	dongya: { key: 'dongya', displayName: '东亚诸术' },   // 原生·模块快照(前端本地计算)
+	zhufang: { key: 'zhufang', displayName: '诸方杂术' },   // 原生·模块快照(人类图 / 灵名走后端)
 };
 
 function getRuntimeKinAstroTechnique(group){

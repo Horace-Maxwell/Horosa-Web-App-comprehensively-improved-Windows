@@ -322,7 +322,7 @@ def sweObject(obj, jd, flags=SEDEFAULT_FLAG):
     sweObj = SWE_OBJECTS[obj]
     applySiderealMode()
     sweList = swisseph.calc_ut(jd, sweObj, flags)[0]
-    newflags = flags | SEFLG_EQUATORIAL
+    newflags = equatorialFlags(flags)
     eqlist = swisseph.calc_ut(jd, sweObj, newflags)[0]
     ra = eqlist[0] if eqlist[0] >= 0 else (eqlist[0] + 360) % 360
 
@@ -359,6 +359,40 @@ def sweNextTransit(obj, jd, lat, lon, flag):
     trans = swisseph.rise_trans(jd, sweObj, flag, (lon, lat, 0.0))
     return trans[1][0]
 
+
+
+# === 黄道 → 赤道 / 地平(单一来源) === #
+
+def equatorialFlags(flags):
+    """取赤经赤纬用的标志:一律本日真春分点,不带恒星标志。
+    swisseph 的「恒星 + 赤道」组合返回平春分点值(不含章动),与四轴、宫头、福点(真春分点)差约 16″ 赤经、8″ 赤纬;
+    赤道坐标本来就与黄道制无关。回归盘的标志原样不变。"""
+    return (flags & ~SEFLG_SIDEREAL) | SEFLG_EQUATORIAL
+
+
+def tropicalOffset(jd, flags):
+    """恒星黄道的黄经加上它即回归黄经(swisseph 起恒星盘时减掉的那个岁差值,含章动);回归黄道为 0。
+    赤经赤纬、方位高度都按回归(本日真春分点)黄道换算,恒星盘直接拿恒星黄经去算会差一个岁差。"""
+    if not flags or not (flags & SEFLG_SIDEREAL):
+        return 0.0
+    applySiderealMode()
+    return swisseph.get_ayanamsa_ex_ut(jd, flags | SEFLG_SIDEREAL)[1]
+
+
+def trueObliquity(jd):
+    """本日真黄赤交角(含章动),与 swisseph 给行星算赤经赤纬用的是同一个。"""
+    return swisseph.calc_ut(jd, swisseph.ECL_NUT, 0)[0][0]
+
+
+def eclipticToEquatorial(lon, lat, eps, offset=0.0):
+    """黄道坐标(恒星盘的 lon 配 offset)→ (赤经 0..360, 赤纬)。"""
+    ra, decl, _ = swisseph.cotrans((angle.norm(lon + offset), lat, 1.0), -eps)
+    return angle.norm(ra), decl
+
+
+def horizontal(jd, geopos, lon, lat, offset=0.0, pressure=1000, temperature=20):
+    """黄道坐标 → swisseph azalt(方位, 真高度, 视高度)。lon 是恒星黄经时配 offset。"""
+    return swisseph.azalt(jd, swisseph.ECL2HOR, geopos, pressure, temperature, (angle.norm(lon + offset), lat, 0))
 
 
 # === Houses and angles === #
@@ -452,25 +486,23 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
         # 与 hsysFallback 同法:逐宫带标记(House.__dict__ 直出前端),盘面信息卡 / AI 快照据 houses[0].polarMc 出徽记。
         for house in houses:
             house['polarMc'] = _polarMc
+    # 宫头与四轴都是黄道上的点(黄纬 0):赤经赤纬按本日真黄赤交角换算,恒星盘先加回岁差。
+    # 旧写法用固定 23.44°,恒星盘直接拿恒星黄经算;四轴还把「赤道上升点」当上升赤经、把地理纬度当上升赤纬、
+    # 把它反推出的黄纬套到其余三轴上 —— 上升赤纬恒等于出生纬度,天顶赤经也不等于 ARMC。
+    _offset = 0.0 if flag in (0, swisseph.FLG_RADIANS) else tropicalOffset(jd, SEFLG_SIDEREAL)
+    _eps = trueObliquity(jd)
     for house in houses:
-        eqcod = swisseph.cotrans([house['lon'], 0, 1], const.ECLI2EQ_OBLIQUITY)
-        house['ra'] = eqcod[0]
-        house['decl'] = eqcod[1]
+        house['ra'], house['decl'] = eclipticToEquatorial(house['lon'], 0.0, _eps, _offset)
 
     descLon = angle.norm(ascmc[0] + 180)
     icLon = angle.norm(ascmc[1] + 180)
 
-    ascEclip = swisseph.cotrans([ascmc[4], lat, 1], const.EQ2ECLI_OBLIQUITY)
-    descRA= swisseph.cotrans([descLon, ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
-    mcRA = swisseph.cotrans([ascmc[1], ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
-    icRA = swisseph.cotrans([icLon, ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
-
-    angles = [
-        {'id': const.ASC, 'lon': ascmc[0], 'lat': ascEclip[1], 'ra': ascmc[4], 'decl': lat},
-        {'id': const.DESC, 'lon': descLon, 'lat': ascEclip[1], 'ra': descRA[0], 'decl': descRA[1]},
-        {'id': const.MC, 'lon': ascmc[1], 'lat': ascEclip[1], 'ra': mcRA[0], 'decl': mcRA[1]},
-        {'id': const.IC, 'lon': icLon, 'lat': ascEclip[1], 'ra': icRA[0], 'decl': icRA[1]}
-    ]
+    angles = []
+    for aid, alon in ((const.ASC, ascmc[0]), (const.DESC, descLon), (const.MC, ascmc[1]), (const.IC, icLon)):
+        ra, decl = eclipticToEquatorial(alon, 0.0, _eps, _offset)
+        angles.append({'id': aid, 'lon': alon, 'lat': 0.0, 'ra': ra, 'decl': decl})
+    # 赤道类盘(二十八宿 / 宿占 / 节气盘 / 七政赤仪)「上升起盘」的经典档:沿用旧版当作上升赤经下发的 ascmc[4](东点的黄经)
+    angles[0]['eastPointLon'] = ascmc[4]
     return (houses, angles)
     
 def sweHousesLon(jd, lat, lon, hsys, flag=0):
@@ -547,7 +579,7 @@ def sweFixedStar(star, jd, flags=SEDEFAULT_FLAG):
     applySiderealMode()
     sweList = _fixstarUtCached(star, jd, flags)
     mag = _fixstarMagCached(star)
-    newflags = flags | SEFLG_EQUATORIAL
+    newflags = equatorialFlags(flags)
     eqlist = _fixstarUtCached(star, jd, newflags)
     ra = eqlist[0] if eqlist[0] >= 0 else (eqlist[0] + 360) % 360
     try:
@@ -570,7 +602,7 @@ def sweFixedStarSu28(star, jd, flags=SEDEFAULT_FLAG):
     applySiderealMode()
     sweList = _fixstarUtCached(star, jd, flags)
     mag = _fixstarMagCached(star)
-    newflags = flags | SEFLG_EQUATORIAL
+    newflags = equatorialFlags(flags)
     eqlist = _fixstarUtCached(star, jd, newflags)
     ra = eqlist[0] if eqlist[0] >= 0 else (eqlist[0] + 360) % 360
     idx = const.LIST_FIXED_SU28.index(star)

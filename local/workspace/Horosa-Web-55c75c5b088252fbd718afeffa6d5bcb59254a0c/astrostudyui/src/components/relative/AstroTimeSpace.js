@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import AstroChartMain from '../astro/AstroChartMain';
 import { paramsToFields } from './relativeFields';
+import RelativeStageEmpty from './RelativeStageEmpty';
 
 class AstroTimeSpace extends Component{
 	constructor(props) {
@@ -40,6 +41,9 @@ class AstroTimeSpace extends Component{
 		let resobj = this.state.result;
 		if(resobj){
 			fields = paramsToFields(resobj.params, this.props.fields);
+		}
+		if(!resobj){
+			return <RelativeStageEmpty height={height}>选好星盘 A 与星盘 B 并排盘后显示时空中点盘</RelativeStageEmpty>;
 		}
 
 		return (

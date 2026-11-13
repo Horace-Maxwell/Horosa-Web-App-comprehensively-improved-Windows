@@ -1,7 +1,10 @@
 // 风水 · 理气/水法/大卦/形势/择日 统一工作区（十一派 左参数 / 中SVG盘 / 右断事）。自含 state + useMemo 实时重算。
 // 与户型图两法(canvas)互斥;选纯前端流派时由 FengShuiMain 渲染本组件。
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { XQSelect, XQSegmented } from '../xq-ui';
+import { XQSelect, XQSegmented, XQInputNumber } from '../xq-ui';
+import { XQCurrentMark } from '../xq-icons';
+import CompactTimeField from '../comp/CompactTimeField';
+import DateTime from '../comp/DateTime';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // horosa_luopan_dial_viewport_cap_v1:罗盘直径按可视高度封顶
 import LuoshuGrid from './charts/LuoshuGrid';
 import TwentyFourShanRing from './charts/TwentyFourShanRing';
@@ -102,6 +105,8 @@ export const LIQI_UNAVAILABLE_HINT = {
 	mingli: '命理派以命配宅:在左栏填写命主出生年(与性别)即排盘',
 	default: '左栏参数不全,补齐后即排盘',
 };
+
+const ON_OFF_USE = [{ value: 'off', label: '不用' }, { value: 'on', label: '启用' }];
 
 export default function LiqiWorkspace({ school, geo = null, active = true }) {
 	// 中栏可用面积量测:综合罗经按 min(宽,高) 打满可视区(不超屏、不留大片空白)。
@@ -251,11 +256,29 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 		if (!Number.isFinite(n)) { return d; }
 		return String(Math.max(1, Math.min(daysInMonthOf(y, m), Math.trunc(n))));
 	}
+	// 数字框走全站数字输入(步进箭头 / 主题 / 焦点环与别页一致);对外仍是字符串口径:清空回 ''。
 	function numField(label, value, onCh, extra = {}, key) {
+		const n = (value === '' || value === null || value === undefined || !Number.isFinite(Number(value))) ? null : Number(value);
 		return (
 			<label key={key} className="horosa-fengshui-liqi-field"><span>{label}</span>
-				<input type="number" value={value} onChange={(e)=>onCh(e.target.value)} {...extra} /></label>
+				<XQInputNumber value={n} onChange={(v)=>onCh(v === null || v === undefined ? '' : `${v}`)} {...extra} /></label>
 		);
+	}
+	// 日期走全站时间组件(单击弹编辑器、双击键入;只选日期)。未填(月 / 日为空)= 不启用,先给一个开关。
+	// 不用 <label> 包:标签会把点击再转发给里面的触发块,弹层一开即关。
+	function dateField(label, y, m, d, onPick, key) {
+		const dt = new DateTime();
+		dt.setDateTime(Number(y) || dt.year, Number(m) || 1, Number(d) || 1, 0, 0, 0);
+		return (
+			<div key={key} className="horosa-fengshui-liqi-field horosa-fengshui-liqi-date"><span>{label}</span>
+				<CompactTimeField label="" hint="" noAdjust needZone={false} showTime={false} value={dt}
+					timeText={dt.format('YYYY-MM-DD')}
+					onChange={(res)=>{ const t = res && res.time; if(t){ onPick(t.year, t.month, t.date); } }} /></div>
+		);
+	}
+	function todayMD() {
+		const now = new Date();
+		return { m: `${now.getMonth() + 1}`, d: `${now.getDate()}` };
 	}
 
 	function renderParams() {
@@ -298,10 +321,12 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 			return (<>
 				{numField('年份', year, (v)=>setYear(+v || year))}
 				{numField('流月(0=不显)', month, (v)=>setMonth(Math.max(0, Math.min(12, +v || 0))), { min: 0, max: 12 })}
-				<div className="horosa-fengshui-liqi-subhead">日/时紫白（填月日）</div>
-				{numField('月', zbDate.m, (v)=>setZbDate({ ...zbDate, m: v }), { min: 1, max: 12 })}
-				{numField('日', zbDate.d, (v)=>setZbDate({ ...zbDate, d: v }), { min: 1, max: daysInMonthOf(year, zbDate.m), onBlur: (e)=>setZbDate({ ...zbDate, d: clampDay(year, zbDate.m, e.target.value) }) })}
-				{numField('时(0-23,空=不显)', zbDate.hour, (v)=>setZbDate({ ...zbDate, hour: v }), { min: 0, max: 23 })}
+				<div className="horosa-fengshui-liqi-subhead">日/时紫白</div>
+				{segField('日紫白', (zbDate.m && zbDate.d) ? 'on' : 'off', ON_OFF_USE,
+					(v)=>setZbDate(v === 'on' ? { ...zbDate, ...todayMD() } : { m: '', d: '', hour: '' }))}
+				{(zbDate.m && zbDate.d) ? dateField('日期', year, zbDate.m, clampDay(year, zbDate.m, zbDate.d),
+					(y, m, d)=>{ setYear(y); setZbDate({ ...zbDate, m: `${m}`, d: `${d}` }); }, 'zb-date') : null}
+				{(zbDate.m && zbDate.d) ? numField('时(0-23,空=不显)', zbDate.hour, (v)=>setZbDate({ ...zbDate, hour: v }), { min: 0, max: 23 }) : null}
 			</>);
 		}
 		if (school === 'bazhai') {
@@ -465,8 +490,10 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 				{numField('主命年（相主·空=不评）', zr.zhuYear, (v)=>setZr({ ...zr, zhuYear: v }), { min: 1900, max: 2100 })}
 				{segField('主命性别', zr.zhuMale ? 'm' : 'f', [{ value: 'm', label: '男' }, { value: 'f', label: '女' }], (v)=>setZr({ ...zr, zhuMale: v === 'm' }))}
 				<div className="horosa-fengshui-liqi-subhead">候选日课（造命/日课）</div>
-				{numField('月', zr.m, (v)=>setZr({ ...zr, m: v }), { min: 1, max: 12 })}
-				{numField('日', zr.d, (v)=>setZr({ ...zr, d: v }), { min: 1, max: daysInMonthOf(zr.year, zr.m), onBlur: (e)=>setZr({ ...zr, d: clampDay(zr.year, zr.m, e.target.value) }) })}
+				{segField('候选日课', (zr.m && zr.d) ? 'on' : 'off', ON_OFF_USE,
+					(v)=>setZr(v === 'on' ? { ...zr, ...todayMD() } : { ...zr, m: '', d: '' }))}
+				{(zr.m && zr.d) ? dateField('日期', zr.year, zr.m, clampDay(zr.year, zr.m, zr.d),
+					(y, m, d)=>setZr({ ...zr, year: y, m: `${m}`, d: `${d}` }), 'zr-date') : null}
 				{segField('深化（用事/紫白/三步/斗首）', zr.showDeep ? 'on' : 'off', [{ value: 'off', label: '不用' }, { value: 'on', label: '启用' }], (v)=>setZr({ ...zr, showDeep: v === 'on' }))}
 				{zr.showDeep ? (<>
 					{sel('用事（十四事）', zr.yongShi, [{ value: '', label: '（不定）' },
@@ -967,7 +994,7 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 			{result.huangquan ? card('黄泉八煞', <>{result.huangquan.baYao ? row('八曜煞', result.huangquan.baYao.text, 'bad') : null}{result.huangquan.siDa ? result.huangquan.siDa.map((s, i)=>row(`四大黄泉${i + 1}`, s.text, 'bad')) : row('四大黄泉', '本向无', '')}</>) : null}
 			{result.shuiFa13 ? card(`十三水法（${result.shuiFa13.ju}·${result.shuiFa13.source}）`, <>
 				<div className="horosa-fengshui-liqi-note">{result.shuiFa13.head}</div>
-				{result.shuiFa13.rows.map((r)=>row(`${r.no}. ${r.name}${result.shuiFa13Cur && result.shuiFa13Cur.no === r.no ? '　◀当前' : ''}`,
+				{result.shuiFa13.rows.map((r)=>row(result.shuiFa13Cur && result.shuiFa13Cur.no === r.no ? <>{`${r.no}. ${r.name}`}<span style={{ marginLeft: 6 }}><XQCurrentMark />当前</span></> : `${r.no}. ${r.name}`,
 					r.text, result.shuiFa13Cur && result.shuiFa13Cur.no === r.no ? (r.jx === 'neutral' ? '' : r.jx) : '', `sf-${r.no}`))}
 				<div className="horosa-fengshui-liqi-note">{result.shuiFa13.ji}　{result.shuiFa13.xiangFaNote}</div>
 				{result.shuiFa13.derived ? <div className="horosa-fengshui-liqi-note">{result.shuiFa13.deriveNote}</div> : null}
@@ -983,11 +1010,11 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 		return (<>
 			{card(`${result.year}年 紫白（入中 ${result.yearCenterStar}）`, result.yearPalaces.map((p)=>row(`${p.name} ${p.gua}`, `${p.starName} ${p.jx === 'good' ? '吉' : '凶'}`, p.jx)))}
 			{result.monthPalaces ? card(`${result.month}月 流月紫白（入中 ${result.monthCenterStar}）`, result.monthPalaces.map((p)=>row(`${p.name} ${p.gua}`, `${p.starName} ${p.jx === 'good' ? '吉' : '凶'}`, p.jx))) : null}
-			{result.dayInfo ? card(`日紫白（${result.dayInfo.dayGanZhi}·${result.dayInfo.yang ? '阳遁' : '阴遁'}·入中${result.dayInfo.center}）`, result.dayPalaces.map((p)=>row(`${p.name}`, `${p.starName}`, p.jx))) : null}
+			{result.dayInfo ? card(`日紫白（${result.dayInfo.dayGanZhi}·${result.dayInfo.yang ? '阳遁' : '阴遁'}${result.dayInfo.yuanName ? `${result.dayInfo.yuanName}` : ''}·入中${result.dayInfo.center}）`, result.dayPalaces.map((p)=>row(`${p.name}`, `${p.starName}`, p.jx))) : null}
 			{result.hourInfo ? card(`时紫白（${result.hourInfo.shiZhi}时·入中${result.hourInfo.center}）`, result.hourPalaces.map((p)=>row(`${p.name}`, `${p.starName}`, p.jx))) : null}
-			{/* 日紫白须月+日同填、时紫白再须时——只填其一时右栏不出卡，此处明说还缺什么，免得被当成控件无效。 */}
+			{/* 日紫白要先启用并选日期、时紫白再须时——未启用时右栏不出卡，此处明说还缺什么，免得被当成控件无效。 */}
 			{(!result.dayInfo || !result.hourInfo) ? card('日 / 时 紫白', <>
-				{row('日紫白', result.dayInfo ? '已出（见上卡）' : `需同时填「月」与「日」——现${zbDate.m ? '' : '缺月、'}${zbDate.d ? '' : '缺日'}${zbDate.m && zbDate.d ? '（已齐）' : ''}`)}
+				{row('日紫白', result.dayInfo ? '已出（见上卡）' : '在左栏把「日紫白」切到启用并选定日期')}
 				{row('时紫白', result.hourInfo ? '已出（见上卡）' : '需先出日紫白，再填「时(0-23)」')}
 			</>) : null}
 			{card('紫白诀', result.jue.map((j, i)=>row(`诀${i + 1}`, j.text)))}
@@ -1173,9 +1200,9 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 				</>);
 			})()}
 			{result.course ? card(`日课（${result.course.dayGanZhi}）`, <>{row('建除', result.course.jianChu.name, result.course.jianChu.jx)}{row('黄黑道', `${result.course.huangHei.shen}·${result.course.huangHei.dao}`, result.course.huangHei.jx)}{row('值宿', `${result.course.xiu.name}宿（${result.course.xiu.xiang}）`, result.course.xiu.jx)}</>) : null}
-			{/* 日课与造命都须月+日齐备；来龙/主命再决定四纲评几纲。未齐时明说缺什么。 */}
+			{/* 日课与造命都须先启用候选日课并选日期；来龙/主命再决定四纲评几纲。未启用时明说缺什么。 */}
 			{!result.zaoming ? card('日课 / 杨公造命', <>
-				{row('尚缺', `${zr.m ? '' : '「月」'}${(!zr.m && !zr.d) ? '与' : ''}${zr.d ? '' : '「日」'}——填齐后出建除·黄黑道·值宿日课与造命四纲评分`)}
+				{row('尚缺', '候选日课未启用——在左栏切到启用并选定日期后，出建除·黄黑道·值宿日课与造命四纲评分')}
 				{row('来龙（补龙）', zr.laiLong ? `已设 ${zr.laiLong}（待日期齐备后评）` : '未设 → 造命不评补龙纲')}
 				{row('主命（相主）', zr.zhuYear ? `已设 ${zr.zhuYear} ${zr.zhuMale ? '男' : '女'}（待日期齐备后评）` : '未设 → 造命不评相主纲')}
 			</>) : null}
@@ -1311,7 +1338,7 @@ export function buildSnapshot(school, r) {   // 具名导出供快照单测(页�
 		L.push(`${r.year}年入中${r.yearCenterStar}`);
 		L.push(r.yearPalaces.map((p)=>`${p.name}${p.starName}${p.jx === 'good' ? '吉' : '凶'}`).join(' '));
 		if (r.monthPalaces) { L.push(`${r.month}月入中${r.monthCenterStar}`); }
-		if (r.dayInfo) { L.push(`日紫白${r.dayInfo.dayGanZhi}入中${r.dayInfo.center}(${r.dayInfo.yang ? '阳遁' : '阴遁'})`); }
+		if (r.dayInfo) { L.push(`日紫白${r.dayInfo.dayGanZhi}入中${r.dayInfo.center}(${r.dayInfo.yang ? '阳遁' : '阴遁'}${r.dayInfo.yuanName || ''})`); }
 		if (r.hourInfo) { L.push(`时紫白${r.hourInfo.shiZhi}时入中${r.hourInfo.center}`); }
 	} else if (school === 'bazhai') {
 		L.push(`坐${r.zuoGua}${r.zhaiGroup}` + (r.mingGua ? ` · 命卦${NUM_GUA[r.mingGua] || r.mingGua}${r.mingGroup}${r.match ? '·' + r.match.text : ''}` : ''));

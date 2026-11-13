@@ -40,6 +40,9 @@ import { buildSuzhanSnapshotText } from '../../components/suzhan/SuZhanMain';
 import { SZChart as SZChartDefaults } from '../../components/suzhan/SZConst';
 import { buildGermanySnapshotForFields } from '../../components/germany/AstroMidpoint';
 import { buildFieldObject, pickKin, kinDayBoundary, kinGenderOverride } from './recordFields';
+import { buildEastAsiaSnapshotText, eastAsiaParamsFromFields } from '../eastAsiaSnapshot';
+import { zhufangParamsFromFields, localZhufangModel, zhufangSnapshotLines } from '../zhufangArts';
+import { fetchZhufangRemote } from '../zhufangRemote';
 import {
 	buildChartBaziParams, buildChartZiweiParams, buildZhengChuanSnapshotForRecord, buildCanpingSnapshotForRecord,
 	buildHeluoSnapshotForRecord, buildYizhangjingSnapshotForRecord, fetchChartResultForRecord,
@@ -58,8 +61,8 @@ import { toSlashDate, datePartOf } from '../dateStrSafe';
 // 宿占事盘:存档 payload.options(szchart/szshape/doubingSu28/houseStartMode)打底进 fields,
 // 记录平铺键(齿轮 merge 写入)再覆盖 —— 此前事盘拨任一齿轮走 A 路重算只读 record.*,四键恒退默认与存档盘不同口径。
 // 派生盘聚合键读取的模块快照名(辅盘页 saveDerivedAstroSnapshot 出盘即存;占星地图 ACG 不存模块快照,暂不含)。
-export const ASTRO_LIKE_DERIVED_MODULES = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation'];
-const ASTRO_LIKE_DERIVED_LABELS = { hellenastro: '十三分盘', dwadasamsa: '十二分盘', harmonic: '调波盘', draconic: '龙盘', relocation: '重置盘' };
+export const ASTRO_LIKE_DERIVED_MODULES = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems'];
+const ASTRO_LIKE_DERIVED_LABELS = { hellenastro: '十三分盘', dwadasamsa: '十二分盘', harmonic: '调波盘', draconic: '龙盘', relocation: '重置盘', transformchart: '变换盘', zodiacsystems: '黄道制' };
 export function buildAstroLikeContext(source, key, label){
 	const parts = [];
 	const matched = [];
@@ -78,7 +81,7 @@ export function buildAstroLikeContext(source, key, label){
 	const content = parts.join('\n\n');
 	const hint = content ? '' : (stale.length
 		? '辅盘页所存派生盘不属本命主,请在辅盘页以本命主重新出盘'
-		: '请先在辅盘页出十三分盘/十二分盘/调波盘/龙盘/重置盘(出盘即自动存快照)');
+		: '请先在辅盘页出十三分盘/十二分盘/调波盘/龙盘/重置盘/变换盘/黄道制(出盘即自动存快照)');
 	return {
 		key,
 		title: label,
@@ -130,6 +133,10 @@ export function suzhanFieldsForRecord(record){
 				fo[k] = { value: (k === 'doubingSu28' || k === 'houseStartMode') ? Number(oo[k]) : oo[k] };
 			}
 		});
+	}
+	// 上升取法(挂载齿轮写进记录的平铺键):有就带进 fields,快照按它换上升点;没有 = 跟宿占页现值(buildSuzhanSnapshotText 自读)
+	if(record && (record.ascRaMode === 'improved' || record.ascRaMode === 'classic')){
+		fo.ascRaMode = { value: record.ascRaMode };
 	}
 	return fo;
 }
@@ -259,7 +266,8 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 		case 'neroman':
 		case 'bezzafigure':
 		case 'jayprofection':
-		case 'michon': {
+		case 'michon':
+		case 'timelords': {
 			// 推运图族四法:请求型(/astroextra/<接口>)。挂载齿轮字段名 = 星运页保存键 → 同一映射取 opts;
 			// 齿轮未改的键为 undefined,builder 回落星运页保存值(与页面同口径)。目标时刻空 = 本盘时区今日 12:00。
 			const chartObj = await fetchChartResultForRecord(record);
@@ -300,7 +308,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			// 波斯向运：黄经象征向运(1°/年,宫头不动)，应期 hit-list 纯前端算术，读本命盘。
 			// 挂载齿轮可调 速率/方向/应期年数 → record.* → opts（未改时 undefined，builder 回默认 persian/direct/90=现状）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (buildPersianDirectedSnapshotText(chartObj, { rateKey: record.rateKey, direction: record.direction, maxYears: record.maxYears }) || '') : '';
+			return chartObj ? (buildPersianDirectedSnapshotText(chartObj, { rateKey: record.rateKey, direction: record.direction, maxYears: record.maxYears, persianYear: record.persianYear }) || '') : '';
 		}
 		case 'jaynesprog': {
 			// Jayne 赤纬推运：推运后看赤纬平行/反平行。内部 fetch /astroextra/jaynesprog。
@@ -507,6 +515,22 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			// 河洛理数（数算）：纯前端，按本盘出生四柱起先后天卦 + 大限 + 命运篇判断。
 			// 挂载齿轮可调 取化工法 → record.quHuaGong → opts（未改时 undefined，builder 走 st=null 月支近似=现状）。
 			return await buildHeluoSnapshotForRecord(record, { quHuaGong: record.quHuaGong });
+		case 'dongya': {
+			// 东亚诸术(其他/命):纯前端按出生资料重算;易卦星盘读本命盘星位,取不到就只少那一段
+			// dongyaFenyeVersion / dongyaIchingMerge 记录缺键时已由入口 fillPageBoundDefaults 按东亚页保存值补上
+			let chartObj = null;
+			try{ chartObj = await fetchChartResultForRecord(record); }catch(e){ chartObj = null; }
+			return buildEastAsiaSnapshotText(eastAsiaParamsFromFields(buildFieldObject(record)), chartObj,
+				{ fenyeVersion: record.dongyaFenyeVersion, ichingMerge: record.dongyaIchingMerge, flowYear: record.dongyaFlowYear });
+		}
+		case 'zhufang': {
+			// 诸方杂术:玛雅历 / 十三月亮历本地算;人类图 / 灵名字母请后端,取不到时这两段写「未算出」
+			// 三个口径字段记录缺键时已由入口 fillPageBoundDefaults 按诸方页保存值补上(下面的 || 只兜坏值)
+			const zfParams = zhufangParamsFromFields(buildFieldObject(record));
+			const zfSettings = { mayanCorrelation: Number(record.mayanCorrelation) || 584283, hdTrueNode: record.hdTrueNode, spiritQuadrant: Number(record.spiritQuadrant) || 1 };
+			const zfRemote = await fetchZhufangRemote(zfParams, zfSettings);
+			return zhufangSnapshotLines(localZhufangModel(zfParams, zfSettings), zfRemote, zfSettings).join('\n');
+		}
 		case 'yizhangjing':
 			// 一掌经（其他/命）：纯前端；挂载齿轮可调十项流派开关 → record.* → opts（未改回秘传默认）。
 			return await buildYizhangjingSnapshotForRecord(record, {

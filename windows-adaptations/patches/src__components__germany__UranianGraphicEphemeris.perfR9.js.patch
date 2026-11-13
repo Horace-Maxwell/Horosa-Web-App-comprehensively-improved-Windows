@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
-index 5c802103..36a6c8f7 100644
+index 32487b74..c05dcb87 100644
 --- a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 +++ b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 @@ -1,5 +1,6 @@
@@ -8,8 +8,8 @@ index 5c802103..36a6c8f7 100644
 +import { markPanelReady } from '../../utils/perfMark';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import moment from 'moment';
- import { Radio, Spin, Empty, Checkbox, Select } from 'antd';
-@@ -156,7 +157,11 @@ export default class UranianGraphicEphemeris extends Component {
+ import { Spin, Empty } from 'antd';
+@@ -158,7 +159,11 @@ export default class UranianGraphicEphemeris extends Component {
  			const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
  			if (!res) { settleTrigger(this, 'requestData', ephemTrig, false); }   // request 吞错 resolve 空 → 同参允许重试
  			const rows = res && Array.isArray(res.dailyPositions) ? res.dailyPositions : [];

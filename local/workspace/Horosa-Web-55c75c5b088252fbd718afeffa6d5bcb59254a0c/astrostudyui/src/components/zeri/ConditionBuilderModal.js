@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { Modal, Dropdown, Menu, message } from 'antd';
-import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
+import { XQButton, XQSelect, XQCheckItem, XQInput } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
 import { getHousesOption } from '../comp/CompHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -11,12 +12,14 @@ import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { conditionSummary } from '../../divination/zeri/conditionGlyph';
 import { fetchChart } from '../../services/astro';
 import AstroChart from '../astro/AstroChart';
-import { clientToFixed } from '../../utils/zoomDomain';
+import ZeriFloatPanel from './ZeriFloatPanel';
 import {
 	listSchemes, saveScheme, deleteScheme, listHistory,
 	renameScheme, exportSchemes, importSchemes,
 } from '../../divination/zeri/schemeStore';
 import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2 } from './zeriTreeOps';
+import { ZERI_WB_TOP_STYLE, ZERI_WB_COND_BODY_STYLE } from './zeriWorkbenchLayout';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -27,7 +30,6 @@ const OptGroup = XQSelect.OptGroup;
 // 点「开始搜索」切换到结果视图(进度/区间表/点击行跳盘),「返回条件」回工作台。
 // ── R4 概览浮窗:可拖拽(标题栏)/可缩放(右下角)的迷你盘,fixed 于视口,不关结果表 ──
 function MiniChartPopup({ params, title, onClose, display }){
-	const [box, setBox] = useState({ x: 110, y: 56, w: 680, h: 740 });   // 默认足够展开完整盘(用户实测 520 挤)
 	const [chartObj, setChartObj] = useState(null);
 	const [err, setErr] = useState('');
 	useEffect(() => {
@@ -41,59 +43,27 @@ function MiniChartPopup({ params, title, onClose, display }){
 		}).catch((e) => { if(!dead){ setErr(e.message || '排盘失败'); } });
 		return () => { dead = true; };
 	}, [JSON.stringify(params)]);
-	const dragFrom = (e, mode) => {
-		e.preventDefault();
-		e.stopPropagation();
-		const start = { mx: e.clientX, my: e.clientY, ...box };
-		const move = (ev) => {
-			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
-			const dx = clientToFixed(ev.clientX - start.mx);
-			const dy = clientToFixed(ev.clientY - start.my);
-			if(mode === 'drag'){
-				setBox((b) => ({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
-			}else{
-				setBox((b) => ({ ...b, w: Math.max(320, start.w + dx), h: Math.max(360, start.h + dy) }));
-			}
-		};
-		const up = () => {
-			document.removeEventListener('mousemove', move);
-			document.removeEventListener('mouseup', up);
-		};
-		document.addEventListener('mousemove', move);
-		document.addEventListener('mouseup', up);
-	};
 	return (
-		<div style={{
-			position: 'fixed', left: box.x, top: box.y, width: box.w, height: box.h,
-			zIndex: 2100, background: 'var(--horosa-astro-panel, #fff)', borderRadius: 10,
-			border: '1px solid rgba(148,163,184,.45)', boxShadow: '0 12px 40px rgba(0,0,0,.28)',
-			display: 'flex', flexDirection: 'column', overflow: 'hidden',
-		}}>
-			<div onMouseDown={(e) => dragFrom(e, 'drag')}
-				style={{ cursor: 'move', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,.25)', userSelect: 'none' }}>
-				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {title}</span>
-				<span style={{ flex: 1 }} />
-				<span onMouseDown={(e) => e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
-			</div>
-			<div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-				{chartObj ? (
-					<div style={{ position: 'absolute', inset: 0 }}>
-						<AstroChart value={chartObj}
-							wheelArt={(display || {}).wheelArt}	/* 🔴 函数组件禁用类式 props 访问(此处曾误写类式取 wheelArt——浮窗一开即崩 TypeError,用户实报;盘式经 previewDisplay 通道) */
-							chartDisplay={(display || {}).chartDisplay}
-							planetDisplay={(display || {}).planetDisplay}
-							lotsDisplay={(display || {}).lotsDisplay}
-							showAstroMeaning={(display || {}).showAstroMeaning} />
-					</div>
-				) : (
-					<div style={{ padding: 20, color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{err || '排盘中…'}</div>
-				)}
-			</div>
-			<div onMouseDown={(e) => dragFrom(e, 'resize')}
-				style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize',
-					background: 'linear-gradient(135deg, transparent 50%, rgba(148,163,184,.6) 50%)' }} />
-		</div>
+		<ZeriFloatPanel
+			initialBox={{ x: 110, y: 56, w: 680, h: 740 }}	/* 默认足够展开完整盘(520 偏挤) */
+			minW={320}
+			minH={360}
+			onClose={onClose}
+			title={`概览 · ${title}`}
+		>
+			{chartObj ? (
+				<div style={{ position: 'absolute', inset: 0 }}>
+					<AstroChart value={chartObj}
+						wheelArt={(display || {}).wheelArt}	/* 🔴 函数组件禁用类式 props 访问(类式取 wheelArt 会让浮窗一开即崩 TypeError;盘式经 previewDisplay 通道) */
+						chartDisplay={(display || {}).chartDisplay}
+						planetDisplay={(display || {}).planetDisplay}
+						lotsDisplay={(display || {}).lotsDisplay}
+						showAstroMeaning={(display || {}).showAstroMeaning} />
+				</div>
+			) : (
+				<div className="horosa-zeri-float-empty">{err || '排盘中…'}</div>
+			)}
+		</ZeriFloatPanel>
 	);
 }
 
@@ -115,7 +85,7 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	counter.i += 1;
 	const segs = ui ? conditionSummary(ui) : null;
 	return (
-		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
+		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed var(--horosa-border)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
 				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				{segs ? segs.map((sg, i) => (
@@ -249,7 +219,7 @@ export default function ConditionBuilderModal({
 	// 且/或/异或=该行与上方结果的连接门(首行无门,前三禁用);取反=该行 NOT 开关。
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
-		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
+		<div style={{ padding: '8px 10px', borderTop: '1px solid var(--horosa-border)' }}>
 			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
@@ -278,7 +248,7 @@ export default function ConditionBuilderModal({
 		return (
 			<div key={path.join('.')}
 				style={{
-					border: isSel ? '1px solid rgba(212,175,55,.85)' : '1px solid rgba(148,163,184,.25)',
+					border: isSel ? '1px solid var(--horosa-accent)' : '1px solid var(--horosa-border)',
 					borderRadius: 8, padding: '7px 10px', marginBottom: 6, cursor: 'pointer',
 					background: node.negate ? 'rgba(229,72,77,.06)' : (isSel ? 'rgba(212,175,55,.06)' : 'transparent'),
 				}}
@@ -335,19 +305,15 @@ export default function ConditionBuilderModal({
 	const editView = (
 		<div style={{ display: 'grid', gridTemplateColumns: '560px minmax(0, 1fr)', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(用户规格:时间段·地点·盘面居左上角;动作排+开始搜索同一行) */}
-			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div className="horosa-zeri-wb-top" style={ZERI_WB_TOP_STYLE}>
 					<div style={{ fontWeight: 600, marginBottom: 8 }}>时间段·地点·盘面</div>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-						<input type="date" className="horosa-native-date" value={cfg.startDate}
-							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
-						<input type="time" className="horosa-native-date" value={cfg.startTime}
-							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
+						<IsoDateTimeField date={cfg.startDate} time={cfg.startTime}
+							onChange={(v) => onCfgChange({ ...cfg, startDate: v.date, startTime: v.time })} />
 						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
-						<input type="date" className="horosa-native-date" value={cfg.endDate}
-							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
-						<input type="time" className="horosa-native-date" value={cfg.endTime}
-							onChange={(e) => onCfgChange({ ...cfg, endTime: e.target.value })} />
+						<IsoDateTimeField date={cfg.endDate} time={cfg.endTime}
+							onChange={(v) => onCfgChange({ ...cfg, endDate: v.date, endTime: v.time })} />
 					</div>
 					<div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
 						<GeoCoordModal lat={cfg.gpsLat} lng={cfg.gpsLon} onOk={(rec) => onCfgChange({
@@ -362,7 +328,7 @@ export default function ConditionBuilderModal({
 							</XQButton>
 						</GeoCoordModal>
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>黄道</span>
-						<XQSelect size="small" style={{ minWidth: 118 }} value={zodiacValue} dropdownMatchSelectWidth={false}
+						<XQSelect size="small" style={{ minWidth: 118 }} value={zodiacValue} dropdownMatchSelectWidth={false} getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 							onChange={(v) => {
 								const p = AstroConst.parseZodiacSelectValue(v);
 								onCfgChange({ ...cfg, zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa });
@@ -374,18 +340,18 @@ export default function ConditionBuilderModal({
 							))}
 						</XQSelect>
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>宫制</span>
-						<XQSelect size="small" style={{ minWidth: 108 }} value={Number(cfg.hsys || 0)} dropdownMatchSelectWidth={false}
+						<XQSelect size="small" style={{ minWidth: 108 }} value={Number(cfg.hsys || 0)} dropdownMatchSelectWidth={false} getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 							onChange={(v) => onCfgChange({ ...cfg, hsys: Number(v) })}>
 							{getHousesOption(true)}
 						</XQSelect>
 					</div>
 				</div>
-				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造征象</div>
-				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)' }}>构造征象</div>
+				<div className="horosa-zeri-wb-cond" style={ZERI_WB_COND_BODY_STYLE}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>征象类型</span>
 						<XQSelect size="small" style={{ minWidth: 140 }} value={draftType}
-							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}>
+							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false} getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}>
 							{Object.entries(CONDITION_TYPES).map(([key, spec]) => (
 								<Option key={key} value={key}>{spec.label}</Option>
 							))}
@@ -412,7 +378,7 @@ export default function ConditionBuilderModal({
 					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
-				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+				<div style={{ padding: 10, borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
 					<XQButton size="small" onClick={doAdd} disabled={!!draftError}>
 						添加到列表{selectedIsGroup ? '(选中组)' : ''}
 					</XQButton>
@@ -428,16 +394,16 @@ export default function ConditionBuilderModal({
 			</div>
 			{/* 右列(时间段·地点·盘面已移左上角,右列全留给已选列表+方案排) */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10 }}>
-				<div style={{ flex: 1, minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
-					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+				<div style={{ flex: 1, minHeight: 0, border: '1px solid var(--horosa-border)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
+					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid var(--horosa-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
 						已选征象
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点击行选中→左下「连接门·取反」直接改;行首徽标=与上方结果的连接门</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
 					</div>
-					<div style={{ padding: '6px 10px', borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, alignItems: 'center' }}>
-						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
+					<div style={{ padding: '6px 10px', borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, alignItems: 'center' }}>
+						<XQInput size="small" placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
 							const r = saveScheme(schemeName, cfg, tree);
@@ -476,8 +442,8 @@ export default function ConditionBuilderModal({
 					⚠ 征象条件已被修改:下方结果与详情对应「上一次搜索」的条件——请重新点「开始搜索」。
 				</div>
 			) : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
@@ -489,7 +455,7 @@ export default function ConditionBuilderModal({
 					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间段内无满足全部条件的时刻。' : '尚未搜索。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
-					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={i} style={{ borderBottom: '1px dashed var(--horosa-border)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
 							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以区间起始时刻起盘"
@@ -513,7 +479,7 @@ export default function ConditionBuilderModal({
 											setExplainMap((mp) => ({ ...mp, [ck]: { err: e.message || '判读失败' } }));
 										});
 									}
-								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起 ▲' : '详情 ▼'}</XQButton>
+								}}>{expandKey === `${scanEpoch || 0}:${i}` ? '收起' : '详情'}<XQToggleCaret open={expandKey === `${scanEpoch || 0}:${i}`} /></XQButton>
 							</span>
 							<span style={{ width: 52, textAlign: 'center' }}>
 								<XQButton size="small" onClick={() => setPreviewRow(row)}>盘</XQButton>
@@ -566,8 +532,8 @@ export default function ConditionBuilderModal({
 				</XQButton>
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
-			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid var(--horosa-border)', borderRadius: 8 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid var(--horosa-border)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
@@ -575,10 +541,10 @@ export default function ConditionBuilderModal({
 				</div>
 				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
-					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
+					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed var(--horosa-border)' }}>
 						{renameId === s.id ? (
 							<span style={{ flex: 1, display: 'inline-flex', gap: 6 }}>
-								<input value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
+								<XQInput size="small" value={renameText} style={{ flex: 1 }} onChange={(e) => setRenameText(e.target.value)} />
 								<XQButton size="small" type="primary" onClick={() => {
 									const r = renameScheme(s.id, renameText);
 									setSchemeMsg(r.ok ? '已重命名' : r.msg);
@@ -613,6 +579,7 @@ export default function ConditionBuilderModal({
 			open={open}
 			wrapClassName="horosa-zeri-workbench-modal"	/* X 近白(暗底 antd 默认近黑隐形——九工作台同修,天星曾漏) */
 			getContainer={false}	/* 原地渲染:冻结页 body portal Modal 关不掉(九工作台同修) */
+			maskClosable={false}	/* 点遮罩不关:下拉 / 浮窗贴边时一下点偏就把整个工作台连同未保存的条件关掉(九工作台同修,天星曾漏) */
 			onCancel={onClose}
 			footer={null}
 			width={1400}

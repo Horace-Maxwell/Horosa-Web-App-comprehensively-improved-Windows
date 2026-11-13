@@ -70,8 +70,10 @@ describe('五兆四链同源', () => {
 	test('⑧帮助文档五兆章覆盖全部起兆法与右栏页签(加了档位忘写帮助即红)', () => {
 		const help = require('fs').readFileSync(
 			require('path').resolve(__dirname, '../../help/CnyibuHelpDoc.js'), 'utf8');
-		const chapter = help.split('<div style={h}>五兆</div>')[1].split('<div style={h}>太玄</div>')[0];
-		expect(chapter).toBeTruthy();
+		// 手册改 HelpBook 后每章是一个顶层函数:五兆章 = 函数 chWuzhao 的函数体(fnBody 按语法截,不越界)
+		const { fnBody } = require('../../../utils/__tests__/helpers/sourceSet');
+		const chapter = fnBody(help, 'function chWuzhao(');
+		expect(chapter.length).toBeGreaterThan(500);
 		const main = require('fs').readFileSync(
 			require('path').resolve(__dirname, '../WuZhaoMain.js'), 'utf8');
 		// 起兆法：取标签的核心词（帮助里「日干 / 时干 / 分干起盘」合并成一条，故按词而非整串）

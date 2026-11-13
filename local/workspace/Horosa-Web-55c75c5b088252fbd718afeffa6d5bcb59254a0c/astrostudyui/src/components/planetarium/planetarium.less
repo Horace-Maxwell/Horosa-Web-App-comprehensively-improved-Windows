@@ -150,8 +150,10 @@
 
 // ===== 时间编辑面板(内联自控,非 antd Popover)— 适配天文馆暗色 =====
 .planetarium-time-editor {
-	position: fixed;       // 逃出左栏 overflow:auto 裁切;坐标由 JS 按时间显示元素实时算
-	z-index: 1200;
+	position: fixed;       // 挂在 body 下(不在左栏里,左栏的滚动层会按栏宽把它裁掉);坐标由 JS 按时间显示元素实时算
+	// 层级:压过页面里的左右栏(个位数),但必须低于 antd 浮层 —— 面板里年月日时分 / 时区下拉的选项列表也挂在 body,
+	// 默认 z-index 1050;面板若 1200,展开的列表与面板重叠的那截被面板盖住、看不见也点不到。
+	z-index: 1040;
 	width: 360px;
 	max-width: calc(94 * var(--horosa-lvw, 1vw));
 	padding: 12px 14px;
@@ -185,6 +187,12 @@
 .planetarium-time-editor .ant-input-number-focused {
 	border-color: rgba(113, 198, 255, 0.85) !important;
 	box-shadow: 0 0 0 2px rgba(113, 198, 255, 0.15) !important;
+}
+// 面板挂在 body 下,吃不到页内给控件定高的规则:三行控件统一 34px,年份数字垂直居中。
+.planetarium-time-editor .ant-btn { height: 34px !important; }
+.planetarium-time-editor .ant-input-number-input {
+	height: 32px !important;
+	line-height: 32px !important;
 }
 // 按钮(±/此刻/确定)
 .planetarium-time-editor .ant-btn,

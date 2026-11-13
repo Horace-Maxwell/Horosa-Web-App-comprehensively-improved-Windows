@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/acg/AstroAcg.js b/astrostudyui/src/components/acg/AstroAcg.js
-index e082f2b2..35c57ba7 100644
+index 92832a29..95a1b5a6 100644
 --- a/astrostudyui/src/components/acg/AstroAcg.js
 +++ b/astrostudyui/src/components/acg/AstroAcg.js
 @@ -8,6 +8,7 @@ import AcgPointPanel from './AcgPointPanel';
@@ -7,10 +7,10 @@ index e082f2b2..35c57ba7 100644
  import request from '../../utils/request';
  import { setAcgSnapshot } from '../../utils/acgSnapshot';
 +import { markPanelReady } from '../../utils/perfMark';
+ import { CLIMES_MODES, CLIMES_OBLIQUITY, ECLIPSE_MODES, ECLIPSE_FILTERS } from '../../utils/acgLayers';
  import DateTimeInfo from '../comp/DateTimeInfo';
  import * as Constants from '../../utils/constants';
- import AstroLinesSelector from './AstroLinesSelector';
-@@ -324,7 +325,11 @@ class AstroAcg extends Component {
+@@ -343,7 +344,11 @@ class AstroAcg extends Component {
  		if (this.unmounted || seq !== this._acgSeq) return;
  		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
  		const acgData = data[Constants.ResultKey];

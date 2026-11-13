@@ -51,14 +51,15 @@ const RIGHT_TABS = ['overview', 'positions', 'meanings', 'synthesis', 'verdict',
 
 // 几何牌阵「不重叠」布局:据牌真实尺寸(真实牌面更高)+ 各位置间距,
 // 算统一缩放 s(保证任一非蓄意牌对至少一轴分开)+ 紧凑容器高 H。仅蓄意同点对(凯尔特交叉)允许叠放。
-function computeGeoLayout(positions, spreadType, isImg){
+function computeGeoLayout(positions, isImg){
 	const W = 680, MAX_H = 1240, GAP = 1.07;
 	const baseCw = isImg ? 98 : 110;                        // 卡外宽(px,基准)
 	// 卡外高用纯比例(随 cw 线性缩放→保证容器高不超 MAX_H 时绝不重叠):真实牌面实测≈2.47×,符号牌≈1.45×
 	const cardH = (cw) => cw * (isImg ? 2.5 : 1.5);
-	const rotIdx = spreadType === 'celtic' ? 1 : -1;        // 凯尔特交叉牌旋转90°
-	const wOf = (idx, cw) => (idx === rotIdx ? cardH(cw) : cw);  // 旋转牌横向占其高
-	const hOf = (idx, cw) => (idx === rotIdx ? cw : cardH(cw));  // 旋转牌纵向占其宽
+	// 横压牌(位置带 crossFixed)旋转 90°:认位置自己的标记,不认牌阵名 —— 凯尔特十字的缩简版 / 加权版同样有这张牌
+	const rotated = (idx) => !!(positions[idx] && positions[idx].crossFixed);
+	const wOf = (idx, cw) => (rotated(idx) ? cardH(cw) : cw);  // 旋转牌横向占其高
+	const hOf = (idx, cw) => (rotated(idx) ? cw : cardH(cw));  // 旋转牌纵向占其宽
 	const deliberate = (p, q) => Math.abs(p.x - q.x) < 0.02 && Math.abs(p.y - q.y) < 0.02;
 	const pairs = [];
 	for(let a = 0; a < positions.length; a++){
@@ -574,7 +575,7 @@ class TarotMain extends Component{
 		const useGeometry = n <= 13 && spread.positions.every((p) => typeof p.x === 'number' && typeof p.y === 'number') && !['single', 'three', 'three_sit'].includes(reading.spreadType);
 		if(useGeometry){
 			const isImg = this.state.artStyle === 'image' && deckHasRealArt(this.state.deckId);
-			const geo = computeGeoLayout(spread.positions, reading.spreadType, isImg);
+			const geo = computeGeoLayout(spread.positions, isImg);
 			// TP5 图钥(因果七杯):中央静置一张不入抽的构图之钥(以其牌面结构定七位之义)。
 			const fixedCenterCard = spread.fixedCenter ? getDeckCards(this.state.deckId).find((c) => c.sid === spread.fixedCenter) : null;
 			return (
@@ -595,10 +596,10 @@ class TarotMain extends Component{
 						) : null}
 						{reading.draws.map((d, idx) => {
 							const pos = d.position;
-							// 凯尔特十字第2位(交叉牌)与第1位同点→旋转90°叠放(唯一蓄意重叠)
-							const crossing = reading.spreadType === 'celtic' && idx === 1;
+							// 横压牌与第 1 位同点 → 旋转 90° 叠放(唯一蓄意重叠);认位置的 crossFixed,三种凯尔特十字一视同仁
+							const crossing = !!pos.crossFixed;
 							return (
-								<div key={`geo-${pos.i}-${d.cardId}`} className="horosa-tarot-geo-slot" style={{ left: `${pos.x * 100}%`, top: `${((geo.padY + pos.y * geo.innerH) / geo.H * 100).toFixed(3)}%`, width: geo.slotW, transform: `translate(-50%,-50%)${crossing ? ' rotate(90deg)' : ''}`, '--deal-i': idx }}>
+								<div key={`geo-${pos.i}-${d.cardId}`} className={crossing ? 'horosa-tarot-geo-slot is-crossing' : 'horosa-tarot-geo-slot'} style={{ left: `${pos.x * 100}%`, top: `${((geo.padY + pos.y * geo.innerH) / geo.H * 100).toFixed(3)}%`, width: geo.slotW, transform: `translate(-50%,-50%)${crossing ? ' rotate(90deg)' : ''}`, '--deal-i': idx }}>
 									{this.renderCard(d, true)}
 								</div>
 							);

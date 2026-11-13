@@ -4,7 +4,15 @@ import cherrypy
 import jsonpickle
 
 from astrostudy import astroextra
+from astrostudy import chart_details
 from astrostudy import directed_figures
+from astrostudy import mundane_cycles
+from astrostudy import timelord_tables
+from astrostudy import transform_charts
+from astrostudy import zodiac_systems
+from astrostudy import zhufang_arts
+from astrostudy import babylon_tables
+from astrostudy.india import extra_tables, transit_events
 from websrv.helper import enable_crossdomain
 
 
@@ -173,6 +181,66 @@ class AstroExtraSrv:
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
     @cherrypy.tools.json_in()
+    def transitevents(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(transit_events.build_transit_events(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def transformchart(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(transform_charts.build_transform_chart(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def zodiacsystems(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(zodiac_systems.build_zodiac_systems(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def zhufang(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(zhufang_arts.build_zhufang(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def babylontables(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(babylon_tables.build_babylon_tables(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def ashtakoota(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(extra_tables.build_ashtakoota(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
     def relative(self, **params):
         enable_crossdomain()
         try:
@@ -217,5 +285,35 @@ class AstroExtraSrv:
         enable_crossdomain()
         try:
             return self._json(directed_figures.build_michon(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def timelords(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(timelord_tables.build_timelords(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def chartdetails(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(chart_details.build_chart_details(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def mundanecycles(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(mundane_cycles.build_mundane_cycles(self._payload(params)))
         except Exception:
             return self._error()

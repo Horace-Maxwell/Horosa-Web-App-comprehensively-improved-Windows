@@ -93,7 +93,7 @@ class BabylonHoroscope extends Component{
 		}
 
 		return (
-			<svg viewBox={`0 0 ${VB} ${VB}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${VB} ${VB}`} style={{ width: '100%', height: '100%' }}>
 				<defs>
 					<radialGradient id="bab-core-glow" cx="50%" cy="50%" r="50%">
 						<stop offset="0%" stopColor={dark ? 'rgba(194,163,92,0.10)' : 'rgba(154,106,37,0.07)'} />

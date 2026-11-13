@@ -34,6 +34,7 @@ import { safeList, safeMap, isIncompleteMoiraRules, joinNames, normDegree } from
 import { buildGuolaoAspectRows, guolaoNodeModeFromFields, guolaoNodeModeName, applyGuolaoNodeMode } from './aspectsNodeMode';
 import { signFromLon, guolaoLifeModeFromFields, guolaoSu28ModeFromFields, guolaoLifeModeName, computeAscSignIndex, houseFullLabel } from './fieldModes';
 import { fieldsToParams, guolaoFieldValue, paramsWithMoiraTransit } from './params';
+import { guolaoAscRaModeOf, withAscRaMode, withAscRaModeRoot, ascRaModeSnapshotLine } from '../../../utils/ascRaMode';
 
 // AI 快照显示口径(黄仪=lon/赤仪=ra):buildGuolaoSnapshotTextV2 开头按 chart.displayCoord 装载,
 // 与盘面/右栏同一真值源;渲染单线程,模块级变量安全(同 ACTIVE_SLOTS 模式)。
@@ -1125,7 +1126,11 @@ export function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields,
 	}
 }
 
-function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, moiraRules, displayPrefs){
+function _buildGuolaoSnapshotTextV2Core(params, rawResult, planetDisplay, fields, moiraRules, displayPrefs){
+	// 赤仪上升取法(经典档只把上升点 ra 换成东点黄经;黄仪恒原样):与盘面同一份盘数据,下面各段一律读换过的
+	const _rawChart = rawResult && rawResult.chart ? rawResult.chart : rawResult;
+	const _ascRaMode = guolaoAscRaModeOf(_rawChart, fields);
+	const result = rawResult && rawResult.chart ? withAscRaModeRoot(rawResult, _ascRaMode) : withAscRaMode(rawResult, _ascRaMode);
 	const _snapChart = result && result.chart ? result.chart : result;
 	SNAPSHOT_PREFER_LON = !!(_snapChart && _snapChart.displayCoord === 'ecliptic');
 	const lines = [];
@@ -1161,6 +1166,7 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	const _mlName = { '': '古度限度法', dongwei: '洞微大限', minor: '小限', month: '月限', tong: '童限' }[_gDisp.minorLimitType || ''] || '古度限度法';
 	const _gBodyName = _gBody === 'youjin' ? '逢酉(琴堂)' : ('子丑寅卯辰巳午未申酉戌亥'.indexOf(_gBody) >= 0 ? `自定身宫·${_gBody}` : '太阴落宫(果老)');
 	lines.push(`宿度制：${_su28Name}；身宫法：${_gBodyName}`);
+	if(_snapChart && _snapChart.displayCoord === 'equatorial'){ lines.push(ascRaModeSnapshotLine(_ascRaMode, _snapChart)); }   // 赤仪才读上升赤经;黄仪不加行 = 零回归
 	lines.push(`命主取法：${_lmName}；行运法：${_mlName}`);
 	// 命度实值 / 身度 / 命度宿主 / 身度宿主(右栏「命身与限度」卡同源)。
 	const _info = buildGuolaoInfoFactsForSnapshot(params, result, fields, _gDisp, moiraRules);

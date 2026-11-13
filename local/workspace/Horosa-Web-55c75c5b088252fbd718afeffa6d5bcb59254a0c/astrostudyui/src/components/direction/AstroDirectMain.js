@@ -49,7 +49,7 @@ import AstroYearSystem129 from '../astro/AstroYearSystem129';
 import AstroPlanetaryArc from '../astro/AstroPlanetaryArc';
 import AstroPersianDirected from '../astro/AstroPersianDirected';
 import AstroJaynesProgressions from '../astro/AstroJaynesProgressions';
-import { AstroNeroman, AstroBezzaFigure, AstroJayProfection, AstroMichon } from '../astro/AstroDirectedFigures';
+import { AstroNeroman, AstroBezzaFigure, AstroJayProfection, AstroMichon, AstroTimeLords } from '../astro/AstroDirectedFigures';
 import AstroEphemeris from '../astro/AstroEphemeris';
 import AstroProgressions from '../astro/AstroProgressions';
 import AstroReturnTimeline from '../astro/AstroReturnTimeline';
@@ -92,7 +92,7 @@ import {
 	pdProjectionLabelWithGeometry, pdDisplayMethod, isPdExtensionPromissorId,
 } from '../../utils/primaryDirectionSync';
 import FreezeInactive from '../comp/FreezeInactive';
-import { classicalBackendOverridesFromFields, classicalGlobalValue, setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, chartOrbOverridesFromFields, chartOrbSignature, classicalGlobalValue, setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
 import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
 
 const TabPane = Tabs.TabPane;
@@ -856,6 +856,9 @@ class AstroDirectMain extends Component{
 				michon:{
 					fun: null
 				},
+				timelords:{
+					fun: null
+				},
 				yearsystem129:{
 					fun: null
 				},
@@ -1128,6 +1131,8 @@ class AstroDirectMain extends Component{
 				}
 				return cls;
 			})(),
+			// 随盘容许度:主限请求回来的那份盘会写回全局当本命盘用,不带就把相位表冲回默认容许度
+			...chartOrbOverridesFromFields(nextFields || {}),
 			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 			name: nextFields.name ? nextFields.name.value : null,
 			pos: nextFields.pos ? nextFields.pos.value : null,
@@ -1266,6 +1271,7 @@ class AstroDirectMain extends Component{
 			// spread 古典键(cazimiOrb/sectBuffer 等)不逐键枚举,整包兜底进 key——
 			// 否则「同 pd 键、异古典档」两请求在在途窗内被误去重(完成后自愈,但窗内丢档)。
 			cls: classicalBackendOverridesFromFields(this.props.fields || {}),
+			orb: chartOrbSignature(chartOrbOverridesFromFields(this.props.fields || {})),
 		});
 		if(this.primaryDirectionInflightKey === reqKey){
 			return;
@@ -2162,6 +2168,19 @@ class AstroDirectMain extends Component{
 							<AstroMichon
 								value={this.props.chartObj}
 								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							</FreezeInactive>
+						</TabPane>
+						<TabPane tab="时主轮转" key="timelords">
+							<FreezeInactive active={this.state.currentTab === "timelords"}>
+							<AstroTimeLords
+								value={this.props.chartObj}
+								height={height}
+								wheelArt={this.props.wheelArt}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

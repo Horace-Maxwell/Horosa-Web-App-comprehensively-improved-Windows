@@ -4,7 +4,8 @@ import { randomStr, } from './helper';
 // 走自研 pd_engine 通用引擎；placidus 升级为精确半弧）。升 SYNC_REV 强制旧持久化 chart 回收重算。
 // v13 — P0 解耦补齐:投影(pdProjection)×定局(pdFrame)正交两维 + 平行/框架/自定义钥匙/
 // S·P 清单/界系变体。升 SYNC_REV 强制旧持久化 chart 回收重算。
-export const PD_SYNC_REV = 'pd_method_sync_v26';
+// v28 — 南半球读法的盘换回真黄经来算(天体对天体的弧与不开时相同,界按标签星座取);恒星盘各点赤经赤纬统一取本日真春分点。
+export const PD_SYNC_REV = 'pd_method_sync_v28';
 export const DEFAULT_PD_METHOD = 'core_alchabitius';
 export const DEFAULT_PD_PROJECTION = 'ptolemy';       // = core_alchabitius 的投影分量(锁死组合)
 export const DEFAULT_PD_FRAME = 'alcabitius';         // = core_alchabitius 的定局分量(锁死组合)
@@ -576,6 +577,7 @@ const VALID_DIRECTION_SUB_TABS = new Set([
 	'bezzafigure',
 	'jayprofection',
 	'michon',
+	'timelords',
 	'ephemeris',
 	'progressions',
 	'returntimeline',

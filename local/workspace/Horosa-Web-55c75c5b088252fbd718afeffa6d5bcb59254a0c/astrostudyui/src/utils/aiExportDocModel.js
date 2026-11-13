@@ -14,7 +14,7 @@
 //   其余   = 普通段落行 p;空行折叠为块间隔。
 // v1 文本天然可解析(全落 p/kv);解析失败恒不 throw,退化为单段纯 p。
 
-import { isDocxTableSep, splitDocxTableRow, parseTableAligns, isTableBodyLine } from './mdTableParse';
+import { isDocxTableSep, splitDocxTableRow, parseTableAligns, isTableBodyLine, isNextTableStart } from './mdTableParse';
 
 const SECTION_LINE_RE = /^\s*(?:\[(.+?)\]|【(.+?)】)\s*$/;
 const SUBHEAD_RE = /^◆\s+(.+)$/;
@@ -178,7 +178,9 @@ function parseBlocks(lines){
 			const aligns = parseTableAligns(lines[i + 1]);
 			const rows = [];
 			let j = i + 2;
-			while(j < lines.length && isTableBodyLine(lines[j])){
+			// 下一行若是分隔行 = 紧接着另起了一张表(两表之间没空行,如印占「星盘信息」宫头表 + 星点表):
+			// 本表到此为止,不把下一张表的表头 / 分隔行吞成数据行(此前 Word / PDF 里多出「--- | ---」行)
+			while(j < lines.length && isTableBodyLine(lines[j]) && !isNextTableStart(lines[j], lines[j + 1])){
 				rows.push(splitDocxTableRow(lines[j]));
 				j++;
 			}

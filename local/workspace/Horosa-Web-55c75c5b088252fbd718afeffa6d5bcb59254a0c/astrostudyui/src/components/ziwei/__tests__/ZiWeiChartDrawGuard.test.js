@@ -36,10 +36,28 @@ describe('ZiWeiChart 重绘签名守卫', ()=>{
 		expect(c.zwchart.draw).toHaveBeenCalledTimes(1);
 	});
 
-	it('盘面数据引用变 → 必重画', ()=>{
+	it('盘面数据内容变 → 必重画', ()=>{
+		const c = mkComponent({ value: mkChartObj() });
+		c.drawChart();
+		c.props = { ...c.props, value: { ...mkChartObj(), birth: '1991-03-12 12:30:00' } };
+		c.drawChart();
+		expect(c.zwchart.draw).toHaveBeenCalledTimes(2);
+		// 深处的字段变了也算
+		c.props = { ...c.props, value: { ...c.props.value, houses: [{ stars: ['紫微'] }] } };
+		c.drawChart();
+		expect(c.zwchart.draw).toHaveBeenCalledTimes(3);
+	});
+
+	it('盘面数据只换了引用、内容逐字相同(切走再切回、同参再取)→ 不重画;之后内容真变了照常重画', ()=>{
 		const c = mkComponent({ value: mkChartObj() });
 		c.drawChart();
 		c.props = { ...c.props, value: mkChartObj() };
+		c.drawChart();
+		c.props = { ...c.props, value: mkChartObj() };
+		c.drawChart();
+		expect(c.zwchart.draw).toHaveBeenCalledTimes(1);
+		expect(c.zwchart.chart).toBe(c.props.value);   // 盘对象仍换成最新那份(交互读的是它)
+		c.props = { ...c.props, value: { ...mkChartObj(), birth: '2000-01-01 00:00:00' } };
 		c.drawChart();
 		expect(c.zwchart.draw).toHaveBeenCalledTimes(2);
 	});

@@ -10,6 +10,7 @@
 //
 // 铁律：任何缺依赖/取字体失败/异常 → 抛出，由 exportPdf 包装层回退打印式→栅格（绝不因新路径失败而无产物）。
 import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
+import { RARE_CHARS, rareCharFallback } from './rareChars';
 
 const FONT_URLS = ['./fonts/HorosaCJK-subset.ttf', '/fonts/HorosaCJK-subset.ttf'];
 // 真 Bold 字重(与 Regular 同源 Noto Sans CJK SC、同 upem、码位完全一致;
@@ -50,10 +51,77 @@ async function loadBoldFontBytes(){
 	return _boldFontBytesPromise;
 }
 
+// 内嵌字体没有的字符 → 字体里有的等价字符(只在 PDF 里换;TXT / Word 保持原文)。
+// 字体缺字时 PDF 画的是 .notdef(空白):导出层把度数统一写成「˚」(U+02DA),字体只有「°」→ 此前 PDF 里
+// 所有度数符号都是空白,「360⁄14」成了「360 14」。顺序:专门映射 → 兼容分解 → 去附加符号 → □。
+const PDF_CHAR_FALLBACK = {
+	'˚': '°', 'º': '°', '⁄': '/', '∕': '/', '⧸': '/', '‐': '-', '‑': '-', '‒': '-', '–': '-',
+	'′': "'", '″': '"', '‘': "'", '’': "'", '“': '"', '”': '"', '…': '...', '•': '·', '∙': '·', '⋅': '·',
+	'ʾ': "'", 'ʿ': "'", '✓': '√', '✔': '√',
+};
+// 希腊字母(星名 α Cas、黄赤交角 ε、差值 Δ、转写 χ)→ 字母名,不落成 □
+const GREEK_NAMES = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi', 'rho', 'sigma', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega'];
+function greekName(ch){
+	const cp = ch.codePointAt(0);
+	if(cp >= 0x03B1 && cp <= 0x03C9){ return GREEK_NAMES[cp - 0x03B1]; }
+	if(cp >= 0x0391 && cp <= 0x03A9 && cp !== 0x03A2){ const n = GREEK_NAMES[cp - 0x0391]; return n.charAt(0).toUpperCase() + n.slice(1); }
+	return '';
+}
+// 本身不占位的字符(格式符、变体选择符、单独的附加符号、标签字符):字体里没有就不画 —— 画成 □ 反而凭空多出方块
+// (「⚠️」带 U+FE0F、零宽连接符、城市名里单独的组合附加符号;此前画 .notdef 也是空白)。
+function isZeroWidthMark(cp){
+	return (cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1AB0 && cp <= 0x1AFF) || (cp >= 0x1DC0 && cp <= 0x1DFF)
+		|| (cp >= 0x20D0 && cp <= 0x20FF) || (cp >= 0xFE20 && cp <= 0xFE2F)
+		|| cp === 0x00AD || cp === 0x034F || cp === 0x061C || cp === 0x180E || (cp >= 0x200B && cp <= 0x200F)
+		|| (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2060 && cp <= 0x2064) || (cp >= 0x2066 && cp <= 0x206F) || cp === 0xFEFF
+		|| (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0000 && cp <= 0xE007F) || (cp >= 0xE0100 && cp <= 0xE01EF);
+}
+export function pdfSafeText(text, charSet){
+	const src = `${text == null ? '' : text}`;
+	if(!charSet || !charSet.size){ return src; }
+	const has = (str)=>{ for(const c of str){ if(!charSet.has(c.codePointAt(0))){ return false; } } return true; };
+	let out = '';
+	for(const ch of src){
+		const cp = ch.codePointAt(0);
+		if(cp < 0x20 || charSet.has(cp)){ out += ch; continue; }
+		if(isZeroWidthMark(cp)){ continue; }
+		const mapped = PDF_CHAR_FALLBACK[ch];
+		if(mapped && has(mapped)){ out += mapped; continue; }
+		const nf = ch.normalize('NFKC');
+		if(nf !== ch && nf && has(nf)){ out += nf; continue; }
+		const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+		if(base && base !== ch && has(base)){ out += base; continue; }
+		const greek = greekName(ch);
+		if(greek && has(greek)){ out += greek; continue; }
+		// 罕见字(扩展 B 及以后):通行写法 → 拆字说明(与界面同一张表),都不在字体里才落成 □
+		const rare = rareCharFallback(ch);
+		if(rare !== ch && has(rare)){ out += rare; continue; }
+		const rareIt = RARE_CHARS[ch];
+		if(rareIt && rareIt.parts && has(`〔${rareIt.parts}〕`)){ out += `〔${rareIt.parts}〕`; continue; }
+		out += charSet.has(0x25A1) ? '□' : '?';
+	}
+	return out;
+}
+
+// 把缺字替换挂到字体对象上:pdf-lib 的 drawText / 量宽都经 encodeText / widthOfTextAtSize,
+// 在这两处换字 = 全部落笔点(正文 / 表格 / 段头 / 页眉页脚 / 目录 / 水印)一次覆盖,不必逐处改。
+function guardFontGlyphs(f){
+	if(!f){ return f; }
+	let cs = null;
+	try{ cs = new Set(f.getCharacterSet()); }catch(_){ cs = null; }
+	if(!cs || !cs.size){ return f; }
+	const enc = f.encodeText.bind(f);
+	const wid = f.widthOfTextAtSize.bind(f);
+	f.encodeText = (t)=>enc(pdfSafeText(t, cs));
+	f.widthOfTextAtSize = (t, size)=>wid(pdfSafeText(t, cs), size);
+	return f;
+}
+
 // CJK 感知换行：拉丁词/数字整体不断，CJK 与其它字符逐字可断；显式 \n 强制换行。
 // atom = 一段拉丁数字(含内部 .-_/@% 连接)｜一段空格｜任意单字符。
 function segmentAtoms(text){
-	const re = /[A-Za-z0-9]+(?:[.\-_/@%:][A-Za-z0-9]+)*|[ \t]+|[\s\S]/g;
+	// u 标志:四字节字符(表情等)整个算一个原子,不被拆成两个半代理(拆开会各量一格、各画一个 □)
+	const re = /[A-Za-z0-9]+(?:[.\-_/@%:][A-Za-z0-9]+)*|[ \t]+|[\s\S]/gu;
 	const atoms = [];
 	let m;
 	while((m = re.exec(text)) !== null){ atoms.push(m[0]); }
@@ -148,7 +216,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	//   ② 即便换 TrueType,subset:true 时 @pdf-lib/fontkit 会「静默丢字形」(不抛错)→ 大量缺字+字距错乱。
 	//   唯 TrueType(glyf) + subset:false 同时满足「字体文件有效」与「全字形在位」(三向实证:poppler 0 错、
 	//   pdftext 全文可提、pdftoppm 渲染逐字正确)。字体已是 GB2312+繁+韩 子集(~2.7MB)非全字库,整嵌可控。
-	const font = await pdf.embedFont(fontBytes, { subset: false });
+	const font = guardFontGlyphs(await pdf.embedFont(fontBytes, { subset: false }));
 	// 真 Bold 字重:同源同覆盖的 Bold 子集(build_cjk_bold_subset.py 硬校验码位一致)。
 	// 取不到 / 内嵌失败 → boldFont=null,粗体段自动回落到 Tr2 描边合成(旧路径完整保留)。
 	let boldFont = null;
@@ -156,18 +224,20 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	try{
 		const boldBytes = await loadBoldFontBytes();
 		if(boldBytes){
-			boldFont = await pdf.embedFont(boldBytes, { subset: false });
+			boldFont = guardFontGlyphs(await pdf.embedFont(boldBytes, { subset: false }));
 			// 兜底:万一 Bold 少字形,PDF 里会静默出 .notdef 空白方块 —— 逐原子查覆盖,
 			// 未覆盖的原子退回「Regular + 描边」,宁可假粗也不能空白。
 			try{ boldCharSet = new Set(boldFont.getCharacterSet()); }catch(_){ boldCharSet = null; }
 		}
 	}catch(_){ boldFont = null; boldCharSet = null; }
+	// Regular 的码位集:Bold 换字结果与 Regular 不同(Bold 少了某字)→ 这一段退回「Regular + 描边」,两副字形不混
+	let regularCharSet = null;
+	try{ regularCharSet = new Set(font.getCharacterSet()); }catch(_){ regularCharSet = null; }
 	const boldOk = (t)=>{
 		if(!boldFont){ return false; }
-		if(!boldCharSet){ return true; }
-		const s = `${t == null ? '' : t}`;
-		for(const ch of s){ if(!boldCharSet.has(ch.codePointAt(0))){ return false; } }
-		return true;
+		if(!boldCharSet || !regularCharSet){ return true; }
+		const raw = `${t == null ? '' : t}`;
+		return pdfSafeText(raw, boldCharSet) === pdfSafeText(raw, regularCharSet);
 	};
 	const fontOf = (useBoldFace)=> (useBoldFace && boldFont) ? boldFont : font;
 

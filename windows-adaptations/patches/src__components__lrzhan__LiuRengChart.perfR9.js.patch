@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengChart.js b/astrostudyui/src/components/lrzhan/LiuRengChart.js
-index d28572e0..4e29fc3a 100644
+index b3bbe5f2..100ebb94 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengChart.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengChart.js
-@@ -5,6 +5,7 @@ import { Modal } from 'antd';
+@@ -6,6 +6,7 @@ import { Modal } from 'antd';
  import {randomStr, setupFloatingTooltip} from '../../utils/helper';
  import * as AstroConst from '../../constants/AstroConst';
  import RengChart from './RengChart';
@@ -10,7 +10,7 @@ index d28572e0..4e29fc3a 100644
  import { inZoomChangeFrame } from '../../utils/zoomSyncRemeasure';
  
  class LiuRengChart extends Component{
-@@ -49,6 +50,23 @@ class LiuRengChart extends Component{
+@@ -50,6 +51,23 @@ class LiuRengChart extends Component{
  		this.setupToolTip = this.setupToolTip.bind(this);
  	}
  

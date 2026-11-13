@@ -6,12 +6,47 @@ from astrostudy.perchart import PerChart
 DERIVED_HOUSE_MODE = 'wholeFromAsc'
 
 
+def reinit_derived(perchart):
+    """派生盘变换完成后的 reinit。reinit → setupPlanets 会重跑站心月(_applyTopoMoon)、希腊点变体(_applyLotVariants)
+    和福点整宫(_placeFortunaWholeHouses):这三样在起本命盘时已经生效、并随各点一起被变换过,再跑一遍会按本命口径
+    重算 —— 站心月回到本命月位、整星座投射的点按变换后的上升重投、福点整宫把变换后的宫头盖掉。
+    这里关掉这三样(做法同 transform_charts.TransformChart._freeze);昼夜是出生事实,固定成本命值
+    (含日出缓冲等昼夜口径;与变换盘「地平上下取本命」同口径)。"""
+    natal_diurnal = perchart.isDiurnal
+    perchart._diurnalWithSectBuffer = lambda: natal_diurnal
+    # 地平上下 / 得时失时也取本命。起本命盘时 hayyiz 已按本命位置判好、记在各点的 aboveHorizon 上
+    # (站心月按站心位置判);relocate 只改黄经不碰它 → reinit 前先抄下来,本命判过的点原样沿用。
+    # 不能只看 altitudeTrue:站心月只重算了黄经黄纬,altitudeTrue 仍是地心高度,月亮贴着地平
+    # (地心高度 0 ~ 约 1°,视差把它压到地平下)时会与本命判反。
+    natal_flags = {o.id: o.aboveHorizon for o in perchart.chart.objects
+                   if isinstance(getattr(o, 'aboveHorizon', None), bool)}
+    natal_above = perchart.isAboveHorizon
+
+    def above_natal(planet):
+        flag = natal_flags.get(getattr(planet, 'id', None))
+        if flag is not None:
+            return flag
+        # 本命没判过的点:各点只改了黄经,真地平高度仍是起盘时的本命值
+        alt = getattr(planet, 'altitudeTrue', None)
+        return alt > 0.0 if isinstance(alt, (int, float)) and alt == alt else natal_above(planet)
+    perchart.isAboveHorizon = above_natal
+    perchart.houseCust = None
+    perchart._applyTopoMoon = lambda: None
+    perchart._applyLotVariants = lambda: None
+    perchart.reinit()
+
+
 class ThirteenthChart:
     def __init__(self, perchart: PerChart):
         self.perchart = perchart
         moon = perchart.chart.getObject(const.MOON)
         sun = perchart.chart.getObject(const.SUN)
-        self.ratio = moon.lonspeed / sun.lonspeed
+        # 比率 = 月速 / 日速,取地心月速度:站心月改的是月亮的视位置(视差),它的速度里掺着测站随地球自转的分量
+        # (同一时刻比率可从约 11.7 变到 14.3),不是「一个月里月亮走几圈」的那个量。不开站心月时两者是同一个数。
+        moon_speed = getattr(perchart, '_geoMoonLonSpeed', None)
+        if not isinstance(moon_speed, (int, float)):
+            moon_speed = moon.lonspeed
+        self.ratio = moon_speed / sun.lonspeed
 
 
     def fractalObject(self, point):
@@ -56,7 +91,7 @@ class ThirteenthChart:
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
 
-        self.perchart.reinit()
+        reinit_derived(self.perchart)
 
 
 class DodecatemoriaChart:
@@ -108,7 +143,7 @@ class DodecatemoriaChart:
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
 
-        self.perchart.reinit()
+        reinit_derived(self.perchart)
 
 
 class HarmonicChart:
@@ -154,7 +189,7 @@ class HarmonicChart:
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
 
-        self.perchart.reinit()
+        reinit_derived(self.perchart)
 
 
 class DraconicChart:
@@ -199,7 +234,7 @@ class DraconicChart:
             # 前端照所选分宫制回显即是实情
             for obj in self.perchart.chart.houses:
                 self.draconicObject(obj)
-            self.perchart.reinit()
+            reinit_derived(self.perchart)
             return
 
         house1lon = (int(asclon / 30) % 12) * 30
@@ -214,4 +249,4 @@ class DraconicChart:
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
 
-        self.perchart.reinit()
+        reinit_derived(self.perchart)

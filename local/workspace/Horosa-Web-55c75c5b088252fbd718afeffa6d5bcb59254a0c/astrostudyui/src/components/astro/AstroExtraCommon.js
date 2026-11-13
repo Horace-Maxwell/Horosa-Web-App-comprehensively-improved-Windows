@@ -1,6 +1,6 @@
 import React from 'react';
 import * as AstroText from '../../constants/AstroText';
-import { classicalBackendOverridesFromPlain, classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain, classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';
 import { SIGNS } from '../../divination/data/signs';
 import { buildMeaningTipByCategory } from './AstroMeaningData';
@@ -143,6 +143,8 @@ export function natalClassicalParams(params){
 		// ⚠ F-17 记的那条分叉因此**并未**被修好:真要对齐得让 Java 白名单收这两键(那会改推运页产物),
 		// 属另案,勿把本处删除误读成「分叉已解决」。
 		...classicalBackendOverridesFromPlain(p),
+		// 随盘容许度(本命盘回显里带着):推运族的本命 / 推运盘相位与主盘同一套容许度。
+		...chartOrbOverridesFromPlain(p),
 	};
 }
 
@@ -263,13 +265,13 @@ const shortCellStyle = labelCellStyle;
 const alignPad = (col)=>(col.align === 'right' ? { paddingRight: 14 } : null);
 export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX, maxHeight, scrollClassName, onRowClick, fill}){
 	// 合并边框下吸顶的 th 底线不跟着走,用内阴影补一条
-	const sticky = (maxHeight || fill) ? { position: 'sticky', top: 0, zIndex: 1, background: 'var(--horosa-surface-solid, #1b1d22)', boxShadow: 'inset 0 -1px 0 rgba(148,163,184,.35)' } : null;
+	const sticky = (maxHeight || fill) ? { position: 'sticky', top: 0, zIndex: 1, background: 'var(--horosa-surface-solid, #1b1d22)', boxShadow: 'inset 0 -1px 0 var(--horosa-border-strong)' } : null;
 	const table = (
 		<table style={scrollX ? {borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap'} : {width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
 			<thead>
 				<tr>
 					{columns.map((col)=>(
-						<th key={col.key} style={{textAlign: col.align || 'left', borderBottom: '1px solid rgba(148,163,184,.35)', padding: '6px 4px', ...shortCellStyle(col.title), ...alignPad(col), ...(col.width ? { width: col.width } : null), ...sticky}}>
+						<th key={col.key} style={{textAlign: col.align || 'left', borderBottom: '1px solid var(--horosa-border)', padding: '6px 4px', ...shortCellStyle(col.title), ...alignPad(col), ...(col.width ? { width: col.width } : null), ...sticky}}>
 							{col.title}
 						</th>
 					))}
@@ -284,7 +286,7 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX, ma
 						{columns.map((col)=>{
 							const content = col.render ? col.render(row[col.key], row, idx) : row[col.key];
 							return (
-								<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top', ...shortCellStyle(content), ...(col.align ? { textAlign: col.align, fontVariantNumeric: 'tabular-nums' } : null), ...alignPad(col)}}>
+								<td key={col.key} style={{borderBottom: '1px solid var(--horosa-border-soft)', padding: '6px 4px', verticalAlign: 'top', ...shortCellStyle(content), ...(col.align ? { textAlign: col.align, fontVariantNumeric: 'tabular-nums' } : null), ...alignPad(col)}}>
 									{content}
 								</td>
 							);

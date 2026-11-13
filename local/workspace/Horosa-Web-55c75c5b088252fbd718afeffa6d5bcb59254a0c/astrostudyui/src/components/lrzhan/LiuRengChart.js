@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { stableStringify } from '../../utils/sameContent';
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import React, { Component } from 'react';
 import { Modal } from 'antd';
@@ -92,6 +93,11 @@ class LiuRengChart extends Component{
 		if(w < 200 || h < 120){
 			return; // 仅防折叠/隐藏态
 		}
+		// 宿主尺寸与上次画盘时相同 = 没有可重画的理由(切走再切回:宿主先塌成 0 再回到原尺寸,观察器照样回调;
+		// 此前每次回访都整盘重建,两千多次 DOM 改动)。入参变了走 componentDidUpdate,不经这里。
+		if(this._lastDrawnHost && this._lastDrawnHost.w === w && this._lastDrawnHost.h === h){
+			return;
+		}
 		if(this._resizeRaf && typeof cancelAnimationFrame === 'function'){
 			cancelAnimationFrame(this._resizeRaf);
 		}
@@ -129,6 +135,13 @@ class LiuRengChart extends Component{
 		this.rengchart.timeAlg = this.props.timeAlg;
 
 		this.rengchart.draw();
+		this._drawnInputSig = this.drawInputSignature();   // 盘面上画着的是哪一版入参(见 componentDidUpdate)
+		// 记下这次画盘时宿主的尺寸(见 handleResize:同尺寸的观察器回调不重画)
+		try{
+			const svgdom = document.getElementById(this.state.chartid);
+			const hostEl = svgdom && svgdom.parentNode;
+			this._lastDrawnHost = hostEl ? { w: hostEl.clientWidth || svgdom.clientWidth, h: hostEl.clientHeight || svgdom.clientHeight } : null;
+		}catch(e){ this._lastDrawnHost = null; }
 	}
 
 	safeDrawChart(){
@@ -162,6 +175,19 @@ class LiuRengChart extends Component{
 		this.safeDrawChart();
 	}
 
+	// 这次要画的全部入参的内容签名(大对象直接序列化,小对象键序归一);算不出来返回 null = 一律重画。
+	drawInputSignature(){
+		const p = this.props;
+		try{
+			return [
+				JSON.stringify(p.value), JSON.stringify(p.liureng), stableStringify(p.runyear), `${p.gender}`, `${p.zhangshengElem}`,
+				stableStringify(p.guireng), stableStringify(p.castOverride), `${p.panStyleName || ''}`, `${p.timeAlg}`, `${p.chartType}`, p.compactPreview ? '1' : '0',
+			].join('\u0001');
+		}catch(e){
+			return null;
+		}
+	}
+
 	componentDidUpdate(prevProps){
 		if(prevProps.value !== this.props.value
 			|| prevProps.liureng !== this.props.liureng
@@ -174,6 +200,14 @@ class LiuRengChart extends Component{
 			|| prevProps.timeAlg !== this.props.timeAlg
 			|| prevProps.chartType !== this.props.chartType
 			|| prevProps.compactPreview !== this.props.compactPreview){
+			// 引用变了不等于内容变了:切走时本页拿到的是空盘(不画,盘面留着),切回来拿到的是内容相同的新对象 ——
+			// 与盘面上已经画着的那一版逐字相同就不重画(此前每次回访整盘重建三遍,两千多次 DOM 改动)。
+			if(this.props.value !== undefined && this.props.value !== null && this._drawnInputSig){
+				const sig = this.drawInputSignature();
+				if(sig !== null && sig === this._drawnInputSig){
+					return;
+				}
+			}
 			this.safeDrawChart();
 		}
 	}

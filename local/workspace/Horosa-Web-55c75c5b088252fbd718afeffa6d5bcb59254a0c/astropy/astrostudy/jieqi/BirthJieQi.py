@@ -135,11 +135,17 @@ class BirthJieQi:
             newtm = Datetime.fromJD(newjd, self.zone)
         return newtm
 
+    def _eastPointValue(self, chart):
+        """赤经法比较的「上升值」:东点(赤道与地平的东交点)的赤经 = ARMC + 90°,与太阳赤经同一坐标系。
+        太阳赤经到这里即太阳时角 −90°;连同求解里原有的 +11′,落在视太阳时约 6:00:44。早先拿 ascmc[4](东点的黄经)
+        和太阳赤经比,两个量不在同一系,最多差约 10 分钟。"""
+        armc = swe.swisseph.houses(chart.date.jd, self.pos.lat, self.pos.lon, b'W')[1][2]
+        return (armc + 90.0) % 360.0
+
     def ascApproachByRA(self, dt, sunra):
         chart = self._ascChart(dt)
-        asc = chart.getAngle(const.ASC)
         speed = 1 / (4/60/24)
-        delta = distance(sunra, asc.ra) + 11/60
+        delta = distance(sunra, self._eastPointValue(chart)) + 11/60
         deltatm = delta / speed
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
@@ -149,8 +155,7 @@ class BirthJieQi:
             if it > _ASC_APPROACH_MAX_ITER:
                 return None   # 不收敛:交调用方回退
             chart = self._ascChart(newtm)
-            asc = chart.getAngle(const.ASC)
-            delta = distance(sunra, asc.ra) + 11/60
+            delta = distance(sunra, self._eastPointValue(chart)) + 11/60
             deltatm = delta / speed
             newjd = newtm.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)

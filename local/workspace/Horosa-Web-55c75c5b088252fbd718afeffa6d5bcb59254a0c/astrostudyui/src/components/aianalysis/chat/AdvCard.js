@@ -33,18 +33,20 @@ export function AdvCard({ icon, title, status, desc, actions, span2, tone, id, r
 	const resetBtn = reset && reset.visible !== false
 		? <Button size="small" type="text" className={styles.resetBtn} data-adv-reset="1" onClick={reset.onClick}>{reset.label || '恢复默认'}</Button>
 		: null;
+	// 正文为空(例如总开关关着、卡里没有可显示的内容)时不出正文区,卡头下面也不留分隔线与一条空带
+	const hasBody = React.Children.toArray(children).length > 0;
 	return (
 		<section className={cls} id={id || undefined} data-adv-section={id || undefined} {...rest}>
-			<div className={[styles.cardHead, headClassName || ''].filter(Boolean).join(' ')}>
+			<div className={[styles.cardHead, !hasBody && !toolbar ? styles.cardHeadSolo : '', headClassName || ''].filter(Boolean).join(' ')}>
 				{icon ? <div className={styles.iconTile}><XQIcon name={icon} /></div> : null}
 				<div className={styles.headText}>
 					<div className={styles.title}>{title}{status}</div>
-					{desc ? <div className={styles.desc}>{desc}</div> : null}
 				</div>
 				{actions || resetBtn ? <div className={styles.headActions}>{actions}{resetBtn}</div> : null}
+				{desc ? <div className={styles.desc}>{desc}</div> : null}
 			</div>
 			{toolbar ? <div className={styles.cardToolbar}>{toolbar}</div> : null}
-			<div className={styles.body}>{children}</div>
+			{hasBody ? <div className={styles.body}>{children}</div> : null}
 		</section>
 	);
 }
@@ -64,7 +66,7 @@ export function AdvRow({ label, help, title, children }){
 // 不传 control 时退回内置开关(switchProps 透传)。children 落在说明之下(路径输入框、按钮组等)。
 export function AdvSwitchRow({ title, desc, checked, onChange, switchProps, control, children }){
 	return (
-		<div className={[styles.switchRow, checked ? styles.switchRowOn : ''].filter(Boolean).join(' ')}>
+		<div className={styles.switchRow}>
 			<div className={styles.switchText}>
 				<div className={styles.switchTitle}>{title}</div>
 				{desc ? <div className={styles.switchDesc}>{desc}</div> : null}

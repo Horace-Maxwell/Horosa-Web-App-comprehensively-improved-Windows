@@ -4,6 +4,8 @@ import { AstroMsgCN } from '../../constants/AstroText';
 import { CONDITION_TYPES, SCAN_BODIES } from '../../divination/zeri/conditionTypes';
 
 const Option = XQSelect.Option;
+// 十个择日工作台都用这份表单、都在弹窗里:下拉挂进弹窗正文,不挂 body(body 门户浮层垂出弹窗底边、悬在遮罩上,点空处会误关工作台)
+const popupInModal = (t) => t.closest('.ant-modal-body') || t.parentElement;
 
 // 元数据驱动的条件参数表单。整齐网格排版:两列字段对(label 定宽右对齐+控件满格),
 // 多选/时间等长控件独占整行——参差 flex-wrap 已废(用户圈报)。
@@ -29,8 +31,8 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 		const key = `${f.key}_${idx}`;
 		const wide = f.kind === 'multiselect' || f.kind === 'toggle';
 		const label = (
-			<span key={`${key}_l`} title={f.hint || undefined}
-				style={{ fontSize: 12, opacity: 0.7, textAlign: 'right', whiteSpace: 'nowrap' }}>
+			<span key={`${key}_l`} title={f.hint || f.label || undefined}
+				style={{ fontSize: 12, opacity: 0.7, textAlign: 'right', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: wide ? '16em' : '9em', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>
 				{f.kind === 'toggle' ? '' : f.label}
 			</span>
 		);
@@ -38,14 +40,14 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 		if(f.kind === 'body'){
 			control = (
 				<XQSelect size="small" style={{ width: '100%' }} value={params[f.key]}
-					onChange={(v) => patch(f.key, v)} dropdownMatchSelectWidth={false}>
+					onChange={(v) => patch(f.key, v)} dropdownMatchSelectWidth={false} getPopupContainer={popupInModal}>
 					{SCAN_BODIES.map((b) => (<Option key={b} value={b}>{AstroMsgCN[b] || b}</Option>))}
 				</XQSelect>
 			);
 		}else if(f.kind === 'select'){
 			control = (
 				<XQSelect size="small" style={{ width: '100%' }} value={params[f.key]}
-					onChange={(v) => patch(f.key, v)} dropdownMatchSelectWidth={false}>
+					onChange={(v) => patch(f.key, v)} dropdownMatchSelectWidth={false} getPopupContainer={popupInModal}>
 					{f.options.map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
 				</XQSelect>
 			);
@@ -55,7 +57,8 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 					value={params[f.key] || []}
 					onChange={(v) => patch(f.key, v)}
 					maxTagCount={5}
-					dropdownMatchSelectWidth={false}>
+					dropdownMatchSelectWidth={false}
+					getPopupContainer={popupInModal}>
 					{/* 注册表可把「选了也不判别」的档标 disabled:选项仍在(旧方案里的值照常显示),
 					    但不能再被选中 —— 比直接删档不破坏既有方案。 */}
 					{f.options.map((o) => (<Option key={`${o.value}`} value={o.value} disabled={!!o.disabled} title={o.hint || undefined}>{o.label}</Option>))}
@@ -68,7 +71,7 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 			const emptyNum = rawNum === '' || rawNum === null || rawNum === undefined || !Number.isFinite(Number(rawNum));
 			control = (
 				<div style={{ width: '100%' }}>
-					<input type="number" min={f.min} max={f.max} step={f.step || 1}
+					<input type="number" className="horosa-native-date" min={f.min} max={f.max} step={f.step || 1}
 						value={params[f.key]}
 						aria-invalid={emptyNum ? 'true' : undefined}
 						style={{ width: '100%', boxSizing: 'border-box', borderColor: emptyNum ? 'var(--horosa-danger)' : undefined }}
@@ -142,6 +145,9 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 	}
 	flushHalf();
 	flushToggles();
+	// 标签列:最窄 52px(两三个字的标签对齐成一列),长标签(「Tithi(1-30)」之类)按内容撑开(半行项封顶 9em、整行项 16em,超了省略、悬停看全),
+	// 不再溢进右边的输入框。子网格(整行项)沿用同一档:标签都短时两种行的标签右缘对齐
+	const LABEL_COL = 'minmax(52px, max-content)';
 	const gridCell = (c, side) => (c ? [
 		<div key={`${c.key}_lbl`} style={{ justifySelf: 'end' }}>{c.label}</div>,
 		<div key={`${c.key}_ctl`}>{c.control}</div>,
@@ -150,7 +156,7 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 		<div key={`${side}_ctl_empty`} />,
 	]);
 	return (
-		<div style={{ display: 'grid', gridTemplateColumns: '52px minmax(0,1fr) 52px minmax(0,1fr)', gap: '10px 8px', alignItems: 'center' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: `${LABEL_COL} minmax(0,1fr) ${LABEL_COL} minmax(0,1fr)`, gap: '10px 8px', alignItems: 'center' }}>
 			{rows.map((r) => {
 				if(r.kind === 'toggles'){
 					return (
@@ -162,7 +168,7 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 				if(r.kind === 'wide'){
 					const c = r.cell;
 					return (
-						<div key={c.key} style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '52px minmax(0,1fr)', gap: '0 8px', alignItems: 'center' }}>
+						<div key={c.key} style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: `${LABEL_COL} minmax(0,1fr)`, gap: '0 8px', alignItems: 'center' }}>
 							{c.label}
 							<div>{c.control}</div>
 						</div>

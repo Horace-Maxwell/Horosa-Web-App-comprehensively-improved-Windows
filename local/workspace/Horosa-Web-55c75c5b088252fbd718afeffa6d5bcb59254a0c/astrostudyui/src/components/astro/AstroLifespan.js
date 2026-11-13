@@ -2,6 +2,7 @@
 // 古典寿命格局面板（生命主/寿主星寿数/盘主体系/行星状态/医疗危机）。
 // 纯前端：buildFacts(本命chartObj) → runLifespan；嵌于本命「古典」tab 底部，不新开 tab。
 import { Component } from 'react';
+import { XQToggleCaret } from '../xq-icons';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import buildFacts from '../../divination/engine/chartFacts';
 import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
@@ -119,7 +120,7 @@ class AstroLifespan extends Component {
 								onClick={() => { this.setState({ method: m.value }); safeLocalStorageSet('horosa.lifespan.method', m.value); }}
 								style={{
 									cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
-									border: '1px solid rgba(148,163,184,.4)',
+									border: '1px solid var(--horosa-border)',
 									background: this.state.method === m.value ? 'var(--horosa-accent, #6c5ce7)' : 'transparent',
 									// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
 									color: this.state.method === m.value ? 'var(--horosa-on-accent, #fff)' : 'inherit',
@@ -247,7 +248,7 @@ class AstroLifespan extends Component {
 				role="button" aria-expanded={open}
 				onClick={() => this.setState({ timelineOpen: !open })}>
 				<span style={{ fontWeight: 700 }}>向运至杀星 · 寿命时间轴 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Direction to Anareta</span></span>
-				<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+				<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起' : '展开'}<XQToggleCaret open={open} /></span>
 			</div>
 		);
 		if(!open){ return <div style={{ ...cardStyle, marginTop: 8 }}>{head}</div>; }

@@ -121,7 +121,7 @@ def ninth_part_sign(lon):
     """九分(navamsa 同构,回归制):每 3°20′ 一份,自三分性始宫起黄道序。
     连续式 floor(lon/(10/3))%12 即等价(动象始本座/固定始第10季宫/变动始第6季宫)。"""
     try:
-        return SIGNS_ORDER[int(float(lon) / (10.0 / 3.0)) % 12]
+        return SIGNS_ORDER[int(float(lon) * 3.0 / 10.0) % 12]     # 先乘后取整:座内 10°、20° 不落回前一份
     except Exception:
         return None
 

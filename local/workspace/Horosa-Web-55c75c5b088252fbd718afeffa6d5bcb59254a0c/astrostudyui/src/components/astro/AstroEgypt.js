@@ -451,8 +451,8 @@ class AstroEgypt extends Component {
 		for(let h = 1; h <= 12; h += 1) hours.push(h);
 		const hereCol = v.civil && v.civil.decade !== null ? v.civil.decade + 1 : null;
 		const ascAncient = v.ascDecan ? v.ascDecan.ancient : null;
-		const th = { padding: '3px 5px', borderBottom: '1px solid rgba(148,163,184,.35)', whiteSpace: 'nowrap' };
-		const td = { padding: '3px 5px', textAlign: 'center', borderBottom: '1px solid rgba(148,163,184,.16)' };
+		const th = { padding: '3px 5px', borderBottom: '1px solid var(--horosa-border)', whiteSpace: 'nowrap' };
+		const td = { padding: '3px 5px', textAlign: 'center', borderBottom: '1px solid var(--horosa-border-soft)' };
 		return (
 			<div style={cardStyle}>
 				<XQSectionTitle>星钟(E4)·{clock.label}</XQSectionTitle>
@@ -531,7 +531,7 @@ class AstroEgypt extends Component {
 					{/* 窄栏退列(列下限放得下「字母 + 数值」),宽时与 9 等分逐像素相同;此前放大档整表撑出页签被裁 */}
 					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(max(48px, calc((100% - 16px) / 9 - 1px)), 1fr))', gap: 2 }}>
 						{GREEK_ISOPSEPHY.map((g) => (
-							<div key={g.letter} style={{ border: '1px solid rgba(148,163,184,.25)', borderRadius: 4, padding: '2px 4px', textAlign: 'center', fontSize: 11 }}>
+							<div key={g.letter} style={{ border: '1px solid var(--horosa-border)', borderRadius: 4, padding: '2px 4px', textAlign: 'center', fontSize: 11 }}>
 								<span style={{ fontSize: 14 }}>{g.letter}</span> {g.value}
 							</div>
 						))}

@@ -53,6 +53,7 @@ describe('放大档 / 窄栏盘与控件 · 源码闸', ()=>{
 	const ALLOW_SHRINK = {
 		'.horosa-workspace-shell .horosa-3d-side > .horosa-3d-tabs-fill': '页签区下限 320 是有意的压缩下限:页签内容区自己滚(内层 min-height:0 + 滚动),压到下限不越出',
 		'.horosa-workspace-shell .horosa-planet-with-lots > div:first-child': '行星列表块本身是滚动盒,压到 160 下限时列表在盒内滚',
+		'.horosa-workspace-shell .horosa-huangji-redesign.horosa-fg-page .horosa-huangji-board-host > .horosa-cnx-board': '盘框有意可压:压的是里面的 svg(viewBox 等比缩放),矮窗口下整盘不用下滑;压到 300 下限后交宿主纵滚,不越出',
 	};
 	test('② 纵向弹性滚动容器里写了 px 最小高的直接子项不许被压(登记例外写明理由、不许过期)', ()=>{
 		const hits = [];
@@ -74,6 +75,8 @@ describe('放大档 / 窄栏盘与控件 · 源码闸', ()=>{
 		'.horosa-yizhangjing-aux .ant-tabs': '页签容器:高度链容器,内容区自己滚',
 		'.horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-content-holder': '页签内容区:面板 height:100% 且 overflow-y:auto,自己滚',
 		'.horosa-workspace-shell .horosa-planet-with-lots > div:first-child': '行星列表块本身是滚动盒(内容在盒内滚)',
+		'.horosa-workspace-shell .horosa-huangji-redesign.horosa-fg-page .horosa-huangji-board-host > .horosa-cnx-board': '盘框取中栏剩余高,里面只有定高标题行 + 等比缩放的 svg,压矮时 svg 跟着缩、没有文字越出',
+		'.horosa-workspace-shell .horosa-huangji-redesign.horosa-fg-page .horosa-cnx-board > svg': 'svg 按盒等比缩放(替换元素,不越出)',
 	};
 	test('③ 弹性基准 0 可缩 + 最小高 0 / px + 自身溢出可见:每条登记理由(登记了却不再出现 = 过期)', ()=>{
 		const hits = [];

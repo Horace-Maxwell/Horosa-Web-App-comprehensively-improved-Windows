@@ -9,7 +9,9 @@ import { ZWSchool, sihuaTableFor } from '../../constants/ZWConst';
 import { ZWEngineOptions, collectEngineOpts } from '../../components/ziwei/ziweiOptions';
 import { loadBuildRelativeSnapshotText, ensureRelativeClassicalLoaded, relativeClassicalParamsOf } from './catalog';
 import { buildFieldObject } from './recordFields';
+import { chartOrbOverridesFromPlain } from '../classicalChartGlobals';
 import { buildChartBaziParams, buildChartZiweiParams } from './chartParams';
+import { buildAshtakootaLines, maleSideOf, pickedAshtakootaMaleSide } from '../indiaExtraTables';
 
 // 无头合盘(synastry):从两张命盘 record 现算关系快照 —— 比较盘(互摄相位/中点/映点)+ 组合盘(复合图)+ 影响盘(双盘叠加)。
 // 供「合盘」技法直接选两张盘生成,无需先在合盘页挂载。后端 /modern/relative(:9999,RSA);任一产品失败优雅跳过。
@@ -108,12 +110,23 @@ function pairSynastryCalibreOf(recordA){
 		classical: relativeClassicalParamsOf(fo),
 	};
 }
+// 两盘在合盘请求里的出生时空(与合盘页 genParams 的 inner / outer 同形)
+function pairBirthParams(r){
+	const [d, t] = `${(r && r.birth) || ''}`.split(' ');
+	return { date: d || '', time: t || '', zone: (r && r.zone) || '', lat: (r && r.lat) || '', lon: (r && r.lon) || '' };
+}
+// 八重合男方:合盘页里对这一对亲手改过的跟页面走(页面快照与挂载同一男方),否则按记录性别
+// 认这一对用记录原值(与合盘页 genParams 同:经纬 0 不被当成空)
+const pairSideParams = (r)=>{ const [d, t] = `${(r && r.birth) || ''}`.split(' '); return { date: d, time: t, zone: r && r.zone, lat: r && r.lat, lon: r && r.lon }; };
+export function pairAshtakootaMaleSide(recordA, recordB){
+	return pickedAshtakootaMaleSide(pairSideParams(recordA), pairSideParams(recordB)) || maleSideOf(recordA && recordA.gender, recordB && recordB.gender);
+}
 function pairSynastryKey(recordA, recordB){
 	const sig = (r)=>['birth', 'zone', 'lat', 'lon'].map((k)=>`${(r && r[k] != null) ? r[k] : ''}`).join('|');
 	const calibre = mountCalibreSignature();
 	let cal = '';
 	try{ cal = JSON.stringify(pairSynastryCalibreOf(recordA)); }catch(e){ cal = ''; }
-	return [sig(recordA), sig(recordB), cal, calibre].join('#');
+	return [sig(recordA), sig(recordB), cal, calibre, pairAshtakootaMaleSide(recordA, recordB)].join('#');
 }
 // opts.optionsA / optionsB:两人各自的本次挂载设置(按技法键);西洋合盘取星盘那一门(astrochart / astrochart_like)的覆盖
 export async function getPairSynastryText(recordA0, recordB0, opts = {}){
@@ -144,7 +157,7 @@ export function __resetPairSynastryCacheForTests(){ PAIR_SYNASTRY_CACHE.clear();
 
 export async function buildRelativeSnapshotForRecords(recordA, recordB){
 	if(!recordA || !recordB) return '';
-	const mk = (r)=>{ const [d, t] = `${(r && r.birth) || ''}`.split(' '); return { date: d || '', time: t || '', zone: (r && r.zone) || '', lat: (r && r.lat) || '', lon: (r && r.lon) || '' }; };
+	const mk = pairBirthParams;
 	// 与合盘页同一请求口径:宫制 / 黄道 / 岁差 + 古典口径段(界系 / 三分 / 交点 / 自定义岁差历元等;默认不下发 = 请求体零回归)
 	await ensureRelativeClassicalLoaded();
 	const cal = pairSynastryCalibreOf(recordA);
@@ -160,7 +173,9 @@ export async function buildRelativeSnapshotForRecords(recordA, recordB){
 	};
 	// 关系量化(分数)走独立 /astroextra/relative(返回 {score,highlights,challenges,aspects},非 /modern/relative)。
 	const fetchScore = async ()=>{
-		const params = { inner: mk(recordA), outer: mk(recordB), hsys: (recordA && recordA.hsys !== undefined && recordA.hsys !== null) ? recordA.hsys : 1, zodiacal: (recordA && recordA.zodiacal) || 0, siderealAyanamsa: (recordA && recordA.siderealAyanamsa) || '' };
+		const params = { inner: mk(recordA), outer: mk(recordB), hsys: (recordA && recordA.hsys !== undefined && recordA.hsys !== null) ? recordA.hsys : 1, zodiacal: (recordA && recordA.zodiacal) || 0, siderealAyanamsa: (recordA && recordA.siderealAyanamsa) || '',
+			// 容许度设置与合盘页的关系量化同一份(整体倍率决定跨盘接触的容许度);默认不带 = 请求体不变
+			...chartOrbOverridesFromPlain(cal.classical) };
 		let data;
 		try { data = await request(`${Constants.ServerRoot}/astroextra/relative`, { body: JSON.stringify(params), silent: true }); }
 		catch(_){ return ''; }
@@ -168,13 +183,25 @@ export async function buildRelativeSnapshotForRecords(recordA, recordB){
 		try { const buildRelativeSnapshotText = await loadBuildRelativeSnapshotText(); return buildRelativeSnapshotText({ currentTab: 'Score', result: data[Constants.ResultKey], chartA: { record: recordA }, chartB: { record: recordB }, params: headerParams }); }
 		catch(_){ return ''; }
 	};
+	// 八重合走 /astroextra/ashtakoota;男方与合盘页同口径(页内亲手改过的跟页面,否则按记录性别)。
+	const fetchAshtakoota = async ()=>{
+		const params = { inner: mk(recordA), outer: mk(recordB), siderealAyanamsa: cal.siderealAyanamsa, maleSide: pairAshtakootaMaleSide(recordA, recordB) };
+		let data;
+		try { data = await request(`${Constants.ServerRoot}/astroextra/ashtakoota`, { body: JSON.stringify(params), silent: true }); }
+		catch(_){ return ''; }
+		if(!data || data[Constants.ResultKey] === undefined || data[Constants.ResultKey] === null) return '';
+		const lines = buildAshtakootaLines(data[Constants.ResultKey]);
+		return lines.length ? ['[八重合]', ...lines].join('\n') : '';
+	};
 	const comp = await fetchOne(0, 'Comp');            // 比较盘:互摄相位/中点相位/映点
 	const composite = await fetchOne(1, 'Composite');  // 组合盘:复合图盘
 	const synastry = await fetchOne(2, 'Synastry');    // 影响盘:双盘叠加
 	const scoreTxt = await fetchScore();               // 关系量化:契合分数+顺畅/张力 top 相位
+	const kootaTxt = await fetchAshtakoota();
 	const stripHeader = (txt)=>{ const i = `${txt || ''}`.indexOf('\n['); return i > 0 ? `${txt}`.slice(i + 1) : `${txt || ''}`; }; // 去重复的 [关系起盘信息] 段(仅留首份)
 	const parts = [];
 	if(comp && comp.trim()) parts.push(comp);
 	[composite, synastry, scoreTxt].forEach((t)=>{ if(t && t.trim()) parts.push(parts.length ? stripHeader(t) : t); });
+	if(kootaTxt){ parts.push(kootaTxt); }
 	return parts.join('\n\n');
 }

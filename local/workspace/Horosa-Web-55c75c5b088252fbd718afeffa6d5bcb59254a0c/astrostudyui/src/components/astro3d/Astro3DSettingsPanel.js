@@ -13,6 +13,10 @@ const SWITCH_ROWS = [
 	['隐藏北极和北斗', '隐藏其它恒星'],
 	['显示斗柄连线'],
 ];
+// 显示名:键是引擎 chartOpt 的字段名(不能动),过长的在窄栏两列下会折行,这里只换显示文字。
+const SWITCH_LABELS = {
+	'隐藏地球附近星体': '隐藏近地星体',
+};
 
 const SLIDERS = [
 	{ key: '摄像机视野', min: 30, max: 120, step: 1 },
@@ -76,10 +80,10 @@ class Astro3DSettingsPanel extends React.Component {
 		const eng = this.engine();
 		if(!opt || !eng){
 			return (
-				<div style={{ padding: 16, color: 'var(--horosa-muted)' }}>
-					出盘后可调显示设置。
-					<div style={{ marginTop: 8 }}>
-						<XQButton size="small" onClick={()=>this.syncFromEngine()}>刷新</XQButton>
+				<div className="horosa-astro3d-settings">
+					<div className="horosa-info-card horosa-a3ds-sec horosa-a3ds-blank">
+						<div className="horosa-empty-line">出盘后可调显示设置。</div>
+						<XQButton size="small" iconName="refresh" onClick={()=>this.syncFromEngine()}>刷新</XQButton>
 					</div>
 				</div>
 			);
@@ -88,46 +92,44 @@ class Astro3DSettingsPanel extends React.Component {
 		const fmt = (v, step)=> (step >= 1 ? Math.round(v) : (Math.round(v * 100) / 100));
 		return (
 			<div className="horosa-astro3d-settings">
-				<div className="horosa-a3ds-sec">
-					<div className="horosa-a3ds-title">视角预设</div>
+				<div className="horosa-info-card horosa-a3ds-sec">
+					<div className="horosa-info-card-title">视角预设</div>
 					<div className="horosa-a3ds-presets">
 						{PRESET_ORDER.filter((k)=>presets[k]).map((k)=>(
 							<XQButton key={k} size="small" block onClick={()=>eng.flyToPreset(k)}>{presets[k].name}</XQButton>
 						))}
 					</div>
 				</div>
-				<div className="horosa-a3ds-sec">
-					<div className="horosa-a3ds-title">显示开关</div>
+				<div className="horosa-info-card horosa-a3ds-sec">
+					<div className="horosa-info-card-title">显示开关</div>
 					<div className="horosa-a3ds-switchgrid">
 						{SWITCH_ROWS.flat().map((key)=>(
 							<label key={key} className="horosa-a3ds-switchrow">
-								<span className="horosa-a3ds-label">{key}</span>
+								<span className="horosa-a3ds-label">{SWITCH_LABELS[key] || key}</span>
 								<XQSwitch size="small" checked={!!opt[key]} onChange={(v)=>this.apply(key, v)} />
 							</label>
 						))}
 					</div>
 				</div>
-				<div className="horosa-a3ds-sec">
-					<div className="horosa-a3ds-title">渲染参数</div>
-					<label className="horosa-a3ds-switchrow" style={{ marginBottom: 4 }}>
+				<div className="horosa-info-card horosa-a3ds-sec">
+					<div className="horosa-info-card-title">渲染参数</div>
+					<div className="horosa-a3ds-sliderrow is-select">
 						<span className="horosa-a3ds-label">纹理编码</span>
-						<XQSelect size="small" style={{ width: 104 }} value={opt['纹理编码']}
+						<XQSelect size="small" className="horosa-a3ds-select" value={opt['纹理编码']}
 							options={[{ value: 'sRGB', label: 'sRGB' }, { value: 'Linear', label: 'Linear' }]}
 							onChange={(v)=>this.apply('纹理编码', v)} />
-					</label>
+					</div>
 					{SLIDERS.map(({ key, min, max, step })=>(
 						<div key={key} className="horosa-a3ds-sliderrow">
-							<div className="horosa-a3ds-sliderhead">
-								<span className="horosa-a3ds-label">{key}</span>
-								<em className="horosa-a3ds-val">{fmt(Number(opt[key]) || 0, step)}</em>
-							</div>
+							<span className="horosa-a3ds-label">{key}</span>
 							<Slider min={min} max={max} step={step} value={Number(opt[key]) || 0}
 								tooltip={{ open: false }} onChange={(v)=>this.apply(key, v)} />
+							<em className="horosa-a3ds-val">{fmt(Number(opt[key]) || 0, step)}</em>
 						</div>
 					))}
 				</div>
-				<div className="horosa-a3ds-sec">
-					<div className="horosa-a3ds-title">颜色</div>
+				<div className="horosa-info-card horosa-a3ds-sec">
+					<div className="horosa-info-card-title">颜色</div>
 					<div className="horosa-a3ds-colorgrid">
 						{COLORS.map((key)=>(
 							<label key={key} className="horosa-a3ds-colorrow">

@@ -9,20 +9,21 @@
 
 赤纬来源:
  · 10 行星 —— 直接读 perchart 已设好的 obj.decl(perchart.py 在 _setEqCoords 阶段对七政/交点写入真赤纬)。
- · 8 TNP —— flatlib_ephem.getObject 返回的对象 .decl 恒为默认 0.0(历表只填黄道 lon/lat,不填赤纬),
-   故【不可信】,改用 utils.eqCoords(lon, lat) 现算真赤纬(= swisseph.cotrans 黄→赤,本仓 perchart 给宫位
-   定赤纬的同一函数)。
+ · 8 TNP —— 同样读对象自带的 .decl:按本盘黄道制从历表取(chart_objects.ephem_object),走的是行星那条取数路
+   (swisseph 直接给本日真赤道坐标,恒星盘也不带恒星标志),和主盘行星的赤纬同一个出口。(早先在这里拿固定 23.44° 交角自己换,古代年份差到 0.25°。)
 
-四轴排除:Asc/MC/Desc/IC 一律不入点集 —— swe.sweHouses 把 Asc.decl 设成地理纬度(lat)而非真赤纬,
-纳入会污染;本法的赤纬接触本就只论星体。
+四轴排除:Asc/MC/Desc/IC 一律不入点集 —— 本法的赤纬接触只论星体。(四轴的 decl 现在已是黄道点的真赤纬,
+排除与数值可信与否无关。)
+定义对点排除:南北交赤纬恒互为相反数,永远「反平行、差 0」,不列(与主盘赤纬平行 _ANTIPODE_PAIRS 同一组)。
 
 健壮性:任一点 decl 为 None / NaN / 取不到 → 跳过该点,绝不抛栈。
 """
 import math
 
 from flatlib import const
-from flatlib import utils
-from flatlib.ephem import ephem as flatlib_ephem
+from astrostudy.germany.chart_objects import ephem_object
+
+from astrostudy.perchart_parts.aspects import _ANTIPODE_PAIRS
 
 
 # 行星点集:10 颗(七政 + 天王海王冥王 + 南北交)。与 midpoint.LIST_OBJ 同源,但去黑月/紫炁
@@ -62,20 +63,15 @@ def _planet_decls(perchart):
 
 
 def _tnp_decls(perchart):
-    """8 颗 TNP 真赤纬:历表对象 .decl 不可信(恒 0.0),用 eqCoords(lon, lat) 现算。
-    返回 {id: decl_float}(只含算成功且有限的)。"""
+    """8 颗 TNP 真赤纬:读历表对象自带的 .decl(swisseph 本日真赤道坐标,与主盘行星同一出口)。
+    返回 {id: decl_float}(只含取成功且有限的)。"""
     out = {}
     for oid in const.LIST_URANIAN:
         try:
-            obj = flatlib_ephem.getObject(oid, perchart.dateTime, perchart.pos)
+            obj = ephem_object(perchart, oid)
         except Exception:
             continue
-        try:
-            # eqCoords 返回 (ra, decl);TNP 有真实 lon/lat,故此处赤纬为真值。
-            decl = utils.eqCoords(obj.lon, obj.lat)[1]
-        except Exception:
-            continue
-        d = _finite(decl)
+        d = _finite(getattr(obj, 'decl', None))
         if d is not None:
             out[oid] = d
     return out
@@ -117,6 +113,8 @@ def compute_declination(perchart, orb=1.0, include_tnp=True):
     for i in range(n):
         for j in range(i + 1, n):
             ida, idb = points[i], points[j]
+            if frozenset((ida, idb)) in _ANTIPODE_PAIRS:
+                continue
             da, db = decls[ida], decls[idb]
             same_sign = (da * db) > 0
             if same_sign:

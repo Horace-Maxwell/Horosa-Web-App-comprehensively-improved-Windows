@@ -606,16 +606,21 @@
 	}
 	.horosa-geomancy-sq-cell {
 		border: 0 !important;
-		background: var(--horosa-bg, #fff);
+		// 格底 = 面板实底(与周围卡片同色)。不能用页面底 --horosa-bg:宣纸档偏深、经典白档偏蓝,盘会像贴了一块异色补丁
+		background: var(--horosa-surface-solid, #fff);
 		gap: 7px; padding: 12px 9px;
 		&.is-significator {
-			background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.12));
+			// 淡金必须**叠在面板实底之上**:网格底色是分割线的金色,单写半透明淡金会把它透上来,
+			// 整格变成不透明的金棕实底,格内金色宫号 / 星座 / 点阵压在金底上看不清(亮暗两套都一样)
+			background:
+				linear-gradient(var(--horosa-accent-soft, rgba(215, 173, 105, 0.12)), var(--horosa-accent-soft, rgba(215, 173, 105, 0.12))),
+				var(--horosa-surface-solid, #fff);
 			box-shadow: inset 0 0 0 2px var(--horosa-astro-gold, #d7ad69);
 		}
 	}
 	.horosa-geomancy-sq-center {
 		border: 0 !important;
-		background: var(--horosa-bg, #fff);
+		background: var(--horosa-surface-solid, #fff);
 	}
 	.horosa-geomancy-sq-head { font-size: 13px; }
 	.horosa-geomancy-sq-num { font-size: 15px; }
@@ -623,10 +628,6 @@
 	.horosa-geomancy-sq-fig > strong { font-size: 16px; }
 	.horosa-geomancy-sq-fig > em { font-size: 12px; }
 	.horosa-geomancy-sq-cell .horosa-geomancy-fig-dots { transform: scale(1.2); }
-}
-// 暗色主题下格底改用面板底色,免白块刺眼
-:root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-geomancy-square {
-	.horosa-geomancy-sq-cell, .horosa-geomancy-sq-center { background: var(--horosa-astro-panel, #141a24); }
 }
 
 // 北印度式 / 中世纪盘:放大盘面与字号,用满中栏
@@ -755,13 +756,13 @@
 // [得地] 盾面格右上角小徽:全同◎/同温○/同湿◇/全异✕。位置绝对,不挤原有点阵与名。
 .horosa-geomancy-shield-cell { position: relative; }
 .horosa-geomancy-shield-tenancy {
-	position: absolute; top: 3px; right: 4px;
-	font-size: 11px; line-height: 1; font-style: normal;
-	opacity: 0.9; cursor: help;
+	position: absolute; top: 6px; right: 7px;
+	font-size: 16px; line-height: 1; font-weight: 700; font-style: normal;
+	cursor: help;
 	&.is-full { color: var(--horosa-astro-gold, #d7ad69); }
 	&.is-assist { color: var(--horosa-jx-he); }
 	&.is-stall { color: var(--horosa-jx-other); }
-	&.is-weak { color: #b5788a; opacity: 1; }   // 叠 0.9 后浅色底只有 2.93:1;不叠 ≈ 3.5:1(暗底 ≈ 5:1)
+	&.is-weak { color: #b5788a; }   // 浅色底 ≈ 3.5:1、暗底 ≈ 5:1;四档都不叠透明度(叠 0.9 后浅底掉到 2.93:1)
 }
 // [时间流] 右证过去 / 法官现在 / 左证未来
 .horosa-geomancy-shield-time {

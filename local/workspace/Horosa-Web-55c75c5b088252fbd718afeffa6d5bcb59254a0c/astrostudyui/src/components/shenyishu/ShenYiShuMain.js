@@ -433,9 +433,9 @@ class ShenYiShuMain extends Component{
 						</label>
 						<label className="horosa-huangji-select-field is-wide">
 							<span>五行季令</span>
-							<Select value={this.state.seasonSource} onChange={(value)=>this.setState({ seasonSource: value })}>
-								<Option value="auto">自动按公历月份取季令（三月一季）</Option>
-								<Option value="manual">手动指定季令</Option>
+							<Select value={this.state.seasonSource} optionLabelProp="label" onChange={(value)=>this.setState({ seasonSource: value })}>
+								<Option value="auto" label="自动（按公历月份）">自动按公历月份取季令（三月一季）</Option>
+								<Option value="manual" label="手动指定季令">手动指定季令</Option>
 							</Select>
 						</label>
 						<label className="horosa-huangji-select-field">

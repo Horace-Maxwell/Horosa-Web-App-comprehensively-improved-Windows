@@ -1,4 +1,5 @@
 import { Component, createRef,  } from 'react';
+import { createPortal } from 'react-dom';
 import '../comp/DateTime';
 import '../comp/DateTimeSelector';
 import { planetariumRenderGatingEnabled, planetariumTimeEditDebounceEnabled } from '../../utils/perfFlags';
@@ -35,8 +36,11 @@ import {
 import {
 	buildObservationTime, starLimitForMag, buildRequestParams, buildInitialSceneParams, buildPlaybackSyncParams,
 	buildSceneSyncParams, cachePlanetariumState, getCachedPlanetariumState, cachedStateMatches,
+	sceneRequestSignature, isStarOnlyReason,
 } from './babylon/sceneParams';
 import { PlanetariumRenderer } from './babylon/PlanetariumRenderer';
+import { playbackAnchorAfterHitch } from './babylon/playbackClock';
+import { spaceTogglesPlayback, playbackHotkeyControlOf, isSpaceKey, PLAYBACK_HOTKEY_OPEN_POPUPS } from './babylon/playbackHotkey';
 import { watchChartScript } from '../../utils/chartDrawGuard';
 // 对外导出面不变:搬进子模块的导出原样重导出
 export { PLANETARIUM_PAGE_SETTINGS } from './babylon/constants';
@@ -115,6 +119,12 @@ class PlanetariumBabylon extends Component{
 		this.changeMagLimit = this.changeMagLimit.bind(this);
 		this.toggleMeasureMode = this.toggleMeasureMode.bind(this);
 		this.changeSpeed = this.changeSpeed.bind(this);
+		this._onPlaybackKeyDown = this._onPlaybackKeyDown.bind(this);
+		this._onPlaybackKeyUp = this._onPlaybackKeyUp.bind(this);
+		this._onPlaybackPointerDown = this._onPlaybackPointerDown.bind(this);
+		this._focusByKeyboard = false;
+		this._pageRef = createRef();
+		this.lastPlaySpeed = 0;   // 空格键恢复播放用:最近一次非零速率(从没播过 = 0 → 按 1x 起)
 		this.jumpNow = this.jumpNow.bind(this);
 		this.toggleImmersive = this.toggleImmersive.bind(this);
 		this.searchTarget = this.searchTarget.bind(this);
@@ -144,6 +154,10 @@ class PlanetariumBabylon extends Component{
 			}, 60);
 		};
 		document.addEventListener('fullscreenchange', this._onFullscreenChange);
+		document.addEventListener('keydown', this._onPlaybackKeyDown, true);
+		document.addEventListener('keyup', this._onPlaybackKeyUp, true);
+		document.addEventListener('pointerdown', this._onPlaybackPointerDown, true);
+		document.addEventListener('mousedown', this._onPlaybackPointerDown, true);
 		this.renderer = new PlanetariumRenderer(
 			this.canvasRef.current,
 			(selected)=>{ if(this._isUnmounted){ return; } this.setState({ selected, skyReadout: null }); },
@@ -204,7 +218,7 @@ class PlanetariumBabylon extends Component{
 			}
 			// 🔴 切换图层后必须立即按当前时刻重投影:性能守卫会跳过隐藏层的重投影,使其停在旧时刻位置;
 			// 重新打开时若不重算,就会与一直可见的图层错位(如二十八宿点 vs 宿区间)。一次重算消除所有此类错位。
-			this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields(), this.refractionActiveState());
+			this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields(), this.refractionActiveState());
 			// 行星轨迹层刚打开且当前数据无 trails → 触发一次带 includeTrails 的全量重取(默认关、不开不取 → 零额外请求)。
 			if(this.state.layers.planetTrails && !prevState.layers.planetTrails && !(this.state.data && Array.isArray(this.state.data.trails) && this.state.data.trails.length)){
 				this.requestState({ requestKind: 'full', reason: 'planet-trails', syncLabel: '计算行星轨迹...' });
@@ -218,10 +232,11 @@ class PlanetariumBabylon extends Component{
 		if(prevState.viewMode !== this.state.viewMode && this.renderer){
 			this.renderer.setViewMode(this.state.viewMode);
 			// ① 切换地表观测/天球外观后立即重投影:天球外观去大气折射(几何原貌),地表观测带折射。显式传 override,不等相机动画。
-			this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields(), this.refractionActiveState());
+			this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields(), this.refractionActiveState());
 		}
 		if(prevProps.fields !== this.props.fields){
 			const time = buildObservationTime(this.props.fields);
+			this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
 			this.setState({
 				time,
 				selected: null,
@@ -235,6 +250,10 @@ class PlanetariumBabylon extends Component{
 		if(this._detachScript){ this._detachScript(); this._detachScript = null; }
 		document.removeEventListener('mousedown', this._onTimeEditorDocMouseDown, true);
 		document.body.classList.remove('planetarium-time-editing');
+		document.removeEventListener('keydown', this._onPlaybackKeyDown, true);
+		document.removeEventListener('keyup', this._onPlaybackKeyUp, true);
+		document.removeEventListener('pointerdown', this._onPlaybackPointerDown, true);
+		document.removeEventListener('mousedown', this._onPlaybackPointerDown, true);
 		if(this._onFullscreenChange){
 			document.removeEventListener('fullscreenchange', this._onFullscreenChange);
 			this._onFullscreenChange = null;
@@ -292,12 +311,17 @@ class PlanetariumBabylon extends Component{
 		if(this._isUnmounted){
 			return;
 		}
-		this.pendingFullRequest = {
-			showLoading: false,
-			requestKind: 'full',
-			reason: options.reason || 'background-full',
-			syncLabel: options.syncLabel || '补全天空...',
-		};
+		// 已经排着一次「整场」全量(天空补全 / 改设置后的重取)时,后来的「只补星表」不顶掉它:
+		// 只补星表的回包不重建场景,顶掉 = 那次整场刷新就丢了。留下的那次全量自带完整星表(_starsWantFull 已置)。
+		const keepQueued = this.pendingFullRequest && !isStarOnlyReason(this.pendingFullRequest.reason) && isStarOnlyReason(options.reason);
+		if(!keepQueued){
+			this.pendingFullRequest = {
+				showLoading: false,
+				requestKind: 'full',
+				reason: options.reason || 'background-full',
+				syncLabel: options.syncLabel || '补全天空...',
+			};
+		}
 		if(this.backgroundFullTimer){
 			clearTimeout(this.backgroundFullTimer);
 			this.backgroundFullTimer = null;
@@ -343,23 +367,67 @@ class PlanetariumBabylon extends Component{
 	}
 
 	finishStateData(payload){
-		const { data, requestKind, started, apiMs, followupFull } = payload || {};
+		const { requestKind, started, apiMs, followupFull, reason, sig } = payload || {};
+		let data = payload ? payload.data : null;
 		if(!data || this._isUnmounted){
 			this.requestInFlight = false;
 			return;
 		}
 		let renderMs = 0;
-		if(this.renderer){
+		// 行星轨迹层刚打开的那次重取:只把轨迹补进现有场景(别的都没变),不整场重建。
+		// 场景里的日月行星可能已被播放校准推到更新的时刻,留用现有数据、只并入 trails,比整场换成「发请求那一刻」的回包更准。
+		let trailsOnly = false;
+		if(reason === 'planet-trails' && this.renderer && this.state.data && Array.isArray(data.trails)){
+			const ms = this.renderer.applyPlanetTrails(data);
+			if(ms >= 0){
+				trailsOnly = true;
+				data = { ...this.state.data, trails: data.trails };
+				renderMs = ms + (this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields(), this.refractionActiveState()) || 0);
+			}
+		}
+		// 后台补全完整星表的那次回包:它问的那片天(观测点 / 设置 / 附带项)和场景里现有数据是同一片,
+		// 且时刻也相同(或正在播放——播放中场景早被帧循环推到更新的时刻)→ 只换星表,日月行星 / 线网 / 名牌一样不动。
+		// 整场换成这份回包 = 白重建一遍;播放中还会把日月行星拉回「发请求那一刻」再弹回来。
+		let starsOnly = false;
+		if(!trailsOnly && isStarOnlyReason(reason) && this.renderer && this.state.data && sig && this._sceneDataSig
+			&& sig.scene === this._sceneDataSig.scene
+			&& (sig.time === this._sceneDataSig.time || Number(this.state.speed || 0) !== 0)
+			&& data.stars && Array.isArray(data.stars.catalog)){
+			const ms = this.renderer.applyStarCatalog(data);
+			if(ms >= 0){
+				starsOnly = true;
+				const prevData = this.state.data;
+				const nextMeta = data.meta || {};
+				data = {
+					...prevData,
+					stars: { ...(prevData.stars || {}), catalog: data.stars.catalog },
+					meta: {
+						...(prevData.meta || {}),
+						catalogCount: nextMeta.catalogCount,
+						bsc5CatalogCount: nextMeta.bsc5CatalogCount,
+						swissFixedStarCount: nextMeta.swissFixedStarCount,
+						renderedCatalogCount: nextMeta.renderedCatalogCount,
+					},
+				};
+				renderMs = ms + (this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields(), this.refractionActiveState()) || 0);
+			}
+		}
+		if(trailsOnly || starsOnly){
+			// 场景已就位
+		}else if(this.renderer){
+			this._sceneDataSig = sig || null; // 场景里现有数据是哪次请求的(没带指纹的来源 = 不认,之后照旧整场重建)
 			renderMs = this.renderer.updateData(data, this.state.layers) || 0;
 			// Re-project immediately through the SAME frontend pipeline that playback
 			// and calibration use, so the paused frame == the first animated frame.
 			// Previously the initial draw kept backend (swisseph) alt/az while playback
 			// recomputed alt/az on the frontend, so labels sat off their lines and every
 			// line/star snapped on the first play frame. (renderCachedState already does this.)
-			renderMs += this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields()) || 0;
+			renderMs += this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields()) || 0;
 		}
 		if(requestKind === 'full'){
-			cachePlanetariumState(data);
+			// 只补轨迹 / 只换星表时,data 是拼出来的:日月行星与天空可能已被播放 / 单步校准原地推到别的时刻,observer.jd 却还是最初那次。
+			// 缓存要自洽(再进页按 observer.jd 判命中、不再校准)→ 这两种情况存这次请求的原始回包,不存拼接结果。
+			cachePlanetariumState(trailsOnly || starsOnly ? payload.data : data);
 		}
 		const firstReadyMs = this.firstReadyLogged ? this.state.metrics.firstReadyMs : Math.round(nowMs() - this.mountedAt);
 		this.firstReadyLogged = true;
@@ -430,8 +498,9 @@ class PlanetariumBabylon extends Component{
 		const started = nowMs();
 		let renderMs = 0;
 		if(this.renderer){
+			this._sceneDataSig = null; // 缓存里的场景不带请求指纹 → 之后的补星表回包照旧整场重建
 			renderMs = this.renderer.updateData(data, this.state.layers) || 0;
-			renderMs += this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields()) || 0;
+			renderMs += this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields()) || 0;
 		}
 		const firstReadyMs = this.firstReadyLogged ? this.state.metrics.firstReadyMs : Math.round(nowMs() - this.mountedAt);
 		this.firstReadyLogged = true;
@@ -591,6 +660,7 @@ class PlanetariumBabylon extends Component{
 			document.body.classList.remove('planetarium-time-editing');
 			document.removeEventListener('mousedown', this._onTimeEditorDocMouseDown, true);
 		}
+		this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
 		const confirmed = !!(res && res.confirmed);
 		const fireRequest = ()=>{
 			if(this._isUnmounted){ return; }
@@ -622,7 +692,7 @@ class PlanetariumBabylon extends Component{
 	// 时间编辑面板:自控开合(不用 antd Popover,避免其受控 click-outside 与嵌套 Select 下拉互相抢闭)。
 	toggleTimeEditor(){
 		const next = !this.state.timeEditorOpen;
-		// 面板用 position:fixed(逃出左栏 overflow:auto 的裁切),坐标按时间显示元素实时算。
+		// 面板挂在 body 下、position:fixed,坐标按时间显示元素实时算。
 		let pos = this.state.timeEditorPos || null;
 		if(next && this._timeDisplayRef.current){
 			// rect(视觉域)先换到 fixed 面板 style 所在的布局域,再与布局视口 / 面板宽(CSS 尺寸)同域比较;z=1 时逐值不变。
@@ -676,10 +746,9 @@ class PlanetariumBabylon extends Component{
 			this.playbackLastFrameMs = 0;
 			this.playbackLastStateMs = 0;
 			this.playbackLastMetricMs = 0;
-			// ⚠ 不清 playbackLastFrameTime!保留它作「暂停瞬间真实时刻」给下次开始播放做 anchor。
-			// 之前清掉后,开始播放分支 fallback 用 state.time(落后 0-120ms × prevSpeed,3600x 下 ≈100s 模拟),
-			// 帧循环第一帧 next = anchor + 0 = state.time = B 位置 → mesh 瞬间跳到 B → 快速追上 A → 用户看到「先跳到 B 闪一下再回 A」。
-			// 改为保留 → 下次播放 anchor = pauseTime(真实瞬间) → 从 A 平滑开始,无任何跳变。
+			// 暂停瞬间的真实时刻取 playbackLastFrameTime(state.time 落后 0-120ms × prevSpeed);下面把 state.time 对齐到它之后即清掉 ——
+			// 下次开播按 state.time(= 暂停瞬间,或用户之后改到的时刻)起锚,既不跳回落后的 B 位置,也不丢暂停后的调整。
+			// 单步 / 改时间 / 回到命盘 / 换盘在 setState 前先清它:播放中触发这些操作时,这里取到的就是用户要的新时刻,不会被盖回最后一帧。
 			if(this.renderer && this.state.data){
 				this.renderer.updateProjectedTime(pauseTime, this.getEffectiveFields());
 			}
@@ -693,6 +762,9 @@ class PlanetariumBabylon extends Component{
 				// 底栏 JD / 右栏时刻 与场景相差三天,单步、校准都从两套时刻出发)。stepTime 本就 setState({time}),这里同律。
 				this.setState({ time: pauseTime && pauseTime.clone ? pauseTime.clone() : pauseTime });
 			}
+			// state.time 已对齐到暂停那一帧,不再留着它:暂停后单步 / 改时间 / 回到命盘 / 换盘只改 state.time,
+			// 留着旧帧会让「空格继续」从旧的暂停瞬间开播,前面的调整全丢。下一次开播按 state.time 起锚即可。
+			this.playbackLastFrameTime = null;
 			// 🔴 暂停帧必须是精确帧(T-199/T-200):高速档下最后一次校准可能已陈旧数天(月进档实抓:暂停时月龄差 6.6 天、黄纬差 2°),
 			// 暂停后没有帧循环再修正 → 以暂停时刻强制校准一次落地(force:不受「暂停丢在途回包」守卫影响;暂停态不做残差淡出,直接落真值)。
 			if(this.renderer && this.state.data){
@@ -716,6 +788,8 @@ class PlanetariumBabylon extends Component{
 				return;
 			}
 			const frameMs = nowMs();
+			// 卡顿造成的长帧折成一帧(加速档):不让模拟时间照墙钟一次补齐、天球往前一跳。口径见 babylon/playbackClock.js。
+			this.playbackAnchorMs = playbackAnchorAfterHitch(this.playbackAnchorMs, this.playbackLastFrameMs, frameMs, speed);
 			const elapsedSeconds = Math.max(0, (frameMs - this.playbackAnchorMs) / 1000);
 			const next = this.playbackAnchorTime.clone();
 			next.addSecond(speed * elapsedSeconds);
@@ -854,7 +928,7 @@ class PlanetariumBabylon extends Component{
 			});
 			return;
 		}
-		const renderMs = this.renderer.updateProjectedTime(this.state.time, this.getEffectiveFields());
+		const renderMs = this.renderer.updateProjectedTime(this.sceneTime(), this.getEffectiveFields());
 		this.setState((prev)=>({
 			syncing: true,
 			syncLabel: '后台校准天空...',
@@ -924,6 +998,14 @@ class PlanetariumBabylon extends Component{
 	async requestState(options = {}){
 		const opts = options || {};
 		if(this.requestInFlight){
+			// 同 scheduleBackgroundFull:排着的「整场」重取不被后来的「只补星表」/「只补行星轨迹」顶掉 ——
+			// 这两种回包只并入星表 / 轨迹(快路径),顶掉后改时间等要求的整场重取就丢了,日月行星停在旧时刻。
+			// 排着的整场请求发出时按当时的图层带上轨迹,不缺那一份。
+			const narrow = (r)=>isStarOnlyReason(r) || r === 'planet-trails';
+			const queued = this.pendingRequestOptions;
+			if(queued && !narrow(queued.reason) && narrow(opts.reason)){
+				return;
+			}
 			this.pendingRequestOptions = {
 				showLoading: false,
 				reason: opts.reason || 'pending',
@@ -988,6 +1070,8 @@ class PlanetariumBabylon extends Component{
 			started,
 			apiMs,
 			followupFull: opts.followupFull,
+			reason: opts.reason,
+			sig: sceneRequestSignature(params),
 		};
 		if(requestKind === 'full' && nowMs() - this.lastInteractionAt < 700){
 			this.pendingFullRender = payload;
@@ -1008,6 +1092,15 @@ class PlanetariumBabylon extends Component{
 			...opts,
 			showLoading: false,
 		}), 0);
+	}
+
+	// 场景此刻该投影到的时刻:播放中 = 帧循环最新一帧的时刻(state.time 每 120ms 才跟一次,落后 ≤120ms×速率;
+	// 播放中拿它重投影 = 整个天球先退回旧位置、下一帧再弹回,就是「改选项时往回跳一下」);暂停 / 单步 = state.time。
+	sceneTime(){
+		if(Number(this.state.speed || 0) !== 0 && this.playbackLastFrameTime){
+			return this.playbackLastFrameTime;
+		}
+		return this.state.time;
 	}
 
 	// React 侧大气折射判据(与渲染端 refractionActive 同义):地表观测 + 大气层开。
@@ -1070,7 +1163,44 @@ class PlanetariumBabylon extends Component{
 		this.setState({ layers: {...DEFAULT_LAYERS}, collapsedGroups: new Set(['scales', 'poles']) }, ()=>PLANETARIUM_PAGE_SETTINGS.save({ layers: this.state.layers }));
 	}
 
+	// 空格键 = 暂停 / 回到上一次选的速率。接管判定在 babylon/playbackHotkey.js(页可见、不在打字、没有弹层开着、焦点不是用 Tab 走到的控件)。
+	// 在捕获阶段接键:抢在控件自己的键盘处理之前(鼠标点过的下拉会把焦点留在它的输入框上,那里按空格本来会再弹开下拉)。
+	_spaceTogglesPlayback(e){
+		return spaceTogglesPlayback(e, this._pageRef.current, this._focusByKeyboard === true);
+	}
+
+	_onPlaybackPointerDown(){
+		this._focusByKeyboard = false;
+	}
+
+	_onPlaybackKeyDown(e){
+		if(e && e.key === 'Tab'){ this._focusByKeyboard = true; return; }
+		// Esc 收起时间输入面板(面板里的下拉 / 日期弹层还开着时先让它们自己收)
+		if(e && e.key === 'Escape' && this.state.timeEditorOpen && !e.defaultPrevented && !e.isComposing){
+			if(!document.querySelector(PLAYBACK_HOTKEY_OPEN_POPUPS)){ this._closeTimeEditor(); }
+			return;
+		}
+		if(!this._spaceTogglesPlayback(e)){ return; }
+		e.preventDefault();   // 不滚页;也不让聚焦着的速率钮被空格再点一次
+		// 焦点留在某个控件上时,连同它自己的键盘处理一起拦下(否则下拉会被这一下空格弹开)
+		this._spaceKeyOnControl = !!playbackHotkeyControlOf(e.target);
+		if(this._spaceKeyOnControl){ e.stopPropagation(); }
+		this._spaceKeyHeld = true;
+		if(e.repeat){ return; }
+		this.changeSpeed(this.state.speed !== 0 ? 0 : (this.lastPlaySpeed || 1));
+	}
+
+	_onPlaybackKeyUp(e){
+		// 按钮的空格激活发生在 keyup:按下那一下是本页接管的,抬起也一并吞掉。
+		if(!this._spaceKeyHeld || !isSpaceKey(e)){ return; }
+		this._spaceKeyHeld = false;
+		e.preventDefault();
+		if(this._spaceKeyOnControl){ e.stopPropagation(); }
+		this._spaceKeyOnControl = false;
+	}
+
 	changeSpeed(speed){
+		if(speed){ this.lastPlaySpeed = speed; }
 		this.lastPlaybackSyncAt = nowMs();
 		// 🆕 暂停时 setupPlayback(componentDidUpdate 触发) 已完整处理:用 playbackLastFrameTime mutate src/mesh 到 pauseTime=A 位置 + setState({time:pauseTime}) 对齐 React state。
 		// 原来这里的 snap 逻辑(applyLocalPlaybackFrame(0) + requestPlaybackCalibration(state.time))会引入双跳:applyLocalPlaybackFrame 用落后 120ms 的 state.time 重投影 → 整个 scene 被拉回 B(几秒前)。删除即修。
@@ -1084,6 +1214,7 @@ class PlanetariumBabylon extends Component{
 	}
 
 	jumpNow(){
+		this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
 		this.setState({
 			time: buildObservationTime(this.props.fields),
 			speed: 0,
@@ -1091,6 +1222,7 @@ class PlanetariumBabylon extends Component{
 	}
 
 	stepTime(amount, unit){
+		this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
 		this.setState((prev)=>{
 			const next = prev.time.clone();
 			next.add(amount, unit);
@@ -1295,7 +1427,7 @@ class PlanetariumBabylon extends Component{
 		const sceneLst = formatRa(localSiderealDeg(sceneJd, sceneObs.lon));
 		const sceneEps = formatDeg(meanObliquityDeg(sceneJd));
 		return (
-			<div className={`horosa-planetarium-page ${this.state.leftCollapsed ? 'is-left-collapsed' : ''} ${this.state.immersive ? 'is-immersive' : ''}`}>
+			<div ref={this._pageRef} className={`horosa-planetarium-page ${this.state.leftCollapsed ? 'is-left-collapsed' : ''} ${this.state.immersive ? 'is-immersive' : ''}`}>
 				<aside className="planetarium-side planetarium-left">
 					<div className="planetarium-title">
 						<small>地表观测天空</small>
@@ -1306,10 +1438,12 @@ class PlanetariumBabylon extends Component{
 					</div>
 					<div className="planetarium-time" style={{ position: 'relative' }}>
 						<QuickTimeText innerRef={this._timeDisplayRef} className={`planetarium-time-display${this.state.timeEditorOpen ? ' is-editing' : ''}`} role="button" title="点击修改时间；双击可直接键入 14 位数字（年月日时分秒）" onClick={this.toggleTimeEditor} value={this.state.time} onQuickCommit={this.quickCommitObserverTime}>{this.state.time.format('YYYY-MM-DD HH:mm:ss')}</QuickTimeText>
-						{this.state.timeEditorOpen ? (
+						{/* 面板挂到 body:留在左栏里会被左栏的滚动合成层按栏宽裁掉(WebKit 实机;重绘式截图看不出来,要看真合成)。 */}
+						{this.state.timeEditorOpen && typeof document !== 'undefined' && document.body ? createPortal(
 							<div ref={this._timeEditorRef} className="planetarium-time-editor" style={this.state.timeEditorPos ? { top: this.state.timeEditorPos.top, left: this.state.timeEditorPos.left } : undefined}>
 								<PlanetariumTimeEditor time={this.state.time} onChange={this.changeObserverTime} />
-							</div>
+							</div>,
+							document.body
 						) : null}
 						<small>{this.state.time.zone} · {observerName}</small>
 						<div className="planetarium-observer-line">
@@ -1400,7 +1534,7 @@ class PlanetariumBabylon extends Component{
 						</div>
 						<div className="planetarium-actions">
 							<button type="button" onClick={this.jumpNow}>回到命盘时间</button>
-							<button type="button" className={this.state.speed === 0 ? 'is-active' : ''} onClick={()=>this.changeSpeed(0)}>暂停</button>
+							<button type="button" className={this.state.speed === 0 ? 'is-active' : ''} title="空格键：暂停 / 回到刚才的速率" onClick={()=>this.changeSpeed(0)}>暂停</button>
 						</div>
 						<div className="planetarium-step-grid">
 							<button type="button" onClick={()=>this.stepTime(-1, 'h')}>-1时</button>

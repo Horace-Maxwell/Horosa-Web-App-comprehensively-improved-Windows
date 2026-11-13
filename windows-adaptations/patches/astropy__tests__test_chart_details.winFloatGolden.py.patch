@@ -1,0 +1,23 @@
+diff --git a/astropy/tests/test_chart_details.py b/astropy/tests/test_chart_details.py
+index ac1df93d..d5151512 100644
+--- a/astropy/tests/test_chart_details.py
++++ b/astropy/tests/test_chart_details.py
+@@ -8,6 +8,7 @@ import pytest
+ from astrostudy import chart_details as C
+ from astrostudy import directed_figures as D
+ from astrostudy.directed_figures import SEVEN, norm360
++from win_float_golden import golden_equal   # horosa_win_float_golden_v1
+ 
+ CHART = {'date': '1975/02/10', 'time': '21:15:00', 'zone': '-08:00', 'lat': '47n36', 'lon': '122w20', 'gpsLat': 47.6, 'gpsLon': -122.333, 'hsys': 3}
+ DAY_CHART = dict(CHART, time='12:00:00')
+@@ -505,7 +506,9 @@ def test_golden_tables(name):
+     with open(GOLDEN_PATH, encoding='utf-8') as handle:
+         golden = json.load(handle)[name]
+     # 受孕期从目标日起算一年:钉住目标日,金标不随今天变
+-    assert json.loads(json.dumps(C.build_chart_details(dict(GOLDEN_CHARTS[name], targetDate='2026/01/01')))) == golden
++    # horosa_win_float_golden_v1(Windows 侧移植适配):金标是在另一套数学库上录的,本机浮点末位与并列行次序不同;
++    # 按 win_float_golden 的口径比(浮点差 1e-4 以内,整数、文字、布尔、键集合、行数仍须相等)。
++    assert golden_equal(json.loads(json.dumps(C.build_chart_details(dict(GOLDEN_CHARTS[name], targetDate='2026/01/01')))), golden)
+ 
+ 
+ # ---------------------------------------------------------------- 口径细节

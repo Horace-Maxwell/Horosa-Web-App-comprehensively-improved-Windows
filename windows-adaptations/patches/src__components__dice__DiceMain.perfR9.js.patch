@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
-index 0296ecb4..f29fb3e4 100644
+index 6239f816..4efb93cc 100644
 --- a/astrostudyui/src/components/dice/DiceMain.js
 +++ b/astrostudyui/src/components/dice/DiceMain.js
 @@ -25,6 +25,8 @@ import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import moment from 'moment';
- import { classicalBackendOverrides, classicalGlobalValue } from '../../utils/classicalChartGlobals';
+ import { classicalBackendOverrides, classicalGlobalValue, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
@@ -22,7 +22,7 @@ index 0296ecb4..f29fb3e4 100644
  		}
  
  		if(this.props.hook){
-@@ -327,7 +333,9 @@ class DiceMain extends Component{
+@@ -329,7 +335,9 @@ class DiceMain extends Component{
  			sign: result.sign,
  		};
  
@@ -33,7 +33,7 @@ index 0296ecb4..f29fb3e4 100644
  		const diceTxt = this.state.txt;
  		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
  		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), diceSnapshotMeta(params));
-@@ -605,6 +613,7 @@ class DiceMain extends Component{
+@@ -604,6 +612,7 @@ class DiceMain extends Component{
  		}
  	}
  
@@ -41,7 +41,7 @@ index 0296ecb4..f29fb3e4 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -644,30 +653,39 @@ class DiceMain extends Component{
+@@ -643,30 +652,39 @@ class DiceMain extends Component{
  			<div className='horosa-dice-page'>
  				<Row gutter={14} className='horosa-dice-layout'>
  					<Col span={17} className='horosa-dice-chart-panel'>

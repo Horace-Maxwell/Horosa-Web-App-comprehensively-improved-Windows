@@ -5313,7 +5313,7 @@ function AIAnalysisMain(props){
 				</div>
 				<div className={styles.paneBody}>
 					<div className={styles.paneScroll}>
-						<div className={styles.templateGrid}>
+						<div className={filteredTemplates.length === 0 ? styles.materialEmpty : styles.templateGrid}>
 							{filteredTemplates.length === 0 ? <Empty description="暂无模版或组合" /> : filteredTemplates.map((item)=>(
 						<Card
 							key={`${item.cardType}-${item.id}`}
@@ -5478,7 +5478,7 @@ function AIAnalysisMain(props){
 								]}
 							/>
 						) : (
-						<div className={styles.settingsGrid}>
+						<div className={filteredProfiles.length === 0 ? styles.materialEmpty : styles.settingsGrid}>
 							{filteredProfiles.length === 0 ? <Empty description="暂无接口配置" /> : filteredProfiles.map((item)=>(
 						<Card key={item.id} size="small" title={item.name || '未命名配置'} bordered={false}>
 							<div className={styles.cardMeta}>

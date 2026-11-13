@@ -7,6 +7,7 @@ import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { MICHON_FAMILY_LABELS, pointName } from '../../utils/directedFigures';
+import { spreadAngles } from '../../utils/circleSpread';
 
 const norm = (x)=>(((x % 360) + 360) % 360);
 const ACCENT = 'var(--horosa-accent)';
@@ -43,28 +44,6 @@ function bandPath(pt, a, b, r0, r1){
 	const [x3, y3] = pt(a, r0);
 	// 屏幕坐标 y 向下:黄经逆时针增大 = SVG 逆时针 = sweep-flag 0
 	return `M${x0},${y0} A${r1},${r1} 0 ${large} 0 ${x1},${y1} L${x2},${y2} A${r0},${r0} 0 ${large} 1 ${x3},${y3} Z`;
-}
-
-// 字形沿圈避让:按黄经排好,相邻间隔不足 minGap 度就向两侧对称推开,反复几轮直到都分开
-function spread(items, minGap){
-	const s = items.map((it)=>({ ...it, at: norm(it.lon) })).sort((a, b)=>a.at - b.at);
-	if(s.length < 2){ return s; }
-	for(let pass = 0; pass < 40; pass += 1){
-		let moved = false;
-		for(let i = 0; i < s.length; i += 1){
-			const a = s[i];
-			const b = s[(i + 1) % s.length];
-			const gap = norm(b.at - a.at);
-			if(gap < minGap - 0.01){
-				const push = (minGap - gap) / 2;
-				a.at = norm(a.at - push);
-				b.at = norm(b.at + push);
-				moved = true;
-			}
-		}
-		if(!moved){ break; }
-	}
-	return s;
 }
 
 export default function MichonDualRing({ result, size, height }){
@@ -107,7 +86,9 @@ export default function MichonDualRing({ result, size, height }){
 	planets.forEach((p)=>{ lonOf[p.id] = Number(p.lon); });
 	// 最小角间隔 = 字形宽(含座内度数)对应的圆心角
 	const minGap = (fs * 1.55) / rPl * 180 / Math.PI;
-	const placed = spread(planets.map((p)=>({ id: p.id, lon: Number(p.lon) })), minGap);
+	// 字形沿圈避让(单源 utils/circleSpread):同度的日月等不再叠在一起
+	const shownAt = spreadAngles(planets.map((p)=>Number(p.lon)), minGap);
+	const placed = planets.map((p, i)=>({ id: p.id, lon: Number(p.lon), at: norm(shownAt[i]) }));
 	const lit = sups.filter((s)=>s.family && s.family !== 'no');
 
 	const signs = (offset, r0, r1, keyPfx, opacityScale)=>AstroConst.LIST_SIGNS.map((sid, k)=>{
@@ -200,7 +181,7 @@ export default function MichonDualRing({ result, size, height }){
 	});
 
 	return (
-		<svg width={w} height={h} style={{ display: 'block' }}>
+		<svg className="horosa-plain-text-board" width={w} height={h} style={{ display: 'block' }}>
 			<circle cx={cx} cy={cy} r={rTo} style={{ fill: P.bg, stroke: LINE }} />
 			{signs(0, rTi, rTo, 't', 1)}
 			{seams}

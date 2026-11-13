@@ -1,5 +1,5 @@
 from flatlib import const
-from flatlib.ephem import ephem as flatlib_ephem
+from astrostudy.germany.chart_objects import ephem_object
 from astrostudy.perchart import PerChart
 
 LIST_OBJ = [
@@ -72,7 +72,7 @@ class MidPoint:
             if self.includeTnp:
                 for uid in const.LIST_URANIAN:
                     try:
-                        self.tnpObjs.append(flatlib_ephem.getObject(uid, perchart.dateTime, perchart.pos))
+                        self.tnpObjs.append(ephem_object(perchart, uid))   # 按本盘黄道制取(恒星盘 = 恒星黄经)
                     except Exception:
                         pass
             # 严格因子集(D2):剔黑月/紫气,使中点对来源与 declination 因子口径一致。默认 False 不过滤。

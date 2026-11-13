@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.13.2
-date-released: 2026-11-03
+version: 3.14.0
+date-released: 2026-11-09
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,7 +12,17 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.13.2 beta is a local-first metaphysics workstation. This release fixes the
+  Horosa for Windows v3.14.0 beta is a local-first metaphysics workstation. This release adds a batch of
+  techniques: twelve time-lord rotation methods in the timing workspace, a thirty-table Details tab on the
+  natal chart, transformed charts and alternative zodiac systems among the auxiliary charts, East Asian and
+  world calendrical arts (Tibetan, Mongolian, Nine Star Ki, Maya, Human Design and others), mundane cycle
+  tables, supplementary and transit-ingress tables for Indian astrology, computed Babylonian phenomena, and
+  eclipse paths and climes on the astrocartography map. Every help manual becomes one book per page with one
+  chapter per technique, AI export and mounting are completed technique by technique with Word and PDF
+  formatting fixes, a set of coordinate and convention corrections is applied (angles' right ascension and
+  declination, sidereal equatorial coordinates, the southern-hemisphere reading, relocated lots), the
+  interface is unified across light and dark themes, the planetarium plays more smoothly, and whole charts
+  fit in small windows. It builds on v3.13.2, which fixes the
   first launch after an in-app update, where the home chart could report a chart error because the
   interface sent chart requests before the chart engine had started; the interface now waits until the
   backend and the chart engine both answer. It builds on v3.13.1, which adds four

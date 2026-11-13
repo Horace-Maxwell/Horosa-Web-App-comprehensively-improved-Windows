@@ -738,6 +738,8 @@
     .horosa-workspace-shell .horosa-huangli-yiji-col.is-yi .horosa-huangli-yiji-head { background: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-huangli-yiji-col.is-ji .horosa-huangli-yiji-head { background: var(--horosa-jx-xiong); }
     .horosa-workspace-shell .horosa-huangli-yiji-body { padding: 8px; line-height: 1.7; min-height: 44px; }
+    // 宜忌事项逐项成词:整词不折行(窄栏 / 浮窗里「祈福」「入宅」不再从中间断开),词间距 = 原全角空格
+    .horosa-workspace-shell .horosa-huangli-yiji-item { display: inline-block; white-space: nowrap; margin-right: 1em; }
 
     .horosa-workspace-shell .horosa-huangli-section {
         border: 1px solid var(--horosa-border); border-radius: 8px; overflow: hidden;
@@ -964,7 +966,7 @@
     }
     .horosa-workspace-shell .horosa-rizi-showall:hover { background: var(--horosa-accent-soft); }
     .horosa-workspace-shell .horosa-rizi-computing { font-size: 12px; color: var(--horosa-muted); animation: horosa-rizi-pulse 1s ease-in-out infinite; }
-    @keyframes horosa-rizi-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+    @keyframes ~":global(horosa-rizi-pulse)" { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
     .horosa-workspace-shell .horosa-rizi-rankrow {
         display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px;
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); margin-bottom: 4px;

@@ -220,7 +220,7 @@ def test_T16_zero_regression_gate():
         'upagraha', 'supplementaryLagnas', 'remedies', 'functionalNature', 'bhavaBala',
         'extendedDashas', 'grahaYuddha', 'kartari', 'sudarshana', 'grahaMaitri',
         'outerPlanets', 'compatibility', 'nadi', 'shashtiamsa', 'vargaVariants',
-        'ayurdaya', 'sensitivePoints', 'ayurdayaFinal',
+        'ayurdaya', 'sensitivePoints', 'ayurdayaFinal', 'yogaTable', 'extraTables',
     }
     assert set(res.keys()) - {'partialErrors'} == FROZEN
     for absent in ('prashna', 'sarvatobhadra', 'tripataki'):

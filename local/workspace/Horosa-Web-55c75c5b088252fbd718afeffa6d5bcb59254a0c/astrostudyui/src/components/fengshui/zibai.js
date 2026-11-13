@@ -21,40 +21,82 @@ export function monthCenter(year, month) {
 	return c;
 }
 
-// ── 日紫白（8.1.3）：冬至后阳遁甲子起一白顺、夏至后阴遁甲子起九紫逆；三元(上/中/下)符头。──
+// ── 日紫白（8.1.3）：阳遁三个甲子起一白·七赤·四绿顺行，阴遁三个甲子起九紫·三碧·六白逆行。──
+// 遁内逐日连续 ±1：一白顺行 60 日到下一甲子正是七赤、再 60 日是四绿，再 60 日回到一白；九紫逆行同理得三碧、六白。
+// 起遁点取「离冬至 / 夏至最近的甲子」（冬至这一侧起一白阳遁、夏至这一侧起九紫阴遁；日本九星气学日盘同此）。
+// 正好前后各 30 日时取前一个（离至日 30.5 日以上才置闰）。
+// 两至相隔约 182.6 日，三个甲子只有 180 日，每年差两三日，约十一二年攒满一个甲子：这时相邻两个起遁甲子隔 240 日，
+// 多出的 60 日为「闰」，前遁延 30 日、后遁提前 30 日，在中间的甲午换遁——阳转阴甲午起三碧、阴转阳甲午起七赤，
+// 换遁那天与前一日同星（正常换遁同理：阳遁末日九紫、阴遁首日九紫；阴遁末日一白、阳遁首日一白），其余每日 ±1 不断档。
+// 民用日按当日 0 时（节气日期取 lunar-javascript 的北京时间日期）。
 function gzIndex(gz) { return GANZHI_60.indexOf(gz); }
 function solarOf(y, m, d) { return Solar.fromYmd(y, m, d); }
+function dayNum(solar) { return Math.floor(solar.getJulianDay() + 0.5); }
 // 取某年冬至/夏至 Solar，归一到当日 0 时（节气原 Solar 含时刻，会令日差非整）。
+// 注意 getJieQiTable 以 solarOf(year,6,1) 所在农历年为准：「冬至」= year-1 年 12 月那个，「夏至」= year 年 6 月那个。
 function jieqiSolar(year, name) {
 	const t = solarOf(year, 6, 1).getLunar().getJieQiTable();
 	const s = t[name];
 	return s ? Solar.fromYmd(s.getYear(), s.getMonth(), s.getDay()) : null;
 }
+const SOLSTICE_CACHE = new Map();
+// 公历 year 年的两个至日（6 月夏至、12 月冬至）及各自最近的甲子日序。
+function solsticesOfYear(year) {
+	if (SOLSTICE_CACHE.has(year)) { return SOLSTICE_CACHE.get(year); }
+	const out = [];
+	const pick = (solar, yang)=>{
+		if (!solar) { return; }
+		const n = dayNum(solar);
+		const g = gzIndex(solar.getLunar().getDayInGanZhi());
+		if (g < 0) { return; }
+		const before = n - g;                  // 至日当日或之前的甲子
+		const after = before + 60;
+		const jiazi = (n - before) <= (after - n) ? before : after;   // 等距（各 30 日）取前一个
+		out.push({ yang, solstice: n, jiazi });
+	};
+	pick(jieqiSolar(year, '夏至'), false);
+	pick(jieqiSolar(year + 1, '冬至'), true);
+	if (SOLSTICE_CACHE.size >= 512) { SOLSTICE_CACHE.clear(); }   // 有限淘汰:翻很多年份时不无限长
+	SOLSTICE_CACHE.set(year, out);
+	return out;
+}
+// 目标日所在的遁：返回 { yang, start(换遁日序), startStar, leapHead, jiazi(本遁上元甲子日序) }。
+function dunOf(tDay, y) {
+	const list = [];
+	for (let yr = y - 2; yr <= y + 1; yr++) { solsticesOfYear(yr).forEach((x)=>list.push(x)); }
+	list.sort((a, b)=>a.jiazi - b.jiazi);
+	const duns = [];
+	for (let i = 1; i < list.length; i++) {
+		const cur = list[i];
+		const gap = cur.jiazi - list[i - 1].jiazi;
+		if (gap === 240) {
+			duns.push({ yang: cur.yang, start: cur.jiazi - 30, startStar: cur.yang ? 7 : 3, leapHead: true, jiazi: cur.jiazi });
+		} else {
+			duns.push({ yang: cur.yang, start: cur.jiazi, startStar: cur.yang ? 1 : 9, leapHead: false, jiazi: cur.jiazi });
+		}
+	}
+	const past = duns.filter((d)=>d.start <= tDay);
+	return past.length ? past[past.length - 1] : null;
+}
+const YUAN_NAME = ['上元', '中元', '下元'];
 export function dayCenter(y, m, d) {
 	const target = solarOf(y, m, d);
-	const tJD = target.getJulianDay();
-	// 汇集邻年冬至/夏至候选（jieqiSolar 相对 solarOf(yr,6,1) 返 冬至=yr-1腊月/夏至=yr本年，故跨年取）。
-	const cands = [];
-	[y - 1, y, y + 1, y + 2].forEach((yr)=>{
-		['冬至', '夏至'].forEach((nm)=>{ const s = jieqiSolar(yr, nm); if (s) { cands.push({ type: nm, jd: s.getJulianDay(), solar: s }); } });
-	});
-	// 取「≤ 目标日」中最近的一个至：冬至→阳遁、夏至→阴遁。
-	const past = cands.filter((c)=>c.jd <= tJD).sort((a, b)=>b.jd - a.jd);
-	if (!past.length) { return null; }
-	const anchorC = past[0];
-	const yang = anchorC.type === '冬至';
-	const anchor = anchorC.solar;
-	if (!anchor) { return null; }
-	// 符头甲子 = 节气日所在日干支回退至甲子。
-	const anchorGZ = anchor.getLunar().getDayInGanZhi();
-	const fuTouJD = anchor.getJulianDay() - gzIndex(anchorGZ);
-	const offset = Math.round(tJD - fuTouJD);
-	const yuan = ((Math.floor(offset / 60) % 3) + 3) % 3;      // 0上/1中/2下元
-	const within = ((offset % 60) + 60) % 60;
-	const startStar = yang ? [1, 4, 7][yuan] : [9, 6, 3][yuan];
-	let c = yang ? (startStar - 1 + within) : (startStar - 1 - within);
+	const tDay = dayNum(target);
+	const dun = dunOf(tDay, y);
+	if (!dun) { return null; }
+	const { yang } = dun;
+	const offset = tDay - dun.start;
+	let c = yang ? (dun.startStar - 1 + offset) : (dun.startStar - 1 - offset);
 	c = ((c % 9) + 9) % 9 + 1;
-	return { center: c, yang, yuan, dayGanZhi: target.getLunar().getDayInGanZhi() };
+	// 元：上元甲子起每 60 日一元；闰头（甲午起的 30 日）与闰尾（下元满后延的 30 日）记「闰」。
+	const sinceJiazi = tDay - dun.jiazi;
+	const leap = sinceJiazi < 0 || sinceJiazi >= 180;
+	const yuan = leap ? null : Math.floor(sinceJiazi / 60);
+	return {
+		center: c, yang, yuan, yuanName: leap ? '闰' : YUAN_NAME[yuan], leap,
+		dunStart: tDay === dun.start,
+		dayGanZhi: target.getLunar().getDayInGanZhi(),
+	};
 }
 
 // ── 时紫白（8.1.4）：日支三元 + 冬夏至顺逆，子时起入中，逐时推。──
@@ -65,16 +107,28 @@ function dayZhiGroup(dayZhi) {
 	if ('辰戌丑未'.indexOf(dayZhi) >= 0) { return 1; }
 	return 2;
 }
+// 时家紫白的顺逆看至日本身(时家歌诀「冬后顺排夏后逆」):冬至到夏至前顺,夏至到冬至前逆。
+// 不跟日家的换遁甲子走 —— 日遁按离至日最近的甲子换,前后可差到 30 日,时盘不随之提前或推后。
+function hourYang(y, m, d) {
+	const tDay = dayNum(solarOf(y, m, d));
+	const list = [];
+	for (let yr = y - 1; yr <= y; yr++) { solsticesOfYear(yr).forEach((x)=>list.push(x)); }
+	const past = list.filter((x)=>x.solstice <= tDay).sort((a, b)=>a.solstice - b.solstice);
+	return past.length ? past[past.length - 1].yang : null;
+}
+
 export function hourCenter(y, m, d, hour) {
 	const dc = dayCenter(y, m, d);
 	if (!dc) { return null; }
+	const yang = hourYang(y, m, d);
+	if (yang === null) { return null; }
 	const dayZhi = dc.dayGanZhi.slice(-1);
 	const grp = dayZhiGroup(dayZhi);
 	const shiZhiIdx = Math.floor(((Number(hour) || 0) + 1) / 2) % 12;   // 子=0
-	const start = dc.yang ? HOUR_YANG_START[grp] : HOUR_YIN_START[grp];
-	let c = dc.yang ? (start - 1 + shiZhiIdx) : (start - 1 - shiZhiIdx);
+	const start = yang ? HOUR_YANG_START[grp] : HOUR_YIN_START[grp];
+	let c = yang ? (start - 1 + shiZhiIdx) : (start - 1 - shiZhiIdx);
 	c = ((c % 9) + 9) % 9 + 1;
-	return { center: c, yang: dc.yang, shiZhi: DIZHI[shiZhiIdx] };
+	return { center: c, yang, shiZhi: DIZHI[shiZhiIdx] };
 }
 
 // ── 紫白诀名句（8.9，断验字典）：两星相会引动。──
@@ -122,6 +176,6 @@ export function zibai({ year, month, date } = {}) {
 		dayInfo, dayPalaces: dayPan ? palacesOf(dayPan) : null,
 		hourInfo, hourPalaces: hourPan ? palacesOf(hourPan) : null,
 		jue: ZIBAI_JUE,
-		note: '一六八九吉、二三五七凶、四绿文昌、五黄大凶;日/时紫白依节气顺逆(近似,精确查日家紫白)',
+		note: '一六八九吉、二三五七凶、四绿文昌、五黄大凶;日紫白以离冬至/夏至最近的甲子换遁(阳一七四顺、阴九三六逆,遇闰甲午换遁),时紫白依日支三元与顺逆',
 	};
 }

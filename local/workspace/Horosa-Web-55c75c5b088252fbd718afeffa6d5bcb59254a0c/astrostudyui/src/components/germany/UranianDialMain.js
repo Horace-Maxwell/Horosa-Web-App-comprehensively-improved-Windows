@@ -22,7 +22,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolComparisonRows, germanyMidpointRequestParams } from './UranianSchools';
 import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
-import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, chartOrbOverridesFromFields, chartOrbOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { getPageLayoutWidth, getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
 // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
@@ -170,6 +170,7 @@ function fieldsToParams(fields){
 		name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
 		// 古典设置单源接入;条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
+		...chartOrbOverridesFromFields(fields),
 	};
 }
 
@@ -215,6 +216,7 @@ function libraryChartParams(rec){
 		name: rec.name || '', pos: rec.pos || '',
 		// 库盘人随盘古典键保真(record 非默认捕获键平面存):FromPlain 条件发送。
 		...classicalBackendOverridesFromPlain(rec),
+		...chartOrbOverridesFromPlain(rec),
 	};
 }
 // 快照/挂载链共用:从持久化 synastryPeople 解析第一位叠盘人的起盘参数。

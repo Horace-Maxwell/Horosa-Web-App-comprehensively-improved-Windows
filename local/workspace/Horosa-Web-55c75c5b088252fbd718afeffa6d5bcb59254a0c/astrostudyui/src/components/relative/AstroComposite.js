@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import AstroChartMain from '../astro/AstroChartMain';
 import { paramsToFields } from './relativeFields';
+import RelativeStageEmpty from './RelativeStageEmpty';
 
 class AstroComposite extends Component{
 	constructor(props) {
@@ -43,6 +44,9 @@ class AstroComposite extends Component{
 		}
 
 		const houseNote = resobj && resobj.compositeHouseNote ? resobj.compositeHouseNote : '';
+		if(!resobj){
+			return <RelativeStageEmpty height={height}>选好星盘 A 与星盘 B 并排盘后显示组合盘</RelativeStageEmpty>;
+		}
 		return (
 			<div style={{height: height}}>
 					{houseNote ? (

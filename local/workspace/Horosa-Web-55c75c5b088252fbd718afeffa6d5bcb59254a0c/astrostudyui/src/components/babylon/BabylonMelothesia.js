@@ -21,7 +21,7 @@ class BabylonMelothesia extends Component{
 		const moonSign = lons.moon !== undefined ? lonToSignDeg(lons.moon).sign : null;
 		const W = 460, rowH = 34, top = 34, H = top + rowH * 12 + 26;
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
 				<text x={W / 2} y={18} fontSize="12.5" fontWeight="600" fill={ink} textAnchor="middle">自头至足(ištu muḫḫi adi šēpē)—— 抽象分区轴</text>
 				{/* 中央轴线 */}
 				<line x1={W / 2} y1={top} x2={W / 2} y2={top + rowH * 12} stroke={gold} strokeWidth="2" opacity="0.5" />

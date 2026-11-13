@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
-index ed513865..d2683629 100644
+index e8da7779..eb5adf23 100644
 --- a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 +++ b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 @@ -19,6 +19,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
- import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+ import { ownedBoxSizeRef, narrowBoardVars, squareGridFitVars } from '../../utils/boxSizeVars';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.xiaoliuren.settings.v1';
-@@ -223,8 +225,9 @@ class XiaoLiuRenMain extends Component {
+@@ -228,8 +230,9 @@ class XiaoLiuRenMain extends Component {
  		}
  		const ke = qiKe({ m, d, h, school: settings.school });
  		if(!ke){ clearModuleAISnapshot('xiaoliuren'); return this.setState({ error: '三数非法,不可起课', ke: null }); }
@@ -22,7 +22,7 @@ index ed513865..d2683629 100644
  	}
  	// 改流派:课(三数)冻结,按新环重排三传(重排≠重起——三数不变)。
  	setSetting(key, val){
-@@ -435,41 +438,56 @@ class XiaoLiuRenMain extends Component {
+@@ -440,41 +443,56 @@ class XiaoLiuRenMain extends Component {
  			</div>
  		);
  		return (

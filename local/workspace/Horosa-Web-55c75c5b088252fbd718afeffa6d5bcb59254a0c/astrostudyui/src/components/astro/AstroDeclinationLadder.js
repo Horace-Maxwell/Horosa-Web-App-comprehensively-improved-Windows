@@ -130,11 +130,13 @@ class AstroDeclinationLadder extends Component{
 				<div style={{ position: 'absolute', top: 30, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: 'var(--horosa-muted, #8a8472)' }}>平行<span style={{ color: parColor }}>━</span>　反平行<span style={{ color: contraColor }}>━</span>　<span style={{ color: oobColor }}>玫色＝赤纬出界</span></div>
 				<div style={{ position: 'absolute', top: 40, left: natalSpineX, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>本命</div>
 				<div style={{ position: 'absolute', top: 40, left: progSpineX, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>推运</div>
-				<svg width={W} height={H} style={{ position: 'absolute', left: 0, top: 0 }}>
+				{/* 图里的字不描边(外层线色经继承漏到字上会发粗):挂全站统一的 horosa-plain-text-board */}
+				<svg className="horosa-plain-text-board" width={W} height={H} style={{ position: 'absolute', left: 0, top: 0 }}>
 					{ticks.map((t)=>(
 						<g key={'t' + t}>
 							<line x1={leftEdge} x2={rightEdge} y1={y(t)} y2={y(t)} stroke={axisColor} strokeWidth="0.5" opacity="0.18" />
-							<text x={6} y={y(t) + 3.5} fontSize="11" fill={eqColor}>{(t > 0 ? '+' : '') + t}°</text>
+							{/* 0° 这一格由下面的「赤道 0°」标注,刻度字不再重画(两行字会叠在一起) */}
+							{t === 0 ? null : <text x={6} y={y(t) + 3.5} fontSize="11" fill={eqColor}>{(t > 0 ? '+' : '') + t}°</text>}
 						</g>
 					))}
 					<line x1={leftEdge} x2={rightEdge} y1={y(OBLIQUITY)} y2={y(OBLIQUITY)} stroke={axisColor} strokeDasharray="5 4" strokeWidth="1" opacity="0.7" />

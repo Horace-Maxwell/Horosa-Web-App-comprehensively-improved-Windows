@@ -2,6 +2,7 @@
 // 中栏:目标年取数图(预测 Y 年 ← 各行星 Y−周期);右栏:周期表·工作流·Lunar Six 修正律·本盘目标年。
 import { Component } from 'react';
 import { GOAL_YEAR, LUNAR_SIX, NOTES, SAROS } from '../../divination/data/babylonianData';
+import { SkyGoalYearCard, SkyPhenomenaCard } from './BabylonSkyCards';
 
 const PLANET_COLOR = { jupiter: 'var(--horosa-planet-jupiter)', venus: 'var(--horosa-planet-venus)', mercury: 'var(--horosa-planet-mercury)', saturn: 'var(--horosa-planet-saturn)', mars: 'var(--horosa-planet-mars)', moon: 'var(--horosa-planet-moon)' };   // 七曜语义色(明暗成对)
 
@@ -16,7 +17,7 @@ class BabylonAlmanac extends Component{
 		const maxBack = 90;
 		const x = (back) => 36 + (1 - back / maxBack) * (W - 90);
 		return (
-			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
+			<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }}>
 				<line x1={30} y1={axisY} x2={W - 24} y2={axisY} stroke="rgba(122,94,48,0.4)" strokeWidth="1" />
 				{[0, 18, 46, 59, 71, 79, 83].map((b) => (
 					<g key={b}>
@@ -75,6 +76,8 @@ class BabylonAlmanac extends Component{
 							</tbody>
 						</table></div>
 					</div>
+					<SkyGoalYearCard sky={this.props.skyTables} />
+					<SkyPhenomenaCard sky={this.props.skyTables} />
 					{bab ? (
 						<div className="horosa-babylon-card">
 							<div className="horosa-babylon-card-title">本盘目标年取数(S.E.{bab.babylonianDate.seYear})</div>

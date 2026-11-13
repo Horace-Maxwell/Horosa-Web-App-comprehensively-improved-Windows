@@ -58,7 +58,10 @@ def natal_frame(jd, phi, geolon):
     """出生时刻(UT 儒略日)+ 地理纬经 → 底盘:赤经中天 / 真 · 平黄赤交角 / 上升 / 天顶 / 各点黄经黄纬日速。"""
     nut = swisseph.calc_ut(jd, swisseph.ECL_NUT)[0]
     eps_true, eps_mean = nut[0], nut[1]
-    _cusps, ascmc = swisseph.houses_ex(jd, phi, geolon, b'P')
+    try:
+        _cusps, ascmc = swisseph.houses_ex(jd, phi, geolon, b'P')
+    except swisseph.Error:      # 极圈内 Placidus 不成立,退回 Porphyry 只为取轴,与 angles_at_armc 同
+        _cusps, ascmc = swisseph.houses_ex(jd, phi, geolon, b'O')
     armc = ascmc[2]
     points = {}
     for name, sid in BODY_IDS:
@@ -427,8 +430,11 @@ def _natal_from_request(data):
     perchart = PerChart(params)
     chart = perchart.chart
     frame = natal_frame(chart.date.jd, chart.pos.lat, chart.pos.lon)
+    frame['perchart'] = perchart
     houses = sorted(chart.houses.content.values(), key=lambda h: int(str(h.id).replace('House', '') or 0))
-    frame['cusps'] = [norm360(h.lon) for h in houses][:12]
+    # 南半球读法的盘把全盘黄经整体 +180°(只换星座标签):表格里的星点取自真黄经(natal_frame),宫头也转回真黄经,两边同一套坐标
+    turn = 180.0 if getattr(chart, 'halfTurned', False) else 0.0
+    frame['cusps'] = [norm360(h.lon - turn) for h in houses][:12]
     zone = params.get('zone', '+00:00')
     if data.get('targetDate'):
         target_jd = Datetime(str(data['targetDate']), str(data.get('targetTime') or '12:00:00'), zone).jd
@@ -446,7 +452,9 @@ def _natal_from_request(data):
 def _relocated_chart(data, obj_fn, angle_fn, cusps=None):
     """在本命盘上搬点,出一张与 /chart 同形的盘面对象(双盘外圈用):
     obj_fn(lon, lat) → (lon, lat) 作用于全部星体与虚点;angle_fn(id, lon) → lon 作用于上升 / 天顶(下降 / 天底随之对冲);
-    cusps = 12 个宫头黄经(None = 宫位不动)。失败返回 None(表格不受影响)。"""
+    cusps = 12 个宫头黄经(None = 宫位不动)。失败返回 None(表格不受影响)。
+    obj_fn / angle_fn / cusps 一律按真黄经进出:南半球读法的盘(全盘黄经 +180°,只换星座标签)搬点前先转回真黄经、
+    搬完再转回标签 —— 搬点函数里有赤道旋转与世俗时位,拿标签黄经进去算的是另一片天。"""
     from flatlib import const
     from astrostudy.perchart import PerChart, parse_terms_variant, push_classical_request, pop_classical_request
     from astrostudy.astroextra_parts.common import base_params
@@ -456,15 +464,19 @@ def _relocated_chart(data, obj_fn, angle_fn, cusps=None):
     try:
         token = push_classical_request(data)
         pc = PerChart(params)
+        turn = 180.0 if getattr(pc.chart, 'halfTurned', False) else 0.0
         for group in (pc.chart.objects, pc.chart.pars):
             for obj in group:
-                lon, lat = obj_fn(obj.lon, getattr(obj, 'lat', 0.0) or 0.0)
-                obj.relocate(lon)
+                lon, lat = obj_fn(norm360(obj.lon - turn) if turn else obj.lon, getattr(obj, 'lat', 0.0) or 0.0)
+                obj.relocate(norm360(lon + turn) if turn else lon)
                 obj.lat = lat
         asc = pc.chart.getAngle(const.ASC)
         mc = pc.chart.getAngle(const.MC)
-        asc_lon = angle_fn('Asc', asc.lon)
-        mc_lon = angle_fn('MC', mc.lon)
+        asc_lon = angle_fn('Asc', norm360(asc.lon - turn) if turn else asc.lon)
+        mc_lon = angle_fn('MC', norm360(mc.lon - turn) if turn else mc.lon)
+        if turn:
+            asc_lon, mc_lon = norm360(asc_lon + turn), norm360(mc_lon + turn)
+            cusps = [norm360(c + turn) for c in cusps] if cusps else cusps
         asc.relocate(asc_lon)
         mc.relocate(mc_lon)
         pc.chart.getAngle(const.DESC).relocate(norm360(asc_lon + 180.0))
@@ -474,6 +486,7 @@ def _relocated_chart(data, obj_fn, angle_fn, cusps=None):
                 i = int(str(h.id)[5:7]) - 1
                 h.relocate(cusps[i])
                 h.size = norm360(cusps[(i + 1) % 12] - cusps[i])
+        pc.markRelocated()
         pc.reinit()
         return {
             'params': {'birth': pc.getBirthStr(), 'ad': -1 if getattr(pc, 'isBC', False) else 1,

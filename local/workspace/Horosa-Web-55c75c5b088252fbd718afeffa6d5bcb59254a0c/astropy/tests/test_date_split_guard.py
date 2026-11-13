@@ -22,7 +22,6 @@ SPLIT_ALLOW = {
     ('astrostudy/india/india_chart_kernel.py', '__init__'): (1, '同 PerChart:长度 4 = 负年分支'),
     ('astrostudy/jieqi/BirthJieQi.py', '__init__'): (1, '长度 4 走负年分支(else)'),
     ('astrostudy/jieqi/BirthJieQi.py', 'compute'): (1, '首段为空即负年,随后拼回负号'),
-    ('astrostudy/jieqi/realsuntime.py', 'getOffsetByDate'): (1, "拆 'MM-DD' 月日,串里没有年"),
     ('astrostudy/xuanshi/fmt.py', '_parse'): (1, '先判前导负号并切掉再拆'),
     ('websrv/webchart3dsrv.py', '_normalize_date'): (1, '按长度 4 识别负年'),
     ('websrv/webjdn.py', 'num'): (1, '按长度 4 识别负年'),

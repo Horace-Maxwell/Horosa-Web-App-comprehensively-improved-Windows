@@ -390,7 +390,7 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-grid.has-technique-rail {
-        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(86px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(96px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs {
@@ -428,10 +428,12 @@
         scroll-padding-bottom: 8px;
     }
 
+    // 右栏页签里各面板自带的「定高 + 内滚」一律摊平,只留页签内容区一条滚动条(不出现框套框的双滚动)。
+    // 印占:真要在框内滚的长表(穿界时刻)带类名 horosa-india-scroll-box,不在摊平之列(用 SmallTable 的 scrollClassName 给)。
     .horosa-workspace-shell .horosa-bazi-tabs [style*="overflow-y: auto"],
     .horosa-workspace-shell .horosa-ziwei-tabs [style*="overflow-y: auto"],
     .horosa-workspace-shell .horosa-guolao-tabs [style*="overflow-y: auto"],
-    .horosa-workspace-shell .horosa-india-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-india-tabs [style*="overflow-y: auto"]:not(.horosa-india-scroll-box),
     .horosa-workspace-shell .horosa-liureng-tabs [style*="overflow-y: auto"],
     .horosa-workspace-shell .horosa-dunjia-tabs [style*="overflow-y: auto"],
     .horosa-workspace-shell .horosa-taiyi-tabs [style*="overflow-y: auto"],
@@ -442,7 +444,7 @@
     .horosa-workspace-shell .horosa-bazi-tabs [style*="overflow: auto"],
     .horosa-workspace-shell .horosa-ziwei-tabs [style*="overflow: auto"],
     .horosa-workspace-shell .horosa-guolao-tabs [style*="overflow: auto"],
-    .horosa-workspace-shell .horosa-india-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-india-tabs [style*="overflow: auto"]:not(.horosa-india-scroll-box),
     .horosa-workspace-shell .horosa-liureng-tabs [style*="overflow: auto"],
     .horosa-workspace-shell .horosa-dunjia-tabs [style*="overflow: auto"],
     .horosa-workspace-shell .horosa-taiyi-tabs [style*="overflow: auto"],

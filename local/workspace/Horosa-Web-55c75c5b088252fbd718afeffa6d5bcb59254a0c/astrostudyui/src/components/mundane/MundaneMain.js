@@ -31,7 +31,8 @@ import { describeChorography, CHOROGRAPHY_DISCLAIMER } from '../../divination/mu
 import { mundaneProfection, mundaneFirdaria } from '../../divination/mundane/progressions';
 import { mundaneDistribution, mundanePatternMeaning } from '../../divination/mundane/patterns';
 import { allRegions, saveUserRegion, MUNDANE_CAPITALS, regionCandidates } from '../../divination/data/regionCharts';
-import { astroSymbol, chartParams, fmtDegree, chartRequestKey } from '../astro/AstroExtraCommon';
+import { astroSymbol, chartParams, fmtDegree, chartRequestKey, unwrapResult } from '../astro/AstroExtraCommon';
+import { MUNDANE_CYCLE_SETTINGS, mundaneCycleRequestFields, buildMundaneCycleText } from '../../utils/mundaneCycles';
 import request from '../../utils/request';
 import { formatSignedDate, leadingYearOf, datePartOf } from '../../utils/dateStrSafe';
 import * as Constants from '../../utils/constants';
@@ -40,6 +41,7 @@ import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShel
 import { segmentIndex } from '../../utils/segmentIndex';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
+import MundaneCycleTables from './MundaneCycleTables';
 
 const Option = XQSelect.Option;
 const TabPane = XQTabs.TabPane;
@@ -106,6 +108,8 @@ const BARBAULT_SETS = [
 	{ key: 'outer3', cn: '仅外三星 ♅♆♇（最平滑）', planets: ['Uranus', 'Neptune', 'Pluto'] },
 	{ key: 'slow4', cn: '土外四星 ♄♅♆♇', planets: ['Saturn', 'Uranus', 'Neptune', 'Pluto'] },
 ];
+// 谐波:每对角距先乘 h 再折半圆;1 = 原指数,2 看合冲,3 看三分,4 看刑
+const BARBAULT_HARMONICS = [{ v: 1, cn: '原指数' }, { v: 2, cn: '2 次谐波' }, { v: 3, cn: '3 次谐波' }, { v: 4, cn: '4 次谐波' }];
 
 // 一组（约60年/3次）合相的大三合相态：纯X(全本象) / 摄Y(2本1邻) / 摄大Y(1本2邻)。
 function triadPhase(triad, ageEl){
@@ -501,12 +505,15 @@ export function buildMundaneCardSections(chart, extra, state, facts){
 			}
 			const gy = computeCurrentAge(currentYear(), st.gyModel || 'fagan');
 			if(gy){ push(['[大年时代]', `${currentYear()} 年春分点 · 恒星${gy.signCn} ${gy.degInSign.toFixed(2)}° → 当前为${gy.currentAgeCn}（岁差口径 ${st.gyModel === 'lahiri' ? 'Lahiri' : 'Fagan/Bradley'}）`, `岁差周期(大年)≈ ${GREAT_YEAR_CONST.precessionYears} 年；柏拉图月(一个时代)≈ ${GREAT_YEAR_CONST.platonicMonthYears.join('–')} 年；春分点以约 ${GREAT_YEAR_CONST.rateArcsecPerYear}″/年西退。`]); }
+			if(st.cycleTableText && st.cycleTableKey === chartRequestKey(chart)){ push(st.cycleTableText.split('\n')); }
 			if(cfg.showBarbault && st.bbData && Array.isArray(st.bbData.points) && st.bbData.points.length){
 				const pts = st.bbData.points;
 				let gmin = pts[0]; let gmax = pts[0];
 				pts.forEach((pp) => { if(pp.index < gmin.index){ gmin = pp; } if(pp.index > gmax.index){ gmax = pp; } });
-				const set = BARBAULT_SETS.find((ss) => ss.key === st.bbSet) || BARBAULT_SETS[0];
-				push(['[Barbault 聚散指数]', `（慢星组合 ${set.cn} · ${yearLabel(clampYear(st.bbStart, 1900))}–${yearLabel(clampYear(st.bbEnd, 2050))} · ${pts.length} 点）`, `最深谷（聚集）${gmin.year}-${String(gmin.month).padStart(2, '0')}（${Math.round(gmin.index)}°）；最高峰（四散）${gmax.year}-${String(gmax.month).padStart(2, '0')}（${Math.round(gmax.index)}°）`]);
+				// 组合 / 谐波 / 年段一律取算图时记下的(bbData),不取下拉此刻的值 —— 改了下拉没点「绘制」时两者不同
+				const bb = st.bbData;
+				const set = BARBAULT_SETS.find((ss) => ss.key === (bb.setKey || st.bbSet)) || BARBAULT_SETS[0];
+				push(['[Barbault 聚散指数]', `（慢星组合 ${set.cn}${bb.harm > 1 ? ` · ${bb.harm} 次谐波` : ''} · ${yearLabel(bb.startYear !== undefined ? bb.startYear : clampYear(st.bbStart, 1900))}–${yearLabel(bb.endYear !== undefined ? bb.endYear : clampYear(st.bbEnd, 2050))} · ${pts.length} 点）`, `最深谷（聚集）${gmin.year}-${String(gmin.month).padStart(2, '0')}（${Math.round(gmin.index)}°）；最高峰（四散）${gmax.year}-${String(gmax.month).padStart(2, '0')}（${Math.round(gmax.index)}°）`]);
 			}
 		}catch(e){ /* noop */ }
 	}
@@ -523,7 +530,7 @@ const CARD = {
 const CARD_TITLE = { fontSize: 13.5, fontWeight: 700, marginBottom: 12, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 8 };
 
 // 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径:
-// 世运规则集 / 判读容许度 / 入境主管制 / 恒星入境的强度口径与角化容许 / 世运大运年长 / 黄道 / 宫制。
+// 世运规则集 / 判读容许度 / 入境主管制 / 恒星入境的强度口径与角化容许 / 世运大运年长 / 黄道 / 宫制;Barbault 页的慢星组合与谐波(state 键,另由页面读写)。
 // 不收「起哪种盘、哪一年、哪个节气、哪个国家」—— 盘型、年份、节气、地区、问题类型都是每一张盘的输入。
 const MUNDANE_SETTING_EXTRA_KEYS = ['mundaneRuleset', 'mundaneOrbScheme', 'mundaneIngressRule', 'solunarWeights', 'solunarOrb', 'vedicDashaYearLen'];
 export const MUNDANE_PAGE_SETTINGS = definePageSettings('horosa.mundane.settings.v1', {
@@ -533,6 +540,9 @@ export const MUNDANE_PAGE_SETTINGS = definePageSettings('horosa.mundane.settings
 	solunarWeights: { label: '日月恒星入境·强度口径', def: 'scheme_a', oneOf: Object.keys(SOLUNAR_WEIGHTS) },
 	solunarOrb: { label: '日月恒星入境·角化容许', def: 3, oneOf: ANGULARITY_ORBS.map((o)=>o.orb) },
 	vedicDashaYearLen: { label: '世运大运·年长口径', def: 365.2425, oneOf: [365.2425, 360] },
+	// Barbault 页两项口径(state 键,不在盘壳 extra 里):在页上亲手改即落盘,构造时读回
+	bbSet: { label: 'Barbault 指数·慢星组合', def: 'slow5', oneOf: BARBAULT_SETS.map((s)=>s.key) },
+	bbHarm: { label: 'Barbault 指数·谐波', def: 1, oneOf: BARBAULT_HARMONICS.map((h)=>h.v) },
 	...shellFieldSchema(0),
 });
 // 用户亲手改 extra 里的设置项:落盘(只收 schema 里的键,输入类键自动忽略)+ 原样 setExtra
@@ -558,12 +568,13 @@ class MundaneMain extends Component{
 			{ tradition: 1, zodiacal: 0, hsys: 0 },
 			{ mundaneRuleset: 'modern', mundaneType: 'ingress', ingressTerm: '春分', ingressYear: currentYear(), scanYear: currentYear() },
 			MUNDANE_SETTING_EXTRA_KEYS);
+		const savedBb = MUNDANE_PAGE_SETTINGS.load();
 		this.state = {
 			casting: false, err: '',
 			gcStart: 1300, gcEnd: 2200, gcLoading: false, gcResults: null, gcErr: '', gcPair: 'jupiter-saturn', gcAspect: 0, gcMode: 'ages',
 			scanLoading: false, scanRows: null, scanErr: '', scanType: '', eclipseDetail: null,
 			regionAddOpen: false, regionForm: { name: '', date: '', time: '12:00:00', zone: '+08:00', lon: '116e23', lat: '39n54', gpsLon: 116.38, gpsLat: 39.9 },
-			bbStart: 1900, bbEnd: 2050, bbSet: 'slow5', bbLoading: false, bbErr: '', bbData: null,
+			bbStart: 1900, bbEnd: 2050, bbSet: savedBb.bbSet, bbHarm: savedBb.bbHarm, bbLoading: false, bbErr: '', bbData: null,
 			mundaneRightTab: 'overview',
 			progFoundingYear: null, progTargetYear: null,
 			srData: null, srLoading: false, srErr: '', srYear: null, srKey: null,
@@ -807,11 +818,13 @@ class MundaneMain extends Component{
 		this.setState({ bbLoading: true, bbErr: '' });
 		try{
 			const data = await request(`${Constants.ServerRoot}/astroextra/barbault`, {
-				body: JSON.stringify({ startYear, endYear, stepMonths, planets: set.planets }),
+				body: JSON.stringify({ startYear, endYear, stepMonths, planets: set.planets, ...(this.state.bbHarm > 1 ? { harm: this.state.bbHarm } : {}) }),
 				timeoutMs: 90000,
 			});
 			const r = (data && data.Result) ? data.Result : data;
-			this.setState({ bbLoading: false, bbData: (r && r.points) ? r : null, bbErr: (r && r.points) ? '' : 'Barbault 指数计算失败' });
+			// 记下这条曲线是按哪组慢星、哪个谐波、哪段年份算的:快照写算图时的口径,不取此刻下拉里改过、还没重画的值
+			const drawn = (r && r.points) ? { ...r, setKey: set.key, harm: r.harm || this.state.bbHarm, startYear, endYear } : null;
+			this.setState({ bbLoading: false, bbData: drawn, bbErr: drawn ? '' : 'Barbault 指数计算失败' });
 		}catch(e){
 			this.setState({ bbLoading: false, bbErr: 'Barbault 指数计算失败' });
 		}
@@ -2684,16 +2697,20 @@ class MundaneMain extends Component{
 				</div>
 			);
 		}
-		const set = BARBAULT_SETS.find((s) => s.key === this.state.bbSet) || BARBAULT_SETS[0];
 		const d = this.state.bbData;
+		// 图下的组合名与满刻度跟着已画出的那条曲线走(改了下拉、还没点「绘制」时不跟着变)
+		const set = BARBAULT_SETS.find((s) => s.key === ((d && d.setKey) || this.state.bbSet)) || BARBAULT_SETS[0];
 		const pts = (d && Array.isArray(d.points)) ? d.points : [];
 		const maxIndex = (d && d.maxIndex) || (set.planets.length * (set.planets.length - 1) / 2 * 180);
 		const controls = (
 			<div>
 				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 10, lineHeight: '17px' }}>取慢星两两黄经角距之和成「聚散」曲线：<b style={{ color: 'var(--horosa-jx-xiong, #c0392b)' }}>低谷</b>（行星聚集，→0）多应危机、战乱；<b style={{ color: 'var(--horosa-jx-ji)' }}>高峰</b>（行星四散，→{Math.round(maxIndex)}°）多应扩张、繁荣。史上 1914、1939–45 两次大战即与深谷吻合。</div>
 				<div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-					<XQSelect size="small" style={{ width: 196 }} value={this.state.bbSet} onChange={(v) => this.setState({ bbSet: v })}>
+					<XQSelect size="small" style={{ width: 196 }} value={this.state.bbSet} onChange={(v) => { MUNDANE_PAGE_SETTINGS.save({ bbSet: v }); this.setState({ bbSet: v }); }}>
 						{BARBAULT_SETS.map((s) => (<Option key={s.key} value={s.key}>{s.cn}</Option>))}
+					</XQSelect>
+					<XQSelect size="small" style={{ width: 104 }} value={this.state.bbHarm} onChange={(v) => { MUNDANE_PAGE_SETTINGS.save({ bbHarm: v }); this.setState({ bbHarm: v }); }}>
+						{BARBAULT_HARMONICS.map((h) => (<Option key={h.v} value={h.v}>{h.cn}</Option>))}
 					</XQSelect>
 					<InputNumber size="small" style={{ width: 78 }} value={this.state.bbStart} min={-2000} max={3000}
 						onChange={(v) => this.setState({ bbStart: clampYear(v, 1900) })} />
@@ -2729,7 +2746,7 @@ class MundaneMain extends Component{
 			body = (
 				<div>
 					<div style={{ width: '100%', overflow: 'hidden' }}>
-						<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} xmlns="http://www.w3.org/2000/svg">
+						<svg className="horosa-plain-text-board" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} xmlns="http://www.w3.org/2000/svg">
 							<defs>
 								<linearGradient id="bbFill" x1="0" y1="0" x2="0" y2="1">
 									<stop offset="0%" stopColor={ACC} stopOpacity="0.26" />
@@ -2774,7 +2791,7 @@ class MundaneMain extends Component{
 	// 右栏分页:按盘型给不同 tab,避免卡片堆叠拥挤。
 	mundaneRightTabList(type){
 		if(type === 'cycles'){
-			return [{ value: 'cycles', label: '木土纪元' }, { value: 'barbault', label: 'Barbault' }, { value: 'greatyear', label: '大年时代' }];
+			return [{ value: 'cycles', label: '木土纪元' }, { value: 'barbault', label: 'Barbault' }, { value: 'greatyear', label: '大年时代' }, { value: 'cycletables', label: '周期表' }];
 		}
 		if(type === 'solunar'){
 			return [{ value: 'overview', label: '概览' }, { value: 'angularity', label: '角化' }, { value: 'judge', label: '判读' }, { value: 'stars', label: '恒星' }];
@@ -2796,6 +2813,7 @@ class MundaneMain extends Component{
 		if(type === 'cycles'){
 			if(key === 'barbault'){ return this.renderBarbault(extra); }
 			if(key === 'greatyear'){ return this.renderGreatYear(); }
+			if(key === 'cycletables'){ return <MundaneCycleTables value={chart} onText={(text, chartKey)=>this.setState({ cycleTableText: text, cycleTableKey: chartKey })} />; }
 			return (<Fragment>{this.renderGreatConj(false, extra)}{this.renderConjunctionEras()}</Fragment>);
 		}
 		if(type === 'solunar' && key === 'overview'){ return this.renderSolunarOverview(chart, extra); }
@@ -3011,9 +3029,28 @@ class MundaneMain extends Component{
 		return [head, judge, ...extraSecs, ...cardSecs, body].filter(Boolean).join('\n\n');
 	}
 
+	// 存案前补周期表正文:周期表页签没打开过(或还没算完)时,按周期表保存的设置现取一次,写进本页 state,
+	// 随后存案快照照常把它带上。请求与周期表页签同一套构参(MundaneCycleTables.body)。
+	async ensureCycleTableText(chart, extra){
+		if(!chart || ((extra || {}).mundaneType || 'ingress') !== 'cycles'){ return; }
+		if(this.state.cycleTableText && this.state.cycleTableKey === chartRequestKey(chart)){ return; }
+		const settings = MUNDANE_CYCLE_SETTINGS.load();
+		const base = chartParams(chart);
+		const body = { ...base, targetDate: base.date, targetTime: base.time || '12:00:00', ...mundaneCycleRequestFields(settings, { startYear: null, endYear: null }) };
+		try{
+			const data = await request(`${Constants.ServerRoot}/astroextra/mundanecycles`, { body: JSON.stringify(body), silent: true, timeoutMs: 60000 });
+			const result = unwrapResult(data);
+			if(!result || result.err){ return; }
+			const text = buildMundaneCycleText(result, body);
+			if(text){ await new Promise((resolve)=>this.setState({ cycleTableText: text, cycleTableKey: chartRequestKey(chart) }, resolve)); }
+		}catch(e){ /* 取不到只少这一段,存案照常 */ }
+	}
+
 	render(){
 		return (
 			<DivinationChartShell
+				hostState={this.state}
+				beforeSaveCase={(chart, fields, extra)=>this.ensureCycleTableText(chart, extra)}   /* 右栏读本页 state;壳的渲染守卫把函数类属性都当没变,要靠这一项知道本页状态变了 */
 				title="世俗盘"
 				wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
 				chartStyle={this.props.chartStyle}

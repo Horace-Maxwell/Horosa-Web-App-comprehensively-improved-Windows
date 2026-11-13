@@ -89,8 +89,10 @@
         --horosa-bazi-year-bg: #c8f7f5;
         --horosa-bazi-wood: #237a45;
         --horosa-bazi-fire: #c72d22;
-        --horosa-bazi-earth: #805526;
-        --horosa-bazi-metal: #866a00;   /* 旧 #e0892a 在宣纸底仅 2.4:1;换深金(色相仍与土 #805526 分得开) */
+        /* 五行色全站单一色源:木绿 / 火红 / 土棕 / 金橙 / 水蓝,三套主题同一色相(暗色取值是基准)。
+           金 = 深橙(色相 30°,宣纸底 4.66:1、软面板 4.59:1、经典白 4.84:1);土 = 棕(6.3:1),两者不再同是褐黄 */
+        --horosa-bazi-earth: #7a4f2a;
+        --horosa-bazi-metal: #ab5500;
         --horosa-bazi-water: #275fc7;
         --horosa-bazi-interaction: #b3b8bf;
         // 星运树层级色(L1–L4):第一层用主题金(此前蓝,与全站金色体系不一),第四层改石板灰以免与第一层撞色
@@ -156,12 +158,12 @@
         --horosa-series-10: #a8436f;   /* 冥王 */
         --horosa-series-11: #70761b;   /* 交点 */
         --horosa-series-12: #4f867d;   /* 四轴 */
-        /* 六壬五行(七政页签地支 + 六壬盘面;暗色取值 = 此前各处行内兜底色,观感不变) */
-        --horosa-liureng-stem-wood: #3f7a38;
-        --horosa-liureng-stem-fire: #b23a30;
-        --horosa-liureng-stem-earth: #80602a;
-        --horosa-liureng-stem-metal: #6b6457;
-        --horosa-liureng-stem-water: #3d5f80;
+        /* 六壬五行(七政页签地支 + 六壬盘面):五行色全站单一色源的别名,不另起一套 */
+        --horosa-liureng-stem-wood: var(--horosa-bazi-wood);
+        --horosa-liureng-stem-fire: var(--horosa-bazi-fire);
+        --horosa-liureng-stem-earth: var(--horosa-bazi-earth);
+        --horosa-liureng-stem-metal: var(--horosa-bazi-metal);
+        --horosa-liureng-stem-water: var(--horosa-bazi-water);
         /* 赤纬出界(赤纬图星符与图例) */
         --horosa-decl-oob: #c2255c;
         /* 择日评级 / 严重度(分数字与药丸底;药丸上的字 = on-solid) */
@@ -177,10 +179,11 @@
            根上 = muted;占星作用域(05-astro 的 .horosa-astro-redesign)里改指 astro-muted,随作用域换色相。
            --horosa-text-muted / -text-tertiary 曾在源码里被引用却从未定义(恒取兜底 #888 / #999 一类单主题色),已统一改名为本变量。 */
         --horosa-text-secondary: var(--horosa-muted);
-        /* 链接色:.umirc.js 把 antd @link-color / @link-hover-color / @link-active-color 接到这三个(antd 原值 #1890ff 在宣纸底 2.9:1) */
-        --horosa-link: #0958d9;
-        --horosa-link-hover: #1677ff;
-        --horosa-link-active: #003eb3;
+        /* 链接色:.umirc.js 把 antd @link-color / @link-hover-color / @link-active-color 接到这三个。
+           一律走主题金族(全站不用蓝):裸 <a>、分页跳页、列表名称链接、AI 分析几处状态字都吃这一组,改这里全站同变 */
+        --horosa-link: var(--horosa-accent-strong);
+        --horosa-link-hover: var(--horosa-accent);
+        --horosa-link-active: #5c3f13;
         /* 提示 / 警示(界面提示条、状态字;旧代码里 --horosa-info / --horosa-warn 从未定义,恒取单主题兜底) */
         --horosa-info: #2f62a8;
         --horosa-warn: #8a5b00;
@@ -390,11 +393,11 @@
         --horosa-series-10: #da8fb0;
         --horosa-series-11: #b5b26d;
         --horosa-series-12: #9dbcad;
-        --horosa-liureng-stem-wood: #73b36b;
-        --horosa-liureng-stem-fire: #c9483e;
-        --horosa-liureng-stem-earth: #c19a57;
-        --horosa-liureng-stem-metal: #d8d2c7;
-        --horosa-liureng-stem-water: #8f9694;
+        --horosa-liureng-stem-wood: var(--horosa-bazi-wood);
+        --horosa-liureng-stem-fire: var(--horosa-bazi-fire);
+        --horosa-liureng-stem-earth: var(--horosa-bazi-earth);
+        --horosa-liureng-stem-metal: var(--horosa-bazi-metal);
+        --horosa-liureng-stem-water: var(--horosa-bazi-water);
         --horosa-decl-oob: #f06595;
         --horosa-grade-excellent: #4cc38a;
         --horosa-grade-good: #3cc2d6;
@@ -405,9 +408,9 @@
         --horosa-sev-low: #a3b0bf;
         --horosa-sev-info: #8f9aa8;
         --horosa-text-secondary: var(--horosa-muted);
-        --horosa-link: #1890ff;
-        --horosa-link-hover: #40a9ff;
-        --horosa-link-active: #096dd9;
+        --horosa-link: var(--horosa-accent);
+        --horosa-link-hover: var(--horosa-accent-strong);
+        --horosa-link-active: #c99a4f;
         --horosa-info: #7aa7e0;
         --horosa-warn: #e0a640;
         --horosa-sihua-lu: #e2ad4f;
@@ -594,6 +597,11 @@
         p:first-child, h1:first-child, h2:first-child, h3:first-child, h4:first-child { margin-top: 0; }
     }
 
+    /* 经典白:面板软底偏冷蓝,引用块配金色左线发灰发冷;换成中性浅底(宣纸与暗色不动) */
+    :root[data-horosa-light-flavor='classic']:not([data-horosa-appearance='dark']) .xq-markdown blockquote {
+        background: rgba(120, 120, 128, 0.08);
+    }
+
     :root[data-horosa-appearance='dark'] {
         /* antd 信息提示条(Alert)默认深色文字,暗黑下不可见 → 强制主题色 */
         .ant-alert-info .ant-alert-message,
@@ -631,7 +639,17 @@
     /* antd 开关:亮色下关态轨道是 rgba(0,0,0,.25) 叠在纸底上(≈ #bebcb8),白字「关」1.9:1;开态 #1890ff 白字 3.2:1。
        亮色两态轨道换成能托白字的实底(≥ 5:1);暗色 antd 原样(关态近黑、白字够)。禁用态不动。 */
     :root:not([data-horosa-appearance='dark']) .ant-switch:not(.ant-switch-checked):not(.ant-switch-disabled) { background-color: var(--horosa-text-secondary); }
-    :root:not([data-horosa-appearance='dark']) .ant-switch.ant-switch-checked:not(.ant-switch-disabled) { background-color: var(--horosa-link); }
+    /* 暗色关态:antd 原样是 rgba(0,0,0,.25),压在暗面板上几乎看不出轨道(读不出这里有个开关)。
+       换成浅色半透明轨道:轮廓看得见,轨道里的白字「关」仍 ≥ 7:1。 */
+    :root[data-horosa-appearance='dark'] .ant-switch:not(.ant-switch-checked):not(.ant-switch-disabled) { background-color: rgba(255, 255, 255, 0.22); }
+    /* 开态轨道 = 主题金,三套主题同一口径(此前亮色走链接蓝、暗色是 antd 原蓝,与全站金色控件不一)。
+       轨道里的字走 --horosa-on-solid(亮 = 白 4.7:1、暗 = 深墨);暗色把手同取深墨,免白把手压在浅金上发虚。
+       禁用态同色(antd 自带 0.4 透明度),聚焦光环与载入图标一并去蓝。 */
+    :root .ant-switch.ant-switch-checked { background-color: var(--horosa-accent); }
+    :root .ant-switch.ant-switch-checked .ant-switch-inner { color: var(--horosa-on-solid); }
+    :root .ant-switch.ant-switch-checked:focus { box-shadow: 0 0 0 2px var(--horosa-accent-soft); }
+    :root .ant-switch.ant-switch-checked .ant-switch-loading-icon { color: var(--horosa-accent); }
+    :root[data-horosa-appearance='dark'] .ant-switch.ant-switch-checked .ant-switch-handle::before { background-color: var(--horosa-on-solid); }
 
     /* 图表内行星/度数文字:浅色模式单色调色板(如 #3b3b3b)在暗底不可见 → 暗黑下回落主题文字色、去浅色描边 */
     :root[data-horosa-appearance='dark'] {

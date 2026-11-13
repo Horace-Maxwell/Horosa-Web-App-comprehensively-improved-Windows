@@ -268,9 +268,12 @@ class PlanetsMixin:
     def _applyTopoMoon(self):
         """[WP-2] 月亮站心视差修正:测站坐标重算月亮(黄经差可达 ~1°),随后福点与全部
         阿拉伯点按新月位重投(点公式吃月)。默认关零回归。set_topo 显式逐次设置
-        (防跨请求泄漏,照 astroextra CENTER_FLAGS 纪律;仅本次带 FLG_TOPOCTR 的 calc 受影响)。"""
-        if not self._topoMoon:
+        (防跨请求泄漏,照 astroextra CENTER_FLAGS 纪律;仅本次带 FLG_TOPOCTR 的 calc 受影响)。
+        一张盘只算一次(起盘时):它按出生时刻与测站重算月亮,是起盘事实。起盘之后的 reinit 都发生在搬过点的盘上
+        (组合盘 / 合盘 / 骰子盘 / 推运图 …),再算一遍会把搬好的月亮盖回本命站心月位、福点与全部希腊点按混合位置重投。"""
+        if not self._topoMoon or getattr(self, '_topoMoonApplied', False):
             return
+        self._topoMoonApplied = True
         from flatlib.tools import arabicparts as _ap
         try:
             moon = self.chart.getObject(const.MOON)
@@ -280,7 +283,9 @@ class PlanetsMixin:
                 swe.swisseph.set_topo(pos.lon, pos.lat, 0.0)
                 flags = getattr(self.chart, 'flags', swe.SEDEFAULT_FLAG) | swe.swisseph.FLG_TOPOCTR
                 xx = swe.swisseph.calc_ut(jd, 1, flags)[0]
-                eq = swe.swisseph.calc_ut(jd, 1, flags | swe.SEFLG_EQUATORIAL)[0]
+                eq = swe.swisseph.calc_ut(jd, 1, swe.equatorialFlags(flags))[0]
+            # 地心月速度留一份:十三分盘的比率(月速 / 日速)是月亮绕地的快慢,不该掺进测站随地球自转带来的视差速度
+            self._geoMoonLonSpeed = moon.lonspeed
             moon.relocate(xx[0] % 360.0)
             moon.lat = xx[1]
             moon.lonspeed = xx[3]
@@ -298,17 +303,33 @@ class PlanetsMixin:
         except Exception:
             pass
 
+    def markRelocated(self):
+        """标记搬点盘:之后 reinit 判昼夜一律看盘上此刻位置(视日出档不再取出生时刻的真实日出日没);
+        希腊点不再重跑变体(见 freezeLotVariants)。"""
+        self._sectByPosition = True
+        self.freezeLotVariants()
+
+    def freezeLotVariants(self):
+        """搬点盘 / 派生盘:希腊点变体在起本命盘时已经生效,各点随后跟着一起搬过(或取了中点)。
+        reinit 再跑一遍会按盘上此刻的日、月、上升重新起点,把搬好的位置盖掉(例:福点反转关时,
+        合盘里对方的福点被换成「我的上升 + 对方的月 − 对方的日」)。与十三分等派生盘同口径:起盘后不再重跑。"""
+        self._lotVariantsFrozen = True
+
     def _diurnalWithSectBuffer(self):
         """G13 区分昼夜:默认纯几何地平(chart.isDiurnal);sectBuffer=='ptolemy5' 加 5° 缓冲——
         太阳虽在地平下,但黄经距上升点 5° 内(拂晓将升)仍判昼。默认 geo 零回归。
         [WP-2] sectBuffer=='apparent':视地平判昼——真日出/日没时刻(swisseph rise_trans,
         默认含大气折射-34′与日面上缘),比较「下一事件」归属:下一事件是日没⇒当前昼;是日出⇒当前夜。
         极昼极夜(rise_trans 无解)回落几何地平。
+        搬点盘(组合盘 / 推运图 / 骰子盘:点被挪过,不是某一真实时刻的天空)没有真实日出日没,
+        这一档退回按盘上此刻的太阳与地平判(同缺省档);由 markRelocated() 标记。
         sect 翻转连锁影响:得失区分凶星 / 三分昼夜序 / 福点反转 / 寿命法 hyleg 优先 / ZR 默认释放点。"""
         base = bool(self.chart.isDiurnal())
         data = self.data if isinstance(self.data, dict) else {}
         sb = data.get('sectBuffer')
         if sb == 'apparent':
+            if getattr(self, '_sectByPosition', False):
+                return base
             try:
                 jd = self.chart.date.jd
                 pos = self.chart.pos

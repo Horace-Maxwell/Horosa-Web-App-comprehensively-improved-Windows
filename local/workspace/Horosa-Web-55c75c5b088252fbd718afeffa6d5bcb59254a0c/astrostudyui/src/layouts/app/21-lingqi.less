@@ -144,7 +144,7 @@
 	box-shadow: none;
 }
 // 掷棋动画:抛起翻滚落定;reduced-motion 直落
-@keyframes horosa-lingqi-toss {
+@keyframes ~":global(horosa-lingqi-toss)" {
 	0% { transform: translateY(0) rotateX(0deg) scale(1); }
 	32% { transform: translateY(-34px) rotateX(380deg) scale(1.06); }
 	62% { transform: translateY(6px) rotateX(648deg) scale(1); }
@@ -203,24 +203,10 @@
 .horosa-lingqi-wu-inline { margin-top: 4px; font-size: 11.5px; color: #ecb2a0; }
 
 // ── 左栏 ──
-// 时地节:去节头裸卡(标签已逐项自带),补上节卡内边距
-.horosa-lingqi-timegeo { padding: 10px 12px 7px; }
 .horosa-lingqi-actions { display: flex; flex-direction: column; gap: 7px; margin: 6px 0 4px; }
-.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn {
-	height: 38px;
-	font-size: 14px;
-	font-weight: 600;
-	letter-spacing: 4px;
-	border-radius: 9px;
-	border: none;
-	background: linear-gradient(180deg, var(--horosa-accent, #e7bd75), var(--horosa-accent-strong, #f2cf91));
-	color: var(--horosa-on-accent, #071015);
-	box-shadow: 0 2px 10px rgba(216, 173, 99, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-	&:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 3px 14px rgba(216, 173, 99, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
-	&:disabled { opacity: 0.45; filter: saturate(0.4); }
-}
+// 起卦主钮与两枚次钮:外观一律走全站左栏动作钮(金淡底金字主钮 / 描线次钮),本页不另设渐变实底与圆角
 .horosa-lingqi-actions-row { display: flex; gap: 7px; }
-.horosa-lingqi-actions-row .ant-btn { flex: 1; border-radius: 8px; }
+.horosa-lingqi-actions-row .ant-btn { flex: 1; min-width: 0; }
 .horosa-lingqi-seed-hint {
 	display: flex;
 	align-items: center;
@@ -228,7 +214,7 @@
 	padding: 5px 9px;
 	margin-bottom: 4px;
 	border-radius: 8px;
-	border: 1px dashed rgba(216, 173, 99, 0.3);
+	border: 1px solid rgba(216, 173, 99, 0.3);
 	background: rgba(216, 173, 99, 0.05);
 	i {
 		font-style: normal;
@@ -438,7 +424,6 @@
 	.horosa-lingqi-layer-label b { font-size: 20px; }
 	.horosa-lingqi-result-name { font-size: 24px; letter-spacing: 3px; }
 	.horosa-lingqi-board { padding: 14px 16px; }
-	.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn { letter-spacing: 2px; }
 }
 
 // ── 窄盘(盘组件直接量盘宽 < 480px 挂 data-board-narrow;放大档的中栏走这里 —— 上面两条媒体查询按物理窗口宽,缩放档里不触发)──
@@ -495,11 +480,6 @@
 	.horosa-lingqi-wu-inline { color: #b5493a; }
 	.horosa-lingqi-wu-tag { color: #b5493a; background: rgba(191, 60, 54, 0.07); border-color: rgba(191, 60, 54, 0.35); }
 	.horosa-lingqi-origin-tag { color: #4a7d4a; background: rgba(61, 143, 116, 0.08); border-color: rgba(61, 143, 116, 0.35); }
-	.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn {
-		background: linear-gradient(180deg, #b98432, #9a6a25);
-		color: #fff;
-		box-shadow: 0 2px 10px rgba(154, 106, 37, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-	}
 	.horosa-lingqi-seed-hint {
 		border-color: rgba(154, 106, 37, 0.3);
 		background: rgba(154, 106, 37, 0.05);

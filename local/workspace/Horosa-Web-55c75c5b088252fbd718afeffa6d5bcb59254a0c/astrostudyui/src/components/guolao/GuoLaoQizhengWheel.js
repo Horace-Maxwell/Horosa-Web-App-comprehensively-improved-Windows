@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatZoneLabel } from '../../utils/zoneText';
 import './GuoLaoQizhengWheel.less';
 
 const SIZE = 960;
@@ -531,7 +532,7 @@ function GuoLaoQizhengWheel({pan}){
 						中天 {chart.midheavenText || '—'} · {currentPeriod.palace_name || currentPeriod.palaceName || '行限'} {currentPeriod.start_age || currentPeriod.startAge || 0}-{currentPeriod.end_age || currentPeriod.endAge || '—'}岁
 					</text>
 					<text x={CX} y={CY + 43} textAnchor="middle" fill="var(--qz-cyan)" fontSize="10" fontWeight="700" fontFamily="serif">
-						UTC{pan.timezone === undefined ? '' : `${num(pan.timezone) >= 0 ? '+' : ''}${pan.timezone}`}
+						{formatZoneLabel(pan.timezone) || 'UTC'}
 					</text>
 				</g>
 

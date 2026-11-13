@@ -13,7 +13,10 @@ class LotsMixin:
         ④ erosConstruction='valens' → 爱欲=Asc+(精神−福点)/必然=Asc+(福点−精神)(昼;夜按③口径定向);
         ⑤ lotFatherCombustAlt=1 且土星在日光束下 → 父点=Asc+(Jupiter−Mars)(昼;夜反转);
         ⑥ lotProjection='sign' → 全点整星座投射(点归座首,最后执行)。
-        点对象就地 relocate:下游相位/落宫/快照自动吃新位。"""
+        点对象就地 relocate:下游相位/落宫/快照自动吃新位。
+        搬点盘 / 派生盘(freezeLotVariants 标过)不重跑:点已随搬点的结果走。"""
+        if getattr(self, '_lotVariantsFrozen', False):
+            return
         data = self.data if isinstance(self.data, dict) else {}
         from flatlib.tools import arabicparts as ap
         try:
@@ -110,10 +113,16 @@ class LotsMixin:
             return ap.objLon(ID, chart)
 
         day = bool(self.isDiurnal)
-        # 福点:①/② 已把 pf 定成昼式或夜式 → 按其现值判是昼式还是夜式再座序化
+        # 福点:①/② 已把 pf 定成昼式或夜式 → 按其现值判是昼式还是夜式再座序化。
+        # 同一张盘再 reinit 一次时 pf 已是上一次座序化的结果(不再等于按度算的昼式)→ 也认「已是昼式座序位」,
+        # 否则昼盘第二次会被当成夜式倒着数。
         fortune_day = (asc.lon + moon.lon - sun.lon) % 360.0
-        pf_is_day = abs(((pf.lon - fortune_day + 180.0) % 360.0) - 180.0) < 1e-6
-        pf_sign = self._signCountLon(sun.lon, moon.lon, asc.lon) if pf_is_day else self._signCountLon(moon.lon, sun.lon, asc.lon)
+        day_sign = self._signCountLon(sun.lon, moon.lon, asc.lon) % 360.0
+
+        def _same(a, b):
+            return abs(((a - b + 180.0) % 360.0) - 180.0) < 1e-6
+        pf_is_day = _same(pf.lon, fortune_day) or _same(pf.lon, day_sign)
+        pf_sign = day_sign if pf_is_day else self._signCountLon(moon.lon, sun.lon, asc.lon)
         pf.relocate(pf_sign % 360.0)
         resolved[_c.PARS_FORTUNA] = pf.lon
 

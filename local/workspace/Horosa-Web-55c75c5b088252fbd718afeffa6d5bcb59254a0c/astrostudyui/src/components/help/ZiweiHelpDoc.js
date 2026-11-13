@@ -2,20 +2,22 @@
 // 把左栏全部输入/设置选项(取值/含义/区别/默认)+ 右栏每个 tab 写清楚;中性表述,纯展示零后端。
 // 共享样式见 helpDocStyle;kv 行本组件自渲染(避免 JSX 进 .js 样式文件)。绝不写章节号或软件名;书名只写公版古籍名,不写现代来源。
 import { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 
-const { TabPane } = Tabs;
-const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class ZiweiHelpDoc extends Component {
-	render() {
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>紫微斗数 · 操作手册</div>
-				<Tabs defaultActiveKey="overview" size="small">
-
-					<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '紫微斗数 · 操作手册',
+	groups: [
+		{
+			key: 'ziwei',
+			label: '紫微斗数',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={p}>左栏填<b>出生时间 + 地点</b>并设定排盘选项,系统据此安十二宫、布主辅星曜、定四化与行运;右栏分四个标签查看<b>命盘资料 / 运限 / 格局 / 参考</b>。</p>
 							<p style={p}>同一生辰因传承不同,排法存在多处分歧(如火铃起宫、闰月归月、晚子时换日、定年界线、空劫命名、天伤天使、四化用表等)。本页把这些差异做成<b>可选项</b>:默认取通行排法,需要时逐项切换或用「流派预设」一键套用。</p>
@@ -38,9 +40,14 @@ class ZiweiHelpDoc extends Component {
 								{kv('AI助手', '跳到 AI 分析页解读当前这张盘')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="基本设置" key="basic">
+					</div>
+					),
+				},
+				{
+					key: 'basic',
+					label: '基本设置',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏上半部:时间地点 + 常用下拉/勾选。</p>
 
@@ -98,9 +105,14 @@ class ZiweiHelpDoc extends Component {
 								{kv('说明', '只决定中宫另外显示多少资料,不重排')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派分歧" key="schools">
+					</div>
+					),
+				},
+				{
+					key: 'schools',
+					label: '流派分歧',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「流派·传本设置」折叠区:逐项排法分歧,均给出各取值与默认。改动任一项后,「流派预设」自动显示为「自定义」。</p>
 
@@ -274,9 +286,14 @@ class ZiweiHelpDoc extends Component {
 								<li style={li}>若尚未存过任何自定义表就取消编辑器,四化流派会退回「通用·飞星」,不会停在空表状态。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="流派叠层" key="overlay">
+					</div>
+					),
+				},
+				{
+					key: 'overlay',
+					label: '流派叠层',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>左栏「流派叠层·显示」折叠区:各开关<b>默认全关</b>。它们是各派招牌看法的附加标注,只在既有盘上加信息,不改星曜落宫、不触发重排。</p>
 
@@ -338,9 +355,14 @@ class ZiweiHelpDoc extends Component {
 
 							<p style={{ ...p, color: MUTED }}>以上叠层算出的内容会同时写入 AI 分析所用的盘面快照(单独成段),供解读时引用;开关全关时快照不含该段。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="四化与运限" key="luck">
+					</div>
+					),
+				},
+				{
+					key: 'luck',
+					label: '四化与运限',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>四化用表见「流派分歧」标签;本标签说明右栏「运限」的层级与读法。</p>
 
@@ -382,9 +404,14 @@ class ZiweiHelpDoc extends Component {
 							</ul>
 							<p style={{ ...p, color: MUTED, marginTop: 4 }}>所选运限会一并注入 AI 分析的盘面快照,做到「盘面显示什么,导出/解读就用什么」。</p>
 						</div>
-					</TabPane>
-
-					<TabPane tab="右栏标签" key="tabs">
+					</div>
+					),
+				},
+				{
+					key: 'tabs',
+					label: '右栏标签',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>盘面右侧分四个标签。</p>
 
@@ -419,9 +446,14 @@ class ZiweiHelpDoc extends Component {
 								{kv('四化简述', '化禄、化权、化科、化忌四化的简要说明')}
 							</div>
 						</div>
-					</TabPane>
-
-					<TabPane tab="盘面读法" key="chart">
+					</div>
+					),
+				},
+				{
+					key: 'chart',
+					label: '盘面读法',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<p style={{ ...p, color: MUTED }}>中栏盘面:四周十二格按地支固定排布(不随命宫旋转),中间为中宫。</p>
 
@@ -465,9 +497,14 @@ class ZiweiHelpDoc extends Component {
 								<li style={li}>晚子时选「双盘」且两盘确有差异时,盘面上方出现「当日盘 / 次日盘」切换钮,切换后中栏盘面与右栏运限、命盘资料一并跟随。</li>
 							</ul>
 						</div>
-					</TabPane>
-
-					<TabPane tab="保存与 AI" key="save">
+					</div>
+					),
+				},
+				{
+					key: 'save',
+					label: '保存与 AI',
+					render: ()=>(
+						<div>
 						<div style={body}>
 							<div style={h}>设置的保存范围</div>
 							<ul style={ul}>
@@ -494,11 +531,19 @@ class ZiweiHelpDoc extends Component {
 							<div style={h}>AI 的「每技法设置」</div>
 							<p style={p}>在 AI 分析页可为紫微单独指定一套设置来生成快照,而不动本页的全局选择:四化流派、全部传本开关、星曜亮度、九项流派叠层与关系人列表,以及要挂载的运限层(大限可多选宫位序、流年可填多年、流月/流日/流时可多选)。留空 = 按该盘记下的设置,没记的项取出厂默认;只有早先没记过紫微设置的旧盘,留空才沿用本页当前设置。</p>
 						</div>
-					</TabPane>
+					</div>
+					),
+				},
+			],
+		},
+	],
+};
 
-				</Tabs>
-			</div>
-		);
+class ZiweiHelpDoc extends Component{
+	static book = HELP_BOOK;
+
+	render(){
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

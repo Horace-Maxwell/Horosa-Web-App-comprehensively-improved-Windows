@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index 2d9698e7..c22c8fd2 100644
+index 24e34bb7..5d205f9e 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
 @@ -1,10 +1,13 @@
@@ -15,7 +15,7 @@ index 2d9698e7..c22c8fd2 100644
 +import { markPanelReady } from '../../utils/perfMark';
 +import { registerProcessCache } from '../../utils/processCacheRegistry';
  import { Modal, message, Tag } from 'antd';
- import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
+ import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection , XQStageEmpty } from '../xq-ui';
  import XQIcon from '../xq-icons';
 @@ -29,7 +32,6 @@ import LiuRengChart from './LiuRengChart';
  import LiuRengInput from './LiuRengInput';
@@ -34,7 +34,7 @@ index 2d9698e7..c22c8fd2 100644
  // R4-B2(horosa_prefetch_registry_v1):/liureng/gods 步进预取登记 + 选步长武装(S3 收敛)。
  import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
  import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-@@ -82,9 +84,210 @@ export { buildLiuRengSnapshotText } from './main/snapshot';
+@@ -83,9 +85,210 @@ export { buildLiuRengSnapshotText } from './main/snapshot';
  const {Option} = Select;
  const TabPane = Tabs.TabPane;
  
@@ -42,7 +42,7 @@ index 2d9698e7..c22c8fd2 100644
 +// 与任何 props/state 无关,原 genWuXingDoms() 每次 render 都从头重建一遍(纯白跑)。提为模块级
 +// 冻结常量:引用恒稳 → 左栏子面板 sCU 浅比恒等;Select 只读消费列表,零语义差。
 +const WUXING_OPTION_DOMS = Object.freeze(LRConst.WuXing.map((item, idx)=>(
-+	<Option key={idx} value={item.elem}>十二长生：{item.elem}--{item.ganzi}</Option>
++	<Option key={idx} value={item.elem} label={`${item.elem}（${item.ganzi}）`}>十二长生：{item.elem}--{item.ganzi}</Option>
 +)));
 +
 +// horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear 的结果缓存**提升到模块级**。
@@ -112,7 +112,7 @@ index 2d9698e7..c22c8fd2 100644
 +					<div className="horosa-liureng-select-grid">
 +							<label className="horosa-liureng-select-field">
 +								<span>十二长生</span>
-+								<Select value={p.wuxing} onChange={p.onWuXingChange} dropdownMatchSelectWidth={false}>
++								<Select value={p.wuxing} optionLabelProp="label" onChange={p.onWuXingChange} dropdownMatchSelectWidth={false}>
 +									{WUXING_OPTION_DOMS}
 +								</Select>
 +							</label>
@@ -142,14 +142,14 @@ index 2d9698e7..c22c8fd2 100644
 +							<label className="horosa-liureng-select-field" title={castLock.title}>
 +								<span>起课法</span>
 +								{/* 择日内嵌:扫描只按正时正将起课,宿主传 zeriLocked 置灰(点结果行时回写锁定值) */}
-+								<Select value={p.castMethod} onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!castLock.disabled}>
-+									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
++								<Select value={p.castMethod} optionLabelProp="label" onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!castLock.disabled}>
++									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>换将</span>
-+								<Select value={p.yueJiangMethod} onChange={(v)=>p.onOptionChange('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
-+									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
++								<Select value={p.yueJiangMethod} optionLabelProp="label" onChange={(v)=>p.onOptionChange('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
++									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 +								</Select>
 +							</label>
 +							{p.castMethod === 'xuanshi' ? (
@@ -245,7 +245,7 @@ index 2d9698e7..c22c8fd2 100644
  class LiuRengMain extends Component{
  	constructor(props) {
  		super(props);
-@@ -134,10 +337,12 @@ class LiuRengMain extends Component{
+@@ -135,10 +338,12 @@ class LiuRengMain extends Component{
  		this.timeHook = {};
  		this.pendingFields = null;
  		this.birthYearGanZiCache = {};
@@ -262,7 +262,7 @@ index 2d9698e7..c22c8fd2 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -153,7 +358,6 @@ class LiuRengMain extends Component{
+@@ -154,7 +359,6 @@ class LiuRengMain extends Component{
  		this.onCastMethodChange = this.onCastMethodChange.bind(this);
  		this.handleCastField = this.handleCastField.bind(this);
  		this.onChartTypeChange = this.onChartTypeChange.bind(this);
@@ -270,7 +270,7 @@ index 2d9698e7..c22c8fd2 100644
  		this.genGodsParams = this.genGodsParams.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
  		this.genRunYearParams = this.genRunYearParams.bind(this);
-@@ -236,6 +440,7 @@ class LiuRengMain extends Component{
+@@ -242,6 +446,7 @@ class LiuRengMain extends Component{
  			// R4-B2(horosa_prefetch_registry_v1):/liureng/gods 是确定性纯计算(同时刻恒同神将)
  			// → 登记步进预取,武装线(选步长/settle/切页)±depth 全窗经共享调度器构造发出
  			// (享白名单闸/latest-wins/预算;S3 收敛:本地裸发路径退役为薄壳,见 prefetchStepSelect)。
@@ -278,7 +278,7 @@ index 2d9698e7..c22c8fd2 100644
  			if(stepPrefetchEnabled()){
  				this._liurengStepPrefetcher = (steppedFields)=>{
  					if(this.unmounted || !steppedFields){
-@@ -823,7 +1028,12 @@ class LiuRengMain extends Component{
+@@ -829,7 +1034,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -292,7 +292,7 @@ index 2d9698e7..c22c8fd2 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -877,44 +1087,54 @@ class LiuRengMain extends Component{
+@@ -883,44 +1093,54 @@ class LiuRengMain extends Component{
  		let result = fallbackRunYear ? { ...fallbackRunYear } : {};
  		const runyearKey = buildCacheKey(params);
  		try{
@@ -377,14 +377,14 @@ index 2d9698e7..c22c8fd2 100644
  			let localRunYear = calcRunYearLocal(
  				birthGanZi,
  				guaGanZi,
-@@ -1108,17 +1328,6 @@ class LiuRengMain extends Component{
+@@ -1114,17 +1334,6 @@ class LiuRengMain extends Component{
  		}
  	}
  
 -	genWuXingDoms(){
 -		let res = LRConst.WuXing.map((item, idx)=>{
 -			return (
--				<Option key={idx} value={item.elem}>十二长生：{item.elem}--{item.ganzi}</Option>
+-				<Option key={idx} value={item.elem} label={`${item.elem}（${item.ganzi}）`}>十二长生：{item.elem}--{item.ganzi}</Option>
 -			);
 -		});
 -		return res;
@@ -395,7 +395,7 @@ index 2d9698e7..c22c8fd2 100644
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-@@ -1549,163 +1758,49 @@ class LiuRengMain extends Component{
+@@ -1554,163 +1763,49 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -434,7 +434,7 @@ index 2d9698e7..c22c8fd2 100644
 -					<div className="horosa-liureng-select-grid">
 -							<label className="horosa-liureng-select-field">
 -								<span>十二长生</span>
--								<Select value={this.state.wuxing} onChange={this.onWuXingChange} dropdownMatchSelectWidth={false}>
+-								<Select value={this.state.wuxing} optionLabelProp="label" onChange={this.onWuXingChange} dropdownMatchSelectWidth={false}>
 -									{wxdoms}
 -								</Select>
 -							</label>
@@ -463,14 +463,14 @@ index 2d9698e7..c22c8fd2 100644
 -							<label className="horosa-liureng-select-field" title={zeriLockProps(this.props.zeriLocked, 'castMethod', this.state.castMethod, this._zeriRestoredLocks).title}>
 -								<span>起课法</span>
 -								{/* 择日内嵌:扫描只按正时正将起课,宿主传 zeriLocked 置灰(点结果行时回写锁定值) */}
--								<Select value={this.state.castMethod} onChange={this.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!zeriLockProps(this.props.zeriLocked, 'castMethod', this.state.castMethod, this._zeriRestoredLocks).disabled}>
--									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
+-								<Select value={this.state.castMethod} optionLabelProp="label" onChange={this.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!zeriLockProps(this.props.zeriLocked, 'castMethod', this.state.castMethod, this._zeriRestoredLocks).disabled}>
+-									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 -								</Select>
 -							</label>
 -							<label className="horosa-liureng-select-field">
 -								<span>换将</span>
--								<Select value={this.state.yueJiangMethod} onChange={(v)=>this.handleCastField('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
--									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
+-								<Select value={this.state.yueJiangMethod} optionLabelProp="label" onChange={(v)=>this.handleCastField('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
+-									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key} label={m.short || m.name}>{m.name}</Option>))}
 -								</Select>
 -							</label>
 -							{this.state.castMethod === 'xuanshi' ? (
@@ -601,7 +601,7 @@ index 2d9698e7..c22c8fd2 100644
  		);
  	}
  
-@@ -1716,8 +1811,8 @@ class LiuRengMain extends Component{
+@@ -1721,8 +1816,8 @@ class LiuRengMain extends Component{
  			xiaojuMainItems,
  			xiaojuReferenceItems,
  			overviewItems,
@@ -612,7 +612,7 @@ index 2d9698e7..c22c8fd2 100644
  		} = refData;
  		const ctx = refBundle && refBundle.context ? refBundle.context : null;
  		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
-@@ -1729,6 +1824,12 @@ class LiuRengMain extends Component{
+@@ -1734,6 +1829,12 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -625,7 +625,7 @@ index 2d9698e7..c22c8fd2 100644
  				<TabPane tab="格局" key="dage">
  					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
  					<div className="horosa-liureng-reference-tab-body">
-@@ -1779,7 +1880,11 @@ class LiuRengMain extends Component{
+@@ -1766,7 +1867,11 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="信息" key="meta">
@@ -638,7 +638,7 @@ index 2d9698e7..c22c8fd2 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -1798,7 +1903,8 @@ class LiuRengMain extends Component{
+@@ -1785,7 +1890,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -648,7 +648,7 @@ index 2d9698e7..c22c8fd2 100644
  				</TabPane>
  				<TabPane tab="毕法" key="bifa">
  					<FreezeSubTab active={activeTabKey === 'bifa'}>{() => this.renderBiFaTab(ctx)}</FreezeSubTab>
-@@ -1861,7 +1967,11 @@ class LiuRengMain extends Component{
+@@ -1833,7 +1939,11 @@ class LiuRengMain extends Component{
  					<FreezeSubTab active={activeTabKey === 'xiang'}>{() => this.renderXiangTab(ctx)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="七政" key="qizheng">
@@ -661,7 +661,7 @@ index 2d9698e7..c22c8fd2 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -1915,7 +2025,8 @@ class LiuRengMain extends Component{
+@@ -1887,7 +1997,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -671,7 +671,7 @@ index 2d9698e7..c22c8fd2 100644
  				</TabPane>
  			</Tabs>
  		);
-@@ -2105,13 +2216,12 @@ class LiuRengMain extends Component{
+@@ -2077,13 +2188,12 @@ class LiuRengMain extends Component{
  			refContext.sanChuanText ? `三传：${refContext.sanChuanText}` : '',
  			refContext.dayGanZi ? `日干支：${refContext.dayGanZi}` : '',
  		].filter(Boolean).join('；');
@@ -686,7 +686,7 @@ index 2d9698e7..c22c8fd2 100644
  						</div>
  						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-liureng-chart-panel xq-chart-renderer xq-chart-renderer-liureng">
  							<div className="horosa-liureng-chart-host">
-@@ -2140,14 +2250,18 @@ class LiuRengMain extends Component{
+@@ -2118,14 +2228,18 @@ class LiuRengMain extends Component{
  									<div className="horosa-side-panel-subtitle">大格、小局与参考条目</div>
  								</div>
  							</div>

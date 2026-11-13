@@ -4,6 +4,7 @@ import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, X
 import * as AstroText from '../../constants/AstroText';
 import { randomStr, isNumber} from '../../utils/helper';
 import styles from '../../css/styles.less';
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 
 
 const { Option } = Select;
@@ -108,7 +109,7 @@ class DLFeature extends Component{
 
 	render(){
 		let dtstr = this.props.birth.value.format('yyyy-MM-dd HH:mm:ss');
-		let txt = `${AstroText.Gender[this.props.gender.value+'']}，经度：${this.props.lon.value}，纬度：${this.props.lat.value}，时区：${this.props.zone.value}，出生时间：${dtstr}`
+		let txt = `${AstroText.Gender[this.props.gender.value+'']}，经度：${this.props.lon.value}，纬度：${this.props.lat.value}，时区：${formatZoneLabel(this.props.zone.value) || this.props.zone.value}，出生时间：${dtstr}`
 		
 		let height = this.props.height ? this.props.height : 760;
 		height = height - 80;

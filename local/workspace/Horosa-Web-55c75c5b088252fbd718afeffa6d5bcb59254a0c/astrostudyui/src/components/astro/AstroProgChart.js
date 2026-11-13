@@ -8,6 +8,7 @@ import { fetchChart } from '../../services/astro';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDeclinationLadder from './AstroDeclinationLadder';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
+import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 
 // 推运「单层方法面板」：赤纬/恒星/推运 三个 tab 共用。版式与主限法盘同一个(progPageLayout):
 // 左边整列是盘,右栏 = 宿主给的 side(标题 · 时间选择 · 设置,见 ProgPageSide)+ 位置表 + 相位 / 平行表。
@@ -162,7 +163,7 @@ class ProgMethodPanel extends Component{
 							<SmallTable rows={posRows} fill scrollClassName={styles.scrollbar} columns={[
 								{ key: 'id', title: '点', width: '32%', render: (v)=>sm(v) },
 								{ key: 'sign', title: '推运位置', width: '38%', render: (_v, row)=><span style={{ whiteSpace: 'nowrap' }}>{fmtDegree(row)}</span> },
-								{ key: 'lonspeed', title: '速度', align: 'right', render: (v)=>fmtNum(v, 4) },
+								{ key: 'lonspeed', title: '速度', align: 'right', render: (v)=>fmtNum(v, 3) },
 							]} />
 						)}
 					</FillCard>,
@@ -202,7 +203,7 @@ export function ProgPageSide({ title, desc, result, method, methodLabel, targetD
 	const rate = METHOD_RATE_NOTE[m.method];
 	return (
 		<SidePanelHead title={title} sub={[age, when, rate ? `${rate}折算` : ''].filter(Boolean).join(' · ')} desc={desc}>
-			<SideSection title="时间选择" extra={zone ? `本盘时区 ${zone}` : null}>
+			<SideSection title="时间选择" extra={zone ? `本盘时区 ${formatZoneLabel(zone) || zone}` : null}>
 				<TargetTimeControl date={targetDate} time={targetTime} zone={zone} onChange={onTime} />
 			</SideSection>
 			<SideSection title="推运设置">

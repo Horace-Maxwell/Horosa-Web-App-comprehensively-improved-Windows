@@ -1,4 +1,5 @@
 import math
+import re
 import swisseph
 
 from flatlib.datetime import Datetime
@@ -9,6 +10,7 @@ from flatlib import utils
 from flatlib import angle
 from astrostudy.helper import distance
 from astrostudy.civil_calendar import civil_parts_from_jd, format_civil_date
+from astrostudy.acg.eclipse_path import eclipse_path, WHICH as ECLIPSE_WHICH, FILTERS as ECLIPSE_FILTERS
 from astrostudy.helper import convertLonToStr
 from astrostudy.helper import convertLatToStr
 
@@ -329,6 +331,13 @@ class ACGraph:
         self.ccgMix = str(data.get('ccgMix', 'mixed')).lower()
         if self.ccgMix not in ('mixed', 'transit', 'progressed'):
             self.ccgMix = 'mixed'
+        # 日食路径:出生前 / 后最近一次日食(缺省关=零回归);eclipseFilter central 只找中心食
+        self.eclipse = str(data.get('eclipse', 'off')).lower()
+        if self.eclipse not in ECLIPSE_WHICH:
+            self.eclipse = 'off'
+        self.eclipseFilter = str(data.get('eclipseFilter', 'any')).lower()
+        if self.eclipseFilter not in ECLIPSE_FILTERS:
+            self.eclipseFilter = 'any'
 
         self.dateTime = Datetime(self.date, self.time, self.zone)
         self.pos = GeoPos(self.lat, self.lon)
@@ -1305,6 +1314,25 @@ class ACGraph:
 
     # ----- relocation point report -------------------------------------------------
 
+    def _eclipse(self):
+        if self.eclipse == 'off':
+            return None
+        result = eclipse_path(self.jd, self.eclipse, self.eclipseFilter)
+        if result is None:
+            return None
+        offset = 0.0
+        try:
+            match = re.match(r'^([+-]?)(\d{1,2}):?(\d{2})?$', str(self.zone).strip())
+            if match:
+                offset = (-1.0 if match.group(1) == '-' else 1.0) * (int(match.group(2)) + int(match.group(3) or 0) / 60.0)
+        except (TypeError, ValueError):
+            offset = 0.0
+        for key, shift in (('utc', 0.0), ('local', offset)):
+            parts = civil_parts_from_jd(result['jd'] + shift / 24.0)
+            result[key] = '%s %02d:%02d' % (format_civil_date(parts['astroYear'], parts['month'], parts['day'], '/'),
+                                            parts['hour'], parts['minute'])
+        return result
+
     def pointReport(self, lat, lon, orb=2.0, hsys='whole'):
         """ Planets within orb of a local angle at (lat, lon) — planets on angles.
         Optionally reports the relocated 12 house cusps for the chosen house system
@@ -1483,5 +1511,6 @@ class ACGraph:
             'stars': star_lines,
             'starParans': self._starParans(star_bodies, [b for b in bodies if b[0] in PARAN_OBJECTS]) if self.stars else None,
             'ccg': self._ccgLines(),
+            'eclipse': self._eclipse(),
             'second': second,
         }

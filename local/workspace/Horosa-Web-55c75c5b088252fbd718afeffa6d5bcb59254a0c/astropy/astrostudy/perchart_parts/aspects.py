@@ -5,6 +5,10 @@ from flatlib.tools import arabicparts
 from astrostudy.perchart_parts.chart_tables import excludeBad, isStrongGood, takeAsp
 
 
+_ANTIPODE_PAIRS = frozenset([frozenset((const.ASC, const.DESC)), frozenset((const.MC, const.IC)),
+                            frozenset((const.NORTH_NODE, const.SOUTH_NODE))])
+
+
 class AspectsMixin:
     """相位与互容:接纳 / 互容 / 即时相位 / 日下状态 / 相位表 / 映点 / 星座相位 / 赤纬平行 / 扩展相位对象。"""
 
@@ -363,6 +367,7 @@ class AspectsMixin:
         return res
 
     def getParallel(self):
+        # 上升 / 下降、天顶 / 天底、北交 / 南交是定义上的对点,赤纬恒互为相反数,永远「反平行」—— 不列,免得每张盘都多三条废话
         res = {}
         res['parallel'] = []
         res['contraParallel'] = {}
@@ -374,7 +379,7 @@ class AspectsMixin:
             except:
                 continue
             for objB in planets:
-                if objA == objB:
+                if objA == objB or frozenset((objA, objB)) in _ANTIPODE_PAIRS:
                     continue
                 try:
                     planetB = self.chart.get(objB)

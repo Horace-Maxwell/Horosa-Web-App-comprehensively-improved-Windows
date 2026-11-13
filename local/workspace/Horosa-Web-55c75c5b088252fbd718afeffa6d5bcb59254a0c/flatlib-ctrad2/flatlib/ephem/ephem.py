@@ -111,7 +111,7 @@ def _starLruStore(key, starList):
 
 # === Objects === #
 
-def calcMiddle(obj1, obj2, date, pos, height=150):
+def calcMiddle(obj1, obj2, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
     lon = (obj1.lon + obj2.lon) / 2
     lat = (obj1.lat + obj2.lat) / 2
     if abs(lon - obj1.lon) > 90:
@@ -122,10 +122,9 @@ def calcMiddle(obj1, obj2, date, pos, height=150):
         'lon': lon,
         'lat': lat,
     }
-    eq = utils.eqCoords(obj['lon'], obj['lat'])
-    obj['ra'] = eq[0]
-    obj['decl'] = eq[1]
-    za = swisseph.azalt(date.jd, 0, [pos.lon, pos.lat, height], 1000, 20, [obj['lon'], obj['lat'], 0])
+    offset = swe.tropicalOffset(date.jd, flags)
+    obj['ra'], obj['decl'] = swe.eclipticToEquatorial(obj['lon'], obj['lat'], swe.trueObliquity(date.jd), offset)
+    za = swe.horizontal(date.jd, [pos.lon, pos.lat, height], obj['lon'], obj['lat'], offset)
     obj['azimuth'] = za[0]
     obj['altitudeTrue'] = za[1]
     obj['altitudeAppa'] = za[2]
@@ -136,7 +135,7 @@ def calcMiddle(obj1, obj2, date, pos, height=150):
 def getObject(ID, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
     """ Returns an ephemeris object. """
     obj = eph.getObject(ID, date.jd, pos.lat, pos.lon, flags)
-    za = swisseph.azalt(date.jd, 0, [pos.lon, pos.lat, height], 1000, 20, [obj['lon'], obj['lat'], 0])
+    za = swe.horizontal(date.jd, [pos.lon, pos.lat, height], obj['lon'], obj['lat'], swe.tropicalOffset(date.jd, flags))
     obj['azimuth'] = za[0]
     obj['altitudeTrue'] = za[1]
     obj['altitudeAppa'] = za[2]
@@ -157,7 +156,7 @@ def getObjectList(IDs, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
         if IDs.index(const.SUN) >= 0 and IDs.index(const.MOON) >= 0:
             obj1 = res.get(const.MOON)
             obj2 = res.get(const.SUN)
-            obj = calcMiddle(obj1, obj2, date, pos, height)
+            obj = calcMiddle(obj1, obj2, date, pos, height, flags)
             obj.id = const.MOONSUN
             objList.append(obj)
     except ValueError:
@@ -167,7 +166,7 @@ def getObjectList(IDs, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
         if IDs.index(const.SATURN) >= 0 and IDs.index(const.MARS) >= 0:
             obj1 = res.get(const.SATURN)
             obj2 = res.get(const.MARS)
-            obj = calcMiddle(obj1, obj2, date, pos, height)
+            obj = calcMiddle(obj1, obj2, date, pos, height, flags)
             obj.id = const.SATURNMARS
             objList.append(obj)
     except ValueError:
@@ -177,7 +176,7 @@ def getObjectList(IDs, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
         if IDs.index(const.JUPITER) >= 0 and IDs.index(const.VENUS) >= 0:
             obj1 = res.get(const.JUPITER)
             obj2 = res.get(const.VENUS)
-            obj = calcMiddle(obj1, obj2, date, pos, height)
+            obj = calcMiddle(obj1, obj2, date, pos, height, flags)
             obj.id = const.JUPITERVENUS
             objList.append(obj)
     except ValueError:
@@ -198,8 +197,9 @@ def getHouses(date, pos, hsys, height=150, flag=0):
     houses, angles = eph.getHouses(date.jd, pos.lat, pos.lon, hsys, flag)
     hList = [House.fromDict(house) for house in houses]
     aList = [GenericObject.fromDict(angle) for angle in angles]
+    offset = 0.0 if flag in (0, swisseph.FLG_RADIANS) else swe.tropicalOffset(date.jd, swe.SEFLG_SIDEREAL)
     for obj in aList:
-        za = swisseph.azalt(date.jd, 0, [pos.lon, pos.lat, height], 1000, 20, [obj.lon, obj.lat, 0])
+        za = swe.horizontal(date.jd, [pos.lon, pos.lat, height], obj.lon, obj.lat, offset)
         obj.azimuth = za[0]
         obj.altitudeTrue = za[1]
         obj.altitudeAppa = za[2]
@@ -220,7 +220,7 @@ def getAngleList(date, pos, hsys):
 def getFixedStar(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
     """ Returns a fixed star from the ephemeris. """
     star = eph.getFixedStar(ID, date.jd, flags)
-    za = swisseph.azalt(date.jd, 0, [pos.lon, pos.lat, height], 1000, 20, [star['lon'], star['lat'], 0])
+    za = swe.horizontal(date.jd, [pos.lon, pos.lat, height], star['lon'], star['lat'], swe.tropicalOffset(date.jd, flags))
     star['azimuth'] = za[0]
     star['altitudeTrue'] = za[1]
     star['altitudeAppa'] = za[2]
@@ -229,7 +229,7 @@ def getFixedStar(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
 def getFixedStarSu28(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
     """ Returns a fixed star from the ephemeris. """
     star = eph.getFixedStarSu28(ID, date.jd, flags)
-    za = swisseph.azalt(date.jd, 0, [pos.lon, pos.lat, height], 1000, 20, [star['lon'], star['lat'], 0])
+    za = swe.horizontal(date.jd, [pos.lon, pos.lat, height], star['lon'], star['lat'], swe.tropicalOffset(date.jd, flags))
     star['azimuth'] = za[0]
     star['altitudeTrue'] = za[1]
     star['altitudeAppa'] = za[2]

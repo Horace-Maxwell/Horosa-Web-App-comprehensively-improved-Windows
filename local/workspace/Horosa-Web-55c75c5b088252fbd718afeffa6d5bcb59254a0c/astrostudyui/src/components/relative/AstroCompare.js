@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { XQTabs as Tabs } from '../xq-ui';
+import RelativeStageEmpty from './RelativeStageEmpty';
 import AstroDoubleChartMain from '../astro/AstroDoubleChartMain';
 
 const TabPane = Tabs.TabPane;
@@ -72,6 +73,9 @@ class AstroCompare extends Component{
 
 
 		let height = this.props.height ? this.props.height : 760;
+		// 两张盘都排出来才画双盘;否则中栏正中给一句提示(与影响盘 / 马克斯盘同款)
+		const canRender = !!(resobj.outer && resobj.inner);
+		const empty = <RelativeStageEmpty height={height - 40}>选好星盘 A 与星盘 B 并排盘后显示比较盘</RelativeStageEmpty>;
 
 		return (
 			<div style={{ height: height }}>
@@ -80,6 +84,7 @@ class AstroCompare extends Component{
 					style={{ height: height }}
 				>
 					<TabPane tab={chartATitle} key="chartA">
+							{canRender ? (
 							<AstroDoubleChartMain 
 								value={chartAobj} 
 							height={height - 40} 
@@ -90,9 +95,11 @@ class AstroCompare extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-							/>					
+							/>
+							) : empty}					
 					</TabPane>
 					<TabPane tab={chartBTitle} key="chartB">
+							{canRender ? (
 							<AstroDoubleChartMain 
 								value={chartBobj} 
 							height={height - 40} 
@@ -103,7 +110,8 @@ class AstroCompare extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-							/>					
+							/>
+							) : empty}					
 					</TabPane>
 				</Tabs>
 			</div>

@@ -66,6 +66,12 @@ class AstroChart3D extends Component{
 		if(svgdom === undefined || svgdom === null){
 			return;
 		}
+		// 宿主页接管全屏(页内全屏:收右栏、画布铺满工作区)。桌面壳的网页视图不开放元素全屏接口,
+		// 只走下面那条路在桌面端双击没有任何反应 —— 宿主给了回调就一律走宿主,行为在浏览器与桌面端一致。
+		if(typeof this.props.onToggleFullscreen === 'function'){
+			this.props.onToggleFullscreen();
+			return;
+		}
 		// 只负责进出全屏;尺寸一律交给 fullscreenchange → handleResize 实测,
 		// 不再在这里按 screen.* 预写(旧版预写值与真实全屏视口不一致=显示不完整的另一半)。
 		if(checkFullScreen()){

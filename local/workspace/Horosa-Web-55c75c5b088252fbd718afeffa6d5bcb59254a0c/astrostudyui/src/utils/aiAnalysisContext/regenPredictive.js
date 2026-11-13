@@ -4,7 +4,7 @@ import DateTime from '../../components/comp/DateTime';
 import { returnPickerSeed } from '../returnPickerSeed';
 import request from '../request';
 import * as Constants from '../constants';
-import { classicalBackendOverridesFromPlain } from '../classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain } from '../classicalChartGlobals';
 import { buildPredictiveSnapshotText } from '../predictiveAiSnapshot';
 import { SCAN_SEGMENT_CAP, buildDatetimeScanPoints } from './regenHoraryElection';
 
@@ -70,6 +70,7 @@ export async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 			}
 		});
 		Object.assign(params, classicalBackendOverridesFromPlain(np));
+		Object.assign(params, chartOrbOverridesFromPlain(np));
 		// user 自定义岁差三元(照 natalClassicalParams R4u 同款):spec 无 userAyan 两键,
 		// overrides 不产——缺此段则 AI 推运段带裸 'user' 键,后端建档失败静默回落 Lahiri,
 		// 与页面推运(已修)口径分叉。echo 有值直取,缺则回落本机当前槽。

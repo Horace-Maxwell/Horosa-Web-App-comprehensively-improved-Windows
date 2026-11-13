@@ -21,9 +21,10 @@ import { stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 import DateTime from '../comp/DateTime';
 import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
-import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT, CLASSICAL_GLOBAL_DEFAULTS } from '../../utils/classicalChartGlobals';
+import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT, CLASSICAL_GLOBAL_DEFAULTS, CHART_ORB_KEYS, chartOrbOverridesFromFields, chartOrbSignature } from '../../utils/classicalChartGlobals';
 import { mergeGlobalSetupWrite, readGlobalSetupField } from '../../utils/globalSetupStore';
 import { DIVINATION_CASE_SETTING_KEYS } from '../../utils/divinationCaseSave';
+import { MODULE_SNAPSHOT_PREPARE_EVENT, settleWithin } from '../../utils/moduleSnapshotRefresh';
 
 // 盘面美术 / 外环样式跨会话:本壳非 connect 组件,直接读写 globalSetup 里的对应键(与 app model 同一存储,口径一致)。
 // 存储不可用时读回 undefined(由各自的归一化给缺省)、写入静默:本会话内 state 仍生效。
@@ -171,30 +172,54 @@ class DivinationChartShell extends Component{
 	}
 
 	// 「存为事件盘」：把当前时间/地点/设置/类别写进 App 事件盘库（与占星盘同一管道）。
-	saveCase(){
+	async saveCase(){
 		if(!this.props.dispatch || !this.props.saveModule){
 			return;
 		}
-		// astro 类事盘(如世俗盘)可传 buildAiSnapshot(chart, fields) → 存档即带格式化 AI 快照,挂载更全面。
-		let aiSnapshot;
-		if(typeof this.props.buildAiSnapshot === 'function' && this.state.chart){
-			try{ aiSnapshot = this.props.buildAiSnapshot(this.state.chart, this.state.fields, this.state.extra); }catch(e){ aiSnapshot = undefined; }
+		// 补算期间再点不重复发起(否则并发请求、抽屉开两次)
+		if(this._savingCase){
+			return;
 		}
-		openDivinationCaseDrawer({
-			dispatch: this.props.dispatch,
-			fields: this.state.fields,
-			module: this.props.saveModule,
-			extra: this.state.extra,
-			aiSnapshot,
-		});
+		this._savingCase = true;
+		const saveSeq = (this._saveCaseSeq || 0) + 1;
+		this._saveCaseSeq = saveSeq;
+		try{
+			// 宿主可传 beforeSaveCase(chart, fields, extra):存案前补齐快照要用、但页面上还没算的内容(如世俗盘周期表)。
+			// 与导出前补算同一上限:补不上 / 宿主中途卸载(回调永不回来)也按已有的存,只少那一段
+			if(typeof this.props.beforeSaveCase === 'function' && this.state.chart){
+				let pending = null;
+				try{ pending = this.props.beforeSaveCase(this.state.chart, this.state.fields, this.state.extra); }catch(e){ pending = null; }
+				await settleWithin(pending);
+			}
+			// 补算回来时宿主已卸 / 已不是这一次存案 → 不开抽屉
+			if(!this._mounted || saveSeq !== this._saveCaseSeq){
+				return;
+			}
+			// astro 类事盘(如世俗盘)可传 buildAiSnapshot(chart, fields) → 存档即带格式化 AI 快照,挂载更全面。
+			let aiSnapshot;
+			if(typeof this.props.buildAiSnapshot === 'function' && this.state.chart){
+				try{ aiSnapshot = this.props.buildAiSnapshot(this.state.chart, this.state.fields, this.state.extra); }catch(e){ aiSnapshot = undefined; }
+			}
+			openDivinationCaseDrawer({
+				dispatch: this.props.dispatch,
+				fields: this.state.fields,
+				module: this.props.saveModule,
+				extra: this.state.extra,
+				aiSnapshot,
+			});
+		}finally{
+			if(saveSeq === this._saveCaseSeq){ this._savingCase = false; }
+		}
 	}
 
 	componentDidMount(){
 		this._mounted = true;
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		this.handleSnapshotPrepareRequest = this.handleSnapshotPrepareRequest.bind(this);
 		this.handleClassicalGlobalsChanged = this.handleClassicalGlobalsChanged.bind(this);
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			window.addEventListener(MODULE_SNAPSHOT_PREPARE_EVENT, this.handleSnapshotPrepareRequest);
 			window.addEventListener(CLASSICAL_GLOBALS_EVENT, this.handleClassicalGlobalsChanged);
 		}
 		if(!this.applyRestoreIfAny()){
@@ -206,6 +231,7 @@ class DivinationChartShell extends Component{
 		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			if(this.handleSnapshotRefreshRequest){ window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
+			if(this.handleSnapshotPrepareRequest){ window.removeEventListener(MODULE_SNAPSHOT_PREPARE_EVENT, this.handleSnapshotPrepareRequest); }
 			if(this.handleClassicalGlobalsChanged){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this.handleClassicalGlobalsChanged); }
 		}
 	}
@@ -229,6 +255,14 @@ class DivinationChartShell extends Component{
 	}
 
 	// AI导出:在本模块 tab(如世俗盘)导出时响应刷新事件,用 buildAiSnapshot 把格式化快照写回 detail.snapshotText。
+	// 导出前补算:与存案前同一个宿主钩子 beforeSaveCase(世俗盘周期类补「世运周期表」),导出与存案的正文一致
+	handleSnapshotPrepareRequest(evt){
+		if(!evt || !evt.detail || !Array.isArray(evt.detail.pending) || !this.props.saveModule || evt.detail.module !== this.props.saveModule){ return; }
+		if(typeof this.props.beforeSaveCase === 'function' && this.state.chart){
+			try{ evt.detail.pending.push(this.props.beforeSaveCase(this.state.chart, this.state.fields, this.state.extra)); }catch(e){ /* 补不上只少那一段 */ }
+		}
+	}
+
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || !this.props.saveModule || evt.detail.module !== this.props.saveModule){ return; }
 		if(typeof this.props.buildAiSnapshot === 'function' && this.state.chart){
@@ -251,7 +285,22 @@ class DivinationChartShell extends Component{
 			const nextStyle = AstroConst.normalizeChartStyle(this.props.chartStyle);
 			if(nextStyle !== this.state.chartStyle){ this.setState({ chartStyle: nextStyle }); }
 		}
+		this.syncHostOrbsIfChanged(prevProps);
 		this.applyRestoreIfAny();
+	}
+
+	// 「设置 → 容许度设置」写的是宿主(主盘)的 fields。壳在构造时把它抄进自己的 fields,之后不再看:
+	// 停在卜卦 / 择日 / 世俗页时改容许度,本页相位照旧。这里只在宿主值本身变了(prev→next)时跟一次并重排;
+	// 页内没有单独的容许度控件,所以不存在回冲页内选择的问题。
+	syncHostOrbsIfChanged(prevProps){
+		const prevSig = chartOrbSignature(chartOrbOverridesFromFields(prevProps && prevProps.fields));
+		const nextSig = chartOrbSignature(chartOrbOverridesFromFields(this.props.fields));
+		if(prevSig === nextSig){ return; }
+		if(nextSig === chartOrbSignature(chartOrbOverridesFromFields(this.state.fields))){ return; }
+		const host = this.props.fields || {};
+		const patch = {};
+		CHART_ORB_KEYS.forEach((k)=>{ patch[k] = host[k] && host[k].value !== undefined && host[k].value !== null ? host[k].value : undefined; });
+		this.patchFields(patch);
 	}
 
 	// 从事件盘列表「应用」一条卜卦/择日案例后，把保存的时间/地点/设置/类别还原到本盘。
@@ -678,7 +727,7 @@ class DivinationChartShell extends Component{
 					<Modal title="术语速查（西洋卜卦/择日）" open={this.state.glossaryOpen} onCancel={() => this.setState({ glossaryOpen: false })} footer={null} width={480}>
 						<div style={{ maxHeight: 'calc(62 * var(--horosa-lvh, 1vh))', overflow: 'auto' }}>
 							{Object.keys(GLOSSARY).map((id) => (
-								<div key={id} style={{ padding: '6px 2px', borderBottom: '1px dashed rgba(148,163,184,.2)', fontSize: 13, lineHeight: 1.65 }}>
+								<div key={id} style={{ padding: '6px 2px', borderBottom: '1px dashed var(--horosa-border)', fontSize: 13, lineHeight: 1.65 }}>
 									<b>{GLOSSARY[id].cn}</b>：{GLOSSARY[id].def}
 								</div>
 							))}

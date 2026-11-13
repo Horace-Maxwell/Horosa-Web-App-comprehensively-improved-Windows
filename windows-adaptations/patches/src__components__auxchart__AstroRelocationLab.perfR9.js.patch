@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroRelocationLab.js b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-index d9866153..82fd10f9 100644
+index faafe6ef..fdfcbbe3 100644
 --- a/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-@@ -19,6 +19,8 @@ import {
+@@ -24,6 +24,8 @@ import {
  } from '../astro/AstroHelper';
  import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
@@ -11,7 +11,7 @@ index d9866153..82fd10f9 100644
  
  const TabPane = XQTabs.TabPane;
  
-@@ -58,10 +60,17 @@ class AstroRelocationLab extends Component{
+@@ -84,12 +86,19 @@ class AstroRelocationLab extends Component{
  			loading: false,
  			result: null,
  			requestKey: '',
@@ -21,6 +21,8 @@ index d9866153..82fd10f9 100644
  		this.load = this.load.bind(this);
  		this.handleGeoOk = this.handleGeoOk.bind(this);
  		this.renderContentPanel = this.renderContentPanel.bind(this);
+ 		this.handleSnapshotPrepareRequest = this.handleSnapshotPrepareRequest.bind(this);
+ 		this.handleExtrasSettingsChanged = this.handleExtrasSettingsChanged.bind(this);
 +		this.changeSideTab = this.changeSideTab.bind(this);
 +	}
 +
@@ -29,7 +31,7 @@ index d9866153..82fd10f9 100644
  	}
  
  	componentDidMount(){
-@@ -136,7 +145,11 @@ class AstroRelocationLab extends Component{
+@@ -179,7 +188,11 @@ class AstroRelocationLab extends Component{
  			if(!this._mounted || seq !== this._loadSeq) return;
  			const res = unwrapResult(data) || {};
  			clearLoadFailure(this);
@@ -39,10 +41,10 @@ index d9866153..82fd10f9 100644
 +			this.setState({result: res, resultSig, loading: false, requestKey: key}, ()=>{
 +				markPanelReady('auxchart');
 +			});
- 			// 出盘即存:整张重置盘 + [重置盘] 专属段(地点/四角对比)。
- 			saveDerivedAstroSnapshot('relocation', res.chart, this.props.fields, ()=>{
- 				const out = ['[重置盘]'];
-@@ -197,8 +210,13 @@ class AstroRelocationLab extends Component{
+ 			// 出盘即存(整张重置盘 + [重置盘] 专属段):这一刻起导出 / 挂载 / 存案读到的就是这张盘,不留上一张;
+ 			// 按重置地点算的 [盘面细节] / [古典格局] 已按同一口径取过就一并写入,否则取回后补写(导出前会等它)。
+ 			const relocParams = this.relocParams();
+@@ -339,8 +352,13 @@ class AstroRelocationLab extends Component{
  	renderContentPanel(chartObj, fields, tabHeight){
  		return (
  			<div className="horosa-inspector-panel horosa-astro-content-panel">
@@ -57,7 +59,7 @@ index d9866153..82fd10f9 100644
  						<AstroInfo mode="summary" height={tabHeight}
  							value={chartObj} fields={fields}
  							planetDisplay={this.props.planetDisplay}
-@@ -206,8 +224,10 @@ class AstroRelocationLab extends Component{
+@@ -348,8 +366,10 @@ class AstroRelocationLab extends Component{
  							showAstroMeaning={this.props.showAstroMeaning}
  							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  						/>
@@ -68,7 +70,7 @@ index d9866153..82fd10f9 100644
  						<AstroAspect
  							value={chartObj} height={tabHeight}
  							lotsDisplay={this.props.lotsDisplay}
-@@ -215,8 +235,10 @@ class AstroRelocationLab extends Component{
+@@ -357,8 +377,10 @@ class AstroRelocationLab extends Component{
  							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  							showAstroMeaning={this.props.showAstroMeaning}
  						/>
@@ -79,7 +81,7 @@ index d9866153..82fd10f9 100644
  						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  							<AstroPlanet
  								value={chartObj}
-@@ -229,8 +251,10 @@ class AstroRelocationLab extends Component{
+@@ -371,8 +393,10 @@ class AstroRelocationLab extends Component{
  								<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  							</div>
  						</div>
@@ -90,7 +92,7 @@ index d9866153..82fd10f9 100644
  						<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
  							<AstroInfo mode="classical" height={tabHeight}
  								value={chartObj} fields={fields}
-@@ -240,20 +264,25 @@ class AstroRelocationLab extends Component{
+@@ -382,20 +406,25 @@ class AstroRelocationLab extends Component{
  								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  							/>
  						</div>

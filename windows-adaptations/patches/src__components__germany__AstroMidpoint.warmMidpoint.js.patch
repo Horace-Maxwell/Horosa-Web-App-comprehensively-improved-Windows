@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/AstroMidpoint.js b/astrostudyui/src/components/germany/AstroMidpoint.js
-index 387e21c1..965ae0a3 100644
+index 0710f69b..a4f60b22 100644
 --- a/astrostudyui/src/components/germany/AstroMidpoint.js
 +++ b/astrostudyui/src/components/germany/AstroMidpoint.js
 @@ -19,6 +19,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS, germanyMid
@@ -10,7 +10,7 @@ index 387e21c1..965ae0a3 100644
  
  // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
  const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
-@@ -245,6 +246,29 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
+@@ -246,6 +247,29 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
  	return out;
  }
  
@@ -40,7 +40,7 @@ index 387e21c1..965ae0a3 100644
  // /germany/midpoint 的显示口径出参单源在 UranianSchools(中点页 / 90° 中点盘 / AI 无头重算三路共用;此处转出,旧引用路径不变)。
  export { germanyMidpointRequestParams };
  
-@@ -663,9 +687,53 @@ class AstroMidpoint extends Component{
+@@ -664,9 +688,53 @@ class AstroMidpoint extends Component{
  			midpoints: result,
  		};
  
@@ -96,7 +96,7 @@ index 387e21c1..965ae0a3 100644
  	}
  
  	midpointDisplayParams(){
-@@ -701,6 +769,8 @@ class AstroMidpoint extends Component{
+@@ -702,6 +770,8 @@ class AstroMidpoint extends Component{
  		if(!evt || !evt.detail || evt.detail.module !== 'germany'){
  			return;
  		}
@@ -105,7 +105,7 @@ index 387e21c1..965ae0a3 100644
  		const snapshotText = this.saveGermanySnapshot();
  		if(snapshotText && evt.detail && typeof evt.detail === 'object'){
  			evt.detail.snapshotText = snapshotText;
-@@ -744,6 +814,9 @@ class AstroMidpoint extends Component{
+@@ -745,6 +815,9 @@ class AstroMidpoint extends Component{
  			// 改的若是要后端重算的项(流派 / 容许度 / 赤纬 / 六宫框 / 东点 / 严格因子集 / 戴维森),只重存会让正文按新口径、
  			// 中点 / 相位 / 赤纬 / 宫框数据仍是旧请求的(一份快照两套口径;关过再开的赤纬 / 六宫框整段缺)→ 出参变了就重取。
  			this._onUranianDisplay = ()=>{
@@ -115,7 +115,7 @@ index 387e21c1..965ae0a3 100644
  				clearTimeout(this._dispSnapTimer);
  				this._dispSnapTimer = setTimeout(()=>{
  					if(this.unmounted){ return; }
-@@ -756,7 +829,7 @@ class AstroMidpoint extends Component{
+@@ -757,7 +830,7 @@ class AstroMidpoint extends Component{
  			};
  			window.addEventListener(URANIAN_DISPLAY_EVENT, this._onUranianDisplay);
  		}
@@ -124,7 +124,7 @@ index 387e21c1..965ae0a3 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -765,11 +838,12 @@ class AstroMidpoint extends Component{
+@@ -766,11 +839,12 @@ class AstroMidpoint extends Component{
  			|| prevProps.chart !== this.props.chart
  			|| prevProps.fields !== this.props.fields
  		){

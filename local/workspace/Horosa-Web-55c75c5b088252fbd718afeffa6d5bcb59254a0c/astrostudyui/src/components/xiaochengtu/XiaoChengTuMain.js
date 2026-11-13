@@ -5,8 +5,8 @@
 //    TIME_CASTABLE_DIVINATION(时间可起课清单),挂载重算无「按时重起」路径。
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { XQSideSection } from '../xq-ui';
-import { Tabs, Empty, Input, InputNumber, Radio, Button, Select, Tag, Collapse } from 'antd';
+import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSelect as Select } from '../xq-ui';
+import { Tabs, Tag, Collapse } from 'antd';
 import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, qiGuaByYaoQian, trigramByName } from './core/xiaochengtuQiGua';
 import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, yingQiTui, suggestGong, klineYongGong } from './core/xiaochengtuPan';
 import { YONG_GONG_OPTIONS, DI_PAN, GUA_GONG, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
@@ -17,7 +17,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
 import { scriptFilterBy } from '../../utils/scriptMode';
-import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+import { ownedBoxSizeRef, narrowBoardVars, shortHostVars, XCT_HOST_SHORT } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -423,7 +423,7 @@ class XiaoChengTuMain extends Component {
 								<InputNumber size="small" min={1} style={{ flex: 1 }} placeholder="下数" value={inputs.loNum} onChange={(v)=>this.setState({ inputs: { ...inputs, loNum: v } })}/>
 							</div>
 						))}
-						{this.field('配数流派', <Radio.Group size="small" optionType="button" value={settings.qiguaShu} onChange={(e)=>this.setSettings({ qiguaShu: e.target.value })}
+						{this.field('配数流派', <XQSegmented value={settings.qiguaShu} onChange={(e)=>this.setSettings({ qiguaShu: e.target.value })}
 							options={[{ value: 'tiandi', label: '天地数' }, { value: 'xiantian', label: '先天数' }]}/>)}
 					</>
 				) : null}
@@ -438,10 +438,10 @@ class XiaoChengTuMain extends Component {
 						{/* K线定用宫链此前无生产端(快照消费 o.kline 而 UI 无输入):补 K线形态控件。 */}
 						{this.field('K线形态', (
 							<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-								<Radio.Group size="small" optionType="button" value={inputs.klineBody || ''} onChange={(e)=>this.setState({ inputs: { ...inputs, klineBody: e.target.value || null } })}
+								<XQSegmented value={inputs.klineBody || ''} onChange={(e)=>this.setState({ inputs: { ...inputs, klineBody: e.target.value || null } })}
 									options={[{ value: '', label: '不用' }, { value: '阳', label: '阳线' }, { value: '阴', label: '阴线' }, { value: 'doji', label: '十字星' }]}/>
 								{inputs.klineBody && inputs.klineBody !== 'doji' ? (
-									<Radio.Group size="small" optionType="button" value={`${inputs.klineUpper ? 'u' : ''}${inputs.klineLower ? 'l' : ''}`}
+									<XQSegmented value={`${inputs.klineUpper ? 'u' : ''}${inputs.klineLower ? 'l' : ''}`}
 										onChange={(e)=>{ const v = e.target.value; this.setState({ inputs: { ...inputs, klineUpper: v.indexOf('u') >= 0, klineLower: v.indexOf('l') >= 0 } }); }}
 										options={[{ value: '', label: '无影' }, { value: 'u', label: '仅上影' }, { value: 'l', label: '仅下影' }, { value: 'ul', label: '双影' }]}/>
 								) : null}
@@ -469,7 +469,7 @@ class XiaoChengTuMain extends Component {
 				), '推演起点(伏位自动旁推)')}
 				{/* 闢(离心)一象之辞两传本相反,立双口径;三象(往/來/闔)两本一致不随之变。 */}
 				{this.field('闢卦细判', (
-					<Radio.Group size="small" optionType="button" value={settings.piKoujing === 'yiwen' ? 'yiwen' : 'zheng'}
+					<XQSegmented value={settings.piKoujing === 'yiwen' ? 'yiwen' : 'zheng'}
 						onChange={(e)=>this.setSettings({ piKoujing: e.target.value })}
 						options={[{ value: 'zheng', label: '正传' }, { value: 'yiwen', label: '异文' }]}/>
 				), PI_KOUJING_LABEL[settings.piKoujing === 'yiwen' ? 'yiwen' : 'zheng'])}
@@ -532,7 +532,7 @@ class XiaoChengTuMain extends Component {
 								{(isYong || step) ? (
 									<div className="horosa-cnx-cell-seqs">
 										{isYong ? <span className="horosa-cnx-seq is-1">用宫</span> : null}
-										{step ? <span className={`horosa-cnx-seq is-${Math.min(step, 3)}`}>推{step}</span> : null}
+										{step ? <span className={`horosa-cnx-seq is-step is-${Math.min(step, 3)}`}>推{step}</span> : null}
 									</div>
 								) : null}
 								<GuaGlyph name={pan.tianPan[g]}/>
@@ -567,7 +567,7 @@ class XiaoChengTuMain extends Component {
 				<span className="horosa-cnx-item-k">{k}</span><span className="horosa-cnx-item-v">{v}</span>
 			</div>
 		);
-		const wait = (t)=><div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: '6px 2px' }}>{t}</div>;
+		const wait = (t)=><div className="horosa-cnx-wait">{t}</div>;
 		// 受控化的兜底:「股市」目只在 qi.mode==='stock' 时存在。非受控 antd 在当前目消失时会自行落回,
 		// 受控则不会 —— 故此处按【当前实际存在的目】校验一次,失效即落回首目,绝不出现空白右栏。
 		const auxKeys = ['tuidao', 'sixiang', 'yingqi', 'gongyi'].concat(qi && qi.mode === 'stock' ? ['stock'] : []).concat(['qigua']);
@@ -586,7 +586,7 @@ class XiaoChengTuMain extends Component {
 					{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td), 1) : row('推导', '—', 1)}
 					{td && td.pang ? row('旁推', zhengTuiText(td.pang) || '—', 2) : null}
 					{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i + 10)) : null}
-					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{PANG_TUI_ZONG_TEXT}</div>
+					<div className="horosa-cnx-note horosa-cnx-note-foot">{PANG_TUI_ZONG_TEXT}</div>
 					</>}
 					</>)}</FreezeSubTab>
 				</TabPane>
@@ -620,7 +620,7 @@ class XiaoChengTuMain extends Component {
 							</div>
 						</Collapse.Panel>
 					</Collapse>
-					<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.7, lineHeight: 1.7 }}>
+					<div className="horosa-cnx-note horosa-cnx-note-foot">
 						<div>阖辟往来:阖吉、辟凶、往悔、來吝(四象配断之纲)。</div>
 						<div style={{ marginTop: 4 }}>{SI_XIANG_DEF_TEXT}</div>
 						<div style={{ marginTop: 4 }}>{HUI_LIN_TEXT}</div>
@@ -643,12 +643,12 @@ class XiaoChengTuMain extends Component {
 								<span className="horosa-cnx-item-k">应期推演</span>
 								<span className="horosa-cnx-item-v" style={{ fontWeight: 600 }}>{yq.summary}</span>
 							</div>
-							<ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 11.5, opacity: 0.8, lineHeight: 1.75 }}>
+							<ol className="horosa-xct-steps">
 								{(yq.steps || []).map((s, i)=>(<li key={i}><b style={{ fontWeight: 600 }}>{s.label}</b>:{s.text}</li>))}
 							</ol>
 						</div>
 					) : null}
-					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>
+					<div className="horosa-cnx-note horosa-cnx-note-foot">
 						三分法定上/中/下旬,两分法有二用:定前/后半月(升降)与定月建之支(阴阳);应期卦取用宫天盘卦(与股市幅度/涨跌分治)。
 						应期推演之链系古籍载例逐步归纳,非另有明文总则,仅供推寻参照。
 					</div>
@@ -657,15 +657,32 @@ class XiaoChengTuMain extends Component {
 				</TabPane>
 				<TabPane tab="宫义" key="gongyi">
 					<FreezeSubTab active={auxTab === 'gongyi'}>{() => (<>
-					{/* 九宫八方各有所主(原文八条),此前只入快照一行、UI 零处可见。 */}
-					<div style={{ fontSize: 12, lineHeight: 1.85 }}>
-						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>(
-							<div key={g} style={{ padding: '3px 6px', borderRadius: 6, background: g === g0 ? 'var(--horosa-accent-soft, rgba(127,127,127,0.14))' : 'transparent' }}>
-								<b style={{ fontWeight: 600 }}>{g}宫</b> {GONG_ZHU[g]}{g === g0 ? ' ← 用宫' : ''}
-							</div>
-						))}
+					{/* 九宫八方各有所主(原文八条):一宫一卡 —— 宫数徽标 + 卦宫 + 方位月令 + 所主,正文为原文;用宫描金置顶标。 */}
+					<div className="horosa-xct-gong-list">
+						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>{
+							const info = GONG_INFO[g] || {};
+							const text = String(GONG_ZHU[g] || '');
+							const cut = text.indexOf('——');
+							const body = cut >= 0 ? text.slice(cut + 2) : text;
+							const tian = pan && pan.tianPan ? pan.tianPan[g] : null;
+							return (
+								<div key={g} className={`horosa-cnx-item horosa-xct-gong${g === g0 ? ' is-yong' : ''}`}>
+									<div className="horosa-xct-gong-head">
+										<span className="horosa-xct-gong-num">{g}</span>
+										<span className="horosa-xct-gong-name">{info.gua || DI_PAN[g]}宫</span>
+										<span className="horosa-xct-gong-meta">{info.fangwei} · {info.yue}</span>
+										{g === g0 ? <span className="horosa-xct-gong-tag">用宫</span> : null}
+									</div>
+									<div className="horosa-xct-gong-zhu">
+										<span>主{info.zhu}</span>
+										{tian ? <span className="horosa-xct-gong-tian">本局天盘 {tian}</span> : null}
+									</div>
+									<div className="horosa-cnx-item-v">{body}</div>
+								</div>
+							);
+						})}
 					</div>
-					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>
+					<div className="horosa-cnx-note horosa-cnx-note-foot">
 						<div>{SHENG_JIANG_TEXT}</div>
 						<div style={{ marginTop: 4 }}>{ZHONG_GONG_NOTE}</div>
 					</div>
@@ -680,8 +697,8 @@ class XiaoChengTuMain extends Component {
 							const hit = klineYongGong(k); return hit ? row('K线定用宫', `${hit.key} → ${hit.gua}宫(${hit.gong})${hit.inferred ? '·推补' : ''}`) : null; })()}
 						{(()=>{ const og = pan.tianPan[g0]; return og ? row('研判·开盘', `用宫天盘${og} → ${zhangDie(og) || '—'}(幅度${(fuDu(og) || {}).fudu || '—'})`, 8) : null; })()}
 						{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
-						<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
-						<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
+						<div className="horosa-cnx-note horosa-cnx-note-foot">{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
+						<pre className="horosa-cnx-pre horosa-xct-pre-foot">{STOCK_QI_GUA_TEXT}</pre>
 						</>)}</FreezeSubTab>
 					</TabPane>
 				) : null}
@@ -692,7 +709,7 @@ class XiaoChengTuMain extends Component {
 					{!((qi.steps || []).length) ? row('起卦', `手动:${qi.ben.name} 动 ${(qi.dongYaos || []).join('、') || '无'}`) : null}
 					{/* 配数依据(两数配卦):十干天地数与先天卦数两谱对照,原文附后。 */}
 					{qi.mode === 'number' ? (
-						<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.72, lineHeight: 1.7 }}>
+						<div className="horosa-cnx-note horosa-cnx-note-foot">
 							<div>天地数:{TIAN_DI_SHU_GAN.map((gan, i)=>`${gan}${i + 1}${TIAN_DI_SHU_GUA[i]}`).join(' ')}(十为模,奇阳偶阴;乾坤二卦重出)</div>
 							<div>先天数:{XIAN_TIAN_GUA.map((g, i)=>`${i + 1}${g}`).join(' ')}(八为模)</div>
 							<div style={{ marginTop: 4 }}>{QI_GUA_TIANDI_TEXT}</div>
@@ -708,7 +725,7 @@ class XiaoChengTuMain extends Component {
 	render(){
 		const slot = this.props.slot;
 		const pan = this.getPan();
-		const empty = <div className="horosa-huangji-empty"><Empty description={this.state.error || '请择起卦法而起卦'} image={Empty.PRESENTED_IMAGE_SIMPLE}/></div>;
+		const empty = <div className="horosa-huangji-empty">{this.state.error || '请择起卦法而起卦'}</div>;
 		if(slot === 'controls'){ return this.renderControls(); }
 		if(slot === 'center' || slot === 'aux'){
 			if(!pan){ return empty; }
@@ -728,7 +745,7 @@ class XiaoChengTuMain extends Component {
 							{this.renderControls()}
 						</div>
 						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer">
-							<div className="horosa-huangji-board-host">{pan ? this.renderCenter(pan) : empty}</div>
+							<div className="horosa-huangji-board-host" ref={ownedBoxSizeRef(this, 'host', shortHostVars(XCT_HOST_SHORT))}>{pan ? this.renderCenter(pan) : empty}</div>
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-huangji-info-panel">
 							<div className="horosa-side-panel-heading horosa-huangji-info-heading-main">

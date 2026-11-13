@@ -17,14 +17,14 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { randomStr, randomNum, gcj02ToGps,} from '../../utils/helper';
+import { randomStr, randomNum,} from '../../utils/helper';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import moment from 'moment';
-import { classicalBackendOverrides, classicalGlobalValue } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverrides, classicalGlobalValue, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -303,8 +303,10 @@ class DiceMain extends Component{
 			sign: AstroConst.LIST_SIGNS[ranSign],
 			house: ranHouse,
 			planet: planet,
-			// 古典设置单源接入(骰子盘无 fields,直读全局仓;/predict/dice 装饰器统一 push)。
+			// 古典设置单源接入(古典口径在全局仓,直读;/predict/dice 装饰器统一 push)。
 			...classicalBackendOverrides(classicalGlobalValue),
+			// 容许度随盘走(存在宿主 fields,不在全局仓):骰子盘的相位与主盘同一把尺
+			...chartOrbOverridesFromFields(this.props.fields),
 		};
 		return params;
 	}
@@ -451,9 +453,8 @@ class DiceMain extends Component{
 
 	changeLat(value){
 		this.markLocalTouched('geo');
-		let gdlat = AstroHelper.convertLatStrToDegree(value);
-		let gdlon = AstroHelper.convertLonStrToDegree(this.state.lon);
-		let gps = gcj02ToGps(gdlat, gdlon);
+		// 经纬度文本即真坐标(WGS84,与选点弹窗 / AI 地名解析同口径):gps 直接取它,不再当高德加偏点反算
+		let gps = { lat: AstroHelper.convertLatStrToDegree(value), lon: AstroHelper.convertLonStrToDegree(this.state.lon) };
 
 		this.setState({
 			lat: value,
@@ -464,9 +465,7 @@ class DiceMain extends Component{
 	
 	changeLon(value){
 		this.markLocalTouched('geo');
-		let gdlat = AstroHelper.convertLatStrToDegree(this.state.lat);
-		let gdlon = AstroHelper.convertLonStrToDegree(value);
-		let gps = gcj02ToGps(gdlat, gdlon);
+		let gps = { lat: AstroHelper.convertLatStrToDegree(this.state.lat), lon: AstroHelper.convertLonStrToDegree(value) };   // 同上:文本即真坐标
 		this.setState({
 			lon: value,
 			gpsLat: gps.lat,

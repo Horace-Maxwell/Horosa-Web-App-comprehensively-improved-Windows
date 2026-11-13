@@ -48,13 +48,13 @@ const SECTIONS_ONLY = ['tongshefa', 'mundane',   // (preflight [37] 锚:恒驻�
 	'liurengzeri', // 六壬择日:同律
 	'sanshizeri', // 三式择日:同律
 	'qizhengzeri', // 七政择日:同律
-	'indiazeri', // 印度择日:三段自足同族
+	'indiazeri', // 印度择日:同律
 	'relative', // 合盘:两盘技法只读(快照单源=合盘页,选项在合盘页改即重存)
 	'tianxing', // 天星择日:征象搜索结果为一次性产物,按存档快照直读不按时间复算(v3.7.0 并入)
 	'qimenzeri', // 奇门择日:找局结果为一次性产物,按存档快照直读不按时间复算(与 tianxing 同范式)
 
 	// 派生盘五键独立技法键(读辅盘页本键模块快照,只认本命主;内容勾选走各键 preset)
-	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation',
+	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems',
 ];
 
 beforeEach(()=>{
@@ -603,12 +603,12 @@ describe('批3——推运/数算 builder 加 opts + 接线（schema 字段 + �
 			expect(defOf(k, 'orbScale')).toBe(1);
 			expect(defOf(k, 'useStoredOrbs')).toBe(0);
 		});
-		// 宿占只留正文真消费键(宫制/黄道/岁差/宿度制/交点/宫头前移/Lilith/站心月/南半球/人事宫起盘)
+		// 宿占只留正文真消费键(宫制/黄道/岁差/宿度制/交点/宫头前移/Lilith/站心月/南半球/人事宫起盘/ASC 起盘的上升取法)
 		const suzhanNames = TECHNIQUE_SETTINGS_SCHEMA.suzhan.fields.map((f)=>f.name);
 		// 星盘条目撤 doubingSu28(快照零消费);宿占仍暴露(九档与页面同源)
 		expect(hasField('astrochart', 'doubingSu28')).toBe(false);
 		expect(hasField('suzhan', 'doubingSu28')).toBe(true);
-		expect(suzhanNames).toEqual(['hsys', 'zodiacal', 'siderealAyanamsa', 'doubingSu28', 'westNodeType', 'houseCuspAdvance', 'westLilithType', 'topocentricMoon', 'southchart', 'houseStartMode']);
+		expect(suzhanNames).toEqual(['hsys', 'zodiacal', 'siderealAyanamsa', 'doubingSu28', 'westNodeType', 'houseCuspAdvance', 'westLilithType', 'topocentricMoon', 'southchart', 'houseStartMode', 'ascRaMode']);
 		// germany 只 hsys/zodiacal（timeAlg inert 已移除；不含容许度 orbScale/useStoredOrbs）。
 		expect(hasField('germany', 'orbScale')).toBe(false);
 		expect(hasField('germany', 'useStoredOrbs')).toBe(false);

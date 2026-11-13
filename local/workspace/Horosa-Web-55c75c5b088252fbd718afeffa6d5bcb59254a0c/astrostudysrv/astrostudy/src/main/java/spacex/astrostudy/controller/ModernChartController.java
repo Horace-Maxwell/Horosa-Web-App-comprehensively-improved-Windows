@@ -112,7 +112,9 @@ public class ModernChartController {
 				"orbSystem", "luminaryOrbBonus",
 				"aspectIncludeCusps", "aspectIncludeLots", "aspectIncludeMidpoints",
 				"solarReturnVariant", "returnLatitudeMode",
-				"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg", "vulcanCalc" };
+				"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg", "vulcanCalc",
+				// 用户容许度(逐星表 / 整体倍率):随盘字段,与 astrostudycn ChartController 同步;合盘相位与主盘同一把尺
+				"orbs", "orbScale" };
 		for(String key : classicalKeys) {
 			if(TransData.containsParam(key)) {
 				params.put(key, TransData.get(key));

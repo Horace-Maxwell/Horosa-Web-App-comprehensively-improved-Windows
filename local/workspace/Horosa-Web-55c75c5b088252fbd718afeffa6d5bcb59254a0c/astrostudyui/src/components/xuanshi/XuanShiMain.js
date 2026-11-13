@@ -250,7 +250,7 @@ export default class XuanShiMain extends React.Component {
 			{ key: 'timeline', name: '朝代时间轴', sub: '三千年事件分布', accent: 'var(--gold)' },
 			{ key: 'micro', name: '天象微年表', sub: '逐年逐旬观象', accent: 'var(--gold)' },
 			{ key: 'map', name: '地理地图', sub: '分野与地脉', accent: 'var(--jade)' },
-			{ key: 'persons', name: '人物关系图', sub: '师承共现网络', accent: 'var(--jade)' },
+			{ key: 'persons', name: '人物关系图', sub: '事件共现网络', accent: 'var(--jade)' },
 		];
 		const collection = [
 			{ num: trad['正史'] || 0, label: '正史玄学', accent: 'var(--vermilion)' },

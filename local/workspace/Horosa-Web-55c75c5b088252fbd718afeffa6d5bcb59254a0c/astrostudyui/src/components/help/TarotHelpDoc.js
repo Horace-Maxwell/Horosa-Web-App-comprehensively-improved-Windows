@@ -1,20 +1,25 @@
 // 塔罗 · 操作手册(塔罗页右上角「帮助」打开)。
 // 牌组流派简介含公有领域著作 / 画师署名,属公开史实,有意保留;书名只写公版古籍名,不写现代来源。
 import React, { Component } from 'react';
-import { Tabs } from 'antd';
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import HelpBook from './HelpBook';
+import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
 import { DECK_INFO } from '../tarot/decks/deckInfo';
 import { listDeckGroups } from '../tarot/engine/deckRegistry';
 import { SUITS, SUIT_CN, SUIT_POLARITY, SUIT_SEASON, SUIT_PLAYING_CARD, SUIT_ESTATE } from '../tarot/decks/correspondences';
 
-const { TabPane } = Tabs;
-const kv = (k, v, key) => <div key={key} style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
-class TarotHelpDoc extends Component{
-	renderTarot(){
-		return (
-			<Tabs defaultActiveKey="overview" size="small">
-				<TabPane tab="总览" key="overview">
+export const HELP_BOOK = {
+	title: '塔罗 · 操作手册',
+	groups: [
+		{
+			key: 'tarot',
+			label: '塔罗',
+			chapters: [
+				{
+					key: 'overview',
+					label: '总览',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<p style={{ ...p, color: MUTED }}>左栏诸节：「时间与地点」「流派与牌阵」「盘面与开关」「读法体系」「牌阵细则」「指示牌」「种子与所问」（指示牌按牌组能力显隐；各牌组的流派简介不在左栏，见本手册「牌组流派」处），末尾三钮「抽牌」「锁定复现」「保存」。牌组与牌阵互相约束，切牌组会按其能力自动换成可用的牌阵与默认开关。</p>
 
@@ -35,8 +40,14 @@ class TarotHelpDoc extends Component{
 							{kv('不重洗', '换牌组 / 牌阵 / 读法只按当前种子重排，不重洗；要新牌：「随机」档点「抽牌」，「出生信息」档须先改时间地点（或改用「随机」）')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="流派与牌阵" key="decks">
+				</div>
+					),
+				},
+				{
+					key: 'decks',
+					label: '流派与牌阵',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>流派 / 牌组（共十四种，分六组列出）</div>
 						<div style={card}><div style={ct}>七十八张体系（含大牌与小牌全套）</div>
@@ -81,8 +92,14 @@ class TarotHelpDoc extends Component{
 							{kv('能力门槛', '牌阵下拉只列该牌组支持的阵；换到不支持当前阵的牌组时，自动落到该牌组的第一个可用阵')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="牌面与判读" key="settings">
+				</div>
+					),
+				},
+				{
+					key: 'settings',
+					label: '牌面与判读',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>牌面与判读设置（「盘面与开关」「读法体系」两节）</div>
 						<div style={card}><div style={ct}>牌面样式（仅有真实牌面的牌组显示）</div>
@@ -153,8 +170,14 @@ class TarotHelpDoc extends Component{
 							{kv('作用', '在右栏「生命牌」页填入生日的年、月、日（可再填流年），即出人格牌、灵魂牌与该年流年牌')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="种子与所问" key="seed">
+				</div>
+					),
+				},
+				{
+					key: 'seed',
+					label: '种子与所问',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>起牌种子与所问（决定抽牌结果可否复现）</div>
 						<div style={card}><div style={ct}>种子来源</div>
@@ -166,8 +189,14 @@ class TarotHelpDoc extends Component{
 							{kv('作用', '可填一句所问之事（可留空），随牌阵带入判读与保存；仅作记录与呈现，不改抽牌结果')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="右栏页签" key="right">
+				</div>
+					),
+				},
+				{
+					key: 'right',
+					label: '右栏页签',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>右栏判读页签</div>
 						<div style={card}><div style={ct}>总览 / 牌位 / 牌义</div>
@@ -195,8 +224,14 @@ class TarotHelpDoc extends Component{
 
 						<p style={{ ...p, color: MUTED }}>右栏页签数随牌组与牌阵而变：塔罗类牌组常规为<b>总览 / 牌位 / 牌义 / 综合 / 对读 / 定局 / 生命牌 / 日课</b>，取开钥牌阵时增「开钥」一页；雷诺曼一系以「组合读法」替「定局」，且无「生命牌 / 对读 / 日课」。扑克占卜与西比拉：总览 / 牌位 / 牌义 / 综合 / 定局。</p>
 					</div>
-				</TabPane>
-				<TabPane tab="读法体系" key="reading">
+				</div>
+					),
+				},
+				{
+					key: 'reading',
+					label: '读法体系',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>逆位方法学（读法体系的核心开关）</div>
 						<div style={card}><div style={ct}>逆位读法十三式</div>
@@ -258,8 +293,14 @@ class TarotHelpDoc extends Component{
 							{kv('空白牌', '七十八张牌组可选加入第七十九张空白牌：义为「未揭示的更大安排／拒答」')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="定局与计时" key="timing">
+				</div>
+					),
+				},
+				{
+					key: 'timing',
+					label: '定局与计时',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>定局扩展与计时</div>
 						<div style={card}><div style={ct}>定局八法与组合征象</div>
@@ -276,8 +317,14 @@ class TarotHelpDoc extends Component{
 							{kv('通则', '占验以一年内为度，逾期之问不以时相许')}</div>
 
 					</div>
-				</TabPane>
-				<TabPane tab="实占守则" key="practice">
+				</div>
+					),
+				},
+				{
+					key: 'practice',
+					label: '实占守则',
+					render: ()=>(
+						<div>
 					<div style={body}>
 						<div style={h}>实占流程与守则（知识层）</div>
 						<div style={card}><div style={ct}>占卜流程要则</div>
@@ -290,18 +337,19 @@ class TarotHelpDoc extends Component{
 							{kv('正向诠释', '优先给出路而非断死局；不以「否」作答而给「换个视角」；任意两牌必有可通之处，牌越多越要找最大公共意象')}
 							{kv('实践类', '冥想视觉化、随身盟友牌、护符与仪式等属个人修习范畴，本手册只述其存在与出处方向，软件不作向导')}</div>
 					</div>
-				</TabPane>
-			</Tabs>
-		);
-	}
+				</div>
+					),
+				},
+			],
+		},
+	],
+};
+
+class TarotHelpDoc extends Component{
+	static book = HELP_BOOK;
 
 	render(){
-		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={title}>塔罗 · 操作手册</div>
-				{this.renderTarot()}
-			</div>
-		);
+		return <HelpBook book={HELP_BOOK} ctx={this.props.ctx} compact={this.props.compact} />;
 	}
 }
 

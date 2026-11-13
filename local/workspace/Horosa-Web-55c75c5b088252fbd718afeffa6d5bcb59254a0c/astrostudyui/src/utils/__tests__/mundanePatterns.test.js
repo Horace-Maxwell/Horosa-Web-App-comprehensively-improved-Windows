@@ -61,3 +61,11 @@ describe('世运盘 格局世运义 mundanePatternMeaning(§17.2)', () => {
 		expect(Object.keys(PATTERN_MUNDANE)).toEqual(expect.arrayContaining(['grand_trine', 'grand_cross', 'kite', 'stellium_sign']));
 	});
 });
+
+describe('世运盘 篮形格局义', () => {
+	test('后端 detect_patterns 的 basket 有世运义,不被静默吞掉', () => {
+		expect(PATTERN_MUNDANE.basket.cn).toBe('篮形');
+		expect(PATTERN_MUNDANE.basket.text.length).toBeGreaterThan(10);
+		expect(mundanePatternMeaning('basket')).toBeTruthy();
+	});
+});

@@ -15,6 +15,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { registerProcessCache } from '../../utils/processCacheRegistry';
 import { prashnaYogaNames, prashnaHigherYogaText, pakshaLabel, jyotishPartialErrors, jyotishPartialErrorLabel, indiaDignityLabel, tajikaYearLordViaLabel } from './indiaMain/jyotishData';
 import { charaAntarYears } from './indiaMain/dasha';
+import { buildExtraTableLines, buildYogaTableLines, buildTransitEventLines, indiaTransitBirthSig, indiaTransitSnapshotFor, TRANSIT_DEFAULT_SELECTION, savedTransitSelection, INDIA_TABLE_SETTINGS } from '../../utils/indiaExtraTables';
 
 const indiaChartCache = new Map();
 const INDIA_CHART_CACHE_MAX = 64;   // LRU 上限:印占 payload 大(yogas+多级dasha+varga+shadbala),会话内键空间随分盘/过运日/大运派别/ayanamsa 发散,须封顶防越用越占内存(全仓唯一曾漏上限者)。
@@ -27,7 +28,8 @@ registerProcessCache('india.chart', ()=>{ indiaChartCache.clear(); indiaChartInf
 // ayurdayaFinal/fromSun/dashaLink/annualYogini/tripatakiNak 九曜等输出键 + dashaVariants 流派开关。
 // v9:六力只出六源式(粗估层删)、KP 意义星按标准四级 + 恒 D1、星期按日出换日、Choghadia 夜段 / Panchaka
 // 公式订正、宿名单源、子运起讫带精确 ISO、过运默认日恒进请求。
-const INDIA_CHART_CACHE_REV = 'india_kernel_v9_calibre';
+// v10:引擎新增 yogaTable / extraTables 两个顶层键(Yoga 判定表与补充表)。
+const INDIA_CHART_CACHE_REV = 'india_kernel_v10_tables';
 
 // 过运缺省日 = 「今日」按本盘时区(DateTime.wallClockForChart;不给时区 = 本机今日,原样)
 function localTodaySlash(zone){
@@ -169,8 +171,17 @@ export function fieldsToParams(fields, overrides = {}){
 // 首点恒带默认大运体系(state.dashaSystem || 'vimshottari'),而 dva 默认 fields 不含该键 →
 // 不带则 cache key 差一项、预热必 miss。其余默认(seed=moon/sthira=lagna/nodeType=mean)两
 // 路径同为「不下发」,tajakaYear 同函数取当前年,天然一致。预热与首点 key/body 逐字节相同。
+// 第二处差异(v3.14.0 起):页面构造时读保存的中栏盘面,上次停在三旗盘 ⇒ 首点就带 tripataki=1
+// (IndiaChartMain 的 indiaTripatakiOn 初值);预热读同一份保存值同带,否则这批用户键差一项、预热白打一发。
 export function buildIndiaWarmParams(fields){
-	return fieldsToParams(fields, { dashaSystem: AstroConst.INDIA_DASHA_SYSTEM_DEFAULT });
+	const overrides = { dashaSystem: AstroConst.INDIA_DASHA_SYSTEM_DEFAULT };
+	try{
+		const saved = INDIA_TABLE_SETTINGS.load() || {};
+		if(AstroConst.normalizeIndiaStageMode(saved.indiaStageMode) === 'tripataki'){ overrides.tripataki = 1; }
+	}catch(e){
+		// 读不到保存值 = 按出厂盘面(不带 tripataki)预热
+	}
+	return fieldsToParams(fields, overrides);
 }
 
 function resolveIndiaFractal(chartnum, hook){
@@ -312,7 +323,11 @@ function splitSections(text){
 }
 
 function ensureSection(lines, title, body){
-	const clean = (body || []).map((line)=>`${line || ''}`.trimEnd()).filter((line)=>line.trim());
+	// 段内保留单个空行(两张表 / 表与正文之间的分隔),首尾空行与连续空行收掉
+	const clean = (body || []).map((line)=>`${line || ''}`.trimEnd())
+		.filter((line, i, arr)=>line.trim() || (i > 0 && arr[i - 1].trim()));
+	while(clean.length && !clean[0].trim()){ clean.shift(); }
+	while(clean.length && !clean[clean.length - 1].trim()){ clean.pop(); }
 	lines.push(`[${title}]`);
 	if(clean.length){
 		lines.push(...clean);
@@ -558,6 +573,9 @@ export function buildJyotishSnapshotLines(chartObj){
 	if(!j){ return {}; }
 	const fx = (x, d)=>(typeof x === 'number' && Number.isFinite(x)) ? x.toFixed(d) : (x !== undefined && x !== null ? `${x}` : '—');
 	const lordOf = (l)=>(l && (l.label || l.key)) || '—';
+	// 星座短名:放函数开头 —— 三旗盘段(前面)也用;此前声明在后面,开了三旗盘整份印占快照抛错(页面 / 导出 / 挂载全空)
+	const SIGN_CN_S = { Aries: '白羊', Taurus: '金牛', Gemini: '双子', Cancer: '巨蟹', Leo: '狮子', Virgo: '处女', Libra: '天秤', Scorpio: '天蝎', Sagittarius: '射手', Capricorn: '摩羯', Aquarius: '水瓶', Pisces: '双鱼' };
+	const scS = (s)=>SIGN_CN_S[s] || s || '—';
 	const out = {};
 
 	const p = j.panchanga;
@@ -996,8 +1014,6 @@ export function buildJyotishSnapshotLines(chartObj){
 	}
 
 	// 印占 P0 接 UI 同步进 AI 挂载:Argala / 座运 Rasi Dashas / 年盘强度·年内大运 / Gochara 从命。
-	const SIGN_CN_S = { Aries: '白羊', Taurus: '金牛', Gemini: '双子', Cancer: '巨蟹', Leo: '狮子', Virgo: '处女', Libra: '天秤', Scorpio: '天蝎', Sagittarius: '射手', Capricorn: '摩羯', Aquarius: '水瓶', Pisces: '双鱼' };
-	const scS = (s)=>SIGN_CN_S[s] || s || '—';
 	const arg = j.arudha && j.arudha.argala;
 	if(arg && typeof arg === 'object'){
 		const argRows = Object.keys(arg).sort((a, b)=>(Number(a) - Number(b))).map((h)=>{
@@ -1102,6 +1118,10 @@ export function buildJyotishSnapshotLines(chartObj){
 			...gfmTable(['瑜伽', '类别', '强弱', '分', '涉及星'], ygRows),
 		];
 	}
+	const yogaTableLines = buildYogaTableLines(j.yogaTable);
+	if(yogaTableLines.length){ out['Yoga 判定表'] = yogaTableLines; }
+	const extraTableLines = buildExtraTableLines(j.extraTables);
+	if(extraTableLines.length){ out['印占补充表'] = extraTableLines; }
 
 	// A 类硬缺：副星本体位置（renderUpagrahaPanel 的 时基 Gulika/Maandi 等 + 日基）与外行星天海冥
 	// （jyotish.outerPlanets，信息性虚星）已显示但此前不入快照；特殊上升已有独立段不重复。
@@ -1270,11 +1290,9 @@ function buildIndiaSnapshotText(chartObj, fields, chartnum, hook){
 	const planets = sections['行星'] || [];
 	const lots = sections['希腊点'] || [];
 	const possibility = sections['可能性'] || [];
-	const starInfo = [
-		...houseCusps,
-		...starsAndPoints,
-		...info,
-	];
+	// 三段各自成表 / 成段,中间空一行(紧挨着时下游 markdown 会把第二张表的表头当成第一张表的数据行)
+	const starInfo = [houseCusps, starsAndPoints, info].filter((part)=>part.length)
+		.reduce((acc, part)=>(acc.length ? [...acc, '', ...part] : [...part]), []);
 
 	const lines = [];
 	const schoolVal = fields && fields.indiaSchool && fields.indiaSchool.value
@@ -1310,6 +1328,8 @@ function buildIndiaSnapshotText(chartObj, fields, chartnum, hook){
 	Object.keys(dataSections).forEach((title)=>{
 		ensureSection(lines, title, dataSections[title]);
 	});
+	const transitLines = indiaTransitSnapshotLines(fields);
+	if(transitLines.length){ ensureSection(lines, '穿界时刻', transitLines); }
 	return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -1337,6 +1357,84 @@ export function buildIndiaSnapshotDataSections(chartObj, fields){
 		out['未能计算'] = partial;
 	}
 	return out;
+}
+
+// 穿界表的请求体(页面与无头复算同一份):只用时区和岁差,时刻由起始日决定,不随本命盘的生时变
+export function indiaTransitEventParams(base){
+	const { date, time, ad, zone, lat, lon, hsys } = base || {};
+	return { date, time, ad, zone, lat, lon, hsys, zodiacal: 1, siderealAyanamsa: base ? base.siderealMode : undefined };
+}
+
+function birthSigOfFields(fields){
+	try{ return fields ? indiaTransitBirthSig(fieldsToParams(fields)) : ''; }catch(e){ return ''; }
+}
+
+// 印占页「行运」页签当前那张穿界表(按所选的星、事件、范围);页面没打开过 / 不是这张盘 → 没有这一段
+export function indiaTransitSnapshotLines(fields){
+	return buildTransitEventLines(indiaTransitSnapshotFor(birthSigOfFields(fields)));
+}
+
+// 无头复算 / 导出补段:所选三项 = 挂载齿轮 → 本机保存值 → 缺省(七星 · 入星座 · 90 天),起始 = 过运日 → 今日。
+// 页面上这张盘的穿界表与所选、起始、岁差全对得上就直接用它(省一次请求),否则按所选现取。
+// (此前只要齿轮里有值就弃用页面那张,而齿轮缺省本身就带值 —— 页面那张从来用不上,每次都多发一次请求。)
+function requestedTransitSelection(fields){
+	const saved = savedTransitSelection();
+	const given = (name)=>fields && fields[name] && fields[name].value !== undefined && fields[name].value !== null && fields[name].value !== '';
+	const pick = (name, key)=>(given(name) ? fields[name].value : (saved[key] !== undefined ? saved[key] : TRANSIT_DEFAULT_SELECTION[key]));
+	return {
+		transitPlanet: pick('indiaTransitPlanet', 'transitPlanet'),
+		transitKind: pick('indiaTransitKind', 'transitKind'),
+		transitDays: Number(pick('indiaTransitDays', 'transitDays')) || TRANSIT_DEFAULT_SELECTION.transitDays,
+	};
+}
+
+function pageTransitEntryMatches(entry, selection, start, ayanamsa){
+	return !!entry
+		&& `${entry.transitPlanet}` === `${selection.transitPlanet}`
+		&& `${entry.transitKind}` === `${selection.transitKind}`
+		&& Number(entry.transitDays) === Number(selection.transitDays)
+		&& `${entry.start || ''}` === `${start || ''}`
+		&& `${entry.ayanamsa || ''}` === `${ayanamsa || ''}`;
+}
+
+async function fetchIndiaTransitLinesHeadless(params, fields){
+	const start = params.transitDate || localTodaySlash(params.zone);
+	const selection = requestedTransitSelection(fields);
+	const body = { ...indiaTransitEventParams(params), transitStart: start, ...selection };
+	const pageEntry = indiaTransitSnapshotFor(indiaTransitBirthSig(body));
+	if(pageTransitEntryMatches(pageEntry, selection, start, body.siderealAyanamsa)){
+		return buildTransitEventLines(pageEntry);
+	}
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/transitevents`, { body: JSON.stringify(body), silent: true, timeoutMs: 30000 });
+		const result = data && data[Constants.ResultKey];
+		if(!result || result.err || !Array.isArray(result.rows)){ return []; }
+		return buildTransitEventLines({ start, ...selection, ayanamsa: body.siderealAyanamsa, result });
+	}catch(e){
+		return [];
+	}
+}
+
+function hasTransitSection(text){
+	const src = `${text || ''}`;
+	return src.indexOf('\n[穿界时刻]') >= 0 || src.indexOf('[穿界时刻]') === 0;
+}
+
+async function appendTransitSectionWithParams(text, params, fields){
+	const src = `${text || ''}`.trim();
+	if(!src || hasTransitSection(src)){ return src; }
+	const transitLines = await fetchIndiaTransitLinesHeadless(params, fields);
+	if(!transitLines.length){ return src; }
+	const tail = [];
+	ensureSection(tail, '穿界时刻', transitLines);
+	return `${src}\n\n${tail.join('\n')}`.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 印占正文补「穿界时刻」段(AI 导出用):行运页签没打开过时页面快照里没有这段,按页面那张 → 本机保存的所选 → 缺省现取,
+// 与挂载无头复算同一取法(此前导出缺这段、挂载却有,两边对不上)。已有该段 / 取不到 → 原样返回。
+export async function appendIndiaTransitSection(text, fields, chartnum){
+	if(!fields || hasTransitSection(text)){ return `${text || ''}`.trim(); }
+	return appendTransitSectionWithParams(text, resolveIndiaHeadlessParams(fields, chartnum), fields);
 }
 
 // 供 AI 分析无头复算：按出生字段取印度盘（默认 D1 命盘）并生成快照文本。
@@ -1408,7 +1506,8 @@ export async function buildIndiaSnapshotForFields(fields, chartnum, extraVargas)
 		return '';
 	}
 	const mainFractal = resolveIndiaFractal(params.chartnum || 1, null);
-	const text = buildIndiaSnapshotText(result, fields, params.chartnum || 1, null);
+	let text = buildIndiaSnapshotText(result, fields, params.chartnum || 1, null);
+	text = await appendTransitSectionWithParams(text, params, fields);
 	// 附加分盘:缺省空 ⇒ 一个字节都不变(不发额外请求、不加段)。
 	const extras = planIndiaExtraVargas(mainFractal, extraVargas);
 	if(!extras.length){
@@ -1502,14 +1601,29 @@ class IndiaChart extends Component{
 		if(snapshotText){
 			const fractal = resolveIndiaFractal(params ? params.chartnum : null, this.props.hook);
 			const label = resolveIndiaLabel(fractal, this.props.hook);
-			const meta = {
-				fractal,
-				label,
-			};
-			saveModuleAISnapshot('indiachart', snapshotText, meta);
-			saveModuleAISnapshot('indiachart_current', snapshotText, meta);
-			saveModuleAISnapshot(`indiachart_${fractal}`, snapshotText, meta);
+			this.persistSnapshot(snapshotText, fractal, { fractal, label });
 		}
+	}
+
+	// 快照落槽单一出口。择日内嵌实例(snapshotScope=宿主槽名,如 indiazeri)只写宿主槽,正文 = 印占全文 + 宿主拼的择时三段
+	// (composeAiSnapshot,与八字 / 紫微等内嵌宿主同律);此前一律写主印占的三个槽 —— 择日页的盘顶掉印占页的快照,
+	// 择日槽却始终空着(导出报「没有可导出文本」)。缺省(主印占页)写三槽,零回归。返回实际落槽的正文。
+	persistSnapshot(text, fractal, meta){
+		const scope = this.props.snapshotScope;
+		if(scope){
+			let composed = text;
+			if(typeof this.props.composeAiSnapshot === 'function'){
+				try{ composed = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ composed = text; }
+			}
+			saveModuleAISnapshot(scope, composed, meta);
+			return composed;
+		}
+		saveModuleAISnapshot('indiachart', text, meta);
+		saveModuleAISnapshot('indiachart_current', text, meta);
+		if(fractal !== null && fractal !== undefined){
+			saveModuleAISnapshot(`indiachart_${fractal}`, text, meta);
+		}
+		return text;
 	}
 
 	requestChartObj(fields){
@@ -1574,7 +1688,9 @@ class IndiaChart extends Component{
 	// chartnum=最近一次写入用的 _lastSnapshotChartnum。写三键(通用/current/分盘号)与写入点一致。
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? `${evt.detail.module || ''}` : '';
-		if(moduleName.indexOf('indiachart') !== 0){
+		// 择日内嵌实例只应答宿主槽;主印占页的槽不归它答(否则择日页的盘会被当成印占页此刻的盘)
+		const scope = this.props.snapshotScope;
+		if(scope ? moduleName !== scope : moduleName.indexOf('indiachart') !== 0){
 			return;
 		}
 		// 先到先得幂等:已有实例回填则不再覆盖(多实例并存时任一有数据者胜出,绝不互踩)。
@@ -1595,14 +1711,9 @@ class IndiaChart extends Component{
 			text = '';
 		}
 		if(text){
-			const meta = { fractal, label: resolveIndiaLabel(fractal, this.props.hook) };
-			saveModuleAISnapshot('indiachart', text, meta);
-			saveModuleAISnapshot('indiachart_current', text, meta);
-			if(fractal !== null && fractal !== undefined){
-				saveModuleAISnapshot(`indiachart_${fractal}`, text, meta);
-			}
+			const saved = this.persistSnapshot(text, fractal, { fractal, label: resolveIndiaLabel(fractal, this.props.hook) });
 			if(evt && evt.detail && typeof evt.detail === 'object'){
-				evt.detail.snapshotText = text;
+				evt.detail.snapshotText = saved;
 			}
 		}
 	}

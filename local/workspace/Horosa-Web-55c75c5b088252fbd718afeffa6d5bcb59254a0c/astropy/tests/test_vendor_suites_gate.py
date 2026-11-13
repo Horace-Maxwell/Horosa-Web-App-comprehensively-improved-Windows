@@ -27,14 +27,40 @@ SUITES = [
 ]
 
 
+# 子进程必带的三个根(与运行时启动脚本、conftest 注入的同一组):引擎共用件 kin_year_domain 在 vendor 根。
+# conftest 只改本进程的 sys.path,传不到子进程;不在这里补,门的红绿就取决于外面有没有恰好设 PYTHONPATH。
+_ENGINE_ROOTS = [_ASTROPY, _WEB / "flatlib-ctrad2", _WEB / "vendor"]
+
+
+def _suite_env(base_env):
+    env = dict(base_env)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # 相对路径的 PYTHONPATH 项按本进程工作目录转成绝对路径(子进程换了工作目录)
+    paths = [os.path.abspath(p) for p in (env.get("PYTHONPATH") or "").split(os.pathsep) if p]
+    # 外面已给的项保持原序在前;缺的根补在后面(外面给全时逐项不变)
+    for root in _ENGINE_ROOTS:
+        if str(root) not in paths:
+            paths.append(str(root))
+    env["PYTHONPATH"] = os.pathsep.join(paths)
+    return env
+
+
+def test_suite_env_does_not_depend_on_outer_pythonpath():
+    """外面不设 PYTHONPATH(直接 `pytest tests/`)与设全三根,子进程拿到的是同一组根。"""
+    roots = [str(r) for r in _ENGINE_ROOTS]
+    bare = _suite_env({})["PYTHONPATH"].split(os.pathsep)
+    assert bare == roots
+    full = _suite_env({"PYTHONPATH": os.pathsep.join(roots)})["PYTHONPATH"].split(os.pathsep)
+    assert full == roots
+    # 外面只给一部分:原有项在前,缺的补上,不重复
+    part = _suite_env({"PYTHONPATH": roots[2]})["PYTHONPATH"].split(os.pathsep)
+    assert part[0] == roots[2] and sorted(part) == sorted(roots)
+
+
 @pytest.mark.parametrize("name,cwd,args", SUITES, ids=[s[0] for s in SUITES])
 def test_vendor_suite_passes(name, cwd, args):
     assert cwd.is_dir(), f"{name}: 目录不在 {cwd}"
-    env = dict(os.environ)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    # 相对路径的 PYTHONPATH 项按本进程工作目录转成绝对路径(子进程换了工作目录)
-    if env.get("PYTHONPATH"):
-        env["PYTHONPATH"] = os.pathsep.join(os.path.abspath(p) for p in env["PYTHONPATH"].split(os.pathsep) if p)
+    env = _suite_env(os.environ)
     # horosa_subprocess_utf8_v1(Windows 侧移植适配;#109 row 90 同族):子进程打印中文(用例名、月柱 / 年柱),Windows 管道按
     # locale 码页(cp1252 / GBK)编解码 ⇒ 父进程读线程 UnicodeDecodeError、输出变空;月柱交节回归自己再起引擎子进程同样解码失败而红。
     # 子进程按 UTF-8 模式跑(与发货运行时的 -X utf8 同口径,孙进程随环境继承),父进程按 UTF-8 解码;macOS 上本就 UTF-8,行为不变。

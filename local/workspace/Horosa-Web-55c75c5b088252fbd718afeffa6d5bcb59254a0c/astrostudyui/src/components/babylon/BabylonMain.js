@@ -8,7 +8,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import {
-	babylonChartParams, chartToLons, babylonBirthJdn, buildBabylonSnapshotText,
+	babylonChartParams, chartToLons, babylonBirthJdn, buildBabylonSnapshotText, fetchBabylonSkyTables,
 	fetchBabylonEphemeris, digestBabylonEphemeris, computeNaKur, EPHEM_MIN_JDN,
 } from '../../utils/babylonAiSnapshot';
 import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC, schemeAffectsTab, schemeVaryingKeysForTab, schemeVaryingKeysElsewhere, schemeKeyLabel } from '../../divination/babylon/babylonSchools';   // 派系是否作用于本页 / 作用范围逐条自证
@@ -112,15 +112,17 @@ class BabylonMain extends Component{
 		const seq = ++this.reqSeq;
 		const jdn = babylonBirthJdn(this.props.fields);
 		// 星盘与实算历象(朔望/邻近食)并行;历象失败→null(图式行照常,零阻塞)
-		const [result, ephem] = await Promise.all([
+		const [result, ephem, skyTables] = await Promise.all([
 			fetchSiderealChart(params).catch(() => null),
 			fetchBabylonEphemeris(this.props.fields, jdn).catch(() => null),
+			fetchBabylonSkyTables(params).catch(() => null),
 		]);
 		if(this.unmounted || seq !== this.reqSeq){ return; }
 		// 星盘未取到 / 支持区间内历象未取到 → 同参允许重试(历象在支持区间外本就为空,不算失败)
 		if(!result || (!ephem && jdn && jdn >= EPHEM_MIN_JDN)){ settleTrigger(this, 'refresh', refreshTrig, false); }
 		let ephemDigest = digestBabylonEphemeris(ephem, jdn);
-		this.setState({ chartObj: result, ephemDigest });
+		this._skyTables = skyTables;
+		this.setState({ chartObj: result, ephemDigest, skyTables });
 		// NA/KUR 观测量(满月日/残月晨的日月升落)二段轻请求;回填不阻塞首屏。
 		// 回填落地后必须补拍快照:旧实现只 setState,而下方快照在本同步块
 		// 已用「无 na/kur 的裸 digest」产出并冻结(本文件无 refresh-event 监听,导出直吃缓存)
@@ -146,7 +148,7 @@ class BabylonMain extends Component{
 			if(jdn && lons.sun !== undefined){
 				const bab = buildHoroscope(lons, jdn, this.effectiveOpts());
 				const sc = schemeOf(this.state.schemeId);
-				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest, lons });   // lons 供数理星历段锚
+				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest, lons, skyTables: this._skyTables });   // lons 供数理星历段锚
 				if(text){
 					saveModuleAISnapshot('babylon', text, {
 						date: params.date, time: params.time, zone: params.zone,
@@ -244,7 +246,7 @@ class BabylonMain extends Component{
 		const bab = (jdn && lons.sun !== undefined)
 			? buildHoroscope(lons, jdn, opts)
 			: (jdn ? buildHoroscope({}, jdn, opts) : null);
-		const common = { height: childHeight, bab, lons, opts, fields: this.props.fields, ephemDigest: this.state.ephemDigest };
+		const common = { height: childHeight, bab, lons, opts, fields: this.props.fields, ephemDigest: this.state.ephemDigest, skyTables: this.state.skyTables };
 
 		return (
 			<div className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-babylon">

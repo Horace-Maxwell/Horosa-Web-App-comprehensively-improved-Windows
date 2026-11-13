@@ -24,6 +24,7 @@ import {
 	XQToolbar,
 	XQSideSection,
 } from '../xq-ui';
+import XQIcon from '../xq-icons';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import * as AstroConst from '../../constants/AstroConst';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -64,6 +65,7 @@ class AstroChartMain3D extends Component{
 			// 拿不到 activeKey 就无法冻结。改受控:初值仍是 '1'(信息),onChange 记进 state,
 			// 用户可见行为逐字不变。
 			sideTab: '1',
+			immersive: false,   // 页内全屏:收右栏与标题行,画布铺满本页(双击画布 / 按钮进出,Esc 退出)
 		}
 		this.changeSideTab = (key)=>{ this.setState({ sideTab: key }); };
 		// 右栏 tabs 实测高:写死扣高(height-252)与各卡实际高度脱节 → 底部大空白;RO 量真值。
@@ -89,6 +91,8 @@ class AstroChartMain3D extends Component{
 		this.changeGeo = this.changeGeo.bind(this);
 		this.changeSouthChart = this.changeSouthChart.bind(this);
 		this.changeCenterMode = this.changeCenterMode.bind(this);
+		this.toggleImmersive = this.toggleImmersive.bind(this);
+		this.onImmersiveKeyDown = this.onImmersiveKeyDown.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = ()=>{
@@ -225,6 +229,23 @@ class AstroChartMain3D extends Component{
 		this.applyCenterMode(center);
 	}
 
+	// 页内全屏:不用元素全屏接口(桌面壳的网页视图不开放,双击会没反应),改成本页收栏 —— 右栏与标题行收起,
+	// 画布铺满本页;画布宿主自带尺寸观察,列宽一变就按实测重排,这里再补一次兜底(观察器合帧时晚一拍)。
+	toggleImmersive(){
+		this.setState((prev)=>({ immersive: !prev.immersive }), ()=>{
+			clearTimeout(this._immersiveT);
+			this._immersiveT = setTimeout(()=>{
+				const chart = this.chart3dRef;
+				if(chart && typeof chart.handleResize === 'function'){ chart.handleResize(); }
+			}, 80);
+		});
+	}
+
+	onImmersiveKeyDown(e){
+		if(!this.state.immersive || !e || e.key !== 'Escape' || e.defaultPrevented){ return; }
+		this.toggleImmersive();
+	}
+
 	componentDidUpdate(prevProps){
 		// 非地心模式下盘数据变化(改时间/地点)→ 同中心重取 3D 状态原地刷新;
 		// 地心默认路径零涉(条件恒假)
@@ -287,6 +308,7 @@ class AstroChartMain3D extends Component{
 	}
 
 	componentDidMount(){
+		window.addEventListener('keydown', this.onImmersiveKeyDown);
 		// horosa_prefetch_registry_v1(PERF-R10 P6):3D 星盘步进预取 —— 仅非地心中心盘打后端
 		// (geo=纯前端引擎零网络);构参与真点同一 buildChart3DParams 路径(fieldsOverride 版),
 		// fetchChart3DState 自带 stateMem+在途合流,叠加 dedupe '/chart3d' 前缀三层落桶。
@@ -310,7 +332,9 @@ class AstroChartMain3D extends Component{
 
 	componentWillUnmount(){
 		clearTimeout(this._sideROT);
+		clearTimeout(this._immersiveT);
 		if(this._sideRO){ this._sideRO.disconnect(); }
+		window.removeEventListener('keydown', this.onImmersiveKeyDown);
 		if(this._stepPrefetcher){
 			unregisterStepPrefetcher('astrochart3D', this._stepPrefetcher);
 			this._stepPrefetcher = null;
@@ -385,7 +409,7 @@ class AstroChartMain3D extends Component{
 		}
 
 		return (
-			<div className="horosa-3d-page xq-chart-renderer xq-chart-renderer-3d">
+			<div className={`horosa-3d-page xq-chart-renderer xq-chart-renderer-3d${this.state.immersive ? ' is-immersive' : ''}`}>
 				<XQPanel className="horosa-3d-stage">
 					<div className="horosa-3d-stage-title">
 						<div>
@@ -393,7 +417,10 @@ class AstroChartMain3D extends Component{
 							<div className="horosa-3d-title">3D 星盘</div>
 						</div>
 						{/* [主限天球入口下线] 原「星盘/主限天球」切换移除——主限天球只从星运页进入。 */}
-						<div className="horosa-3d-hint">双击画布进入或退出全屏</div>
+						<div className="horosa-3d-stage-actions">
+							<span className="horosa-3d-hint">双击画布也可进出全屏</span>
+							<XQButton size="small" iconName="fullscreen" className="horosa-3d-fullscreen-btn" onClick={this.toggleImmersive}>全屏</XQButton>
+						</div>
 					</div>
 					<div className="horosa-3d-canvas-wrap">
 						{/* 原 boardMode==='pdsphere' 分支已删:
@@ -409,7 +436,13 @@ class AstroChartMain3D extends Component{
 							lotsDisplay={this.props.lotsDisplay}
 							height={chartHeight}
 							needChart3D={needChart3D}
+							onToggleFullscreen={this.toggleImmersive}
 						/>
+						{this.state.immersive ? (
+							<button type="button" className="horosa-3d-immersive-exit" onClick={this.toggleImmersive} aria-label="退出全屏">
+								<XQIcon name="fullscreenExit" /><span>退出全屏</span><kbd>Esc</kbd>
+							</button>
+						) : null}
 					</div>
 				</XQPanel>
 				<XQPanel className="horosa-3d-side">
@@ -497,7 +530,7 @@ class AstroChartMain3D extends Component{
 					) : null}
 					<div className="horosa-3d-tabs-fill" ref={this.attachSideTabsRO}>
 					{/* 非地心时右栏四页签仍是地心盘(/chart3d/state 只重算球体与轨道)→ 明说,不再让帮助的「整盘重算」误导 */}
-					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note" style={{ fontSize: 12, opacity: 0.75, padding: '2px 8px' }}>以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；单击提示按黄道设置取座）</div> : null}
+					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note">以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；单击提示按黄道设置取座）</div> : null}
 					{/* horosa_freeze_subtabs_v1：右栏 5 个面板此前全内联 —— 首次激活后永久挂载，
 					    此后每次改时间/改宫制/切中心体都把看不见的相位表、行星表、希腊点表一并重渲，
 					    直接吃掉「右栏画完」的预算。函数式 children：从未激活过的面板连元素都不建；

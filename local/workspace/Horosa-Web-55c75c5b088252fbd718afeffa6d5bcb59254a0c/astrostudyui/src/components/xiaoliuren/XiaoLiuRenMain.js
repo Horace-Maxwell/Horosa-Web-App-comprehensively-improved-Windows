@@ -5,8 +5,8 @@
 // 🔴 中栏为抽象宫位结构图(六宫环/九宫格),绝不画拟人手掌——掌诀原文以文字目呈现。
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { XQSideSection } from '../xq-ui';
-import { Tabs, Empty, Input, InputNumber, Radio, Button, Switch, Tag } from 'antd';
+import { XQSideSection, XQSwitch as Switch, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button } from '../xq-ui';
+import { Tabs, Tag } from 'antd';
 import { qiKe, teLi } from './core/xiaoliurenKe';
 import {
 	MAIN_RING, MAIN_PALM, DAO_RING, DAO_NINE, DAO_YI, BAI_JIE, DAO_FA_TEXT, MAIN_FA_TEXT,
@@ -18,7 +18,7 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
-import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+import { ownedBoxSizeRef, narrowBoardVars, squareGridFitVars } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -158,6 +158,11 @@ class XiaoLiuRenMain extends Component {
 		if(this.state.ke && prevState && prevState.inputs !== this.state.inputs){ this.saveSnap(); }
 		// 课一变即告容器(dock 不在本组件树内,左栏起的课容器无从知晓 → 「保存」伪禁用;对齐 guice 范式)。
 		if(prevState && prevState.ke !== this.state.ke && typeof this.props.onResultChange === 'function'){ this.props.onResultChange(); }
+		// 起课 / 换流派(六宫 ↔ 九宫)后中栏宿主尺寸没变、盘变了 → 重量一次格高(矮窗口里整盘不用下滑)
+		if(prevState && prevState.ke !== this.state.ke){
+			const hostRef = ownedBoxSizeRef(this, 'host', squareGridFitVars);
+			if(hostRef.refit){ hostRef.refit(); }
+		}
 	}
 	// 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):课=冻结三数自 payload.nums 复排
 	// (qiKe 确定性),绝不按当前时间重起;useTime 置 false 让左栏忠实显示冻结三数;options 回放流派等设置。
@@ -302,7 +307,7 @@ class XiaoLiuRenMain extends Component {
 			</XQSideSection>
 			<XQSideSection iconName="target" title="起课参数" storageKey="xlr.controls" className="horosa-side-input-section">
 			<div className="horosa-xlr-controls horosa-cnx-controls">
-				{this.field('流派', <Radio.Group size="small" optionType="button" value={settings.school} onChange={(e)=>this.setSchool(e.target.value)}
+				{this.field('流派', <XQSegmented value={settings.school} onChange={(e)=>this.setSchool(e.target.value)}
 					options={[{ value: 'main', label: '主流六宫' }, { value: 'dao', label: '道门九宫' }]}/>)}
 				{/* 一↔三 跨传关系仅道门九宫消费;主流六宫下无处生效,隐藏免死开关观感。 */}
 				{settings.school === 'dao' ? this.field('一↔三', <Switch size="small" checked={settings.showOneThree !== false} onChange={(v)=>this.setSetting('showOneThree', v)}/>, '跨传关系行(文档无定论,仅列关系)', true) : null}
@@ -342,7 +347,7 @@ class XiaoLiuRenMain extends Component {
 					</div>
 					<span className="horosa-cnx-board-badge">{['一', '二', '三'].map((z, i)=>`${z}传${order[i]}`).join(' · ')}</span>
 				</div>
-				<div className={`horosa-cnx-grid is-cols-${cols}`}>
+				<div className={`horosa-cnx-grid is-cols-${cols}`} data-rows={ke.school === 'dao' ? 3 : 2}>
 					{ring.map((name)=>{
 						const nine = DAO_NINE[name];
 						const hits = posOf(name);
@@ -496,7 +501,7 @@ class XiaoLiuRenMain extends Component {
 	render(){
 		const slot = this.props.slot;
 		const ke = this.state.ke;
-		const empty = <div className="horosa-huangji-empty"><Empty description={this.state.error || '请录三数或按占时起课'} image={Empty.PRESENTED_IMAGE_SIMPLE}/></div>;
+		const empty = <div className="horosa-huangji-empty">{this.state.error || '请录三数或按占时起课'}</div>;
 		if(slot === 'controls'){ return this.renderControls(); }
 		if(slot === 'center' || slot === 'aux'){
 			if(!ke){ return empty; }
@@ -516,7 +521,7 @@ class XiaoLiuRenMain extends Component {
 							{this.renderControls()}
 						</div>
 						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer">
-							<div className="horosa-huangji-board-host">{ke ? this.renderCenter(ke) : empty}</div>
+							<div className="horosa-huangji-board-host" ref={ownedBoxSizeRef(this, 'host', squareGridFitVars)}>{ke ? this.renderCenter(ke) : empty}</div>
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-huangji-info-panel">
 							<div className="horosa-side-panel-heading horosa-huangji-info-heading-main">

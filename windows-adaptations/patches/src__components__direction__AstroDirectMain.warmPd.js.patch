@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index 100f5989..b591fa52 100644
+index d2f17395..db7772d7 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
 @@ -1,5 +1,11 @@
@@ -56,7 +56,7 @@ index 100f5989..b591fa52 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -871,6 +912,41 @@ class AstroDirectMain extends Component{
+@@ -874,6 +915,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -98,7 +98,7 @@ index 100f5989..b591fa52 100644
  		}
  
  	}
-@@ -1332,6 +1408,8 @@ class AstroDirectMain extends Component{
+@@ -1338,6 +1414,8 @@ class AstroDirectMain extends Component{
  		this.syncCurrentSubTab();
  		this.ensurePrimaryDirectionReady();
  		this.saveDirectionSnapshot();

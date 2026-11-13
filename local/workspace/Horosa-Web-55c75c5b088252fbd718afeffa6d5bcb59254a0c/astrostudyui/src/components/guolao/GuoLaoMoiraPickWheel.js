@@ -1111,7 +1111,7 @@ class GuoLaoMoiraPickWheel extends Component{
 					role="img"
 					aria-label="Moira天星择日盘"
 				>
-					<rect x={-VIEW / 2} y={-VIEW / 2} width={VIEW} height={VIEW} fill={MOIRA_BG} />
+					<rect x={-VIEW / 2} y={-VIEW / 2} width={VIEW} height={VIEW} fill={MOIRA_BG} stroke="none" />
 					{this.renderRings()}
 					{this.renderSectorLines()}
 					{this.renderDegreeTicks()}

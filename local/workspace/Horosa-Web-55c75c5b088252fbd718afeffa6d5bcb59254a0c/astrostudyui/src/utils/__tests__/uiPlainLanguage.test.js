@@ -62,8 +62,8 @@ describe('界面文字白话化', () => {
 		const dial = R('components/germany/UranianDialMain.js');
 		expect(dial).toContain("options={[{ value: 'naibod', label: '均日弧' }, { value: 'cardan', label: '59′12″' }, { value: 'oneDeg', label: '1°/年' }]}");
 		const ge = R('components/germany/UranianGraphicEphemeris.js');
-		expect(ge.indexOf('>均日弧<')).toBeLessThan(ge.indexOf('>59′12″<'));
-		expect(ge.indexOf('>59′12″<')).toBeLessThan(ge.indexOf('>1°/年<'));
+		// 图形星历的速率分段钮与刻度盘页同一份选项字面(同名同序)
+		expect(ge).toContain("options={[{ value: 'naibod', label: '均日弧' }, { value: 'cardan', label: '59′12″' }, { value: 'oneDeg', label: '1°/年' }]}");
 		expect(dial).toContain("(this.state.saKey === 'cardan' ? '59′12″' : '均日弧')");
 		expect(R('components/germany/UranianRectify.js')).toContain("({ oneDeg: '1°/年', cardan: '59′12″', naibod: '均日弧' })");
 		const snap = R('components/germany/AstroMidpoint.js');   // AI 快照里的速率名与界面同名
@@ -86,7 +86,8 @@ describe('界面文字白话化', () => {
 		expect(TAIYI_ACCUM_OPTIONS.map((o) => o.label)).toEqual(['太乙统宗', '太乙金镜', '太乙淘金歌', '太乙局']);
 		const sanshi = R('components/sanshi/SanShiUnitedMain.js');
 		expect(sanshi).not.toContain('<div>积年法：');
-		expect(sanshi).toContain('<div>古法公式：{tpan.options');
+		expect(sanshi).not.toContain("['积年法',");
+		expect(sanshi).toContain("['古法公式', tpan.options ? tpan.options.accumLabel");
 	});
 	test('风水:成员 / 定义用简体;旧段名「成員卦象」迁到新名;提示文字与实际选项一致', () => {
 		['components/fengshui/FengShuiMain.js', 'components/fengshui/fengshuiEngine.js', 'components/fengshui/baguaData.js', 'components/fengshui/baguaCore.js'].forEach((f) => {

@@ -1635,14 +1635,16 @@ export default class AstroChartCircle {
 			// RAMC=天顶赤经:直读后端宫头赤经(每宫头随盘下发 ra)。旧实现两病:
 			// ①判据 Number(params.zodiacal)===0 而回显是字符串 'Tropical'→Number=NaN 恒假
 			// →两种黄道制都静默不显示;②前端三角换算多此一举。
-			// 恒星制回落不显:后端 sweHouses 对恒星制宫头把「恒星黄经」当回归黄经做
-			// 黄→赤旋转,下发的 ra 是差≈ayanamsa 赤道投影(~24°)的伪赤经——错值比缺行更糟,
-			// 直读只在回归制成立(pytest test_house_ra_sidereal_vs_tropical_divergence 锁两制分岔;
-			// 后端治本需全量排查 su28/_houseByRa 等 ra 消费面,另案)。
+			// 直读天顶点(MC)的赤经:后端 sweHouses 起它就是 ARMC,与宫制、黄道制都无关(
+			// pytest test_angles_and_cusps_are_ecliptic_points 锁 MC.ra == ARMC)。第 10 宫头只在象限宫制下才等于天顶
+			// (整宫、等宫、福点整宫都不是),只作缺 MC.ra 的老响应兜底。
+			// 再缺就走下面的三角兜底,那条兜底拿的是黄经,恒星制差一个岁差,跳过。
 			const _zs = `${(chartObj && chartObj.params && chartObj.params.zodiacal) != null ? chartObj.params.zodiacal : ''}`;
 			const _sid = _zs === AstroConst.SIDEREAL || _zs === '1';
-			const h10 = _sid ? null : this.getHouse(chartObj, AstroConst.HOUSE10);
-			let ra = h10 && Number.isFinite(Number(h10.ra)) ? Number(h10.ra) : NaN;
+			const mcPoint = getObject(chartObj, AstroConst.MC);
+			const h10 = this.getHouse(chartObj, AstroConst.HOUSE10);
+			let ra = mcPoint && Number.isFinite(Number(mcPoint.ra)) ? Number(mcPoint.ra) : NaN;
+			if(!Number.isFinite(ra) && h10 && Number.isFinite(Number(h10.ra))){ ra = Number(h10.ra); }
 			if(!Number.isFinite(ra)){
 				// 老响应无 ra 字段的兜底:回归黄经三角换算(tanα=tanλ·cosε);恒星黄经差 ayanamsa,诚实跳过。
 				const mc = !_sid ? getObject(chartObj, AstroConst.MC) : null;
@@ -2082,6 +2084,15 @@ export default class AstroChartCircle {
 			const sg = g.append('g');
 			const svgRoot = g.node() ? g.node().ownerSVGElement : null;
 			const svgW = svgRoot ? svgRoot.clientWidth : 0;
+			// 舞台把整张 svg 以中心等比放大一点(盘面贴满舞台),放大出去的那一圈落在舞台内衬上甚至被舞台裁掉:
+			// 星名的余量按放大前的盒算(折回 svg 自己的坐标),不放大时为 0。
+			let stageGrow = 0;
+			try{
+				const tf = (svgRoot && typeof window !== 'undefined' && window.getComputedStyle) ? window.getComputedStyle(svgRoot).transform : '';
+				const mk = /^matrix\(\s*([-\d.e]+)/.exec(tf || '');
+				const k = mk ? parseFloat(mk[1]) : 1;
+				if(k > 1 && svgW > 0){ stageGrow = svgW * (k - 1) / (2 * k); }
+			}catch(e){ stageGrow = 0; }
 			ov.stars.forEach((st) => {
 				if(!st || st.lon === undefined || st.lon === null){ return; }
 				const color = st.royal ? OV_GOLD : (st.caution ? OV_RED : AstroConst.AstroColor.Stroke);
@@ -2103,7 +2114,7 @@ export default class AstroChartCircle {
 				// 星名从轮缘向外写,落在盘的左右两侧时会越出 svg 盒(舞台窄、盘贴边时被裁一截):按到 svg 左右边的余量收字号(放得下不动)
 				if(svgW > 0 && geom.orgx !== undefined){
 					const room = sx >= 0 ? (svgW - (geom.orgx + sx)) : (geom.orgx + sx);
-					fitSvgTextWidth(label.node(), Math.max(1, room - 2), 6);
+					fitSvgTextWidth(label.node(), Math.max(1, room - 2 - stageGrow), 6);
 				}
 			});
 		}

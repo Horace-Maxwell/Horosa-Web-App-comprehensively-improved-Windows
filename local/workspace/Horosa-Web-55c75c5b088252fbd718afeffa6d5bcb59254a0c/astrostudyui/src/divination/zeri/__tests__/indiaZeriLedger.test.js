@@ -14,9 +14,9 @@ const SRC = path.join(__dirname, '..', '..', '..');
 const read = (p)=>readSource(path.join(SRC, p));
 
 describe('四本账登记', ()=>{
-	it('🔴 ①导出账:preset=择时三段自足;label 表;启发式「印度择日」先于裸「择日」', ()=>{
+	it('🔴 ①导出账:preset=印占段+择时三段;label 表;启发式「印度择日」先于裸「择日」', ()=>{
 		const tz = AI_EXPORT_PRESET_SECTIONS.indiazeri;
-		expect(tz).toEqual(['择时搜索配置', '择时条件', '命中时段']);
+		expect(tz).toEqual([...AI_EXPORT_PRESET_SECTIONS.indiachart, '择时搜索配置', '择时条件', '命中时段']);
 		const ae = read('utils/aiExport.js');
 		expect(ae).toContain("{ key: 'indiazeri', label: '印度择日' }");
 		const iTz = ae.indexOf("topInfo.includes('印度择日')");
@@ -26,10 +26,22 @@ describe('四本账登记', ()=>{
 		expect(ae).toContain("subTab === 'indiazeri'");
 	});
 
-	it('②挂载账:mount 设置 sectionsOnly+名表+宿主三段自写槽(印度页无 module 槽)', ()=>{
+	it('🔴 ①b 自定义过印度择日段的老存档:一次性并入印占段(此前只能勾三段,不并则印占正文整份被过滤)', ()=>{
+		const { normalizeAIExportSettings } = require('../../../utils/aiExport').__aiExportTesting__;
+		const n = normalizeAIExportSettings({ version: 64, sections: { indiazeri: ['命中时段'] } });
+		expect(n.sections.indiazeri[0]).toBe('命中时段');
+		expect(n.sections.indiazeri).toEqual(expect.arrayContaining(['起盘信息', '大运Dasha', 'Panchanga 五要素', '穿界时刻']));
+		expect(n.sections.indiazeri).not.toContain('择时条件');   // 三段里没勾的仍不勾
+		const kept = normalizeAIExportSettings({ version: 65, sections: { indiazeri: ['命中时段'] } });
+		expect(kept.sections.indiazeri).toEqual(['命中时段']);
+		const untouched = normalizeAIExportSettings({ version: 64, sections: {} });
+		expect(untouched.sections.indiazeri).toBeUndefined();
+	});
+
+	it('②挂载账:mount 设置 sectionsOnly+名表+宿主槽(内嵌印占页按宿主槽应答,答不上才写宿主三段兜底)', ()=>{
 		expect(read('utils/techniqueMountSettings.js')).toContain("indiazeri: { kind: 'sectionsOnly'");
 		expect(read('utils/aiAnalysisContext.js')).toContain("indiazeri: '印度择日'");
-		// 宿主三段自写槽经 refreshZeriSlot(印度内嵌页不应答择日槽 → 写宿主三段兜底)
+		// refreshZeriSlot:内嵌印占页(snapshotScope=indiazeri)应答 = 印占全文 + 择时三段;盘还没出 → 写宿主三段兜底
 		expect(read('components/zeri/IndiaZeriMain.js')).toContain("refreshZeriSlot(this, 'indiazeri')");
 		expect(read('components/zeri/zeriCaseRestore.js')).toContain('saveModuleAISnapshot(scope, text);');
 	});
@@ -50,7 +62,7 @@ describe('四本账登记', ()=>{
 	it('🔴 ⑤对偶锁:SubTabRegistry⇔ZeriMain TabPane⇔help TabPane 三处成对', ()=>{
 		expect(ZERI_SUBTABS).toContain('indiazeri');
 		expect(read('components/zeri/ZeriMain.js')).toContain('key="indiazeri"');
-		expect(read('components/help/ZeriHelpDoc.js')).toContain('key="indiazeri"');
+		expect(read('components/help/ZeriHelpDoc.js')).toContain("key: 'indiazeri'");
 	});
 });
 

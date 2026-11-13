@@ -24,6 +24,7 @@ import { definePageSettings } from '../../utils/pageSettingsStore';
 import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import { toSlashDate, civilDateStrOfJdn, civilJdnOfDateStr } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
+import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
 const Option = XQSelect.Option;
 
@@ -428,18 +429,18 @@ class ElectionMain extends Component{
 							部位禁忌延及对宫（诸家多延及，默认不延）
 						</label>
 						<div className="horosa-field-label" style={{ marginTop: 8 }}>病始日期（危象日参照，可选）</div>
-						<input type="date" className="horosa-native-date" style={{ width: '100%', boxSizing: 'border-box' }}
-							value={(extra.crisisBase && extra.crisisBase.date) || ''}
-							onChange={(e) => this.fetchCrisisBase(e.target.value, setExtra)} />
+						<IsoDateTimeField showTime={false} placeholder="未设(可选)"
+							date={(extra.crisisBase && extra.crisisBase.date) || ''}
+							onChange={(v) => this.fetchCrisisBase(v.date, setExtra)} />
 						{this.state.crisisLoading ? <div className="horosa-divi-note" style={{ marginTop: 4 }}>取病始时刻月位…</div> : null}
 					</div>
 				) : null}
 				{this._topicId === 'medication' ? (
 					<div style={{ marginTop: 8 }}>
 						<div className="horosa-field-label">病始日期（危象日参照，可选）</div>
-						<input type="date" className="horosa-native-date" style={{ width: '100%', boxSizing: 'border-box' }}
-							value={(extra.crisisBase && extra.crisisBase.date) || ''}
-							onChange={(e) => this.fetchCrisisBase(e.target.value, setExtra)} />
+						<IsoDateTimeField showTime={false} placeholder="未设(可选)"
+							date={(extra.crisisBase && extra.crisisBase.date) || ''}
+							onChange={(v) => this.fetchCrisisBase(v.date, setExtra)} />
 						{this.state.crisisLoading ? <div className="horosa-divi-note" style={{ marginTop: 4 }}>取病始时刻月位…</div> : null}
 					</div>
 				) : null}
@@ -532,7 +533,7 @@ class ElectionMain extends Component{
 					<div>
 						<div className="horosa-divi-note" style={{ marginBottom: 10 }}>{buildScanRecommendation(r)}「没有完美的择日盘」——以下为窗口内消去法排名，分高者先。</div>
 						{r.map((row, i) => (
-							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px', borderBottom: '1px dashed rgba(148,163,184,.2)' }}>
+							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px', borderBottom: '1px dashed var(--horosa-border)' }}>
 								<span style={{ width: 18, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 								<span style={{ width: 78, fontWeight: 600 }}>{row.label}</span>
 								<span style={{ width: 8, height: 8, borderRadius: 4, background: GRADE_DOT[row.grade] || '#888', flexShrink: 0 }} />
@@ -551,6 +552,7 @@ class ElectionMain extends Component{
 		return (
 			<div style={{ height: '100%', flex: '1 1 auto', minWidth: 0, width: '100%' }}>
 				<DivinationChartShell
+					hostState={this.state}   /* 右栏读本页 state;壳的渲染守卫把函数类属性都当没变,要靠这一项知道本页状态变了 */
 					title="择日盘"
 					wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
 					chartStyle={this.props.chartStyle}

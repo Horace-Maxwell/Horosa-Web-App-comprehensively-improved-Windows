@@ -13,6 +13,7 @@ import { perCharTextProps } from '../../utils/scriptMode';
 import './GuoLaoMoiraWheel.less';
 import { getEffectiveScale, visualFloorPx, fixedPopupFrame } from '../../utils/zoomDomain';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { propsOrStateChanged } from '../../utils/sameContent';
 
 const R = 560;
 // 视窗收紧(1220→1180):Moira 圆盘与天星择日盘直径同步放大约 3.4%;
@@ -636,6 +637,23 @@ function suDmsText(value){
 
 // 宿内度:显示度 − 所落宿的界起点(宿界表与显示度同口径,displayCoord 保证同体系)。
 // 无宿界表回退 null(调用方退回旧行为)。
+// 显示度落在哪一宿(与 suOffsetText 同一张宿界表、同一个度):赤仪「上升取法 · 经典」把上升换成东点黄经后,
+// 宿名也要按换过的度取,不能用后端按真赤经算的 su28,否则宿名与宿内度不同源
+function suNameOf(degree, stars){
+	if(!stars || !stars.length){ return null; }
+	const d = norm(degree);
+	let best = null;
+	let maxStar = null;
+	stars.forEach((s)=>{
+		const r = Number(s.ra);
+		if(!Number.isFinite(r)){ return; }
+		if(r <= d && (best === null || r > Number(best.ra))){ best = s; }
+		if(maxStar === null || r > Number(maxStar.ra)){ maxStar = s; }
+	});
+	const hit = best || maxStar;
+	return hit ? (hit.name || HALF_STELLAR[stars.indexOf(hit)] || null) : null;
+}
+
 function suOffsetText(degree, stars){
 	if(!stars || !stars.length){
 		return null;
@@ -659,12 +677,12 @@ function suOffsetText(degree, stars){
 function speedText(obj){
 	const speed = planetSpeed(obj);
 	const sign = speed >= 0 ? '+' : '-';
-	return `${sign}${Math.abs(speed).toFixed(4)}`;
+	return `${sign}${Math.abs(speed).toFixed(3)}`;
 }
 
 // 黄经 cusps→显示度(主盘/择日盘共用)。黄仪:直用真黄经(与全部环同口径,零变换)。
-// 赤仪:各环画 ra(升=赤道上升 ascmc[4]、顶/降/底=带上升黄纬的投影、行星=真赤经——
-// 三种变换并存,黄经无全局变换可同时钉住四轴),故四轴宫头(1/4/7/10)直接取 chart
+// 赤仪:各环画 ra(四轴 = 黄道上四个点的真赤经,天顶即 ARMC;行星 = 真赤经 —— 后端四轴赤经是真值,
+// 不再是「赤道上升 ascmc[4]」与带假黄纬的投影;黄经无全局变换可同时钉住四轴),故四轴宫头(1/4/7/10)直接取 chart
 // Asc/IC/Desc/MC 的 ra(与「升/顶」标同源严格同度),中间宫头按黄经比例在象限内插;
 // 非象限制(等宫等)退化为整体平移钉 1 宫头。
 function mapCuspsToDisplay(cusps, chart){
@@ -863,7 +881,7 @@ function objectTooltip(item, kind, rules, suStars){
 	const degree = norm(item.degree);
 	const signIdx = signIndexFromDegree(degree);
 	const inSign = degree - signIdx * 30;
-	const su = item.obj && item.obj.su28 ? item.obj.su28 : '';
+	const su = suNameOf(degree, suStars) || (item.obj && item.obj.su28 ? item.obj.su28 : '');
 	// 宿内度=显示度−宿界起点(suStars=当前宿度制宿界,与显示度同口径);无表回退星座内度(旧行为)。
 	const suDeg = suOffsetText(degree, suStars);
 	const label = item.label || item.name || item.id;
@@ -1492,6 +1510,13 @@ class GuoLaoMoiraWheel extends Component{
 		this.hideTooltip = this.hideTooltip.bind(this);
 	}
 
+	// 只在「画出来会不一样」时重排。上层每次重渲都送来内容相同的新对象(本命盘 / 流年盘 / 规则 / 流年参数),
+	// 切回本页时连送四轮,整个轮盘照着重排四遍(那一帧上百毫秒);transitLoading 本组件不读。
+	// 主题色走样式变量,不靠重排;命度取法等会改盘的选项都随新数据进来(内容不同 → 照常重排)。
+	shouldComponentUpdate(nextProps, nextState){
+		return propsOrStateChanged(this.props, nextProps, this.state, nextState, ['transitLoading']);
+	}
+
 	componentDidMount(){
 		this.measureContainer();
 		if(typeof ResizeObserver !== 'undefined' && this.containerRef.current){
@@ -1529,6 +1554,13 @@ class GuoLaoMoiraWheel extends Component{
 		const zScale = getEffectiveScale() || 1;
 		const rect = node.getBoundingClientRect();
 		const fallbackHeight = Number(this.props.height) || 740;
+		// 页签切走时容器塌成 0(不参与排版):那不是真尺寸。已经量到过真尺寸的,这时不拿兜底值重排一遍 ——
+		// 否则切走排一遍(按兜底边长)、切回来再排一遍(按真边长),回访那一帧上百毫秒。从没量到过的(挂载时就不可见)照旧用兜底值。
+		const collapsed = !node.clientWidth && !node.clientHeight && !rect.width && !rect.height;
+		if(collapsed && this._measuredLaidOut){
+			return;
+		}
+		if(!collapsed){ this._measuredLaidOut = true; }
 		const availableWidth = node.clientWidth || (rect.width / zScale) || fallbackHeight;
 		const availableHeight = node.clientHeight || (rect.height / zScale) || fallbackHeight;
 		const nextSide = Math.max(visualFloorPx(280), Math.floor(Math.min(availableWidth, availableHeight)));
@@ -2484,7 +2516,7 @@ const curAge = (this.props.transitParams && this.props.transitParams.date ? birt
 					role="img"
 					aria-label="Moira风格七政星盘"
 				>
-					<rect x={-VIEW / 2} y={-VIEW / 2} width={VIEW} height={VIEW} fill={MOIRA_BG} />
+					<rect x={-VIEW / 2} y={-VIEW / 2} width={VIEW} height={VIEW} fill={MOIRA_BG} stroke="none" />
 					<g className="moira-pale-guides">
 						{Array.from({length: 24}).map((_, idx)=>(
 							<g key={`guide-${idx}`}>{radialLine(-15 * idx, r(GOD_RING_INNER), r(GOD_RING_OUTER), {color: PALE, width: 0.55, opacity: 0.18})}</g>

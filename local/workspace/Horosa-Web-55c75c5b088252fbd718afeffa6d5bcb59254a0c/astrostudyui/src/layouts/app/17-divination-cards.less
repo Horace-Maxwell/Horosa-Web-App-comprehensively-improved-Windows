@@ -179,6 +179,10 @@
 		outline: none;
 	}
 	.horosa-native-date:focus { border-color: var(--horosa-accent, #b8860b); }
+	/* 没填值的日期框,WebKit 把占位(今天的日期)画成「字色保留色相、压暗 66%」:暗色主题字色带一点青(#edf5f2),
+	   压暗后成了一片青绿,和全站金色调不搭。暗色下这类输入框的字色换成同亮度的暖白,占位随之落在暗金一族;填了值的字看不出差别 */
+	/* 类名写两遍 + !important:工作区里暗色输入框的字色是一条带 !important 的通用规则,权重不够压不过它 */
+	:root:not([data-horosa-appearance='light']) .horosa-native-date.horosa-native-date { color: #f1eee6 !important; }
 	.horosa-divi-flag { display: flex; gap: 8px; align-items: flex-start; padding: 7px 2px; border-bottom: 1px dashed var(--horosa-border-soft, rgba(148,163,184,.16)); }
 	.horosa-divi-flag:last-child { border-bottom: none; }
 	.horosa-divi-flag .msg { flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--horosa-text, inherit); }
