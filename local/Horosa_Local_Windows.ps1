@@ -4395,6 +4395,16 @@ try {
       # inside Spring context.refresh (~490ms upstream-measured). Desktop/local uses almost
       # none of them, so defer to first real use. Remove this line to restore eager behavior.
       '-Dhorosa.cache.lazyinit=true',
+      # horosa_local_paramhash_redis_kill_v1 (parity with the desktop shell and the product start script):
+      # the cache helper reads these as -D system properties; the same keys passed as `--key=value` program
+      # arguments below never reach it (no properties file declares them). Without the -D form the Redis layer
+      # stays on, and on a machine without Redis every cached request fails a connect, rebuilds the connection
+      # pool and calls System.gc() twice (two stop-the-world full GCs per request), while an in-heap copy of every
+      # cached response is kept for 24h - under sustained heavy use the 512 MB heap fills up and the backend
+      # stops answering. The on-disk result cache is unaffected and keeps working.
+      '-Dparamhash.cache.redis.enable=false',
+      '-Dcachehelper.needcache=false',
+      '-XX:+DisableExplicitGC',
       # Ownership tag (mirrors service-manager.js horosa-desktop tag): shows up in the process
       # command line, so Test-ProcessOwnedByProject can positively identify THIS launcher's java
       # even when Jar/Dist path markers are defeated by symlinks/UNC remapping.
