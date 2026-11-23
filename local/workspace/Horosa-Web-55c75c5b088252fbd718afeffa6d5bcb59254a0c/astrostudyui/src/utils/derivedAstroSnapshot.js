@@ -44,7 +44,9 @@ export function derivedAstroSnapshotText(rawChart, fields, specialtyLines){
 	return [base, spec].filter(Boolean).join('\n\n');
 }
 
-export function saveDerivedAstroSnapshot(moduleKey, rawChart, fields, specialtyLines){
+// extraMeta.derivedParams:这张派生盘是按什么参数出的(调波数 / 龙盘宫位口径 / 重置地点)。挂载取快照时与「此刻要的参数」比,
+// 对不上就按参数现算,不拿上一次出的那张顶替(如页面出过 H7,要的是 H9)。
+export function saveDerivedAstroSnapshot(moduleKey, rawChart, fields, specialtyLines, extraMeta){
 	try{
 		saveModuleAISnapshotLazy(moduleKey, ()=>derivedAstroSnapshotText(rawChart, fields, specialtyLines), {
 			date: fv(fields, 'date'),
@@ -52,6 +54,7 @@ export function saveDerivedAstroSnapshot(moduleKey, rawChart, fields, specialtyL
 			zone: fv(fields, 'zone'),
 			lon: fv(fields, 'lon'),
 			lat: fv(fields, 'lat'),
+			...(extraMeta && typeof extraMeta === 'object' ? extraMeta : {}),
 		});
 	}catch(e){ /* 快照失败不影响页面主流程 */ }
 }

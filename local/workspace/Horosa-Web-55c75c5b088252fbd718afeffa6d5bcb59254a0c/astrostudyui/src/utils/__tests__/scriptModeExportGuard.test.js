@@ -19,6 +19,7 @@ import { applyScriptMode, SCRIPT_HANT, __resetScriptModeForTest, __setConverterF
 
 const fs = require('fs');
 const path = require('path');
+const { readSource, isSourceSetPart, facadeOf } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '../..');
 const EXPORT_RE = /html2canvas\s*\(|['"]html-to-image['"]|\bto(?:Png|Jpeg|Canvas|Svg)\s*\(|\.toDataURL\s*\(|(?<!Packer)\.toBlob\s*\(|serializeToString\s*\(/;
@@ -31,7 +32,7 @@ const EXEMPT = {
 	'utils/scriptMode.js': '单源件本身(注释里提到这些名字)',
 };
 // 已知导出点(防正则静默失效)
-const KNOWN_EXPORTERS = ['utils/aiExport/output.js', 'components/fengshui/fengshuiEngine.js'];
+const KNOWN_EXPORTERS = ['utils/aiExport.js', 'components/fengshui/fengshuiEngine.js'];   // 拆成子模块的按门面名记(导出出口在 aiExport/output.js、风水引擎导出在 engine/exportCards.js)
 
 function walk(dir, out){
 	fs.readdirSync(dir).forEach((f)=>{
@@ -49,10 +50,12 @@ function walk(dir, out){
 const stripComments = (code)=>code.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((ln)=>ln.replace(/(^|[^:'"`\\])\/\/.*$/, '$1')).join('\n');
 
 describe('导出 / 截图经 withOriginalScript(界面简繁)', () => {
+	// 子模块折回门面:「这个组件的导出 / 截图经 withOriginalScript」按整个组件判(类方法按职责拆在子文件里时,
+	// 截图调用与包它的 withOriginalScript 常在同一个子文件、也可能分开),拆成子模块的门面按全集读,豁免表记门面名
 	const found = {};
-	walk(SRC, []).forEach((file)=>{
+	walk(SRC, []).filter((file)=>!isSourceSetPart(file)).forEach((file)=>{
 		const rel = path.relative(SRC, file).split(path.sep).join('/');
-		const code = stripComments(fs.readFileSync(file, 'utf8'));
+		const code = stripComments(readSource(file));
 		if(EXPORT_RE.test(code)){ found[rel] = /\bwithOriginalScript\s*\(/.test(code); }
 	});
 
@@ -145,7 +148,8 @@ describe('导出 / 截图经 withOriginalScript · 调用点级', () => {
 		const bad = [];
 		walk(SRC, []).forEach((file)=>{
 			const rel = path.relative(SRC, file).split(path.sep).join('/');
-			if(EXEMPT[rel]){ return; }
+			const unit = facadeOf(file);
+			if(EXEMPT[rel] || (unit && EXEMPT[path.relative(SRC, unit).split(path.sep).join('/')])){ return; }   // 文件级豁免按组件(门面名)认
 			const code = fs.readFileSync(file, 'utf8');
 			if(!EXPORT_RE.test(stripComments(code))){ return; }
 			const list = unguardedExportCalls(code);

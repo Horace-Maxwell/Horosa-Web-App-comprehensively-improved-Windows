@@ -21,7 +21,7 @@ import fs from 'fs';
 import path from 'path';
 
 const parser = require('@babel/parser');
-const { readSource } = require('../../utils/__tests__/helpers/sourceSet');
+const { readSource, isSourceSetPart, sourceSetFiles } = require('../../utils/__tests__/helpers/sourceSet');
 const { divinationDirs, DIVINATION_ALSO_DIRS } = require('../../utils/__tests__/helpers/divinationDirs');
 
 const COMPONENTS = path.join(__dirname, '..');
@@ -244,15 +244,23 @@ describe('静态守卫:卜类页的参照盘与起课结果按起课签名配对
 		buDirs.forEach((d)=>{
 			const dir = path.join(COMPONENTS, d);
 			if(!fs.existsSync(dir)){ return; }
-			listJsFiles(dir).forEach((f)=>{
+			// 子模块折回门面:⑤a–⑤e 都按「整个组件」成立(异步取起课结果的方法、读参照盘的渲染、兜底读、失败处理常分在不同子文件里 ——
+			// 类方法按职责拆出后正是这样),逐文件扫会让跨文件的那一对判据静默缺席;门面按全集读
+			listJsFiles(dir).filter((f)=>!isSourceSetPart(f)).forEach((f)=>{
 				n += 1;
 				const rel = path.relative(COMPONENTS, f).split(path.sep).join('/');
+				// 全集里的相对引入按写着它的那个文件解析:试全集里每个文件的目录,解析得到真实文件的那一个为准
+				const dirs = [...new Set(sourceSetFiles(f).map((x)=>path.dirname(x)))];
 				const selfKeyingImport = (spec)=>{
 					if(!/^\./.test(spec)){ return false; }
-					const target = path.relative(COMPONENTS, path.resolve(path.dirname(f), spec)).split(path.sep);
-					return target[0] !== '..' && buDirs.includes(target[0]);
+					return dirs.some((dd)=>{
+						const abs = path.resolve(dd, spec);
+						if(!['', '.js', '/index.js'].some((ext)=>fs.existsSync(`${abs}${ext}`) && fs.statSync(`${abs}${ext}`).isFile())){ return false; }
+						const target = path.relative(COMPONENTS, abs).split(path.sep);
+						return target[0] !== '..' && buDirs.includes(target[0]);
+					});
 				};
-				scanDivinationCastSource(fs.readFileSync(f, 'utf8'), { selfKeyingImport }).forEach((h)=>bad.push(`${rel}:${h.line} ${h.rule} ${h.field}`));
+				scanDivinationCastSource(readSource(f), { selfKeyingImport }).forEach((h)=>bad.push(`${rel}:${h.line} ${h.rule} ${h.field}`));
 			});
 		});
 		expect(buDirs.length).toBeGreaterThanOrEqual(16);

@@ -42,7 +42,8 @@ describe('天文馆时间输入面板挂 body', ()=>{
 		expect(methodBody('_onTimeEditorDocMouseDown')).toMatch(/this\._timeEditorRef\.current/);
 	});
 	test('面板层级压过左右栏、但低于 antd 浮层(1050):面板里下拉的选项列表也挂 body,不能被面板自己盖住', ()=>{
-		const less = fs.readFileSync(path.resolve(__dirname, '..', 'planetarium.less'), 'utf8');
+		// 层级写成命名令牌(var(--horosa-z-floating-panel)),解析回数值再比
+		const less = require('../../../utils/__tests__/helpers/cssTokens').resolveTokens(fs.readFileSync(path.resolve(__dirname, '..', 'planetarium.less'), 'utf8'));
 		const m = less.match(/\.planetarium-time-editor \{[^}]*?z-index: (\d+);/);
 		expect(m).toBeTruthy();
 		const z = Number(m[1]);

@@ -5,8 +5,10 @@
 // 三方库统一 interop 兜底(named/default/CJS 任意形态;jest 与 webpack 解析差异下都稳——与 jspdf 的兜底同一写法)。
 import * as _markedMod from 'marked';
 import * as _dompurifyMod from 'dompurify';
+// LaTeX 数学公式渲染（$...$ 行内 / $$...$$ 块级）。
 import * as _katexMod from 'katex';
 import 'katex/dist/katex.min.css';
+// 仅引「common」子集（~50KB gzipped 含 js/ts/py/java/go/rust/sh/sql/json/yaml/xml/html/css/md/c/cpp/cs/php/rb/swift/kotlin 等），不引全语言。
 import * as _hljsMod from 'highlight.js/lib/common';
 import 'highlight.js/styles/atom-one-dark.css';
 import { normalizeMarkdown } from './reportMarkdownNormalize';

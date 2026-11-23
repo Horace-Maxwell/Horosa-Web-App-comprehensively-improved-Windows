@@ -18,12 +18,15 @@ const EXIT = { OK: 0, ROW_FAILURES: 1, USAGE: 2, NOT_RUNNING: 3, FAILED: 5, INTE
 const TOOL = 'cast_technique';
 const MAX_CHARS_CAP = 60000;   // 与 cast_technique 的 maxChars 上限同值(批量缺省取上限:要全文,不要对话里那份 7000 字的截断)
 const PROBE_CASE = { kind: 'natal', birth: '2000-01-01 12:00', zone: '+08:00', gpsLat: 39.9, gpsLon: 116.4, gender: 'male', name: '探针' };
+// 按起课时间起盘(--kind timepoint)时的探针例:同一刻、同一地,只是当作起课时间
+const PROBE_TIMEPOINT = { kind: 'timepoint', divTime: '2000-01-01 12:00', zone: '+08:00', gpsLat: 39.9, gpsLon: 116.4, gender: 'male', name: '探针' };
+const KINDS = ['natal', 'timepoint'];
 // 输入列名 → 字段(不分大小写;同一字段按表里的先后取第一个出现的列;--map 字段=列名 覆盖)。
 // 兼容名人库导出 / 命盘记录的键(birth · zone · gpsLat / gpsLon · lat / lon 罗盘串 · gender 1/0/-1 · name · pos · cid)
 const FIELD_ALIASES = {
 	id: ['id', 'cid', 'key', 'uid', '编号', '序号'],
 	name: ['name', 'title', 'name_zh', '姓名', '名字', '名称'],
-	birth: ['birth', 'birth_chart', 'birthtime', 'birth_datetime', 'datetime', 'date_time', '出生时间', '生辰', '出生日期时间'],
+	birth: ['birth', 'birth_chart', 'birthtime', 'birth_datetime', 'datetime', 'date_time', '出生时间', '生辰', '出生日期时间', 'divTime', 'div_time', 'moment', '起课时间', '起卦时间'],
 	date: ['date', 'birth_date', 'birthdate', 'dob', '出生日期', '日期'],
 	time: ['time', 'birth_time', 'tob', '出生时刻', '时刻', '时间'],
 	zone: ['zone', 'tz', 'timezone', 'time_zone', 'utc_offset', 'offset', '时区'],
@@ -34,6 +37,8 @@ const FIELD_ALIASES = {
 	calendar: ['calendar', '历法'],
 };
 const FIELDS = Object.keys(FIELD_ALIASES);
+// 每技法时限的缺省值;调大它时单次请求的等待随之放宽(按与缺省值的比例)
+const DEFAULT_TIMEOUT_MS = 120000;
 
 class BatchError extends Error{ constructor(code, message){ super(message); this.exitCode = code; } }
 
@@ -56,9 +61,12 @@ function usage(){
 		'  --celebrities               输入 = 内置名人库(约 5.9 万例,Astro-Databank AA / A 级;时区按库里原值,含地方平时的秒)',
 		'  --rodden AA,A · --with-time 名人库筛选:Rodden 评级 / 只要有出生时刻的',
 		'  --offset N · --limit N      跳过前 N 例 / 只跑 N 例',
+		'  --kind natal|timepoint      每一行是什么:natal(缺省)= 一个人的出生资料,起命盘类技法;timepoint = 一个起课时间(+ 地点),',
+		'                              起按时间起盘的技法(六壬 / 奇门 / 太乙 / 金口诀 / 三式合一 / 卜卦盘 / 世俗盘 / 黄历 / 节气 …;--kind timepoint --list-techniques 看全部)。',
+		'                              列名照旧(时间列认 birth / datetime / date + time 等)。要用户亲手摇出结果的(六爻铜钱、塔罗、灵棋)不在内:不能凭时间代起',
 		'',
 		'技法与设置:',
-		'  -t, --techniques a,b|all    技法键(./horosa batch --list-techniques 看全部;all = 全部能按出生资料起盘的)',
+		'  -t, --techniques a,b|all    技法键(./horosa batch --list-techniques 看全部;all = 这一种来源下全部起得出来的)',
 		'  --options JSON|@文件         各技法的设置覆盖 {"技法": {键: 值}};键 / 值域同 describe_settings(facet=mount),与单例 options 同义',
 		'  --sections JSON|@文件        各技法只取哪几段 {"技法": ["段名", …]}(与单例 sections 同义;全部技法全文每例约 0.6 MB,6 万例要几十 GB)',
 		'  --max-chars N               每技法正文上限(缺省 60000 = 单例的上限;超出照单例口径截断并标 truncated)',
@@ -71,9 +79,15 @@ function usage(){
 		'  -j, --concurrency N         并行子进程数(缺省 = 2 × 计算服务套数;每个约 0.5 GB 内存)',
 		'  --backends J:P[,J:P…]       多套本机计算服务(Java端口:Python端口),子进程轮流分到各套;一个 Python 排盘服务只吃满一个核,',
 		'                              多起几套才快(bash scripts/linux/backends.sh start --pairs N 会打印这一串)',
-		'  --timeout 秒                单技法起盘上限(缺省 120)',
+		'  --timeout 秒                单技法起盘上限(缺省 120,最多 3600);很慢的机器上调大它,单次请求的等待按同一比例放宽',
 		'  --recycle N                 每个子进程跑 N 例后换新(缺省 2000;防长跑内存爬升)',
+		'  --now 时刻                  钉住「此刻」:各技法取当前时刻的地方(导出时刻、推运类缺省的目标时刻、今年 / 今日)一律按它算,',
+		'                              同一批命例在任何机器、任何时候重跑都得到逐字相同的结果。写法 2030-06-01 12:00[:00](按 --tz 的时区读),',
+		'                              或带偏移的 2030-06-01T12:00:00+08:00 / …Z。不给 = 用真实的当前时刻(结果随跑的那一分钟变)',
+		'  --tz 时区                   子进程的时区(IANA 名,如 Asia/Shanghai、UTC):正文里的时刻按它显示。给了 --now 时缺省 Asia/Shanghai,',
+		'                              否则缺省跟本机',
 		'  --python-only               只用 Python 排盘服务(不连 Java 后端;Java 没开时自动进入):要 Java 的技法 all 时略过、明点的开跑前就停',
+		'  --no-settings               不带本机存的技法设置:各技法按出厂缺省起,口径只认 --options(换一台机器 / 换一个数据目录结果不变;命题验证恒用它)',
 		'  --no-probe                  不先用探针例试跑(缺省先试:all 里略过不能按出生资料起盘的技法,明点的技法起不出来就直接停)',
 		'  --progress / --no-progress  进度(缺省:标准错误是终端才显示)',
 		'',
@@ -84,7 +98,7 @@ function usage(){
 function parseBatchArgs(argv){
 	const o = { input: null, format: null, delimiter: null, map: {}, celebrities: false, rodden: null, withTime: false, offset: 0, limit: null,
 		techniques: null, options: {}, sections: null, maxChars: MAX_CHARS_CAP, splitSections: false, out: null, resume: false, retryFailed: false, overwrite: false,
-		concurrency: null, backendPairs: null, timeoutSec: 120, recycle: 2000, pythonOnly: false, probe: true, progress: null, list: false, help: false };
+		concurrency: null, backendPairs: null, timeoutSec: DEFAULT_TIMEOUT_MS / 1000, recycle: 2000, pythonOnly: false, probe: true, progress: null, list: false, help: false, now: null, tz: null, kind: 'natal' };
 	const a = argv.slice();
 	const val = (i, name)=>{ if(i + 1 >= a.length){ throw new BatchError(EXIT.USAGE, `${name} 后面要跟一个值`); } return a[i + 1]; };
 	const posInt = (v, name, min, max)=>{ const n = Number(v); if(!Number.isInteger(n) || n < min || n > max){ throw new BatchError(EXIT.USAGE, `${name} 要 ${min}..${max} 的整数`); } return n; };
@@ -95,6 +109,7 @@ function parseBatchArgs(argv){
 		switch(k){
 		case '-h': case '--help': o.help = true; break;
 		case '--list-techniques': o.list = true; break;
+		case '--kind': { const v = `${val(i, k)}`.trim().toLowerCase(); if(KINDS.indexOf(v) < 0){ throw new BatchError(EXIT.USAGE, `--kind 只认 ${KINDS.join(' / ')}(这里是「${v}」)`); } o.kind = v; i++; break; }
 		case '--format': o.format = `${val(i, k)}`.toLowerCase(); i++; if(['csv', 'tsv', 'jsonl', 'json'].indexOf(o.format) < 0){ throw new BatchError(EXIT.USAGE, '--format 只能是 csv / tsv / jsonl / json'); } break;
 		case '--delimiter': { const d = val(i, k); i++; o.delimiter = d === 'tab' || d === '\\t' ? '\t' : d; if(o.delimiter.length !== 1){ throw new BatchError(EXIT.USAGE, '--delimiter 要一个字符(或 tab)'); } break; }
 		case '--map': {
@@ -143,9 +158,11 @@ function parseBatchArgs(argv){
 		case '--retry-failed': o.resume = true; o.retryFailed = true; break;
 		case '--overwrite': o.overwrite = true; break;
 		case '-j': case '--concurrency': o.concurrency = posInt(val(i, k), k, 1, 64); i++; break;
-		case '--timeout': o.timeoutSec = posInt(val(i, k), k, 5, 600); i++; break;
+		case '--timeout': o.timeoutSec = posInt(val(i, k), k, 5, 3600); i++; break;
 		case '--recycle': o.recycle = posInt(val(i, k), k, 1, 1e9); i++; break;
 		case '--python-only': o.pythonOnly = true; break;
+		case '--now': o.now = `${val(i, k)}`.trim(); i++; break;
+		case '--tz': o.tz = `${val(i, k)}`.trim(); i++; break;
 		case '--backends': {
 			const { parsePort } = require('./ports');
 			const spec = `${val(i, k)}`; i++;
@@ -160,6 +177,7 @@ function parseBatchArgs(argv){
 			break;
 		}
 		case '--no-probe': o.probe = false; break;
+		case '--no-settings': o.noSettings = true; break;
 		case '--progress': o.progress = true; break;
 		case '--no-progress': case '--quiet': case '-q': o.progress = false; break;
 		default:
@@ -170,12 +188,82 @@ function parseBatchArgs(argv){
 	}
 	if(o.help || o.list){ return o; }
 	if(o.celebrities && o.input !== null){ throw new BatchError(EXIT.USAGE, '--celebrities 与命例文件只能二选一'); }
+	if(o.celebrities && o.kind !== 'natal'){ throw new BatchError(EXIT.USAGE, '--celebrities(名人的出生资料)只能按 --kind natal 起盘'); }
 	if(!o.celebrities && o.input === null){ throw new BatchError(EXIT.USAGE, '要给命例文件(或 - 读标准输入,或 --celebrities 用内置名人库)'); }
 	if(!o.celebrities && (o.rodden || o.withTime)){ throw new BatchError(EXIT.USAGE, '--rodden / --with-time 只对 --celebrities 有用'); }
 	if(!o.techniques || !o.techniques.length){ throw new BatchError(EXIT.USAGE, '要给 --techniques(技法键用逗号隔开,或 all;./horosa batch --list-techniques 看全部)'); }
 	if(o.techniques.indexOf('all') >= 0 && o.techniques.length > 1){ throw new BatchError(EXIT.USAGE, '--techniques all 不与具体技法混写'); }
 	if(new Set(o.techniques).size !== o.techniques.length){ throw new BatchError(EXIT.USAGE, '--techniques 里有重复的技法'); }
+	o.clock = resolveClock(o.now, o.tz);
 	return o;
+}
+
+// ───────────────────────── 钉住「此刻」与时区 ─────────────────────────
+// 验证要能复现:同一批命例重跑,结果不该随「跑的那一分钟」「机器设的时区」而变。--now 把子进程里的时钟钉在一个时刻,
+// --tz 把子进程的时区钉住(同一时刻在不同时区写出来的钟点不同)。两者都记进汇总,别人照着重跑。
+
+// 某时区在某一时刻比 UTC 快多少毫秒(东为正)
+function zoneOffsetMs(epochMs, tz){
+	const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(epochMs));
+	const v = {}; parts.forEach((x)=>{ v[x.type] = x.value; });
+	const wall = Date.UTC(Number(v.year), Number(v.month) - 1, Number(v.day), Number(v.hour), Number(v.minute), Number(v.second));
+	return wall - Math.floor(epochMs / 1000) * 1000;
+}
+
+// --now / --tz → { ms, iso, tz, given } 或 null(都没给)。只给 --tz = 只钉时区。
+function resolveClock(now, tz){
+	if(!now && !tz){ return null; }
+	const zone = tz || (now ? 'Asia/Shanghai' : null);
+	try{ new Intl.DateTimeFormat('en-US', { timeZone: zone }); }catch(e){ throw new BatchError(EXIT.USAGE, `--tz ${zone} 不是认得的时区名(写 IANA 名,如 Asia/Shanghai、America/New_York、UTC)`); }
+	if(!now){ return { ms: null, iso: null, tz: zone, given: null }; }
+	const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?\s*(Z|[+-]\d{2}:?\d{2})?$/i.exec(now);   // 秒后可带毫秒(机器写出的 ISO 时刻),毫秒不计
+	if(!m){ throw new BatchError(EXIT.USAGE, `--now ${now} 看不懂(写 2030-06-01 12:00 或 2030-06-01T12:00:00+08:00)`); }
+	const [y, mo, d, h, mi, sec] = [m[1], m[2], m[3], m[4], m[5], m[6] || '0'].map(Number);
+	const wall = Date.UTC(y, mo - 1, d, h, mi, sec);
+	const back = new Date(wall);
+	if(back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d || h > 23 || mi > 59 || sec > 59){ throw new BatchError(EXIT.USAGE, `--now ${now} 不是一个存在的时刻`); }
+	let ms;
+	if(m[7]){
+		const z = m[7].toUpperCase();
+		const off = z === 'Z' ? 0 : (z[0] === '-' ? -1 : 1) * (Number(z.slice(1, 3)) * 60 + Number(z.slice(-2))) * 60000;
+		ms = wall - off;
+	}else{
+		// 没带偏移:按 --tz 的钟面读(夏令时切换处再校一次)
+		ms = wall - zoneOffsetMs(wall, zone);
+		ms = wall - zoneOffsetMs(ms, zone);
+	}
+	return { ms, iso: new Date(ms).toISOString(), tz: zone, given: now };
+}
+
+// 钉住的时刻随请求头带给计算服务(Java 后端把它放进发给排盘引擎的正文;直连排盘服务的接口直接读头)
+function clockHeaders(clock){
+	if(!clock || !Number.isFinite(clock.ms)){ return null; }
+	const h = { 'X-Horosa-Now': `${Math.round(clock.ms)}` };
+	if(clock.tz){ h['X-Horosa-Now-Offset'] = `${Math.round(zoneOffsetMs(clock.ms, clock.tz) / 60000)}`; }
+	return h;
+}
+
+// 子进程里把时钟钉住:new Date() / Date.now() 回钉住的那一刻;带参数的 new Date(…)、Date.parse、Date.UTC 照常。
+// 时间不是完全冻结:每过真实一秒只走一毫秒 —— 取到的「此刻」实际不变(到秒都相同),而时间仍单调前进,
+// 代码里「等到某个时刻为止」的循环不会原地打转(整例另有父进程的硬超时兜底)。每一格起算前调 reset() 回到钉住的那一刻,
+// 所以每一格看到的时刻与这个子进程先前算过多少例无关。
+function installPinnedClock(ms){
+	const RealDate = Date;
+	// 走得多慢按单调钟量,不按系统时钟:系统时钟会被校时往回拨(虚拟机里常见),拨回去一点「此刻」就成了上一分钟的 59.999 秒
+	const mono = ()=>Number(process.hrtime.bigint() / 1000000n);
+	let anchor = mono();
+	const nowMs = ()=>ms + Math.max(0, Math.floor((mono() - anchor) / 1000));
+	function PinnedDate(...args){
+		if(!new.target){ return new RealDate(nowMs()).toString(); }
+		return args.length === 0 ? new RealDate(nowMs()) : new RealDate(...args);
+	}
+	PinnedDate.prototype = RealDate.prototype;
+	Object.setPrototypeOf(PinnedDate, RealDate);
+	PinnedDate.now = nowMs;
+	PinnedDate.parse = RealDate.parse;
+	PinnedDate.UTC = RealDate.UTC;
+	globalThis.Date = PinnedDate;
+	return { reset(){ anchor = mono(); }, real: ()=>RealDate.now() };
 }
 
 // ───────────────────────── 值归一(纯函数)─────────────────────────
@@ -256,8 +344,11 @@ function resolveColumns(headers, map, lenient){
 	return cols;
 }
 
-// 一行输入 → { key, id, source } 或 { key, error }。source = cast_technique 的 natal 源(与单例同形)
-function rowToTask(row, cols, n){
+// 一行输入 → { key, id, source } 或 { key, error }。source = cast_technique 的 natal 源(与单例同形);
+// kind = 'timepoint' 时这一行是一个起课时间:同样的列,时间放进 divTime、源写成 timepoint
+function rowToTask(row, cols, n, kind){
+	const timepoint = kind === 'timepoint';
+	const what = timepoint ? '起课时间' : '出生时间';
 	const get = (f)=>(cols[f] !== undefined ? row[cols[f]] : undefined);
 	const id = blank(get('id')) ? null : `${get('id')}`.trim();
 	const key = id !== null ? id : `#${n}`;
@@ -266,11 +357,11 @@ function rowToTask(row, cols, n){
 	if(!birth){
 		const d = blank(get('date')) ? '' : `${get('date')}`.trim();
 		const t = blank(get('time')) ? '' : `${get('time')}`.trim();
-		if(!d){ return fail('没有出生时间(birth 列,或 date + time 两列)'); }
+		if(!d){ return fail(`没有${what}(birth 列,或 date + time 两列)`); }
 		birth = t ? `${d} ${t}` : d;
 	}
-	if(Array.from(birth).length > 60){ return fail('出生时间太长(超过 60 字)'); }
-	const source = { kind: 'natal', birth };
+	if(Array.from(birth).length > 60){ return fail(`${what}太长(超过 60 字)`); }
+	const source = timepoint ? { kind: 'timepoint', divTime: birth } : { kind: 'natal', birth };
 	const cal = blank(get('calendar')) ? '' : `${get('calendar')}`.trim().toLowerCase();
 	if(cal){
 		if(['lunar', '农历', '阴历', '農曆', '陰曆'].indexOf(cal) >= 0){ source.calendar = 'lunar'; }
@@ -454,8 +545,10 @@ async function* taskStream(o, rawRows){
 		if(!cols || item.headers !== cols.__headers){
 			// JSONL / JSON 每行键可能不同:按本行的键重新对应(CSV 只有一个表头,对应一次);第一行缺 --map 的列 = 列名写错,整批停
 			const c = resolveColumns(item.headers, o.map, !!cols);
+			// 起课时间表里常见只有一列「time / 时间」写完整时刻(没有 date 列):当作时间列用
+			if(o.kind === 'timepoint' && c.birth === undefined && c.date === undefined && c.time !== undefined){ c.birth = c.time; delete c.time; }
 			if(!cols){
-				if(c.birth === undefined && c.date === undefined){ throw new BatchError(EXIT.USAGE, `输入里找不到出生时间列(认 birth / date+time 等;有:${item.headers.slice(0, 30).join(', ')});用 --map birth=列名 指定`); }
+				if(c.birth === undefined && c.date === undefined){ throw new BatchError(EXIT.USAGE, `输入里找不到${o.kind === 'timepoint' ? '起课时间' : '出生时间'}列(认 birth / date+time 等;有:${item.headers.slice(0, 30).join(', ')});用 --map birth=列名 指定`); }
 			}
 			cols = c; Object.defineProperty(cols, '__headers', { value: item.headers, enumerable: false });
 		}
@@ -467,7 +560,7 @@ async function* taskStream(o, rawRows){
 		emitted += 1;
 		const t = cols.__missing.length
 			? { key: id !== null ? id : `#${n}`, id, n, error: { code: 'E_INPUT_INVALID', message: `这一行没有 --map 指定的列:${cols.__missing.join(', ')}` } }
-			: rowToTask(item.row, cols, n);
+			: rowToTask(item.row, cols, n, o.kind);
 		if(key !== null && key !== t.key){ t.dupOf = t.key; t.key = key; }
 		yield t;
 	}
@@ -636,7 +729,7 @@ function createPool(n, init, hooks){
 	let alive = true;
 	const spawnOne = (slot)=>new Promise((resolve, reject)=>{
 		const home = makeWorkerHome(init.tmpRoot, slot, init.settingsFile);
-		const child = fork(__filename, ['--batch-worker'], { env: { ...(init.envForSlot ? init.envForSlot(slot) : process.env), HOROSA_HOME: home }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+		const child = fork(__filename, ['--batch-worker'], { env: { ...(init.envForSlot ? init.envForSlot(slot) : process.env), HOROSA_HOME: home, ...(init.worker && init.worker.clock && init.worker.clock.tz ? { TZ: init.worker.clock.tz } : {}) }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
 		const w = { slot, child, home, busy: null, served: 0, ready: false };
 		const onLog = (b)=>{ if(h.log){ h.log(slot, `${b}`); } };
 		child.stdout.on('data', onLog); child.stderr.on('data', onLog);
@@ -723,7 +816,7 @@ async function workerMain(){
 	process.on('disconnect', ()=>process.exit(0));
 	const toErr = (...a)=>process.stderr.write(`${require('util').format(...a)}\n`);
 	console.log = toErr; console.info = toErr; console.debug = toErr;   // eslint-disable-line no-console
-	let rt = null; let init = null;
+	let rt = null; let init = null; let clock = null; let ledger = null;
 	const usage = new Map();   // 技法 → 用到的计算服务(java / python)
 	let current = null;
 	process.on('message', async (m)=>{
@@ -732,15 +825,31 @@ async function workerMain(){
 		if(m.type === 'init'){
 			init = m.init;
 			try{
+				// 钉住的时钟要先于运行时装好:模块加载时就取「此刻」的代码也看到同一刻
+				if(init.clock && Number.isFinite(init.clock.ms)){ clock = installPinnedClock(init.clock.ms); }
+				// 每技法的时限调大了(慢机器)→ 运行时里单次请求的等待按同一比例放宽(缺省时限下 = 1,不变);见 utils/request.js::requestTimeoutScale
+				globalThis.__HOROSA_REQUEST_TIMEOUT_SCALE__ = Math.max(1, init.timeoutMs / DEFAULT_TIMEOUT_MS);
 				const { createRuntime } = require('./runtime');
 				rt = await createRuntime({ quiet: true, skipStaleCheck: true });
-				installFetchPolicy(rt, init, ()=>current, usage);
+				ledger = createBackendLedger();
+				installFetchPolicy(rt, init, ()=>current, usage, ledger);
 				process.send({ type: 'ready' });
 			}catch(e){ process.send({ type: 'fatal', message: e && e.message ? e.message : `${e}` }); }
 			return;
 		}
 		if(m.type === 'init-update'){ init = m.init; return; }
 		if(m.type === 'list'){
+			if(m.kind === 'timepoint'){
+				// 按起课时间起盘的技法:取工具目录里来源含 timepoint 的(与 list_techniques 同一份;要用户亲手摇出结果的不在内)
+				let list = [];
+				try{
+					const r = await rt.lib.runTool('list_techniques', {}, { origin: 'mcp', clientName: 'batch', requestId: 'batch-list' });
+					const all = r && r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : [];
+					list = all.filter((x)=>Array.isArray(x.sources) && x.sources.indexOf('timepoint') >= 0).map((x)=>({ key: x.key, label: x.label }));
+				}catch(e){ list = []; }
+				process.send({ type: 'list:reply', techniques: list });
+				return;
+			}
 			const opts = rt.lib.listAnalysisTechniqueOptions({ sourceType: 'chart' });
 			process.send({ type: 'list:reply', techniques: opts.map((x)=>({ key: x.value, label: x.label })) });
 			return;
@@ -751,7 +860,7 @@ async function workerMain(){
 			return;
 		}
 		if(m.type === 'task'){
-			const out = await runCase(rt.lib, m.task, init, (t)=>{ current = t; });
+			const out = await runCase(rt.lib, m.task, init, (t)=>{ current = t; }, clock, ledger);
 			current = null;
 			process.send({ type: 'result', seq: m.seq, out });
 		}
@@ -760,31 +869,73 @@ async function workerMain(){
 
 // 计算服务用量按技法记(汇总里写明哪些技法用到了 Java / Python);--python-only 时发往 Java 后端的请求就地回 503,
 // 不连接、不重试(否则每个要 Java 的技法都要等连接重试的几十秒)—— 这些技法如实报失败
-function installFetchPolicy(rt, init, currentOf, usage){
+// 一次起盘途中发给计算服务的请求的成败台账。
+// 不少技法取数失败时不报错、照常出正文(少一层数据,页面上下次自愈)—— 批量里这意味着同一例在机器忙的时候结果会悄悄不同。
+// 所以:起盘回报成功、但途中有请求最终失败(连不上 / 超时被掐 / 5xx)的,这一格不采用(记 E_BACKEND_PARTIAL,可重算)。
+// 同一个请求(地址 + 正文相同)后来成功了 = 重试成功,不算。reset() 之后才发出的请求才计入本次(上一技法留下的迟到请求不算到这一技法头上)。
+function createBackendLedger(){
+	let epoch = 0;
+	const failed = new Map();
+	return {
+		reset(){ epoch += 1; failed.clear(); },
+		begin(){ return epoch; },
+		fail(at, key, url, why){ if(at === epoch && failed.size < 200){ failed.set(key, { path: `${url}`.replace(/^https?:\/\/[^/]+/, '').split('?')[0], why: `${why}`.slice(0, 80) }); } },
+		ok(at, key){ if(at === epoch){ failed.delete(key); } },
+		unrecovered(){ return Array.from(failed.values()); },
+	};
+}
+// 回报成功但途中有请求失败 → 改记失败(纯函数)
+function guardPartial(r, failures){
+	if(!r || !r.ok || !failures || !failures.length){ return r; }
+	const f = failures[0];
+	return { ok: false, code: 'E_BACKEND_PARTIAL', retryable: true,
+		message: `起盘途中有 ${failures.length} 个计算服务请求失败(${f.path}:${f.why}),结果可能不全,不采用;服务正常后 --resume --retry-failed 重算` };
+}
+
+function installFetchPolicy(rt, init, currentOf, usage, ledger){
 	const javaRoot = `${rt.serverRoot}`.replace(/\/+$/, '');
 	const chartRoot = `${rt.chartRoot}`.replace(/\/+$/, '');
 	const orig = globalThis.fetch;
+	const nowHeaders = clockHeaders(init.clock);
+	const tracked = (url, opts, p)=>{
+		if(!ledger){ return p; }
+		const at = ledger.begin();
+		const key = `${url}\n${opts && typeof opts.body === 'string' ? opts.body : ''}`;
+		p.then((resp)=>{ if(resp && resp.status >= 500){ ledger.fail(at, key, url, `HTTP ${resp.status}`); }else{ ledger.ok(at, key); } },
+			(err)=>{ ledger.fail(at, key, url, (err && err.name === 'AbortError') ? '超时或被取消' : ((err && (err.cause && err.cause.code)) || (err && err.message) || '连接失败')); });
+		return p;
+	};
 	const wrapped = (input, opts)=>{
 		const url = typeof input === 'string' ? input : (input && input.url) || `${input}`;
 		const which = url.indexOf(javaRoot) === 0 ? 'java' : url.indexOf(chartRoot) === 0 ? 'python' : null;
 		const t = currentOf();
 		if(which && t){ if(!usage.has(t)){ usage.set(t, new Set()); } usage.get(t).add(which); }
 		if(which === 'java' && init.pythonOnly){
+			// 就地回的 503 是「这一批说好了不用 Java」,不进失败台账(要 Java 的技法自己会如实失败)
 			return Promise.resolve(new Response(JSON.stringify({ ResultCode: 503, Result: null, ResultMessage: 'Java 后端未启用(--python-only)' }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
 		}
-		return orig(input, opts);
+		// 时钟钉住时,把这一刻随请求带给计算服务:它们「没给目标时刻就取当前时间」的地方改用这一刻(不读各自机器的系统时钟)
+		if(which && nowHeaders){
+			const h = new Headers((opts && opts.headers) || (typeof input !== 'string' && input && input.headers) || undefined);
+			Object.keys(nowHeaders).forEach((k)=>h.set(k, nowHeaders[k]));
+			return tracked(url, opts, orig(input, { ...(opts || {}), headers: h }));
+		}
+		return which ? tracked(url, opts, orig(input, opts)) : orig(input, opts);
 	};
 	globalThis.fetch = wrapped;
 	try{ if(global.window){ global.window.fetch = wrapped; } }catch(e){ /* noop */ }
 }
 
 // 一例:按技法顺序逐个调 cast_technique(与单例调用同一参数:technique / source / options / maxChars),回包原样收下
-async function runCase(lib, task, init, setCurrent){
-	const t0 = Date.now();
+async function runCase(lib, task, init, setCurrent, clock, ledger){
+	const realNow = clock ? clock.real : Date.now;   // 耗时按真实时钟记(时钟被钉住时 Date.now() 不走)
+	const t0 = realNow();
 	const results = {};
 	let allOk = true;
 	for(const tech of init.techniques){
 		setCurrent(tech);
+		if(clock){ clock.reset(); }
+		if(ledger){ ledger.reset(); }
 		const args = { technique: tech, source: JSON.parse(JSON.stringify(task.source)), maxChars: init.maxChars };
 		if(init.options && init.options[tech]){ args.options = init.options[tech]; }
 		if(init.sections && init.sections[tech]){ args.sections = init.sections[tech]; }
@@ -797,13 +948,14 @@ async function runCase(lib, task, init, setCurrent){
 			r = { ok: false, code: 'E_TOOL_THREW', message: e && e.message ? e.message : `${e}` };
 		}finally{ clearTimeout(timer); }
 		if(ac.signal.aborted && !(r && r.ok)){ r = { ok: false, code: 'E_TOOL_TIMEOUT', message: `起盘超时(${Math.round(init.timeoutMs / 1000)} 秒)` }; }
+		if(ledger){ r = guardPartial(r, ledger.unrecovered()); }
 		results[tech] = shapeResult(r, init, lib);
 		if(!results[tech].ok){ allOk = false; }
 	}
 	// 每例算完清一次进程内结果缓存(与审计仪器取样前同一个入口;缓存对结果透明):子进程内存不随例数涨,
 	// 每例的结果也不依赖这个子进程前面算过哪些例(= 单例在新进程里算的那一份)
 	try{ if(typeof lib.clearRegisteredProcessCaches === 'function'){ lib.clearRegisteredProcessCaches(); } }catch(e){ /* 清不掉只影响内存 */ }
-	return { ok: allOk, results, ms: Date.now() - t0 };
+	return { ok: allOk, results, ms: realNow() - t0 };
 }
 
 // 成功:data = 单例 --json 的 structuredContent(原样);失败:code / message(与单例回包正文同义)
@@ -885,7 +1037,7 @@ async function runBatch(o, io){
 	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-batch-'));
 	const logFd = fs.openSync(logFile, 'a', 0o600);
 	const log = (slot, s)=>{ try{ fs.writeSync(logFd, s.split('\n').filter(Boolean).map((l)=>`[w${slot}] ${l}\n`).join('')); }catch(e){ /* noop */ } };
-	const settingsFile = path.join(dataDir(), 'localStorage.json');
+	const settingsFile = o.noSettings ? null : path.join(dataDir(), 'localStorage.json');
 	let pool = null; let writer = null;
 	const state = { interrupted: 0, fatal: null };
 	const onSig = ()=>{
@@ -896,15 +1048,16 @@ async function runBatch(o, io){
 	process.on('SIGINT', onSig);
 	try{
 		// 技法表(探针前先拿全表:all 展开 / 键写错早报)
-		const init = { techniques: [], options: o.options, sections: o.sections, maxChars: o.maxChars, timeoutMs: o.timeoutSec * 1000, splitSections: o.splitSections, pythonOnly };
+		const init = { techniques: [], options: o.options, sections: o.sections, maxChars: o.maxChars, timeoutMs: o.timeoutSec * 1000, splitSections: o.splitSections, pythonOnly, clock: o.clock || null };
 		pool = createPool(concurrency, { tmpRoot, settingsFile, worker: init, logFile, envForSlot: be.envForSlot }, { log });
 		await pool.start();
-		const catalog = (await pool.ask(pool.workers[0], { type: 'list' })).techniques;
+		const catalog = (await pool.ask(pool.workers[0], { type: 'list', kind: o.kind })).techniques;
+		if(!catalog.length){ throw new BatchError(EXIT.FAILED, `取不到${o.kind === 'timepoint' ? '按起课时间起盘' : ''}的技法目录(看 ${logFile})`); }
 		const known = new Set(catalog.map((x)=>x.key));
 		const wantAll = o.techniques[0] === 'all';
 		let techniques = wantAll ? catalog.map((x)=>x.key) : o.techniques;
 		const unknown = techniques.filter((t)=>!known.has(t));
-		if(unknown.length){ throw new BatchError(EXIT.USAGE, `不认识的技法:${unknown.join(', ')}(./horosa batch --list-techniques 看全部)`); }
+		if(unknown.length){ throw new BatchError(EXIT.USAGE, `不认识的技法:${unknown.join(', ')}(./horosa batch${o.kind === 'timepoint' ? ' --kind timepoint' : ''} --list-techniques 看这一种来源下的全部;命盘类技法用 --kind natal,按起课时间起盘的用 --kind timepoint)`); }
 		const unknownOpt = Object.keys(o.options || {}).filter((t)=>techniques.indexOf(t) < 0);
 		if(unknownOpt.length){ throw new BatchError(EXIT.USAGE, `--options 里的技法不在这一批里:${unknownOpt.join(', ')}`); }
 		const unknownSec = Object.keys(o.sections || {}).filter((t)=>techniques.indexOf(t) < 0);
@@ -915,7 +1068,7 @@ async function runBatch(o, io){
 		if(o.probe){
 			init.techniques = techniques;
 			pool.workers.forEach((w)=>{ w.child.send({ type: 'init-update', init }); });
-			const pr = await pool.run(pool.workers[0], { key: '__probe__', source: PROBE_CASE }, (techniques.length * o.timeoutSec + 60) * 1000);
+			const pr = await pool.run(pool.workers[0], { key: '__probe__', source: o.kind === 'timepoint' ? PROBE_TIMEPOINT : PROBE_CASE }, (techniques.length * o.timeoutSec + 60) * 1000);
 			if(pr.crashed){ throw new BatchError(EXIT.FAILED, `探针例跑崩了:${pr.message};看 ${logFile}`); }
 			const bad = techniques.filter((t)=>!(pr.results[t] && pr.results[t].ok));
 			// 明点的、或给了设置 / 段名的技法起不出来 = 配置问题,停;all 里其余的略过
@@ -942,7 +1095,8 @@ async function runBatch(o, io){
 		const { rows, total } = await openRawRows(o);
 		const showProgress = o.progress === null ? !!process.stderr.isTTY : o.progress;
 		const runInfo = { tool: TOOL, version: require('./server').appVersion(), startedAt: new Date(t0).toISOString(), input: o.celebrities ? { celebrities: true, rodden: o.rodden, withTime: o.withTime } : { file: o.input === '-' ? '(标准输入)' : path.resolve(o.input) },
-			offset: o.offset, limit: o.limit, techniques, skippedTechniques: skipped, options: o.options, sections: o.sections, maxChars: o.maxChars, concurrency, pythonOnly,
+			kind: o.kind, env: { node: process.versions.node, platform: process.platform, arch: process.arch }, offset: o.offset, limit: o.limit, techniques, skippedTechniques: skipped, options: o.options, sections: o.sections, maxChars: o.maxChars, concurrency, pythonOnly,
+			clock: o.clock ? { now: o.clock.iso, given: o.clock.given, tz: o.clock.tz } : null,
 			backends: be.pairs.map((x)=>({ java: x.serverRoot, python: x.chartRoot })), settingsFrom: settingsFile, out: path.resolve(out) };
 		const stat = { done: 0, skipped: 0, failed: 0, inflight: 0, lastShow: 0 };
 		const show = (force)=>{
@@ -1082,16 +1236,16 @@ async function runBatch(o, io){
 }
 const inputOf = (src)=>{ const { kind, ...rest } = src || {}; return rest; };   // eslint-disable-line no-unused-vars
 
-async function listTechniques(io){
+async function listTechniques(io, kind){
 	const { ensureBundle, dataDir } = require('./runtime');
 	await ensureBundle({ quiet: true });
 	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-batch-'));
 	const pool = createPool(1, { tmpRoot, settingsFile: path.join(dataDir(), 'localStorage.json'), worker: { techniques: [], options: {}, maxChars: MAX_CHARS_CAP, timeoutMs: 120000 }, logFile: '(无)' }, {});
 	try{
 		await pool.start();
-		const list = (await pool.ask(pool.workers[0], { type: 'list' })).techniques;
+		const list = (await pool.ask(pool.workers[0], { type: 'list', kind })).techniques;
 		const w = Math.max(...list.map((x)=>x.key.length));
-		io.out(`${list.map((x)=>`${x.key.padEnd(w)}  ${x.label}`).join('\n')}\n共 ${list.length} 个(按出生资料起盘的命盘类技法;all 时会先用探针例略过起不出来的)\n`);
+		io.out(`${list.map((x)=>`${x.key.padEnd(w)}  ${x.label}`).join('\n')}\n共 ${list.length} 个(${kind === 'timepoint' ? '按起课时间起盘的技法;--kind timepoint 时用' : '按出生资料起盘的命盘类技法;按起课时间起盘的另见 --kind timepoint --list-techniques'};all 时会先用探针例略过起不出来的)\n`);
 		return EXIT.OK;
 	}finally{ await pool.closeAll(false); removeTree(tmpRoot); }
 }
@@ -1102,7 +1256,7 @@ async function main(argv, ioIn){
 	try{ o = parseBatchArgs(argv); }catch(e){ io.err(`horosa batch: ${e.message}\n`); return e.exitCode || EXIT.USAGE; }
 	if(o.help){ io.out(usage()); return EXIT.OK; }
 	try{
-		if(o.list){ return await listTechniques(io); }
+		if(o.list){ return await listTechniques(io, o.kind); }
 		return await runBatch(o, io);
 	}catch(e){
 		if(e instanceof BatchError){ io.err(`horosa batch: ${e.message}\n`); return e.exitCode; }
@@ -1112,7 +1266,7 @@ async function main(argv, ioIn){
 	}
 }
 
-module.exports = { main, usage, createPool, parseBatchArgs, parseCoord, parseZone, parseGender, resolveColumns, rowToTask, csvRows, csvRecords, jsonlRows, taskStream, prepareOutput, summarize, shapeResult, runCase, FIELD_ALIASES, EXIT, MAX_CHARS_CAP, PROBE_CASE, BatchError };
+module.exports = { main, usage, createPool, parseBatchArgs, createBackendLedger, guardPartial, resolveClock, installPinnedClock, zoneOffsetMs, clockHeaders, openRawRows, parseCoord, parseZone, parseGender, resolveColumns, rowToTask, csvRows, csvRecords, jsonlRows, taskStream, prepareOutput, summarize, shapeResult, runCase, FIELD_ALIASES, EXIT, MAX_CHARS_CAP, PROBE_CASE, BatchError };
 
 if(require.main === module){
 	if(process.argv.includes('--batch-worker')){ workerMain(); }

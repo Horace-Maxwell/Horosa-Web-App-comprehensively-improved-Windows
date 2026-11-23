@@ -1,7 +1,8 @@
 import React from 'react';
-import { Spin, Empty } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { fetchTechniques, fetchDynasties, fetchCelestialTerms } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
+import { pressable } from '../../utils/pressable';
 
 // 词条分类 → 收藏 kind
 const CAT_KIND = { techniques: 'technique', dynasties: 'dynasty', terms: 'celestial_term' };
@@ -58,7 +59,7 @@ export default class XuanShiEncyclopedia extends React.Component {
 	renderDetail(d) {
 		return (
 			<div style={{ maxWidth: 760 }}>
-				<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回词条</span>
+				<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回词条</span>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0 6px' }}>
 					<span className="xuanshi-seal">{(d.name || '·')[0]}</span>
 					<h2 className="xuanshi-display is-h2" style={{ flex: 1, minWidth: 0 }}>{d.name}</h2>
@@ -87,15 +88,15 @@ export default class XuanShiEncyclopedia extends React.Component {
 				<div className="xuanshi-eyebrow">词条百科</div>
 				<h2 className="xuanshi-display is-h2" style={{ marginTop: 6 }}>术数 · 朝代 · 天象 词条</h2>
 				<div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '14px 0' }}>
-					{CATS.map((c) => <span key={c.key} className={`xuanshi-chip ${cat === c.key ? 'is-vermilion' : 'is-ink'}`} style={{ cursor: 'pointer', fontSize: 13, padding: '3px 14px' }} onClick={() => this.setCat(c.key)}>{c.label}</span>)}
+					{CATS.map((c) => <span key={c.key} className={`xuanshi-chip ${cat === c.key ? 'is-vermilion' : 'is-ink'}`} style={{ cursor: 'pointer', fontSize: 13, padding: '3px 14px' }} {...pressable(() => this.setCat(c.key))}>{c.label}</span>)}
 					<span className="xuanshi-stat-sub" style={{ marginLeft: 'auto' }}>{list.length} 条</span>
 				</div>
-				{loading ? <div className="xuanshi-center"><Spin tip="载入词条…" /></div> : err ? (
-					<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load(cat)}>重试</span></div>
-				) : !list.length ? <div className="xuanshi-center"><Empty description="无词条" /></div> : (
+				{loading ? <div className="xuanshi-center"><XQSpin tip="载入词条…" /></div> : err ? (
+					<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load(cat))}>重试</span></div>
+				) : !list.length ? <div className="xuanshi-center"><XQEmpty description="无词条" /></div> : (
 					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
 						{list.map((m) => (
-							<div className="xuanshi-card is-link" key={m.slug || m.id} onClick={() => this.setState({ selected: m })}>
+							<div className="xuanshi-card is-link" key={m.slug || m.id} {...pressable(() => this.setState({ selected: m }))}>
 								<div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
 									<span className="xuanshi-seal">{(m.name || '·')[0]}</span>
 									<div style={{ flex: 1, minWidth: 0 }}>

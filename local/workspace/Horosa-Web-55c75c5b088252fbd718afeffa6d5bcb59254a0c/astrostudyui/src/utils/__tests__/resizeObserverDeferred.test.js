@@ -168,6 +168,17 @@ describe('③ 表格内观察器通知延帧(antd 表格量列宽同帧改尺寸
 			document.body.innerHTML = '';
 		}
 	});
+	test('排队到下一帧之前就 disconnect(组件卸载 / 抽屉关闭):那一帧什么都不做,不抛错、不回调', () => {
+		const { win, rafQ, inst } = mk();
+		installTableResizeObserverDefer(win);
+		const calls = [];
+		const ro = new win.ResizeObserver((entries)=>calls.push(entries.length));
+		inst[0].fire([{ target: el(true) }]);
+		expect(rafQ.length).toBe(1);
+		ro.disconnect();
+		expect(()=>rafQ.shift()()).not.toThrow();
+		expect(calls).toEqual([]);
+	});
 	test('回退阀关掉就不装', () => {
 		const { win } = mk();
 		win.localStorage.getItem = (k)=>(k === 'horosa.compat.tableRoDefer' ? '0' : null);

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { readSource } from '../../../utils/__tests__/helpers/sourceSet';   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import * as AstroConst from '../../../constants/AstroConst';
 import AstroChart from '../AstroChart';
 import AstroWheelArtChart, {
@@ -16,7 +17,7 @@ import AstroWheelArtChart, {
 // 中世纪排版是用户逐点校准的规格 —— 徽章=宫头分宫线中点、宫号贴内方形、星体=三角质心,坐标表变更必须过本套断言。
 
 const SRC_ROOT = path.resolve(__dirname, '../../..');
-const read = (rel)=>fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+const read = (rel)=>readSource(path.join(SRC_ROOT, rel));   // 拆成子模块的门面按全集读,其余文件原样读
 
 describe('wheelArt 五档常量与归一', ()=>{
 	it('五档值恒等,缺省/野值恒兜 classic(不传参调用方零漂移)——金字塔档已按用户拍板移除', ()=>{
@@ -396,7 +397,7 @@ describe('渲染冒烟(类实例直测)', ()=>{
 describe('WP-9 盘式变体包接线锁', ()=>{
 	const fs = require('fs');
 	const path = require('path');
-	const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+	const read = (rel)=>readSource(path.join(__dirname, rel));   // 拆成子模块的门面按全集读(常量搬进子模块照样查得到)
 
 	it('四掩码常量值恒等且全部进 CHART_OPTIONS(值变=老用户 globalSetup 语义漂移,禁改)', ()=>{
 		expect(AstroConst.CHART_ANGULAR_TRIAD).toBe(4194304);
@@ -421,7 +422,7 @@ describe('WP-9 盘式变体包接线锁', ()=>{
 		// 角宫按 id 查表(HOUSE1/10/7/4),位置下标取角宫已废(后端 houses 按黄经排序,下标≠宫号)
 		expect(src.includes('[AstroConst.HOUSE1, AstroConst.HOUSE10, AstroConst.HOUSE7, AstroConst.HOUSE4]')).toBe(true);
 		// 三元组内容=真三分主星组单源(吃三分制档),庙主/定位星硬编码表已废
-		expect(src.includes("require('../../utils/triplicityRulers').resolveTripletForSign")).toBe(true);
+		expect(/require\('(\.\.\/)+utils\/triplicityRulers'\)\.resolveTripletForSign/.test(src)).toBe(true);   // 惰性路径随方法所在文件深度变
 		// RAMC 直读宫头赤经(House10.ra),字符串黄道判据(Number('Tropical')=NaN 恒假已修)
 		expect(src.includes('Number(h10.ra)')).toBe(true);
 	});

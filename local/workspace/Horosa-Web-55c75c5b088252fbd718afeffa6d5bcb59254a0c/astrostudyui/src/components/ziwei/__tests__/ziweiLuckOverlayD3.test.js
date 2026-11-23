@@ -7,6 +7,7 @@ import path from 'path';
 import * as ZiWeiHelper from '../ZiWeiHelper';
 import * as ZWConst from '../../../constants/ZWConst';
 import { ZWEngineOptions } from '../ziweiOptions';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 afterEach(()=>{
 	ZWEngineOptions.flowShenshaOnChart = false;
@@ -66,7 +67,7 @@ describe('resolveSmallStarsForDisplay(BUG-H 绘制期替换)', ()=>{
 			expect(`${f}:${src.includes('resolveSmallStarsForDisplay')}`).toBe(`${f}:true`);
 			expect(`${f}:${src.includes('star.flow ? ZWCont.ZWPeriodColor.liunian')}`).toBe(`${f}:true`);
 		});
-		const main = fs.readFileSync(path.join(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const main = readSource(path.join(__dirname, '..', 'ZiWeiMain.js'));
 		expect(main.includes('flowZhi: (sel.liunian && sel.liunian.zhi) || null')).toBe(true);
 		expect(main.includes('luckFlowZhi={luckRender.flowZhi}')).toBe(true);
 		const wrap = fs.readFileSync(path.join(__dirname, '..', 'ZiWeiChart.js'), 'utf8');
@@ -76,7 +77,7 @@ describe('resolveSmallStarsForDisplay(BUG-H 绘制期替换)', ()=>{
 
 describe('快照与面板', ()=>{
 	test('🔴 快照:流年层神煞行仅开时追加(默认关=基线字节稳);tbNotes 注记(源码守卫)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '..', 'ZiWeiMain.js'));
 		expect(/flowShenshaOnChart && layer\.zhi && levelLabel === ZW_PERIOD_LEVEL_LABEL\.liunian/.test(src)).toBe(true);
 		expect(src.includes('流年神煞·将前')).toBe(true);
 		expect(src.includes("tbNotes.push('流年神煞上盘")).toBe(true);

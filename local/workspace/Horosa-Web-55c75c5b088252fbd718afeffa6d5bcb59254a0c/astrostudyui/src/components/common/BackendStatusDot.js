@@ -185,7 +185,7 @@ export default function BackendStatusDot() {
   );
 
   return (
-    <div style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 1500, pointerEvents: 'auto' }}>
+    <div style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 'var(--horosa-z-status-dot)', pointerEvents: 'auto' }}>
       <Popover content={content} title={null} placement="topRight" trigger="click" open={open} onOpenChange={setOpen}>
         <div title={label} style={dotStyle} />
       </Popover>

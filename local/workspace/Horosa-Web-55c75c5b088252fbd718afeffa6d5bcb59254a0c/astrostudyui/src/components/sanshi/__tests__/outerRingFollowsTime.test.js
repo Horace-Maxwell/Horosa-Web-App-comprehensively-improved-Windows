@@ -23,9 +23,9 @@ const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   
 // 盘面绘制已单源迁至 SanshiUnitedBoard(择日概览共享;2026-08-30)——渲染锚(outerShift 等
 // renderLiuRengMarks 体内常量)在 Board;数据/布局纯函数(getOuterLabelLayout 等)仍在 Main。
 // SRC=两文件拼接:既有锚不因迁移改语义,新增渲染改动也逃不出扫描面。
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8')
-	+ '\n' + fs.readFileSync(path.join(__dirname, '..', 'SanshiUnitedBoard.js'), 'utf8');
-const FLAGS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'utils', 'perfFlags.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'SanShiUnitedMain.js'))
+	+ '\n' + readSource(path.join(__dirname, '..', 'SanshiUnitedBoard.js'));
+const FLAGS = readSource(path.join(__dirname, '..', '..', '..', 'utils', 'perfFlags.js'));
 
 describe('三式外圈随时间校正(horosa_sanshi_outer_follow_time_v1)', () => {
 	test('① componentDidUpdate 的 chartObj 校正不带 awaitingChartSync 前置条件', () => {
@@ -97,7 +97,7 @@ describe('六壬环角宫排版(用户三轮点单定版)', () => {
 });
 
 describe('遁甲/择日 全屏遮罩已撤为中栏小徽标(用户明令)', () => {
-	const DJ = fs.readFileSync(path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'), 'utf8');
+	const DJ = readSource(path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'));
 	const LESS = readSource(path.join(__dirname, '..', '..', '..', 'layouts', 'app.less'));
 
 	test('DunJiaMain 不再用 <Spin> 包裹整个三栏', () => {
@@ -105,7 +105,9 @@ describe('遁甲/择日 全屏遮罩已撤为中栏小徽标(用户明令)', () 
 		const { importBindings } = require('../../../utils/__tests__/helpers/importSpecs');
 		const djFile = path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js');
 		expect(jsxNodesInFile(djFile, 'Spin').filter((e) => e.attrs.spinning === 'this.state.loading')).toEqual([]);
-		expect(importBindings(DJ).filter((b) => b.source === 'antd' && b.imported === 'Spin')).toEqual([]);
+		// 门面与子模块逐个文件认 import(拼起来的全集是文本,不能当一个模块解析)
+		const files = require('../../../utils/__tests__/helpers/sourceSet').sourceSetFiles(djFile);
+		expect(files.flatMap((f) => importBindings(fs.readFileSync(f, 'utf8'))).filter((b) => b.source === 'antd' && b.imported === 'Spin')).toEqual([]);
 	});
 
 	test('中栏右上角小徽标在位', () => {

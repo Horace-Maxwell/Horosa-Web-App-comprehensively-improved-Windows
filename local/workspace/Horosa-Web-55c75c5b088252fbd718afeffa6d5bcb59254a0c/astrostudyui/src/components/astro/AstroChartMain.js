@@ -3,7 +3,7 @@ import { setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
 import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
-import { Row, Col, Popover, Tooltip } from 'antd';
+import { Popover } from 'antd';
 import AstroChart from './AstroChart';
 import AstroInfo from './AstroInfo';
 import AstroThemaMundi from './AstroThemaMundi';
@@ -32,7 +32,7 @@ import { geoNameRawPatch } from '../../utils/geoName';
 import { getHousesOption } from '../comp/CompHelper'
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, aspectModelOrbs } from './schoolPresets';
+import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, aspectModelOrbs } from './schoolPresets';
 import { moietyOrbOverrides } from './AstroOrbSetting';
 import { schoolPresetFromFields } from './schoolPresetFromFields';
 import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQSettingGroup, XQTabs, XQToggle, XQSideSection } from '../xq-ui';

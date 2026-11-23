@@ -2,6 +2,7 @@ import React from 'react';
 import { fetchDaily } from '../../services/xuanshi';
 import { listBookmarks, removeBookmark, subscribeBookmarks } from './xuanshiBookmarks';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove } from '../../utils/safeStorage';
+import { pressable } from '../../utils/pressable';
 
 // 案头(我的)—— 对齐标准版 参考案头页:今日精选 + 私藏(收藏)+ 近探(搜索历史)+ 门径(快捷入口)+ 小贴士。
 // 私藏走 xuanshiBookmarks(localStorage,各详情页 ☆ 写入)、近探走 localStorage 搜索历史。
@@ -88,7 +89,7 @@ export default class XuanShiDesk extends React.Component {
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>我的</span>
 				</div>
 				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>案头</h1>
@@ -96,7 +97,7 @@ export default class XuanShiDesk extends React.Component {
 
 				{/* 今日精选 */}
 				{daily && (daily.title || daily.blurb) ? (
-					<div className="xuanshi-card is-link" style={{ margin: '20px 0 8px', background: 'linear-gradient(140deg, var(--paper-card), var(--vermilion-soft))' }} onClick={() => this.nav('overview')}>
+					<div className="xuanshi-card is-link" style={{ margin: '20px 0 8px', background: 'linear-gradient(140deg, var(--paper-card), var(--vermilion-soft))' }} {...pressable(() => this.nav('overview'))}>
 						<div className="xuanshi-eyebrow" style={{ marginBottom: 4 }}>今日精选</div>
 						<div className="xuanshi-display is-h2" style={{ fontSize: 18 }}>{daily.title}</div>
 						{daily.blurb ? <div className="xuanshi-stat-sub" style={{ marginTop: 6, fontSize: 13, lineHeight: 1.6 }}>{daily.blurb}</div> : null}
@@ -113,16 +114,16 @@ export default class XuanShiDesk extends React.Component {
 						{bookmarks.length ? (
 							<>
 								<div className="xuanshi-facet-chips" style={{ marginBottom: 14 }}>
-									<span className={`xuanshi-fchip${filter === 'all' ? ' is-active' : ''}`} onClick={() => this.setState({ filter: 'all' })}><span className="xuanshi-fchip-label">全部</span><span className="xuanshi-fchip-n">{bookmarks.length}</span></span>
+									<span className={`xuanshi-fchip${filter === 'all' ? ' is-active' : ''}`} {...pressable(() => this.setState({ filter: 'all' }))}><span className="xuanshi-fchip-label">全部</span><span className="xuanshi-fchip-n">{bookmarks.length}</span></span>
 									{Object.entries(counts).map(([k, n]) => (
-										<span key={k} className={`xuanshi-fchip${filter === k ? ' is-active' : ''}`} onClick={() => this.setState({ filter: k })}><span className="xuanshi-fchip-label">{KIND_LABEL[k] || k}</span><span className="xuanshi-fchip-n">{n}</span></span>
+										<span key={k} className={`xuanshi-fchip${filter === k ? ' is-active' : ''}`} {...pressable(() => this.setState({ filter: k }))}><span className="xuanshi-fchip-label">{KIND_LABEL[k] || k}</span><span className="xuanshi-fchip-n">{n}</span></span>
 									))}
 								</div>
 								<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
 									{shown.map((b, i) => (
-										<div className="xuanshi-card is-link" key={i} style={{ position: 'relative' }} onClick={() => this.openBookmark(b)}>
+										<div className="xuanshi-card is-link" key={i} style={{ position: 'relative' }} {...pressable(() => this.openBookmark(b))}>
 											<span className="xuanshi-chip is-ink">{KIND_LABEL[b.kind] || b.kind}</span>
-											<span title="移除收藏" onClick={(e) => this.removeBM(e, b)} style={{ position: 'absolute', top: 8, right: 10, fontSize: 14, color: 'var(--ink-muted)', cursor: 'pointer', lineHeight: 1 }}>×</span>
+											<span title="移除收藏" {...pressable((e) => this.removeBM(e, b))} style={{ position: 'absolute', top: 8, right: 10, fontSize: 14, color: 'var(--ink-muted)', cursor: 'pointer', lineHeight: 1 }}>×</span>
 											<div className="xuanshi-display" style={{ fontSize: 14, marginTop: 6, color: 'var(--ink)', lineHeight: 1.4 }}>{b.title || b.ref}</div>
 											{b.subtitle ? <div className="xuanshi-stat-sub" style={{ fontSize: 11, marginTop: 2 }}>{b.subtitle}</div> : null}
 										</div>
@@ -132,7 +133,7 @@ export default class XuanShiDesk extends React.Component {
 						) : (
 							<div className="xuanshi-card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-muted)' }}>
 								<div style={{ fontSize: 34, color: 'var(--ink-muted)', marginBottom: 10 }}>☆</div>
-								<div>还没有任何收藏。逛 <span className="xuanshi-link" onClick={() => this.nav('figures')}>人物列传</span> 或 <span className="xuanshi-link" onClick={() => this.nav('stories')}>故事专题</span>，遇到喜欢的点 ☆ 即可收下。</div>
+								<div>还没有任何收藏。逛 <span className="xuanshi-link" {...pressable(() => this.nav('figures'))}>人物列传</span> 或 <span className="xuanshi-link" {...pressable(() => this.nav('stories'))}>故事专题</span>，遇到喜欢的点 ☆ 即可收下。</div>
 							</div>
 						)}
 					</section>
@@ -142,26 +143,26 @@ export default class XuanShiDesk extends React.Component {
 						<div className="xuanshi-card">
 							<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
 								<h3 className="xuanshi-display is-h2" style={{ fontSize: 16, margin: 0 }}>近探</h3>
-								{history.length ? <span className="xuanshi-link" style={{ fontSize: 11 }} onClick={() => this.clearHistory()}>清空</span> : null}
+								{history.length ? <span className="xuanshi-link" style={{ fontSize: 11 }} {...pressable(() => this.clearHistory())}>清空</span> : null}
 							</div>
 							{history.length ? (
 								<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 									{history.map((h, i) => (
-										<div key={i} className="xuanshi-cityrow" style={{ borderBottom: 'none', padding: '4px 8px' }} onClick={() => (this.props.onSearchHistory ? this.props.onSearchHistory(h) : this.nav('search'))}>
+										<div key={i} className="xuanshi-cityrow" style={{ borderBottom: 'none', padding: '4px 8px' }} {...pressable(() => (this.props.onSearchHistory ? this.props.onSearchHistory(h) : this.nav('search')))}>
 											<span className="xuanshi-stat-sub" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>⌕ {h.q}</span>
 											{searchHistoryFacetHint(h) ? <span className="xuanshi-chip is-ink" style={{ marginLeft: 6 }}>{searchHistoryFacetHint(h)}</span> : null}
 										</div>
 									))}
 								</div>
 							) : (
-								<div className="xuanshi-stat-sub" style={{ fontSize: 12 }}>尚无搜索历史。用左栏「<span className="xuanshi-link" onClick={() => this.nav('search')}>统一搜索</span>」全库检索。</div>
+								<div className="xuanshi-stat-sub" style={{ fontSize: 12 }}>尚无搜索历史。用左栏「<span className="xuanshi-link" {...pressable(() => this.nav('search'))}>统一搜索</span>」全库检索。</div>
 							)}
 						</div>
 
 						<div className="xuanshi-card">
 							<h3 className="xuanshi-display is-h2" style={{ fontSize: 16, margin: '0 0 12px' }}>门径</h3>
 							<div className="xuanshi-quicklinks" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-								{QUICKLINKS.map((l) => <span key={l.key} className="xuanshi-quicklink" onClick={() => this.nav(l.key)}>{l.label}</span>)}
+								{QUICKLINKS.map((l) => <span key={l.key} className="xuanshi-quicklink" {...pressable(() => this.nav(l.key))}>{l.label}</span>)}
 							</div>
 						</div>
 

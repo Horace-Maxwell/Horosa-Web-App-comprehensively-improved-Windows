@@ -102,7 +102,8 @@ function aiContentLayerFiles(){
 	walk(path.join(SRC, 'utils/aiAnalysisContext'), files);
 	walk(path.join(SRC, 'utils/aiExport'), files);
 	['utils/aiAnalysisContext.js', 'utils/aiExport.js'].forEach((rel)=>files.push(path.join(SRC, rel)));
-	fs.readdirSync(path.join(SRC, 'utils')).filter((n)=>/^report.*\.js$/.test(n)).forEach((n)=>files.push(path.join(SRC, 'utils', n)));
+	// 按名筛出的门面连同它的子模块一起查(实现搬进子模块也查得到)
+	fs.readdirSync(path.join(SRC, 'utils')).filter((n)=>/^report.*\.js$/.test(n)).forEach((n)=>files.push(...require('./helpers/sourceSet').sourceSetFiles(path.join(SRC, 'utils', n))));
 	return files.filter((f)=>fs.existsSync(f));
 }
 function aiContentViolations(rel, src){

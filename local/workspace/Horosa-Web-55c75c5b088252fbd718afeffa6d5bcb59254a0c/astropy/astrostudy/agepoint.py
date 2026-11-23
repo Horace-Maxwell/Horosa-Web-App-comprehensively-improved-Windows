@@ -75,15 +75,16 @@ def crossings_of_targets(kc, targets, max_age=72):
             continue
         for t in targets:
             rel = _norm360(t['lon'] - startCusp)
-            if rel > 360.0 - 1e-9:
-                rel = 0.0                  # 恰在宫头(浮点落到宫头前一丝):归本宫起点
+            if rel > 360.0 - 1e-9 or rel < 1e-9:
+                rel = 0.0                  # 恰在宫头(浮点落到宫头前一丝或后一丝):归本宫起点 —— 后一丝不吸的话,
+                                           # 一周后回到上升的那次(恰 72 岁)会算成 72.000…1 岁、被上限挡掉,有的机器有有的没有
             if rel >= span - 1e-9:
                 continue                   # 恰在下一宫头:归下一宫(同一事件只记一次)
             base_age = houseIdx * 6 + 6.0 * rel / span
             k = 0
             while True:
                 age = base_age + 72 * k
-                if age > max_age:
+                if age > max_age + 1e-9:
                     break
                 if age > 1e-9:
                     out.append({'age': round(age, 2), 'aspectTo': t['aspectTo'], 'aspect': t['aspect'],

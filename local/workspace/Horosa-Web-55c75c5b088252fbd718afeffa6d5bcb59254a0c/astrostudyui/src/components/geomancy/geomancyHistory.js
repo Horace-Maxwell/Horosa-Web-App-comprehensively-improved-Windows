@@ -1,6 +1,8 @@
-// 地占起卦历史(单一出处,零依赖叶子):「同一副卦」的口径 + 追加规则。GeomancyMain 写历史、存储键注册表的全量恢复并集规格同引用这一份。
+// 地占起卦历史(单一出处,只依赖同为叶子的 trueRandom):「同一副卦」的口径 + 追加规则。GeomancyMain 写历史、存储键注册表的全量恢复并集规格同引用这一份。
 // 一次起卦只占一条:钉盘重算(改时地 / 流派 / 传本 / 所问宫…)出的还是同一副卦,种子与起卦源相同即原地替换首条(该条随之反映当前设置)。
 // 判据须含起卦源:报数盘的默认种子恒为 0,只比种子会把两组不同的十六数误当同一盘。
+import { isEntropySeed } from '../../utils/trueRandom';
+
 export const GEOMANCY_HISTORY_MAX = 30;
 export const GEOMANCY_HISTORY_CAST_FIELDS = ['seed', 'castMethod', 'castNumbers'];
 
@@ -12,7 +14,7 @@ export function geomancyHistoryCastKey(e){
 export function pushGeomancyHistory(prev, entry){
 	let next = [entry];
 	if(Array.isArray(prev)){
-		const same = prev.length && prev[0] && Number.isFinite(Number(entry && entry.seed))
+		const same = prev.length && prev[0] && (isEntropySeed(entry && entry.seed) || Number.isFinite(Number(entry && entry.seed)))
 			&& geomancyHistoryCastKey(prev[0]) === geomancyHistoryCastKey(entry);
 		next = same ? [entry, ...prev.slice(1)] : [entry, ...prev];
 	}

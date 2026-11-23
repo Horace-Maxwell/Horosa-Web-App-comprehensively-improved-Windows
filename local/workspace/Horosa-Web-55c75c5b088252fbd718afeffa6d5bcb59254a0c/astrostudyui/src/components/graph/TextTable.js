@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import {randomStr, isNumber} from '../../utils/helper';
-import { drawPath, drawTextH, drawTextV} from './GraphHelper';
+import { drawTextH} from './GraphHelper';
 
 
 class TextTable {

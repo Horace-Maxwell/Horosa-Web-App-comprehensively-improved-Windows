@@ -23,7 +23,8 @@ const SHAPED = ['list_records', 'resolve_place', 'create_chart_record', 'create_
 	'append_record_journal', 'link_records', 'set_chat_mount', 'list_divination_casts', 'cast_divination_case',
 	'propose_record_edit', 'propose_record_archive', 'list_proposals', 'list_zeri_conditions', 'search_zeri', 'explain_zeri',
 	// 名人库
-	'search_celebrities', 'list_celebrity_categories', 'get_celebrity', 'create_celebrity_chart'];
+	'search_celebrities', 'list_celebrity_categories', 'get_celebrity', 'create_celebrity_chart',
+	'list_techniques', 'browse_xuanshi', 'search_rizi', 'cast_fengshui', 'get_diagnostics', 'get_reference', 'sky_at', 'cast_acg', 'rectify_india', 'propose_record_unlink', 'propose_record_recover', 'control_task', 'add_material_note', 'propose_memory', 'list_memories', 'propose_template', 'propose_skill_pack', 'propose_persona_text', 'save_document', 'cast_random_case', 'list_models', 'chat_in_conversation', 'check_new_version', 'scan_election_moments', 'get_lunar_month', 'list_record_revisions', 'copy_record', 'find_duplicate_records', 'list_zeri_schemes'];
 const ctx = ()=>({ origin: 'mcp', requestId: 'r1', dispatch: jest.fn(), ui: { selectSource: jest.fn(), refreshSources: jest.fn() } });
 
 function check(name, r){

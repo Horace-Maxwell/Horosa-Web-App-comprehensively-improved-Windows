@@ -14,6 +14,7 @@ import { ZWEngineOptions, BRIGHTNESS_SOURCE_OPTIONS } from '../ziweiOptions';
 import { STAR_LIGHT, STAR_LIGHT_QUANSHU, starLightOf } from '../data/ziweiTables';
 import { SiHuaTables, getActiveSiHuaGan, ZWSchool, refreshActiveSiHua } from '../../../constants/ZWConst';
 import * as ZiWeiHelper from '../ZiWeiHelper';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
 const GAN = '甲乙丙丁戊己庚辛壬癸'.split('');
@@ -156,7 +157,7 @@ describe('[四化] 懒缓存不变量:切流派必须三件套齐全', ()=>{
 			expect(ZWConst.ZWSchool.school).toBe('beipai');   // 抛错路径也还原
 		}finally{ spy.mockRestore(); ZWConst.ZWSchool.school = prev; ZWConst.refreshActiveSiHua(); }
 		// 还原由共用的 applyZiweiRecordOverride 负责,且在 finally 里调
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		expect(src).toContain('}finally{\n\t\trestoreOverride();');
 	});
 });

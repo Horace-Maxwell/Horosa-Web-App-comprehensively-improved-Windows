@@ -2,8 +2,8 @@
 // 为中栏、右栏页签、AI 快照提供单一真值源。默认不改既有输出字段与既有快照行(零回归);新结构走新增字段。
 import { getXunEmpty, getGua64, LiuQi } from './GuaConst';
 import { littleEndian } from '../../utils/helper';
-import { LIUCHONG, LIUHE, shengKe, ZHI_YINYANG, TIANGAN, DIZHI, CHANGSHENG_STAGES, CHANGSHENG_START, CHANGSHENG_START_ALT, jianYaoPositions } from './LiuYaoConst';
-import { analyzeGua, fushenForGua, palaceTypeOf, parseYaoName, pureGuaOf, guaChongHe, guaSanHeHui } from './LiuYaoEngine';
+import { LIUCHONG, LIUHE, shengKe, jianYaoPositions } from './LiuYaoConst';
+import { analyzeGua, fushenForGua, pureGuaOf, guaChongHe, guaSanHeHui } from './LiuYaoEngine';
 import { analyzeYongShen } from './liuyaoYongShen';
 import { analyzeDongBian, bianGuaOf } from './liuyaoDongBian';
 import { annotateShenSha } from './liuyaoShenSha';

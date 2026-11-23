@@ -1,9 +1,11 @@
 import React from 'react';
-import { Spin, Empty, Input, Pagination } from 'antd';
+import { Input, Pagination } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { fetchFigures, fetchFigure } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
 import { dynClass } from './xuanshiDynClass';
 import { gregYearShort, splitList } from './xuanshiDate';   // 公元前年份写法单源
+import { pressable } from '../../utils/pressable';
 
 const PAGE_SIZE = 60; // 列传全列 3469,分页防 DOM 过重(保 <1s)
 
@@ -76,8 +78,8 @@ export default class XuanShiFigures extends React.Component {
 
 	renderDetail() {
 		const d = this.state.selected;
-		if (this.state.detailLoading || (!d.name && !d._err)) { return <div className="xuanshi-center"><Spin tip="载入列传…" /></div>; }
-		if (d._err) { return <div className="xuanshi-center"><Empty description={`载入失败:${d._err}`} /></div>; }
+		if (this.state.detailLoading || (!d.name && !d._err)) { return <div className="xuanshi-center"><XQSpin tip="载入列传…" /></div>; }
+		if (d._err) { return <div className="xuanshi-center"><XQEmpty description={`载入失败:${d._err}`} /></div>; }
 		const span = lifeSpan(d.birth_year, d.death_year);
 		const rel = d.related_events || [];
 		const stories = d.stories || (d.links && d.links.stories) || [];
@@ -127,7 +129,7 @@ export default class XuanShiFigures extends React.Component {
 			<div>
 				{/* 面包屑 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.setState({ selected: null })}>人物列传</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.setState({ selected: null }))}>人物列传</span>
 					<span className="xuanshi-crumb-sep">/</span>
 					<span style={{ color: 'var(--ink-soft)' }}>{d.name}</span>
 				</div>
@@ -165,12 +167,12 @@ export default class XuanShiFigures extends React.Component {
 
 					{/* 右栏 */}
 					<aside style={{ minWidth: 0 }}>
-						<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回列传</span>
+						<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回列传</span>
 						{rel.length ? sideCard(`相关事件目录 (${rel.length})`, (
 							<ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 360, overflowY: 'auto' }}>
 								{rel.slice(0, 40).map((e) => (
 									<li key={e.event_id} style={{ marginBottom: 5 }}>
-										<span className="xuanshi-link" style={{ fontSize: 13, lineHeight: 1.4 }} onClick={() => { const el = document.getElementById(`xsf-ev-${e.event_id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }}>{e.title || e.event_id}</span>
+										<span className="xuanshi-link" style={{ fontSize: 13, lineHeight: 1.4 }} {...pressable(() => { const el = document.getElementById(`xsf-ev-${e.event_id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } })}>{e.title || e.event_id}</span>
 									</li>
 								))}
 								{rel.length > 40 ? <li className="xuanshi-stat-sub" style={{ fontSize: 11 }}>…还有 {rel.length - 40} 起</li> : null}
@@ -206,7 +208,7 @@ export default class XuanShiFigures extends React.Component {
 			<div>
 				{/* 面包屑 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>频道</span>
 					<span className="xuanshi-crumb-sep">/</span><span>玄学名家</span>
 				</div>
@@ -221,7 +223,7 @@ export default class XuanShiFigures extends React.Component {
 					</div>
 					<div className="xuanshi-quicklinks">
 						{QUICKLINKS.map((l) => (
-							<span key={l.key} className="xuanshi-quicklink" onClick={() => nav(l.key)}>{l.label}</span>
+							<span key={l.key} className="xuanshi-quicklink" {...pressable(() => nav(l.key))}>{l.label}</span>
 						))}
 					</div>
 				</div>
@@ -239,16 +241,16 @@ export default class XuanShiFigures extends React.Component {
 						{/* 「全部」的计数要与同行其余 chip 同口径(全库分布),不能用带 朝代+搜索词 条件的 total ——
 						    选「唐」后这里会变成 420、搜「李」后又变一个数,看起来像「全库只剩这些人」。当前结果数在上面
 						    「共 N 位人物」那行,两处各司其职。 */}
-						<span className={`chip${!this.state.dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: '' })}>全部 · {dynList.reduce((n, d) => n + (Number(d.count) || 0), 0).toLocaleString()}</span>
+						<span className={`chip${!this.state.dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ dynasty: '' }))}>全部 · {dynList.reduce((n, d) => n + (Number(d.count) || 0), 0).toLocaleString()}</span>
 						{dynList.map((d) => (
-							<span key={d.name} className={this.state.dynasty === d.name ? 'chip chip-vermilion' : `chip chip-dyn chip-dyn-${dynClass(d.name)}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: d.name })}>{d.name} · {d.count}</span>
+							<span key={d.name} className={this.state.dynasty === d.name ? 'chip chip-vermilion' : `chip chip-dyn chip-dyn-${dynClass(d.name)}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ dynasty: d.name }))}>{d.name} · {d.count}</span>
 						))}
 					</div>
 				) : null}
 
-				{loading ? <div className="xuanshi-center"><Spin tip="载入…" /></div> : err ? (
-					<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
-				) : !items.length ? <div className="xuanshi-center"><Empty description="没有符合条件的人物" /></div> : (
+				{loading ? <div className="xuanshi-center"><XQSpin tip="载入…" /></div> : err ? (
+					<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
+				) : !items.length ? <div className="xuanshi-center"><XQEmpty description="没有符合条件的人物" /></div> : (
 					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(268px, 1fr))', gap: 14 }}>
 						{items.map((m) => {
 							const nm = m.name || '·';
@@ -256,7 +258,7 @@ export default class XuanShiFigures extends React.Component {
 							// 卡片此前直拼原值,公元前年份带负号(老子「-571—-471」),与详情页的「前571—前471」两套写法
 							const sheng = lifeSpan(m.birth_year, m.death_year);
 							return (
-								<div className="xuanshi-card is-link" key={m.slug || m.id} onClick={() => this.openDetail(m.slug)}>
+								<div className="xuanshi-card is-link" key={m.slug || m.id} {...pressable(() => this.openDetail(m.slug))}>
 									<div style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>
 										<span className="xuanshi-fig-seal" style={{ fontSize: sealFont }}>{nm}</span>
 										<div style={{ flex: 1, minWidth: 0 }}>

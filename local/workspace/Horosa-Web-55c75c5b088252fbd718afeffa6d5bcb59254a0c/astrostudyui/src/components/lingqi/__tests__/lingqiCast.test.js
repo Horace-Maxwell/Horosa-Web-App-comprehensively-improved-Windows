@@ -54,12 +54,12 @@ describe('种子来源', () => {
 		expect(computeTimeSeed(f)).toBeLessThan(2147483647);
 	});
 
-	test('resolveLingqiSeed 三态:manual 原样串化 / time_seed 前缀 t- / random 前缀 rnd-', () => {
+	test('resolveLingqiSeed 三态:manual 原样串化 / time_seed 前缀 t- / random 是两字节的真随机记录', () => {
 		expect(resolveLingqiSeed('manual', 42, null)).toBe('42');
 		expect(resolveLingqiSeed('manual', null, null)).toBe('0');
 		const f = mkFields('2026-08-10', '15:29');
 		expect(resolveLingqiSeed('time_seed', null, f)).toBe(`t-${computeTimeSeed(f)}`);
-		expect(resolveLingqiSeed('random', null, null)).toMatch(/^rnd-\d+$/);
+		expect(resolveLingqiSeed('random', null, null)).toMatch(/^tr1-[0-9a-f]{4}$/);
 	});
 	test('手动种子:字符串种子(锁定复现锁进来的 rnd-… / t-…)原样;清空 / 纯空白回落 0;输入框是文本框', () => {
 		expect(resolveLingqiSeed('manual', 'rnd-123456', null)).toBe('rnd-123456');

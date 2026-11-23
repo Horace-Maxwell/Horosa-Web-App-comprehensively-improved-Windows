@@ -376,7 +376,14 @@ function normalizeTimeoutMs(val){
 	if(!Number.isFinite(n) || n <= 0){
 		return null;
 	}
-	return Math.max(500, Math.floor(n));
+	return Math.max(500, Math.floor(n * requestTimeoutScale()));
+}
+
+// 单次请求等待时间的放大倍数:只有无头批量在很慢的机器上跑时才设(批量把每技法的时限调大,单次请求的等待随之放宽 ——
+// 否则重的技法在慢机器上总是先撞到写死的单次请求时限)。浏览器 / 桌面里没人设这个量 = 1,行为不变。只认 1 到 100 之间的数。
+export function requestTimeoutScale(){
+	const v = typeof globalThis !== 'undefined' ? Number(globalThis.__HOROSA_REQUEST_TIMEOUT_SCALE__) : NaN;
+	return Number.isFinite(v) && v >= 1 && v <= 100 ? v : 1;
 }
 
 function isTimeoutLikeError(err){

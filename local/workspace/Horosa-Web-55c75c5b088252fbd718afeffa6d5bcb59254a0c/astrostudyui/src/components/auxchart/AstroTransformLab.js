@@ -1,12 +1,11 @@
 // 变换盘:把本命盘按某种规则换算出一张新盘,照常用盘面绘制。后端 /astroextra/transformchart。
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSegmented, XQSelect as Select, XQSwitch as Switch } from '../xq-ui';
+
+import { XQSegmented, XQSelect as Select, XQSwitch as Switch, XQSpin } from '../xq-ui';
 import AstroChart from '../astro/AstroChart';
-import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
-import { unwrapResult, fmtNum, chartParams, chartRequestKey, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from '../astro/AstroExtraCommon';
+import { unwrapResult, fmtNum, chartParams, chartRequestKey, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS, requestDerived } from '../astro/AstroExtraCommon';
 import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, ControlCol, ControlGrid, FillCard, LoadFailNote, EmptyWheel, MUTED } from '../astro/progPageLayout';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
@@ -70,7 +69,7 @@ class AstroTransformLab extends Component {
 		const requestOptions = this.requestOptions();
 		this.setState({ loading: true });
 		try{
-			const data = await request(`${Constants.ServerRoot}/astroextra/transformchart`, {
+			const data = await requestDerived(`${Constants.ServerRoot}/astroextra/transformchart`, {
 				body: JSON.stringify({ ...chartParams(this.props.value), ...requestOptions }),
 				timeoutMs: 60000,   // 高纬的受孕盘、人格盘要起两张盘,极圈内一张就要十几秒
 				silent: true,
@@ -235,13 +234,13 @@ class AstroTransformLab extends Component {
 		const failed = !!this.state.loadError && this.state.requestKey !== this.requestKey();
 		return (
 			<div style={FILL_PANE}>
-				<Spin spinning={this.state.loading && !shown}>
+				<XQSpin spinning={this.state.loading && !shown}>
 					<ProgPageShell height={height} updating={this.state.loading && !!shown}>
 						<WheelSplit head={this.renderHead(shown)} renderWheel={(size, h)=>(failed ? <LoadFailNote /> : this.renderWheel(shown, size, h))}>
 							{!failed && shown && shown.chart ? this.renderTables(shown) : null}
 						</WheelSplit>
 					</ProgPageShell>
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

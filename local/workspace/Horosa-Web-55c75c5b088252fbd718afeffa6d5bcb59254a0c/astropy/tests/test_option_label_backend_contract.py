@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from astrostudy import perchart  # noqa: E402
 from astrostudy.india import india_chart_kernel as kernel  # noqa: E402
 from flatlib.ephem import swe as fswe  # noqa: E402
+from source_sets import read_ui_source  # noqa: E402  前端拆成子模块的大文件按「门面 + 子模块」全集读
 
 UI_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'astrostudyui', 'src'))
 ASTRO_CONST = os.path.join(UI_SRC, 'constants', 'AstroConst.js')
@@ -135,7 +136,7 @@ def _check_house_table(table_name, options, backend_of):
 
 def test_house_system_labels_match_backend_generic_table():
     """HOUSE_SYSTEM_OPTIONS(西占本命 / 星运 / 量化 / 宿占等挂载齿轮共用)↔ perchart.hsys。"""
-    opts = _options(_array_block(_read(ASTRO_CONST), r'export const HOUSE_SYSTEM_OPTIONS\s*='))
+    opts = _options(_array_block(read_ui_source(ASTRO_CONST), r'export const HOUSE_SYSTEM_OPTIONS\s*='))
     assert len(opts) == len(perchart.hsys), '前端分宫制档数与后端 hsys 表长度不同'
     problems = _check_house_table('generic', opts, perchart.getHSys)
     assert not problems, '\n'.join(problems)
@@ -143,13 +144,13 @@ def test_house_system_labels_match_backend_generic_table():
 
 def test_mount_hsys_options_reuse_generic_table():
     """挂载齿轮的宫制下拉就是 HOUSE_SYSTEM_OPTIONS 原表(否则上一条合同证不到挂载面)。"""
-    src = _read(MOUNT_SETTINGS)
+    src = read_ui_source(MOUNT_SETTINGS)
     assert re.search(r'const HSYS_OPTIONS = (\(AstroConst\.HOUSE_SYSTEM_OPTIONS \|\| \[\]\)|AstroConst\.HOUSE_SYSTEM_OPTIONS)\.map\(', src)
 
 
 def test_house_system_labels_match_backend_india_table():
     """INDIA_HOUSE_SYSTEM_OPTIONS ↔ 印占内核 INDIA_HOUSE_SYSTEMS(印占页用自己的编号表,不走 perchart.hsys)。"""
-    opts = _options(_array_block(_read(ASTRO_CONST), r'export const INDIA_HOUSE_SYSTEM_OPTIONS\s*='))
+    opts = _options(_array_block(read_ui_source(ASTRO_CONST), r'export const INDIA_HOUSE_SYSTEM_OPTIONS\s*='))
     assert {v for v, _ in opts} == set(kernel.INDIA_HOUSE_SYSTEMS), '前端印占分宫制编号集与内核表不同'
     problems = _check_house_table('india', opts, lambda v: kernel.normalize_house_system(v)[1]['flatlib'])
     assert not problems, '\n'.join(problems)
@@ -208,7 +209,7 @@ def _tokens(s):
 
 def test_ayanamsa_option_values_resolve_to_themselves():
     """INDIA_AYANAMSA_OPTIONS 每个 value 在后端都解析成它自己(不被静默回落到 lahiri)。"""
-    opts = _options(_array_block(_read(ASTRO_CONST), r'export const INDIA_AYANAMSA_OPTIONS\s*='))
+    opts = _options(_array_block(read_ui_source(ASTRO_CONST), r'export const INDIA_AYANAMSA_OPTIONS\s*='))
     assert {v for v, _ in opts} == set(kernel.INDIA_AYANAMSA_MODES), '前端岁差档集与内核表不同'
     bad = [v for v, _ in opts if kernel.normalize_ayanamsa(v)['key'] != v]
     assert not bad, f'被回落的岁差档: {bad}'
@@ -216,7 +217,7 @@ def test_ayanamsa_option_values_resolve_to_themselves():
 
 def test_ayanamsa_labels_best_match_their_swiss_ephemeris_mode():
     """每个前端标签与自己档位的 Swiss Ephemeris 规范名最像(按稀有词加权;防标签与模式错位)。"""
-    opts = _options(_array_block(_read(ASTRO_CONST), r'export const INDIA_AYANAMSA_OPTIONS\s*='))
+    opts = _options(_array_block(read_ui_source(ASTRO_CONST), r'export const INDIA_AYANAMSA_OPTIONS\s*='))
     names = {k: pyswe.get_ayanamsa_name(m['mode']) for k, m in kernel.INDIA_AYANAMSA_MODES.items()}
     df = {}
     for n in names.values():
@@ -250,7 +251,7 @@ def test_ayanamsa_mode_constant_names_match_keys():
 
 def test_mount_ayanamsa_selects_reuse_india_table():
     """西占 / 宿占 / 量化盘挂载「岁差制」与七政「恒星岁差」下拉 = 空档 + INDIA_AYANAMSA_OPTIONS 原表(+ 自定义)。"""
-    src = _read(MOUNT_SETTINGS)
+    src = read_ui_source(MOUNT_SETTINGS)
     assert re.search(r"name: 'siderealAyanamsa'.*options: \[\{ value: '', label: '默认（随盘 / Lahiri）' \}, \.\.\.AstroConst\.INDIA_AYANAMSA_OPTIONS, \{ value: 'user'", src)
     assert re.search(r"options: \[\{ value: '', label: '郑式\(默认\)' \}, \.\.\.AstroConst\.INDIA_AYANAMSA_OPTIONS\]", src)   # 与七政页同一写法(半角括号)
     assert re.search(r"name: 'indiaAyanamsa'.*options: AstroConst\.INDIA_AYANAMSA_OPTIONS", src)

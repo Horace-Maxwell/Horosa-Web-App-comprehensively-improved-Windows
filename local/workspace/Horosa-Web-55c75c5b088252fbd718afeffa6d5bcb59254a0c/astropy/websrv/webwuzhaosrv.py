@@ -7,6 +7,13 @@ import cherrypy
 import jsonpickle
 
 from astrostudy.civil_calendar import format_display_date
+from astrostudy.truerandom import (
+    TapeRandom,
+    global_random_from,
+    is_entropy_seed,
+    request_entropy_seed,
+    system_random,
+)
 from websrv.helper import enable_crossdomain
 from websrv.horosa_engine_common import (
     build_snapshot as _build_snapshot,
@@ -443,13 +450,16 @@ def _extras(data):
     gender = _clean_text(data.get("gender"))
     if gender not in ("male", "female"):
         gender = ""
-    # 随机诸式(敦煌/以钱代筮自动掷)的客户端种子:同种子同兆(存案可复现、改判读档不换兆、
-    # 缓存按体命中即正确);缺席=旧行为真随机。
+    # 随机诸式(敦煌 / 以钱代筮自动掷)的客户端种子:随机起兆带的是一段真随机记录,整数种子是旧存案;
+    # 同种子同兆(存案可复现、改判读档不换兆、缓存按体命中即正确);缺席 = 当场向系统随机源取。
     cast_seed = data.get("castSeed")
-    try:
-        cast_seed = int(cast_seed) if cast_seed is not None and str(cast_seed).strip() != "" else None
-    except Exception:
-        cast_seed = None
+    if request_entropy_seed(cast_seed) is not None:
+        cast_seed = request_entropy_seed(cast_seed)
+    else:
+        try:
+            cast_seed = int(cast_seed) if cast_seed is not None and str(cast_seed).strip() != "" else None
+        except Exception:
+            cast_seed = None
     return {
         "castSeed": cast_seed,
         "shifaVariant": variant,
@@ -574,9 +584,25 @@ def _assemble_from_nums(zhao_nums, solar_term, lunar_month, gz1, gz2):
     return result
 
 
+def _cast_rng(seed):
+    """本次起兆的随机源:真随机记录 → 回放记录;整数种子(旧存案)→ 按种子复现;没有种子 → 当场向系统随机源取。"""
+    if is_entropy_seed(seed):
+        return TapeRandom.from_seed(seed)
+    if seed is not None:
+        return random.Random(seed)
+    return system_random()
+
+
 def _calculate(mode, ganzhi, number, solar_term, lunar_month, manual_splits, extras=None):
     """返回 (raw, 上柱, 下柱, detail)。detail 为新起兆法的过程明细，旧法为 None。"""
     extras = extras or {}
+    rng = _cast_rng(extras.get("castSeed"))
+    # 内置引擎的自动分策直接调标准库的模块级随机函数:块内一并换到本次的随机源上(不再用进程里那串伪随机数)。
+    with global_random_from(rng):
+        return _calculate_with(rng, mode, ganzhi, number, solar_term, lunar_month, manual_splits, extras)
+
+
+def _calculate_with(rng, mode, ganzhi, number, solar_term, lunar_month, manual_splits, extras):
     if mode == "day":
         return wuzhao_core.five_zhao_paipan(number, solar_term, lunar_month, ganzhi[1], ganzhi[2], manual_splits=manual_splits), ganzhi[1], ganzhi[2], None
     if mode == "hour":
@@ -593,7 +619,6 @@ def _calculate(mode, ganzhi, number, solar_term, lunar_month, manual_splits, ext
         )
         return divination.divine(), ganzhi[2], ganzhi[3], None
     if mode in ("dunhuang", "qian", "zhushu"):
-        rng = random.Random(extras.get("castSeed")) if extras.get("castSeed") is not None else random.Random()
         if mode == "dunhuang":
             nums, detail = _dunhuang_shifa(extras.get("shifaVariant") or "guayi", rng)
             detail = {"kind": "dunhuang", "variant": extras.get("shifaVariant") or "guayi",

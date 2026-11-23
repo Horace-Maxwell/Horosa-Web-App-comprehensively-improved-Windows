@@ -2,12 +2,12 @@ import QuickDockBar from '../common/QuickDockBar';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
-import { InputNumber, Spin } from 'antd';
+
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { XQButton as Button, XQTabs as Tabs, XQSideSection, XQInput, XQSpin } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { rareSafeDeep } from '../../utils/rareChars';
 import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
@@ -20,6 +20,7 @@ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 四柱须吃全局日界/晚子时(此前后端恒取缺省)
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { isEntropySeed, newEntropySeed, parseManualSeedInput } from '../../utils/trueRandom';
 
 const { TabPane } = Tabs;
 
@@ -55,8 +56,11 @@ function parseFieldsDateTime(fields){
 	};
 }
 
+// 随机起一次取的真随机记录长度(字节):后端按顺序直接读它定每一次分策(见 astropy/astrostudy/truerandom.py),32 字节读不完。
+const CAST_ENTROPY_BYTES = 32;
+// 新起一次:当场向系统随机源取一段原始字节作种子(真随机记录),不是按时间或公式推出来的数。
 function defaultSeed(){
-	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
+	return newEntropySeed(CAST_ENTROPY_BYTES);
 }
 
 function postTaiXuan(path, payload){ return postKentang('taixuan', path, payload); }
@@ -116,7 +120,9 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 	const dt = parseFieldsDateTime(fields);
 	if(!dt){ return ''; }
 	try{
-		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
+		// 存档里随机起的那一次带的是真随机记录:原样交给后端回放(不能当数字取)
+		const optRecord = opts && isEntropySeed(opts.seed) ? opts.seed : null;
+		const optSeed = !optRecord && opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
 		// seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
 		const seed = (Number.isFinite(optSeed) && optSeed >= 0)
 			? Math.floor(optSeed) % 1000000000
@@ -124,7 +130,7 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 		// AD 年保持旧数字拼合逐位不变(「同一时间反复挂载同一卦」,历史存档/解读可复现);
 		// mod 1e9 后年份只存个位,BC 仅把年位 +5 平移 —— 同数 BC/AD 必异 seed,AD 字节零回归。
 		((dt.year >= 0 ? dt.year : Math.abs(dt.year) + 5) * 10000 + dt.month * 100 + dt.day) * 10000 + dt.hour * 100 + dt.minute) % 1000000000;
-		const pan = await postTaiXuan('pan', { ...dt, seed });
+		const pan = await postTaiXuan('pan', { ...dt, seed: optRecord || seed });
 		return buildSnapshotText(pan);
 	}catch(e){ return ''; }
 }
@@ -435,10 +441,12 @@ class TaiXuanMain extends Component{
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>起筮种子</span>
-							<InputNumber value={this.state.seed} min={0} max={999999999} onChange={(v)=>this.setState({ seed: v || 0 })} />
+							{/* 文本框:随机起的种子是真随机记录(tr1-…),数字框装不下;手填只收数字(0–999999999) */}
+							<XQInput value={`${this.state.seed === undefined || this.state.seed === null ? '' : this.state.seed}`}
+								onChange={(e)=>this.setState({ seed: parseManualSeedInput(e.target.value, 999999999) })} />
 						</label>
 					</div>
-					<div className="horosa-taixuan-note">太玄筮法本为随机揲筮。本页用种子固定本盘(同一种子再起结果相同)，点击“重起”会换一组新筮数。</div>
+					<div className="horosa-taixuan-note">太玄筮法本为随机揲筮。每次“重起”都当场取系统的真随机数来揲筮，并把这段真随机记录存进本盘(同一记录再起结果相同)；也可以手填一个数字作种子，得到可重复的一盘。</div>
 				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
@@ -669,7 +677,7 @@ class TaiXuanMain extends Component{
 		return (
 			<div className={`horosa-huangji-page horosa-astro-redesign horosa-huangji-redesign horosa-taixuan-redesign${embedded ? ' horosa-huangji-embedded' : ''}`} style={pageStyle}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">
-					<Spin spinning={this.state.loading}>
+					<XQSpin spinning={this.state.loading}>
 						<div className="horosa-astro-redesign-grid horosa-huangji-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-huangji-input-panel">
 								{this.renderInputPanel()}
@@ -687,7 +695,7 @@ class TaiXuanMain extends Component{
 								{this.renderRightPanel()}
 							</div>
 						</div>
-					</Spin>
+					</XQSpin>
 					{!this.props.hideQuickDock && this.renderBottomQuickDock()}
 				</div>
 			</div>

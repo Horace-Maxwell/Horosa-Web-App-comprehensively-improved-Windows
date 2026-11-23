@@ -1,10 +1,10 @@
 // 表驱动差分闸(mountSettingsDiffAll)跑出的「值到不了消费点」五处,逐条判别向量:
-//   F-52 紫微「太岁关系人」经挂载覆盖(schema normalize 已归一为对象数组)→ 曾被串化剪空;
-//   F-53 正传·心易查询层缺省(父母/日/一刻/乾/子)须与 schema/页面同源,否则缺省挂载整段不产;
-//   F-54 八字 [大运] 段「起运：…」行(页面信息面板恒显)+ 起运精度档落地;
-//   F-55 巴比伦「纪元显示」进快照(此前透传无消费);
-//   F-56 皇极心易起卦法值域=后端键('character'/'direction'),请求体必须以后端键发出。
-// 不 mock utils/request:F-52 紫微主盘走 :9999,离线时该用例打印 UNVERIFIED-OFFLINE(不假绿);其余四例纯本地/请求体级。
+//   紫微「太岁关系人」经挂载覆盖(schema normalize 已归一为对象数组)→ 曾被串化剪空;
+//   正传·心易查询层缺省(父母/日/一刻/乾/子)须与 schema/页面同源,否则缺省挂载整段不产;
+//   八字 [大运] 段「起运：…」行(页面信息面板恒显)+ 起运精度档落地;
+//   巴比伦「纪元显示」进快照(此前透传无消费);
+//   皇极心易起卦法值域=后端键('character'/'direction'),请求体必须以后端键发出。
+// 不 mock utils/request:紫微主盘走 :9999,离线时该用例打印 UNVERIFIED-OFFLINE(不假绿);其余四例纯本地/请求体级。
 var mockBodies = [];
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));
@@ -20,7 +20,7 @@ const src = { id: 'chart-resid', sourceType: 'chart', record: { ...REC } };
 const realFetch = global.fetch;
 beforeEach(()=>{ mockBodies = []; });
 
-describe('F-52 紫微·太岁关系人经挂载覆盖', ()=>{
+describe('紫微·太岁关系人经挂载覆盖', ()=>{
 	it('🔴 覆盖 {taiSuiRuGua:1, taiSuiRelatives:"午:母:female"} → 正文含「生肖午(母)」(此前对象数组被串化剪空)', async ()=>{
 		global.fetch = async (u, o)=>realFetch(u, o);
 		const a = await getAnalysisTechniqueContextWithOptions(src, 'ziwei', { taiSuiRuGua: 1 });
@@ -31,7 +31,7 @@ describe('F-52 紫微·太岁关系人经挂载覆盖', ()=>{
 	});
 });
 
-describe('F-53 正传·心易查询层缺省', ()=>{
+describe('正传·心易查询层缺省', ()=>{
 	it('🔴 只设流派=心易 → 出 [条文秘数查询](父母/日);查询项目拨「兄弟」→ 正文不同;缺省五项与 schema 缺省同源', async ()=>{
 		const base = await regenerateChartTechniqueSnapshot({ ...REC, zcSchool: 'xinyi' }, 'zhengchuan');
 		expect(base).toContain('[条文秘数查询]');
@@ -44,7 +44,7 @@ describe('F-53 正传·心易查询层缺省', ()=>{
 	});
 });
 
-describe('F-54 八字·起运行 + 起运精度', ()=>{
+describe('八字·起运行 + 起运精度', ()=>{
 	it('🔴 [大运] 段含「起运：」;precise 与 integer 两档正文不同', async ()=>{
 		const P = { date: '1990-05-18', time: '10:00:00', zone: '+08:00', lon: 118.45, gpsLon: 118.45, lat: 31.63, gpsLat: 31.63, gender: 1, timeAlg: 1, after23NewDay: 1 };
 		const a = await buildBaziSnapshotForParams({ ...P, dayunPrecision: 'precise' });
@@ -58,7 +58,7 @@ describe('F-54 八字·起运行 + 起运精度', ()=>{
 	});
 });
 
-describe('F-55 巴比伦·纪元显示', ()=>{
+describe('巴比伦·纪元显示', ()=>{
 	it('🔴 era=arsacid → 「安息纪元」;缺省 → 「塞琉古纪元」', async ()=>{
 		const m = await import('../babylonAiSnapshot');
 		const fields = { date: { value: { format: ()=>'1990-05-18' } }, time: { value: { format: ()=>'10:00:00' } }, zone: { value: '+08:00' }, lon: { value: '118e27' }, lat: { value: '31n38' } };
@@ -77,7 +77,7 @@ describe('F-55 巴比伦·纪元显示', ()=>{
 	});
 });
 
-describe('F-56 皇极心易·起卦法后端键', ()=>{
+describe('皇极心易·起卦法后端键', ()=>{
 	it('🔴 schema 值域=character/direction;笔画起卦请求体 method=character 且带 upperStrokes', async ()=>{
 		const f = Object.fromEntries(TECHNIQUE_SETTINGS_SCHEMA.huangji.fields.map((x)=>[x.name, x]));
 		const vals = f.xinyiMethod.options.map((o)=>o.value);

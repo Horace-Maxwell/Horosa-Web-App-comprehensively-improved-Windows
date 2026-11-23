@@ -8,9 +8,9 @@ import { triplicityRulers, faceAt, termRulerAt, DIGNITY_SCORE } from '../data/di
 import { termRulerForVariant } from '../engine/almuten';
 import { scoreAccidental } from '../data/accidentalDignity';
 import { receptionsOf } from '../engine/reception';
-import { aspectsOf, applyingAspects } from '../engine/aspectsEngine';
+import { applyingAspects } from '../engine/aspectsEngine';
 import { isBesieged } from '../engine/conditions';
-import { norm360, angularDist } from '../engine/utils';
+import { norm360 } from '../engine/utils';
 
 const SEVEN = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
 const OUTER = ['uranus', 'neptune', 'pluto'];

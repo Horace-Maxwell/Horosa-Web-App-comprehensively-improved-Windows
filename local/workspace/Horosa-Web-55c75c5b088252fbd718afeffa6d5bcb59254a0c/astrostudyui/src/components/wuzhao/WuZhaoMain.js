@@ -4,12 +4,12 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 // 🔴 必须显式 import React:JSX 转译后是 React.createElement,webpack 下有自动注入
 // 兜着,但 jest 直测 render / SSR 场景会 ReferenceError(仓库既有教训)。
 import React, { Component } from 'react';
-import { InputNumber, Spin } from 'antd';
+
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, SIDE_COLLAPSE_STORE_KEY } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, SIDE_COLLAPSE_STORE_KEY, XQInputNumber, XQSpin } from '../xq-ui';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import { definePageSettings } from '../../utils/pageSettingsStore';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -30,6 +30,7 @@ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } fro
 import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
 import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import { wuzhaoShow, wuzhaoDisplayPan } from './wuzhaoDisplay';
+import { isEntropySeed, newEntropySeed, randomBit } from '../../utils/trueRandom';
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -106,7 +107,10 @@ const OPTION_KEYS = {
 	// 请求体由 buildPanPayload 按随机模式显式带上 → 同种子同兆(存案可复现、改判读档不换兆、缓存按体命中即正确)。
 	view: ['beastView', 'centerView', 'leizhanTab', 'rightPanelTab', 'panelWide', 'castSeed'],
 };
-function newCastSeed(){ return Math.floor(Math.random() * 2147483647); }
+// 随机起一次兆 = 真随机:当场向系统随机源取一段原始字节作种子(真随机记录),后端按顺序直接读它定每一次分策 / 每一枚钱
+// (见 astropy/astrostudy/truerandom.py)。敦煌揲筮六兆平均读约 24 字节,64 字节读不完。旧存案里的整数种子照旧可重开。
+const CAST_ENTROPY_BYTES = 64;
+function newCastSeed(){ return newEntropySeed(CAST_ENTROPY_BYTES); }
 function isRandomCast(state){ return !!state && (state.mode === 'dunhuang' || (state.mode === 'qian' && !!state.qianAuto)); }
 const ALL_OPTION_KEYS = [...OPTION_KEYS.calc, ...OPTION_KEYS.view];
 
@@ -635,8 +639,9 @@ class WuZhaoMain extends Component{
 		};
 		// 随机诸式才带种子(确定性模式请求体逐字节不变)
 		if(isRandomCast(this.state)){
-			const seed = Number.isFinite(Number(castSeedOverride)) ? Number(castSeedOverride) : this.state.castSeed;
-			if(Number.isFinite(Number(seed))){ payload.castSeed = Number(seed); }
+			const seed = (isEntropySeed(castSeedOverride) || Number.isFinite(Number(castSeedOverride))) ? castSeedOverride : this.state.castSeed;
+			if(isEntropySeed(seed)){ payload.castSeed = seed; }
+			else if(Number.isFinite(Number(seed))){ payload.castSeed = Number(seed); }
 		}
 		return payload;
 	}
@@ -741,12 +746,12 @@ class WuZhaoMain extends Component{
 		writePanelWide(next);
 	}
 
-	// 掷钱:本地随机四钱六掷后落成明细并转手动,使所得之盘可复现、可存案。
+	// 掷钱:本地四钱六掷(每枚钱一次系统真随机数)后落成明细并转手动,使所得之盘可复现、可存案。
 	rollQian(){
 		const next = [];
 		for(let i=0; i<6; i++){
 			let yang = 0;
-			for(let c=0; c<4; c++){ yang += Math.random() < 0.5 ? 1 : 0; }
+			for(let c=0; c<4; c++){ yang += randomBit(); }   // 每枚钱各取一次系统真随机数
 			next.push(yang);
 		}
 		this.setState({ qianThrows: next, qianAuto: false });
@@ -800,7 +805,7 @@ class WuZhaoMain extends Component{
 							    max 收 9:后端 >9 即 mod9,曾致左栏显 45 而概览/AI 显 0 同屏矛盾。
 							    ⚠️ 干支法对干支序数总和取五为模 → 相差 5 的报数必得同一盘(实测 0-9 恰 5 个相异盘),
 							    非死开关而是等价类,故照实标注(说明文另起整行,不挤在窄格里逐字换行)。 */}
-							<InputNumber value={this.state.number} min={0} max={9} disabled={this.state.mode !== 'ganzhi'} onChange={(v)=>this.setState({ number: v || 0 })} />
+							<XQInputNumber value={this.state.number} min={0} max={9} disabled={this.state.mode !== 'ganzhi'} onChange={(v)=>this.setState({ number: v || 0 })} />
 						</label>
 						{/* 揲筮模式只对折竹／唐法有意义;其余起兆法本无「自动随机 vs 手动复现」之别,
 						    与其留一个标签失真的禁用控件(死开关观感),不如按法隐藏。 */}
@@ -872,7 +877,7 @@ class WuZhaoMain extends Component{
 							{POSITION_ORDER.map((item, idx)=>(
 								<label className="horosa-huangji-select-field" key={item}>
 									<span>{wuzhaoShow(item)}</span>
-									<InputNumber
+									<XQInputNumber
 										value={this.state.manualSplits[idx]}
 										min={1}
 										max={35}
@@ -1395,7 +1400,7 @@ class WuZhaoMain extends Component{
 		return (
 			<div className={`horosa-huangji-page horosa-astro-redesign horosa-huangji-redesign horosa-wuzhao-redesign${embedded ? ' horosa-huangji-embedded' : ''}${this.state.panelWide ? ' is-panel-wide' : ''}`} style={pageStyle}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">
-					<Spin spinning={this.state.loading}>
+					<XQSpin spinning={this.state.loading}>
 						<div className="horosa-astro-redesign-grid horosa-huangji-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-huangji-input-panel">
 								{this.renderInputPanel()}
@@ -1413,7 +1418,7 @@ class WuZhaoMain extends Component{
 								{this.renderRightPanel()}
 							</div>
 						</div>
-					</Spin>
+					</XQSpin>
 					{!this.props.hideQuickDock && this.renderBottomQuickDock()}
 				</div>
 			</div>

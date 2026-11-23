@@ -1,0 +1,817 @@
+// 统一件 · 弹窗、页签(含竖排页签条)、导航列表与浮层
+// 从 styles.less 按区段拆出(规则原样、次序不变;读源码的检查经登记表读全集)。
+    .xq-modal .ant-modal-content {
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            radial-gradient(circle at 18% 0%, var(--horosa-cyan-soft), transparent 32%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 50%),
+            var(--horosa-surface-solid);   /* 实底(此前 surface-raised 半透明,大弹窗透出底下的页面) */
+        color: var(--horosa-text);
+        box-shadow: var(--horosa-shadow);
+    }
+
+    .xq-modal .ant-modal-header {
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--horosa-border);
+        background: transparent;
+    }
+
+    .xq-modal .ant-modal-title {
+        color: var(--horosa-text);
+        font-size: var(--horosa-fs-title-sm);
+        font-weight: 750;
+        letter-spacing: 0;
+    }
+
+    .xq-modal .ant-modal-body {
+        padding: 16px 18px;
+        background: transparent;
+    }
+
+    .xq-modal .ant-modal-footer {
+        padding: 12px 18px;
+        border-top: 1px solid var(--horosa-border);
+        background: var(--horosa-panel-soft);
+    }
+
+    /* ── 星阙金 W1·角色①「下划线 tabs」基线 ─────────────────────────────
+       token 组 --horosa-tab-*(app.less 亮暗齐);ink-bar 2px 圆头+微光(微光只落
+       指示条,禁大面积 shadow);三态字色 inactive/hover/active;键盘 focus-visible
+       可见环;prefers-reduced-motion 关滑动动效。 */
+    .xq-tabs.ant-tabs .ant-tabs-tab {
+        margin: 0 18px 0 0;
+        padding: 10px 0;
+        color: var(--horosa-tab-inactive-text, var(--horosa-text-soft));
+        font-weight: 600;
+        transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    /* 横排页签条:末页签不留尾间距。原先末签也带 18px 尾 margin,页签刚好排满一行时
+       只因这截空白就被判溢出、冒出「···」折叠钮(窄右栏五六个页签时常见)。
+       页签列表末子是指示条,故末签 = 倒数第二子;可增删页签(末尾是「+」钮)不命中。 */
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs .ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2),
+    .xq-tabs.ant-tabs .ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-list > .ant-tabs-tab:nth-last-child(2) {
+        margin-right: 0;
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-tab:hover {
+        color: var(--horosa-tab-hover-text, var(--horosa-text));
+    }
+
+    /* 页签按下 / 键盘聚焦时 antd 缺省把字染成蓝(#096dd9 / #40a9ff),统一成主题金 */
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:focus,
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:active,
+    .xq-tabs.ant-tabs .ant-tabs-tab-remove:focus,
+    .xq-tabs.ant-tabs .ant-tabs-tab-remove:active {
+        color: var(--horosa-tab-active-text, var(--horosa-accent-strong));
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+        color: var(--horosa-tab-active-text, var(--horosa-accent-strong));
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-ink-bar {
+        height: 2px;
+        border-radius: 999px;
+        background: var(--horosa-tab-ink, var(--horosa-accent));
+        box-shadow: 0 0 6px var(--horosa-tab-glow, transparent);
+        transition: width var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            left var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            transform var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    /* 页签键盘焦点:与全站焦点环同一口径,画在页签内侧(外描边会被竖排页签条的 nav-wrap 左右裁掉) */
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:focus-visible {
+        outline: none;
+        border-radius: 4px;
+        box-shadow: inset 0 0 0 2px var(--horosa-focus-ring);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .xq-tabs.ant-tabs .ant-tabs-ink-bar,
+        .xq-tabs.ant-tabs .ant-tabs-tab {
+            transition: none;
+        }
+    }
+
+    /* ── 星阙金 W1·角色②「竖栏 rail」皮(配 tabPosition='right'/'left') ────
+       选中行:3px 圆头边条(伪元素,吃 ink token)+浅金底;行高统一;与角色①同
+       动效 token。宿主加 className="xq-tabs xq-tabs-rail"。 */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab {
+        position: relative;
+        margin: 2px 0;
+        padding: 8px 14px;
+        border-radius: 8px;
+        transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            background var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab:hover {
+        background: var(--horosa-tab-hover-bg, transparent);
+    }
+
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab-active {
+        background: var(--horosa-tab-rail-active-bg, transparent);
+    }
+
+    /* [去竖条] 原激活态左缘 3px 金色竖条(用户嫌丑)——移除;激活态改由整块圆角背景高亮指示,足够清晰。 */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab::before {
+        content: none;
+    }
+
+    /* rail 皮下原生竖向 ink-bar 隐藏(边条替代,避免双指示) */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-ink-bar {
+        display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab,
+        .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab::before {
+            transition: none;
+        }
+    }
+
+    /* 竖排页签条原生纵向滚动(XQTabRailBar 自绘,见 xq-ui/index.js):页签比页面长时滚轮 / 触控板直接滚,
+       不出省略号菜单;滚动条隐藏,上 / 下还有内容时由边缘渐隐提示(data-more 由组件按滚动位置回写)。 */
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail {
+        min-height: 0;
+    }
+
+    /* 工作区横滚时页签条钉在可见边上(xq-ui useRailPin):盖在内容上那会儿要实底 + 边影,滚到尽头回位后去掉。
+       实底 = 本页页签条自己的底色(--horosa-rail-tint,各页页签条规则里登记)叠在页面底色上 —— 与没钉住时看着一样,
+       只是不再透出底下的内容(此前一律换成 surface-solid:各页钉住前后颜色不同;且被按页面名单写的底色规则压掉,仍半透明)。
+       边影投向内容那一侧(钉在右边 → 左缘一道),上下不投影。 */
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail.is-pinned {
+        position: relative;
+        z-index: 3;
+    }
+    /* 权重(0,7,0)高过各页按页面名单写的页签条底色(0,6,0),不靠 !important */
+    :root .xq-tabs-rail.ant-tabs > .xq-tab-rail.ant-tabs-nav.is-pinned[data-pin] {
+        background:
+            linear-gradient(var(--horosa-rail-tint, var(--horosa-nav-bg)), var(--horosa-rail-tint, var(--horosa-nav-bg))),
+            var(--horosa-bg);
+    }
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail.is-pinned[data-pin='right'] {
+        box-shadow: var(--horosa-edge-shadow-left);
+    }
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail.is-pinned[data-pin='left'] {
+        box-shadow: var(--horosa-edge-shadow-right);
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+        transform: none;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* 右缘页签条滚到底时,末项停在窗口右下角那颗后端状态灯之上(灯固定在右下 12px 处,不让它压着末项)。 */
+    .xq-tabs-rail.ant-tabs-right > .xq-tab-rail > .xq-tab-rail-wrap > .ant-tabs-nav-list {
+        padding-bottom: 22px;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::before,
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap::after {
+        content: none;
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='top'] {
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='bottom'] {
+        -webkit-mask-image: linear-gradient(to top, transparent 0, #000 30px);
+        mask-image: linear-gradient(to top, transparent 0, #000 30px);
+    }
+
+    .xq-tabs-rail.ant-tabs > .xq-tab-rail > .xq-tab-rail-wrap[data-more='both'] {
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 ~"calc(100% - 30px)", transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 ~"calc(100% - 30px)", transparent 100%);
+    }
+
+    /* 横排页签条放不下时:不出「···」更多菜单;滚轮 / 触控板在页签条上直接横滚(页签库自带,选中项自动滚入视野),
+       哪一端还有内容,哪一端边缘渐隐 —— 与竖排页签条(xq-tab-rail)同一套溢出手感。 */
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-operations,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-operations {
+        display: none;
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap::before,
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap::after,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap::before,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap::after {
+        box-shadow: none;
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left {
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px);
+        mask-image: linear-gradient(to right, transparent 0, #000 26px);
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-right,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-right {
+        -webkit-mask-image: linear-gradient(to left, transparent 0, #000 26px);
+        mask-image: linear-gradient(to left, transparent 0, #000 26px);
+    }
+
+    .xq-tabs.ant-tabs-top > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left.ant-tabs-nav-wrap-ping-right,
+    .xq-tabs.ant-tabs-bottom > .ant-tabs-nav .ant-tabs-nav-wrap.ant-tabs-nav-wrap-ping-left.ant-tabs-nav-wrap-ping-right {
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 ~"calc(100% - 26px)", transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 ~"calc(100% - 26px)", transparent 100%);
+    }
+
+    .xq-nav-list {
+        display: grid;
+        gap: 12px;
+        padding: 2px 0 10px;
+    }
+
+    .xq-nav-group {
+        display: grid;
+        gap: 6px;
+    }
+
+    .xq-nav-group-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px;
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-caption);
+        font-weight: 750;
+        letter-spacing: 0.08em;
+    }
+
+    .xq-nav-group-title::after {
+        content: '';
+        flex: 1 1 auto;
+        height: 1px;
+        background: linear-gradient(90deg, var(--horosa-border), transparent);
+    }
+
+    .xq-nav-group-items {
+        display: grid;
+        gap: 5px;
+    }
+
+    .xq-nav-item {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        min-height: 42px;
+        padding: 5px 9px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--horosa-text-soft);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .xq-nav-item:hover {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-accent-strong);
+    }
+
+    .xq-nav-item-active {
+        border-color: var(--horosa-border-strong);
+        background:
+            radial-gradient(circle at 12% 18%, var(--horosa-cyan-soft), transparent 42%),
+            linear-gradient(90deg, var(--horosa-accent-soft), transparent 112%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-accent-strong);
+        box-shadow: inset 3px 0 0 var(--horosa-accent), 0 8px 18px rgba(47, 115, 224, 0.10);
+    }
+
+    .xq-nav-item-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+            var(--horosa-panel-bg);
+        color: currentColor;
+        font-size: var(--horosa-fs-title);
+    }
+
+    .xq-nav-item-active .xq-nav-item-icon {
+        border-color: var(--horosa-accent);
+        box-shadow: 0 0 0 3px var(--horosa-cyan-soft);
+    }
+
+    .xq-nav-item-copy {
+        display: grid;
+        min-width: 0;
+        gap: 2px;
+    }
+
+    .xq-nav-item-group {
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-caption);
+        font-weight: 600;
+        line-height: 1;
+    }
+
+    .xq-nav-item-label {
+        overflow: hidden;
+        font-size: var(--horosa-fs-subtitle);
+        font-weight: 650;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .xq-drawer-nav .ant-drawer-body {
+        padding: 12px 10px;
+    }
+
+    .xq-drawer-nav .ant-drawer-content {
+        border-radius: 0 var(--horosa-radius) var(--horosa-radius) 0;
+    }
+
+    .xq-nav-popup {
+        padding-bottom: 0;
+    }
+
+    .xq-nav-popup .ant-modal-content {
+        overflow: hidden;
+        border: 1px solid rgba(232, 191, 122, 0.24);
+        border-radius: 10px;
+        background: #050607;
+        color: #f3eadb;
+        box-shadow:
+            0 30px 90px rgba(0, 0, 0, 0.64),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .xq-nav-popup .ant-modal-body {
+        padding: 0;
+    }
+
+    .xq-nav-popup-shell {
+        position: relative;
+        min-height: ~"min(736px, calc(100 * var(--horosa-lvh, 1vh) - 96px))";
+        /* 放大档窗口矮:整块不比窗口高(上下各留 24),多出来的在框里滚,不让整个弹窗冒出窗口 */
+        max-height: calc(100 * var(--horosa-lvh, 1vh) - 48px);
+        overflow-y: auto;
+        background: #050607;
+    }
+
+    .xq-nav-popup-inner {
+        min-height: inherit;
+    }
+
+    .xq-nav-popup-header {
+        display: grid;
+        grid-template-columns: 1fr minmax(280px, 390px) 48px;
+        align-items: center;
+        gap: 22px;
+        height: 112px;
+        padding: 0 34px;
+        border-bottom: 1px solid rgba(232, 191, 122, 0.16);
+        background: #080a0d;
+    }
+
+    .xq-nav-popup-heading {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .xq-nav-popup-kicker {
+        color: #e8bd76;
+        font-size: var(--horosa-fs-subtitle);
+        font-weight: 760;
+        line-height: 1.2;
+        letter-spacing: 0;
+    }
+
+    .xq-nav-popup-title {
+        margin-top: 8px;
+        color: #fff5e6;
+        font-size: 30px;
+        font-weight: 800;
+        line-height: 1.18;
+        letter-spacing: 0;
+    }
+
+    .xq-nav-popup-search {
+        display: grid;
+        grid-template-columns: 28px 1fr 58px;
+        align-items: center;
+        gap: 12px;
+        height: 48px;
+        padding: 0 16px;
+        border: 1px solid rgba(232, 191, 122, 0.16);
+        border-radius: 8px;
+        background: #050607;
+        color: #817d74;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-size: var(--horosa-fs-subtitle);
+    }
+
+    .xq-nav-popup-search .xq-icon {
+        font-size: var(--horosa-fs-title-lg);
+    }
+
+    .xq-nav-popup-search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: #f3eadb;
+        font: inherit;
+    }
+
+    .xq-nav-popup-search input::placeholder {
+        color: #817d74;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+    }
+
+    .xq-nav-popup-search kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 42px;
+        height: 26px;
+        border: 1px solid rgba(232, 191, 122, 0.18);
+        border-radius: 5px;
+        color: #817d74;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-family: inherit;
+        font-size: var(--horosa-fs-small);
+        font-weight: 700;
+    }
+
+    .xq-nav-popup-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border: 1px solid rgba(232, 191, 122, 0.2);
+        border-radius: 8px;
+        background: #0b0d10;
+        color: rgba(244, 234, 216, 0.7);
+        font-size: 34px;
+        line-height: 1;
+        cursor: pointer;
+        transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .xq-nav-popup-close:hover,
+    .xq-nav-popup-close:focus {
+        border-color: rgba(232, 191, 122, 0.5);
+        background: rgba(232, 191, 122, 0.08);
+        color: #e8bd76;
+        transform: translateY(-1px);
+    }
+
+    .xq-nav-popup-body {
+        display: grid;
+        grid-template-columns: 198px 1fr;
+        min-height: 624px;
+    }
+
+    .xq-nav-popup-rail {
+        display: grid;
+        align-content: start;
+        gap: 12px;
+        padding: 24px 18px;
+        border-right: 1px solid rgba(232, 191, 122, 0.12);
+        background: #07090b;
+    }
+
+    .xq-nav-rail-item {
+        display: grid;
+        grid-template-columns: 30px 1fr;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: #a39c91;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-size: var(--horosa-fs-subtitle);
+        font-weight: 700;
+        line-height: 1;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.18s ease, color 0.18s ease;
+    }
+
+    .xq-nav-rail-item-active {
+        background: rgba(232, 191, 122, 0.11);
+        color: #e8bd76;
+        box-shadow: inset 3px 0 0 #e8bd76;
+    }
+
+    .xq-nav-recent {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(232, 191, 122, 0.12);
+    }
+
+    .xq-nav-recent-title {
+        color: rgba(232, 191, 122, 0.72);
+        font-size: var(--horosa-fs-small);
+        font-weight: 760;
+    }
+
+    .xq-nav-recent-chip {
+        justify-self: start;
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid rgba(232, 191, 122, 0.14);
+        border-radius: 6px;
+        background: #0a0c10;
+        color: #999389;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-size: var(--horosa-fs-body);
+        cursor: pointer;
+    }
+
+    .xq-nav-popup-content {
+        position: relative;
+        display: grid;
+        align-content: start;
+        gap: 26px;
+        max-height: ~"min(624px, calc(100 * var(--horosa-lvh, 1vh) - 220px))";
+        overflow: auto;
+        padding: 30px 30px 52px;
+    }
+
+    .xq-nav-section {
+        display: grid;
+        gap: 14px;
+    }
+
+    .xq-nav-section-title {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 12px;
+        height: 18px;
+        color: rgba(232, 191, 122, 0.86);
+        font-size: var(--horosa-fs-body);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+    }
+
+    .xq-nav-section-title::after {
+        content: "";
+        height: 1px;
+        background: linear-gradient(90deg, rgba(232, 191, 122, 0.2), rgba(232, 191, 122, 0));
+    }
+
+    .xq-nav-card-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .xq-nav-card {
+        position: relative;
+        display: grid;
+        align-items: center;
+        height: 68px;
+        padding: 0 24px;
+        overflow: hidden;
+        border: 1px solid rgba(232, 191, 122, 0.14);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0)),
+            #0a0d11;
+        color: rgba(244, 234, 216, 0.82);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .xq-nav-card::after {
+        position: absolute;
+        inset: 0;
+        border-radius: 8px;
+        background: linear-gradient(90deg, rgba(232, 191, 122, 0.08), rgba(232, 191, 122, 0));
+        opacity: 0;
+        content: "";
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+    }
+
+    .xq-nav-card:hover {
+        border-color: rgba(232, 191, 122, 0.32);
+        color: #f4ead8;
+    }
+
+    .xq-nav-card-active {
+        border-color: rgba(230, 196, 137, 0.42);
+        background:
+            linear-gradient(90deg, rgba(232, 191, 122, 0.14), rgba(232, 191, 122, 0.035) 55%, rgba(232, 191, 122, 0)),
+            #11100d;
+        color: #e8bd76 !important;
+        box-shadow:
+            inset 4px 0 0 #e8bd76,
+            0 14px 32px rgba(0, 0, 0, 0.32);
+    }
+
+    .xq-nav-card-active::after {
+        opacity: 1;
+    }
+
+    .xq-nav-card-label {
+        display: block;
+        min-width: 0;
+    }
+
+    .xq-nav-card-label small {
+        display: none;
+    }
+
+    .xq-nav-card-label strong {
+        display: block;
+        overflow: hidden;
+        color: inherit;
+        font-size: var(--horosa-fs-display);
+        font-weight: 820;
+        line-height: 1;
+        letter-spacing: 0.02em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    // 术法关键词命中提示（搜「卜卦盘」→辅盘卡片标注「含 卜卦盘」，让用户知道为何出现）。
+    .xq-nav-card-hit {
+        display: block;
+        margin-top: 4px;
+        overflow: hidden;
+        color: rgba(232, 191, 122, 0.72);
+        font-size: var(--horosa-fs-caption);
+        font-style: normal;
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: 0.01em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .xq-nav-section-卜 .xq-nav-card {
+        color: rgba(226, 234, 229, 0.82);
+    }
+
+    .xq-nav-section-工具 .xq-nav-card {
+        color: rgba(232, 239, 255, 0.82);
+    }
+
+    .xq-nav-tool-launcher {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 50px;
+    }
+
+    .xq-nav-tool-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 42px;
+        padding: 0 20px;
+        border: 1px solid rgba(232, 191, 122, 0.28);
+        border-radius: 8px;
+        background: #050607;
+        color: rgba(244, 234, 216, 0.88);
+        font-size: var(--horosa-fs-title);
+        font-weight: 760;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+            0 0 0 1px rgba(0, 0, 0, 0.28);
+        transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .xq-nav-tool-button .xq-icon {
+        width: 16px;
+        height: 16px;
+        color: rgba(244, 234, 216, 0.84);
+    }
+
+    .xq-nav-tool-button:hover,
+    .xq-nav-tool-button:focus,
+    .xq-nav-tool-button-active {
+        border-color: rgba(232, 191, 122, 0.52);
+        background: #08090b;
+        color: #f4ead8;
+    }
+
+    .xq-nav-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 280px;
+        color: #817d74;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-size: var(--horosa-fs-subtitle);
+    }
+
+    .xq-nav-micro-note {
+        justify-self: end;
+        margin-top: -4px;
+        padding-bottom: 2px;
+        color: #817d74;   /* 定色暗面板:不透明字色 ≥ 4.6:1(旧 rgba 叠透明度) */
+        font-size: var(--horosa-fs-body);
+        line-height: 18px;
+    }
+
+    @media (max-width: 1240px) {
+        .xq-nav-card-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 900px) {
+        .xq-nav-popup-header {
+            grid-template-columns: 1fr 48px;
+            height: auto;
+            min-height: 112px;
+            padding: 18px;
+        }
+
+        .xq-nav-popup-search {
+            grid-column-start: 1; grid-column-end: 3;   /* 起止分写:`1 / 3` 会被 LESS 算成 0.333 */
+            grid-row: 2;
+        }
+
+        .xq-nav-popup-body {
+            grid-template-columns: 1fr;
+        }
+
+        .xq-nav-popup-rail {
+            display: none;
+        }
+
+        .xq-nav-card-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    .xq-nav-popup-motion-enter,
+    .xq-nav-popup-motion-appear {
+        opacity: 0;
+    }
+
+    .xq-nav-popup-motion-enter-active,
+    .xq-nav-popup-motion-appear-active {
+        animation: xqNavPopupIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+        transform-origin: center;
+    }
+
+    .xq-nav-popup-motion-leave-active {
+        animation: xqNavPopupOut 0.16s ease both;
+        transform-origin: center;
+    }
+
+    .xq-nav-popup-mask-motion-enter,
+    .xq-nav-popup-mask-motion-appear {
+        opacity: 0;
+    }
+
+    .xq-nav-popup-mask-motion-enter-active,
+    .xq-nav-popup-mask-motion-appear-active {
+        animation: xqNavMaskIn 0.18s ease both;
+    }
+
+    .xq-nav-popup-mask-motion-leave-active {
+        animation: xqNavMaskOut 0.14s ease both;
+    }
+
+    // ── 设置面板:安静的分组卡 + 行式设置。
+    // 一组设置 = 一张细边卡(XQSettingGroup);一行 = 左标签(可带第二行灰字说明)+ 右控件(XQSettingRow);
+    // 布尔项用开关,多选一用分段钮 / 下拉;勾选型显示项是轻量复选列表。无渐变、无辉光、无装饰线、无悬浮位移。
+    // 星盘设置抽屉(宽)带左侧分组导航;同一组件装进窄浮层时分段钮另起一行铺满。
+    .horosa-selector-drawer {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        color: var(--horosa-text);
+        padding-bottom: 18px;
+    }
+

@@ -23,7 +23,7 @@ import fs from 'fs';
 import path from 'path';
 
 const parser = require('@babel/parser');
-const { readSource } = require('../../utils/__tests__/helpers/sourceSet');
+const { readSource, isSourceSetPart, mixinGroupsOf } = require('../../utils/__tests__/helpers/sourceSet');
 const { divinationDirs, DIVINATION_ALSO_DIRS } = require('../../utils/__tests__/helpers/divinationDirs');
 
 const COMPONENTS = path.join(__dirname, '..');
@@ -159,8 +159,13 @@ export function scanDerivedChartSource(text, opts){
 		}
 	});
 	const methods = [];
+	// 类方法;按职责拆进子文件的类方法 = 门面 mixinMethods(类, …) 挂回的方法对象里的对象方法(全集文本里认得出),同样算
+	const groups = mixinGroupsOf(text);
 	walk(ast.program, (n)=>{
 		if((n.type === 'ClassMethod' || n.type === 'ClassPrivateMethod') || (n.type === 'ClassProperty' && n.value && FN_TYPES.has(n.value.type))){ methods.push(n); }
+		if(n.type === 'VariableDeclarator' && n.id && n.id.type === 'Identifier' && groups.has(n.id.name) && n.init && n.init.type === 'ObjectExpression'){
+			n.init.properties.forEach((p)=>{ if(p.type === 'ObjectMethod' || (p.type === 'ObjectProperty' && p.value && FN_TYPES.has(p.value.type))){ methods.push(p); } });
+		}
 	});
 	// 只认 this.props.value(命类宿主的当前命盘;卜类页的 props.chartObj 是起课参照,不在本条)
 	const usesNatal = (k)=>isThisMember(k, 'props') && k.property.name === 'value';
@@ -212,10 +217,12 @@ describe('静态守卫:派生盘带来源键、按当前盘比对后才画', ()=
 		const bad = [];
 		const files = listJsFiles(COMPONENTS);
 		const buDirs = new Set([...divinationDirs().dirs, ...DIVINATION_ALSO_DIRS]);
-		files.forEach((f)=>{
+		// 子模块折回门面:②③④按「整个组件」成立(经 pickKeyedDerived 读的字段、写它的 setState、裸读都可能分在不同子文件里 ——
+		// 类方法按职责拆出后正是这样),逐文件扫会让跨文件的那一对判据静默缺席;门面按全集读,行号是全集里的行号
+		files.filter((f)=>!isSourceSetPart(f)).forEach((f)=>{
 			const rel = path.relative(COMPONENTS, f).split(path.sep).join('/');
 			const natalAsync = !buDirs.has(rel.split('/')[0]);
-			scanDerivedChartSource(fs.readFileSync(f, 'utf8'), { natalAsync }).forEach((h)=>bad.push(`${rel}:${h.line} ${h.rule} ${h.field}`));
+			scanDerivedChartSource(readSource(f), { natalAsync }).forEach((h)=>bad.push(`${rel}:${h.line} ${h.rule} ${h.field}`));
 		});
 		expect(files.length).toBeGreaterThan(500);
 		expect(bad).toEqual([]);
@@ -280,6 +287,10 @@ describe('静态守卫:派生盘带来源键、按当前盘比对后才画', ()=
 		expect(rules('async load(){ const r = await q(this.props.value); this.setState({ result: null, loading: false, error: r.msg }); }')).toEqual([]);
 		expect(rules('async load(){ const r = await q(this.props.fields); this.setState({ result: r }); }')).toEqual([]);
 		expect(rules('shownResult(){ return pickKeyedDerived(this.state.result, this.state.resultSig, k(this.props.value)); } async load(){ const resultSig = k(this.props.value); const r = await q(this.props.value); this.setState({ result: r, resultSig }); }')).toEqual([]);
+		// 类方法拆在子文件的方法对象里(门面 mixinMethods 挂回):全集文本里照样认作类方法、照样报;没挂回的对象不算
+		const mixed = 'export const loadMethods = { async load(){ const r = await q(this.props.value); this.setState({ result: r }); }, };\nclass X extends C { render(){ return null; } }\nmixinMethods(X, loadMethods);';
+		expect(scanDerivedChartSource(mixed).map((h)=>`${h.rule}:${h.field}`)).toEqual(['unkeyed-async-data:result']);
+		expect(scanDerivedChartSource(mixed.replace('mixinMethods(X, loadMethods);', ''))).toEqual([]);
 		// 卜类目录不跑第④条(参照盘按起课签名配对,另一份守卫管);其余三条照跑
 		expect(scanDerivedChartSource(cls('async load(){ const r = await q(this.props.value); this.setState({ result: r }); }'), { natalAsync: false })).toEqual([]);
 		expect(scanDerivedChartSource(cls('render(){ return <C value={this.state.wsChartObj || this.props.value} />; }'), { natalAsync: false }).map((h)=>h.rule)).toEqual(['bare-fallback']);

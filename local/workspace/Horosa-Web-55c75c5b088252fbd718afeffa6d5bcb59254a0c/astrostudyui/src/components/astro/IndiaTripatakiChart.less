@@ -10,7 +10,7 @@
 }
 .horosa-india-tripataki-title {
 	text-align: center;
-	font-size: 14px;
+	font-size: var(--horosa-fs-body-lg);
 	font-weight: 600;
 	color: var(--horosa-astro-text, #e8ecf3);
 	> em { display: block; font-style: normal; font-weight: 400; font-size: 10.5px; color: var(--horosa-astro-muted, #8fa0b9); margin-top: 2px; }
@@ -79,7 +79,7 @@
 	border: none;
 	border-left: 3px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.5));
 	background: linear-gradient(90deg, rgba(215, 173, 105, 0.16), rgba(215, 173, 105, 0.05));
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: var(--horosa-astro-text, #e8ecf3);
 	transition: filter 0.15s ease;
 	&:hover { filter: brightness(1.06); }
@@ -120,8 +120,8 @@
 	background: transparent;
 	cursor: pointer;
 	transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
-	> strong { font-size: 12px; line-height: 1.2; color: var(--horosa-astro-text, #e8ecf3); }
-	> em { font-style: normal; font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); }
+	> strong { font-size: var(--horosa-fs-small); line-height: 1.2; color: var(--horosa-astro-text, #e8ecf3); }
+	> em { font-style: normal; font-size: var(--horosa-fs-micro); color: var(--horosa-astro-muted, #8fa0b9); }
 	&.is-good > em { color: var(--horosa-jx-ji, #4caf7d); font-weight: 600; }
 	&.is-bad > em { color: var(--horosa-jx-xiong, #d77b7b); font-weight: 600; }
 	&:hover { border-color: rgba(215, 173, 105, 0.8); transform: translateY(-1px); }

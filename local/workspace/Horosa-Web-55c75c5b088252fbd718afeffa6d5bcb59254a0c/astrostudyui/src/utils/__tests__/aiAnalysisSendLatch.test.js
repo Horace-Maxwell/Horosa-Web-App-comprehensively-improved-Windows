@@ -2,7 +2,7 @@
 //   此前「空问题 / 需先挂载 / 未选模型 / 缺 Key」四条早退把 sendingRef 留在 true ⇒ 之后每次发送在入口被吞(按钮看着可用却永不发)。
 const fs = require('fs');
 const path = require('path');
-const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, fnBody } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 const MAIN = path.resolve(__dirname, '..', '..', 'components', 'aianalysis', 'AIAnalysisMain.js');
 const strip = (s)=>s.replace(/^\s*\/\/.*$/mg, '');
 
@@ -30,10 +30,16 @@ it('🔴 每处 sendingRef 置位后紧跟 try{;每处复位都在 }finally{ 之
 		expect(pv.trim()).toBe('}finally{');
 	});
 	expect(src).not.toContain('sendingRef.current = false; return;');
-	// 早退:try{ 之后、setSending(true) 之前至少四个 return;(空问题 / 需先挂载 / 未选模型 / 缺 Key)
-	const start = ups[0] + 2;
-	const end = lines.findIndex((l, i)=>i > start && l.indexOf('setSending(true);') >= 0);
+	// 早退:首发入口 handleSend 里 try{ 之后、setSending(true) 之前至少四个 return;(空问题 / 需先挂载 / 未选模型 / 缺 Key)
+	//   按函数截(组件体内的函数按职责拆在子文件里,全集里各入口的先后不再是原文件的先后)
+	const body = fnBody(src, 'async function handleSend(');
+	expect(body).toBeTruthy();
+	const bl = body.split('\n');
+	const up0 = bl.findIndex((l)=>l.indexOf('sendingRef.current = true;') >= 0);
+	expect(up0).toBeGreaterThan(0);
+	const start = up0 + 2;
+	const end = bl.findIndex((l, i)=>i > start && l.indexOf('setSending(true);') >= 0);
 	expect(end).toBeGreaterThan(start);
-	const returns = lines.slice(start, end).filter((l)=>l.trim() === 'return;').length;
+	const returns = bl.slice(start, end).filter((l)=>l.trim() === 'return;').length;
 	expect(returns).toBeGreaterThanOrEqual(4);
 });

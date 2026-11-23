@@ -1,0 +1,44 @@
+diff --git a/astrostudyui/src/components/astro/indiaMain/dashaPanels.js b/astrostudyui/src/components/astro/indiaMain/dashaPanels.js
+index 2796d9eb..a19e6be0 100644
+--- a/astrostudyui/src/components/astro/indiaMain/dashaPanels.js
++++ b/astrostudyui/src/components/astro/indiaMain/dashaPanels.js
+@@ -13,6 +13,7 @@ import { natalSourceKey, pickKeyedDerived } from '../../../utils/derivedChartSou
+ import { DASHA_SYSTEM_OPTIONS, DASHA_CONDITIONAL_KEYS, DASHA_JAIMINI_KEYS, DASHA_SYSTEM_LABEL, DASHA_SEED_DEFAULT, DASHA_SEED_OPTIONS, DASHA_SEED_LABEL } from './optionState';
+ import { DASHA_YEAR_DAYS, currentDashaYearDays, syncDashaYearDays, buildBirthMoment, addDashaYears, formatDuration, formatAge, deriveDashaSequence, buildDashaSubPeriods, normalizeDashaLord, DASHA_LEVEL_LABELS, DASHA_MAX_LEVEL, dashaContainsNow, buildVimshottariDasha, dashaMoment } from './dasha';
+ import { getJyotish, hasJyotishPayload, formatJyotishDate, formatJyotishDateTime, formatDurationFine, cloneIndiaFieldsForJyotish, resolveJyotishChartObj, hasUsableJyotishChart, buildDashaFieldsKey, canBuildIndiaChartParams, jyotishPartialNotice, isDashaPartialName } from './jyotishData';
++import { markPanelReady } from '../../../utils/perfMark';
+ const {Option, OptGroup} = Select;
+ 
+ export const dashaPanelMethods = {
+@@ -30,6 +31,18 @@ export const dashaPanelMethods = {
+ 				this.setState({
+ 					activeJyotishFields: jyotishFields,
+ 					activeJyotishKey: dashaFieldsKey,
++				}, ()=>{
++					// horosa_panel_ready_v1:命中「已有可用盘」的短路分支 —— 本次交互不再发请求,
++					// 这一次 setState(切换 activeJyotishFields → 中盘 + 右栏 Jyotish 面板同批重画)
++					// 就是面板落定的最后一次。不接在这里,缓存命中的那些交互(切分盘/回切旧参数)
++					// 会永远量不到 panel-ready(markPanelReady 自身按 generation 去重,多点接入安全)。
++					// 🔴 复核修:本分支还有第二条进入路径 —— 同键请求**在途**(dashaLoading)。那时盘面
++					// 还是旧的、新数据没到,标 ready 是伪造的早点(且会吃掉 stepT0,让真正落定的那次
++					// 变成 no-op → 系统性低估印占耗时)。故只在「确有可用盘」时才标;在途那次不标,
++					// 等 1836 的真落定点标,样本不丢。
++					if(alreadyHasData){
++						markPanelReady('indiachart');
++					}
+ 				});
+ 			}
+ 			return;
+@@ -75,6 +88,12 @@ export const dashaPanelMethods = {
+ 					...(hasJyotishPayload(dashaChartObj) ? { lastChartObj: dashaChartObj, lastChartObjSig: activeNatalSig } : {}),
+ 					dashaLoading: false,
+ 					dashaUpdating: false,
++				}, ()=>{
++					// horosa_panel_ready_v1:印占面板落定的**唯一**权威点 —— 中盘(mainChartObj)与
++					// 右栏全部 Jyotish 技法(大运/五支/星曜/八分/Yoga…)吃的都是这同一个 dashaChartObj,
++					// 一次 setState 同批落地。请求发出(1475 的 dashaUpdating:true)不是落定,失败分支
++					// (下面 catch)也不是 —— 那次只收 loading 角标、盘面仍是上一次的旧盘,不代表新数据画完。
++					markPanelReady('indiachart');
+ 				});
+ 			}
+ 		}catch(e){

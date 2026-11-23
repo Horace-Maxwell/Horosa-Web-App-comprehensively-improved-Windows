@@ -1,10 +1,10 @@
 // 演禽先秦法快照:deriveLocalNongliAsync 是 async 函数,调用只会返回 Promise、错误走 reject 由 .catch 接住,
 // 外层同步 try 走不到,已去。
-import fs from 'fs';
 import path from 'path';
 import { deriveLocalNongliAsync } from '../../../utils/divinationTimeDraft';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'KinAstroMain.js'), 'utf8')
+const SRC = readSource(path.resolve(__dirname, '..', 'KinAstroMain.js'))
 	.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 describe('演禽 先秦法 月份补算', () => {

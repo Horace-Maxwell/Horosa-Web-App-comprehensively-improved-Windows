@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index ac97a05d..a8715573 100644
+index 3be234b5..801dc53b 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-@@ -216,6 +216,8 @@ import { AssistantMarkdown } from './main/AssistantMarkdown';
- import { matchesUserQuery } from '../../utils/scriptMode';
- import { datePartOf } from '../../utils/dateStrSafe';
- import { SETTING_NOT_SAVED_EVENT } from '../../utils/safeStorage';
+@@ -58,6 +58,8 @@ import { pruneHiddenHistorySelection as pruneHiddenHistorySelectionImpl, syncCon
+ import { renderMaterialModal as renderMaterialModalImpl, renderTemplateModal as renderTemplateModalImpl, renderBundlePreviewModal as renderBundlePreviewModalImpl, renderFolderDrawer as renderFolderDrawerImpl, renderBundleModal as renderBundleModalImpl, renderProviderSwitchModal as renderProviderSwitchModalImpl, renderProviderModal as renderProviderModalImpl, renderTemplatePreviewDrawer as renderTemplatePreviewDrawerImpl } from './main/dialogs';
+ import { openConversation as openConversationImpl, ensureConversationRecord as ensureConversationRecordImpl, updateConversationMeta as updateConversationMetaImpl, handleSend as handleSendImpl, applyBundle as applyBundleImpl, handleBranchFromMessage as handleBranchFromMessageImpl } from './main/conversationFlow';
+ import { exportWorkspaceBackupInner as exportWorkspaceBackupInnerImpl, pruneBundleRefs as pruneBundleRefsImpl, fetchModelsAndEmbeddings as fetchModelsAndEmbeddingsImpl } from './main/workspaceActions';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
- // 保存结果统一提示(取消 info / 失败 error / 成功 success 带路径)
- function notifySaveResult(r, okText){ const d = describeSaveResult(r, okText); (message[d.type] || message.info)(d.text); }
-@@ -1016,7 +1018,15 @@ function AIAnalysisMain(props){
+ const { Dragger } = Upload;
+ const { TabPane } = Tabs;
+@@ -497,7 +499,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -28,7 +28,7 @@ index ac97a05d..a8715573 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -5556,6 +5566,12 @@ function AIAnalysisMain(props){
+@@ -1267,6 +1277,12 @@ function AIAnalysisMain(props){
  			{/* 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
  			    APP(WKWebView)里大库首读把它顶成「全页转圈很久」。现在首帧直接渲染,
  			    wave2 未到位时资料/历史 pane 顶部各自细提示(deepLoading)。绝不回包全页。 */}
@@ -41,7 +41,7 @@ index ac97a05d..a8715573 100644
  			<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5564,25 +5580,35 @@ function AIAnalysisMain(props){
+@@ -1275,25 +1291,35 @@ function AIAnalysisMain(props){
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">

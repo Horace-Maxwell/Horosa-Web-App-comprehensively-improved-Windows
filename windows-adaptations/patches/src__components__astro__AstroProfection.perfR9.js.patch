@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroProfection.js b/astrostudyui/src/components/astro/AstroProfection.js
-index a294a838..012570b5 100644
+index 051c9319..ec60d67c 100644
 --- a/astrostudyui/src/components/astro/AstroProfection.js
 +++ b/astrostudyui/src/components/astro/AstroProfection.js
 @@ -25,6 +25,7 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';

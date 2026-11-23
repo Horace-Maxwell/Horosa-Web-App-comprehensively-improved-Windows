@@ -11,10 +11,20 @@ export function withTimeout(promise, ms, options){
 	return Promise.race([promise, timeout]).finally(()=>{ if(t){ clearTimeout(t); } });
 }
 
-// 外部桥超时预算:取客户端 _meta.timeoutMs(钳 1s..600s),再减 3s 让页面先于壳侧超时回话,缺省 120s。
+// 外部桥超时预算:取客户端 _meta.timeoutMs(钳 1s..30 分钟),再减 3s 让页面先于壳侧超时回话,缺省 120s。
+// 硬顶 = 目录里声明得最长的同步工具(30 分钟);桌面壳 MAX_TOOL_TIMEOUT、无头协议层 timeoutOf 同一个数。
+export const BRIDGE_TIMEOUT_DEFAULT_MS = 120000;
+export const BRIDGE_TIMEOUT_MAX_MS = 1800000;
 export function bridgeTimeoutMs(meta, fallbackMs){
-	const base = fallbackMs || 120000;
-	const raw = meta && Number.isFinite(Number(meta.timeoutMs)) ? Number(meta.timeoutMs) : base;
-	const clamped = Math.min(Math.max(raw, 1000), 600000);
+	const base = fallbackMs || BRIDGE_TIMEOUT_DEFAULT_MS;
+	const raw = meta && Number.isFinite(Number(meta.timeoutMs)) && Number(meta.timeoutMs) > 0 ? Number(meta.timeoutMs) : base;
+	const clamped = Math.min(Math.max(raw, 1000), BRIDGE_TIMEOUT_MAX_MS);
 	return Math.max(1000, clamped - 3000);
+}
+// 客户端没给预算时的缺省:工具自己声明得比 120 s 长就按它(钳到硬顶;与桌面壳投来的同值,页面照旧减 3 s 收口),否则 120 s。
+//   此前一律 120 s:声明 3–30 分钟的同步长工具在客户端不带 _meta.timeoutMs 时 117 s 就被中止,
+//   而多数 MCP 客户端没有地方填这个值。
+export function bridgeFallbackMs(declaredMs){
+	const d = Number(declaredMs);
+	return Number.isFinite(d) && d > BRIDGE_TIMEOUT_DEFAULT_MS ? Math.min(d, BRIDGE_TIMEOUT_MAX_MS) : BRIDGE_TIMEOUT_DEFAULT_MS;
 }

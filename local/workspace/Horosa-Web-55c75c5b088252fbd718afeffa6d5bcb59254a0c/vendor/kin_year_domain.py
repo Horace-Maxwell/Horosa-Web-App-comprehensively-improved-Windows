@@ -54,6 +54,38 @@ def extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1, 
     return yTG, mTG, dTG, hTG, ziTG
 
 
+_JIE_EXACT = ('立春', '驚蟄', '清明', '立夏', '芒種', '小暑', '立秋', '白露', '寒露', '立冬', '大雪', '小寒')
+
+
+def jie_exact_year_month(year, month, day, hour, minute, yTG, mTG):
+    """域内(1900~9999)按起课的钟面时刻取年 / 月柱 → (年柱, 月柱)。
+
+    sxtwl 的 getYearGZ / getMonthGZ 是日级:交「节」当日整天已算新月(立春当日整天已算新年);
+    各引擎 23 时把日柱进位次日时还会拿次日去取年月柱。这里一律按钟面那一天取,
+    当天交节且时刻早于精确交节 → 取前一日的月柱(立春兼年柱)。与 kinqimen / kinwuzhao.jieqi /
+    kintaiyi / kinastro 已有的同一修法(交节时刻取 sxtwl 的北京时间,与各引擎时间口径一致)。
+    1900 年前各引擎月柱按农历月五虎遁另算,不在此列;取不到时原样返回。
+    """
+    if not (1900 <= year <= 9999):
+        return yTG, mTG
+    try:
+        from datetime import datetime as _dt
+        from sxtwl import fromSolar as _fs, JD2DD as _jd2dd
+        sd = _fs(year, month, day)
+        use = sd
+        if sd.hasJieQi():
+            names = ['冬至'] + _JQMC[:-1]   # sxtwl 节气序:0 = 冬至
+            if names[sd.getJieQi()] in _JIE_EXACT:
+                t = _jd2dd(sd.getJieQiJD())
+                crossing = _dt(t.Y, t.M, t.D, int(t.h), min(59, int(round(t.m))))
+                if _dt(year, month, day, int(hour), int(minute or 0)) < crossing:
+                    use = sd.before(1)
+        return (_TG[use.getYearGZ().tg] + _DZ[use.getYearGZ().dz],
+                _TG[use.getMonthGZ().tg] + _DZ[use.getMonthGZ().dz])
+    except Exception:
+        return yTG, mTG
+
+
 _JQMC = ['小寒', '大寒', '立春', '雨水', '驚蟄', '春分', '清明', '穀雨', '立夏', '小滿', '芒種', '夏至',
          '小暑', '大暑', '立秋', '處暑', '白露', '秋分', '寒露', '霜降', '立冬', '小雪', '大雪', '冬至']
 

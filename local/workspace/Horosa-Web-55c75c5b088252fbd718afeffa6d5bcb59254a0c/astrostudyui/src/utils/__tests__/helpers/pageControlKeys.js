@@ -31,8 +31,36 @@ const calleeName = (c)=>{
 };
 const isThisState = (n)=>n && n.type === 'MemberExpression' && !n.computed && n.object.type === 'ThisExpression' && n.property.name === 'state';
 
-function scanFile(src, out){
-	const ast = parseModule(src);
+// dyn(可选):{ computed, strings } —— 动态键写入的判定与候选键交给调用方合并(拆成子模块的页面:选项表在子模块、动态写入在门面)
+// 转交型写入入口的一轮传播(就地往 writers 里加名字),返回这一轮有没有新增
+function propagateWriters(ast, writers){
+	const before = writers.size;
+	traverse(ast, {
+		CallExpression(p){
+			if(!writers.has(calleeName(p.node.callee))){ return; }
+			(p.node.arguments || []).forEach((a)=>{
+				if(a.type !== 'Identifier'){ return; }
+				const b = p.scope.getBinding(a.name);
+				if(!b || b.kind !== 'param'){ return; }
+				const name = fnNameOf(b.scope.path);
+				if(name){ writers.add(name); }
+			});
+		},
+	});
+	return writers.size > before;
+}
+function fnNameOf(fp){
+	const n = fp.node;
+	if((n.type === 'ClassMethod' || n.type === 'ObjectMethod') && n.key && n.key.type === 'Identifier'){ return n.key.name; }
+	if(n.type === 'FunctionDeclaration' && n.id){ return n.id.name; }
+	if(fp.parentPath && (fp.parentPath.node.type === 'ClassProperty' || fp.parentPath.node.type === 'ObjectProperty') && fp.parentPath.node.key && fp.parentPath.node.key.type === 'Identifier'){ return fp.parentPath.node.key.name; }
+	if(fp.parentPath && fp.parentPath.node.type === 'VariableDeclarator' && fp.parentPath.node.id.type === 'Identifier'){ return fp.parentPath.node.id.name; }
+	return '';
+}
+// unitWriters(可选):同一全集(门面 + 子模块)跨文件传播好的写入入口 —— 类方法按职责拆进子文件后,
+// 转交型入口(setUserOpt(patch) → setState(patch))与调用它的控件常分在不同文件
+function scanFile(src, out, dyn, unitWriters, preAst){
+	const ast = preAst || parseModule(src);
 	// this.state 的别名(const s = this.state)与解构名(const { a, b: c } = this.state → c 读的是 b)
 	const aliases = new Set();
 	const destructured = {};
@@ -65,31 +93,8 @@ function scanFile(src, out){
 	};
 	const objectKeys = (obj)=>(obj && obj.type === 'ObjectExpression' ? obj.properties.map(keyName).filter(Boolean) : []);
 	// 转交型写入入口:方法 / 函数的某个参数原样交给写入入口 → 该方法也是写入入口(迭代到不再增加)
-	const writers = new Set(BASE_WRITERS);
-	const fnName = (fp)=>{
-		const n = fp.node;
-		if((n.type === 'ClassMethod' || n.type === 'ObjectMethod') && n.key && n.key.type === 'Identifier'){ return n.key.name; }
-		if(n.type === 'FunctionDeclaration' && n.id){ return n.id.name; }
-		if(fp.parentPath && (fp.parentPath.node.type === 'ClassProperty' || fp.parentPath.node.type === 'ObjectProperty') && fp.parentPath.node.key && fp.parentPath.node.key.type === 'Identifier'){ return fp.parentPath.node.key.name; }
-		if(fp.parentPath && fp.parentPath.node.type === 'VariableDeclarator' && fp.parentPath.node.id.type === 'Identifier'){ return fp.parentPath.node.id.name; }
-		return '';
-	};
-	for(let round = 0; round < 6; round++){
-		const before = writers.size;
-		traverse(ast, {
-			CallExpression(p){
-				if(!writers.has(calleeName(p.node.callee))){ return; }
-				(p.node.arguments || []).forEach((a)=>{
-					if(a.type !== 'Identifier'){ return; }
-					const b = p.scope.getBinding(a.name);
-					if(!b || b.kind !== 'param'){ return; }
-					const name = fnName(b.scope.path);
-					if(name){ writers.add(name); }
-				});
-			},
-		});
-		if(writers.size === before){ break; }
-	}
+	const writers = unitWriters || new Set(BASE_WRITERS);
+	if(!unitWriters){ for(let round = 0; round < 6; round++){ if(!propagateWriters(ast, writers)){ break; } } }
 	const hasComputed = (n)=>{
 		if(!n || typeof n !== 'object'){ return false; }
 		if(Array.isArray(n)){ return n.some(hasComputed); }
@@ -157,10 +162,19 @@ function scanFile(src, out){
 		},
 	});
 	// 动态键的写入(setState({ [key]: … }) / onOptionChange(key, …)):键来自调用处的字符串实参或选项表的行首
+	if(dyn){
+		dyn.computed = dyn.computed || computedWriter;
+		dyn.strings.push(...thisCallStrings, ...rowStrings);
+		return;
+	}
 	if(computedWriter){ thisCallStrings.concat(rowStrings).forEach((k)=>out.add(k)); }
 }
 
-// 页面把「亲手改」上报接给了某个子组件(<盘壳 onUserFieldChange={…}>):那个子组件左栏上的控件也是本页的控件 → 一并扫
+// 页面把「亲手改」上报接给了某个子组件(<盘壳 onUserFieldChange={…}>),或把自己的改值入口原样交给子组件
+// (<共用控件 onOptionChange={this.onOptionChange}>,如奇门 / 三式共用的附加层控件):那个子组件上的控件也是本页的控件 → 一并扫
+const isDelegateAttr = (a)=>a.type === 'JSXAttribute' && a.name && (a.name.name === 'onUserFieldChange'
+	|| (a.name.name === 'onOptionChange' && a.value && a.value.type === 'JSXExpressionContainer' && a.value.expression.type === 'MemberExpression'
+		&& a.value.expression.object.type === 'ThisExpression' && a.value.expression.property.name === 'onOptionChange'));
 function delegatedControlFiles(file){
 	const path = require('path');
 	const src = fs.readFileSync(file, 'utf8');
@@ -168,7 +182,7 @@ function delegatedControlFiles(file){
 	const names = new Set();
 	traverse(ast, {
 		JSXOpeningElement(p){
-			if((p.node.attributes || []).some((a)=>a.type === 'JSXAttribute' && a.name && a.name.name === 'onUserFieldChange') && p.node.name.type === 'JSXIdentifier'){ names.add(p.node.name.name); }
+			if((p.node.attributes || []).some(isDelegateAttr) && p.node.name.type === 'JSXIdentifier'){ names.add(p.node.name.name); }
 		},
 	});
 	const out = [];
@@ -182,11 +196,43 @@ function delegatedControlFiles(file){
 	return out;
 }
 
+// 同一个源码全集(门面 + 它的子模块,scripts/source-sets.json)算一个单位:门面里 setUserOpt({ [key]: … }) 的动态写入,
+// 键可能来自子模块里的选项表 —— 拆分前它们同在一个文件。只在同一全集内合并,不跨页面 / 不跨 consumers。
+function setOwnerOf(file){
+	const { SOURCE_SETS, sourceSetFiles } = require('./sourceSet');
+	const path = require('path');
+	const src = path.resolve(__dirname, '..', '..', '..');
+	const facade = Object.keys(SOURCE_SETS).map((rel)=>path.join(src, rel)).find((f)=>sourceSetFiles(f).includes(file));
+	return facade || file;
+}
+
 function controlKeysOf(files){
 	const out = new Set();
 	const all = new Set(files);
 	files.forEach((f)=>delegatedControlFiles(f).forEach((d)=>all.add(d)));
-	all.forEach((f)=>scanFile(fs.readFileSync(f, 'utf8'), out));
+	const dynByOwner = new Map();
+	const writersByOwner = new Map();
+	const asts = new Map();
+	all.forEach((f)=>{
+		const owner = setOwnerOf(f);
+		if(!writersByOwner.has(owner)){ writersByOwner.set(owner, { files: [], writers: new Set(BASE_WRITERS) }); }
+		writersByOwner.get(owner).files.push(f);
+		asts.set(f, parseModule(fs.readFileSync(f, 'utf8')));
+	});
+	// 写入入口按全集跨文件传播到不再增加
+	writersByOwner.forEach((u)=>{
+		for(let round = 0; round < 8; round++){
+			let grew = false;
+			u.files.forEach((f)=>{ if(propagateWriters(asts.get(f), u.writers)){ grew = true; } });
+			if(!grew){ break; }
+		}
+	});
+	all.forEach((f)=>{
+		const owner = setOwnerOf(f);
+		if(!dynByOwner.has(owner)){ dynByOwner.set(owner, { computed: false, strings: [] }); }
+		scanFile(null, out, dynByOwner.get(owner), writersByOwner.get(owner).writers, asts.get(f));
+	});
+	dynByOwner.forEach((d)=>{ if(d.computed){ d.strings.forEach((k)=>out.add(k)); } });
 	return out;
 }
 

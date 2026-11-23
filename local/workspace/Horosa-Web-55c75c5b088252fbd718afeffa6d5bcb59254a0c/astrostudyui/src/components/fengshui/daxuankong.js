@@ -1,6 +1,6 @@
 // 风水 · 大玄空（单盘挨星）。古籍三元大玄空一路：坐山查挨星入中 → 元运定阳星顺飞/阴星逆飞 → 一盘八宫。
 // 🔴 与沈氏玄空（运/山/向三盘）是**并行两派**：本模块自成一路，不改亦不复用 xuankong.js 的任何判据。
-import { GONG_GUA, GONG_NAME, POS_NAME, HOUTIAN_POS, OPP_GONG, SHAN_24, YUN_YEARS } from './fengshuiData';
+import { GONG_GUA, GONG_NAME, POS_NAME, OPP_GONG, SHAN_24, YUN_YEARS } from './fengshuiData';
 import {
 	DAXUANKONG_AISTAR_YANG, DAXUANKONG_AISTAR_YIN, DAXUANKONG_ZHENGLING, DAXUANKONG_WUHUANG_NOTE,
 	DAXUANKONG_YUAN_LABEL, DAXUANKONG_JU_TEXT, DAXUANKONG_ENV_CN, DAXUANKONG_DUANYING, DAXUANKONG_NOTE,

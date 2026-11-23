@@ -7,6 +7,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 import '../../css/styles.less';
 // 方盘格子变小时的紧凑版式开关与字号基准(直接量盘,布局域;见 utils/boxSizeVars)
 import { boxSizeVarsRef, indiaSquareSizeVars } from '../../utils/boxSizeVars';
+import { pressable } from '../../utils/pressable';
 
 // 印度盘 sCU(根因 E):三种盘式(南/北/东)render 消费的「全部影响盘面输出 props」。
 // 逐项核(grep this.props.* 全集):value(盘数据,大对象引用比)/ planetDisplay·lotsDisplay(显示开关数组,内容比)
@@ -505,7 +506,7 @@ class IndiaSouthChart extends Component{
 				key={`${obj.id}_${idx}_${obj.lon}`}
 				title={`${titleName} ${degree}${retro ? ' 逆行' : ''}${clickable ? (caster ? ' · 点击高亮相映宫' : ' · 点击选中') : ''}`}
 				style={{ '--india-object-color': getObjectColor(obj) }}
-				onClick={handleClick}
+				{...pressable(handleClick)}
 			>
 				{glyph
 					? <span className="horosa-india-square-object-name horosa-india-square-object-glyph">{glyph}</span>

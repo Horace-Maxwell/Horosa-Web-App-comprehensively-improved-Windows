@@ -3,7 +3,7 @@
 // 不写章节号「§」与软件名;书名只写公版古籍名,不写现代来源;岁差/分宫/界系等专名(Lahiri / Placidus / Alcabitius …)与下拉 label 一致,可用。
 import { Component } from 'react';
 import HelpBook from './HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 import AstroPatternHelp from '../homepage/AstroPatternHelp';
 
 let SCOPE_EXTRA_ITEMS = '';

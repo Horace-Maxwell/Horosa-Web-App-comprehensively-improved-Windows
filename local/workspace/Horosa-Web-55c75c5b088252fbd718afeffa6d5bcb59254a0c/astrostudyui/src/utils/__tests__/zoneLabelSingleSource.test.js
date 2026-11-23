@@ -4,9 +4,10 @@
 const fs = require('fs');
 const path = require('path');
 const { formatZoneLabel } = require('../zoneText');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const UI = path.resolve(__dirname, '../../..');
-const read = (rel)=>fs.readFileSync(path.join(UI, rel), 'utf8');
+const read = (rel)=>readSource(path.join(UI, rel));
 
 describe('时区显示文本单一来源', ()=>{
 	test('各种写法落成同一形', ()=>{
@@ -47,8 +48,9 @@ describe('时区显示文本单一来源', ()=>{
 
 	test('择日八个工作台、紫微右栏、推运盘、宿盘心、特征页的时区一行都走单一来源', ()=>{
 		const benches = ['Bazi', 'India', 'Liureng', 'Qimen', 'Qizheng', 'Sanshi', 'Taiyi', 'Ziwei'].map((n)=>`src/components/zeri/${n}ZeriWorkbench.js`);
+		const { readWorkbench } = require('./helpers/zeriWorkbenchSource');
 		benches.forEach((f)=>{
-			const src = read(f);
+			const src = readWorkbench(f);   // 派文件 + 共用壳(地点 / 时区行在壳里)
 			expect([f, src.includes('时区 {geo && geo.zone !== undefined ? (formatZoneLabel(geo.zone) || geo.zone)')]).toEqual([f, true]);
 			// 不许再有「时区 {geo.zone}」「UTC{geo.zone}」这类直拼
 			expect([f, /时区\s*\{\s*geo\.zone\s*\}|UTC\$?\{\s*geo\.zone\s*\}/.test(src)]).toEqual([f, false]);

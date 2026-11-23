@@ -1,4 +1,4 @@
-// 七政四余页 · 排盘请求与缓存:缓存上限与二十八宿口径常量、内存缓存 / 在途请求、参数规范化、缓存键、带缓存的排盘请求。
+// 七政四余页 · 排盘请求与缓存:缓存上限与二十八宿口径常量、内存缓存 / 在途请求、参数规范化、缓存键、带缓存的排盘请求、换命主时复位的派生盘空值。
 // 只被 components/guolao/GuoLaoChartMain.js 与同目录 main/ 下的兄弟模块引用。
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../../utils/dayBoundary';
 import { responseCacheable } from '../../../utils/resultEnvelope';
@@ -179,3 +179,14 @@ export async function fetchGuolaoChartCached(params, options){
 	const result = await req;
 	return clonePlain(result);
 }
+
+// 换命主时整组复位的派生盘(与构造时初值同形)
+export const GUOLAO_COMPOSITE_EMPTY = Object.freeze({
+	chartObj: null,
+	moiraTransitChartObj: null,
+	moiraRules: null,
+	moiraPanelChartObj: null,
+	moiraPanelTransitChartObj: null,
+	moiraPanelTransitParams: null,
+	electionData: null,
+});

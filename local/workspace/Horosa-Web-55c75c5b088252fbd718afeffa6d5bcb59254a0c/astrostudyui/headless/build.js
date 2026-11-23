@@ -79,18 +79,51 @@ async function build(opts){
 	const t0 = Date.now();
 	fs.mkdirSync(OUT_DIR, { recursive: true });
 	const srcNewest = sourceNewest();
-	await esbuild.build({
-		entryPoints: [path.join(__dirname, 'entry.js')],
-		bundle: true, platform: 'node', format: 'cjs', target: 'node16',
-		outfile: OUT, loader: { '.js': 'jsx' }, inject: [path.join(__dirname, 'react-shim.js')],
-		define: { 'process.env.NODE_ENV': '"production"' }, plugins: [shims], logLevel: 'error',
-		nodePaths: [path.join(UI, 'node_modules')], mainFields: ['main', 'module'],
-	});
-	fs.writeFileSync(path.join(OUT_DIR, 'build-info.json'), JSON.stringify({ builtAt: new Date().toISOString(), srcNewestMs: srcNewest }, null, 1));
+	// 先打到临时文件再改名:产物四十多兆,直接写目标文件时另一个刚启动的进程会 require 到半截文件(「Invalid or unexpected token」)。
+	// 改名是原子的 —— 别的进程要么读到旧的整份、要么读到新的整份。
+	const tmpOut = `${OUT}.tmp-${process.pid}`;
+	const infoPath = path.join(OUT_DIR, 'build-info.json');
+	const tmpInfo = `${infoPath}.tmp-${process.pid}`;
+	try{
+		await esbuild.build({
+			entryPoints: [path.join(__dirname, 'entry.js')],
+			bundle: true, platform: 'node', format: 'cjs', target: 'node16',
+			outfile: tmpOut, loader: { '.js': 'jsx' }, inject: [path.join(__dirname, 'react-shim.js')],
+			define: { 'process.env.NODE_ENV': '"production"' }, plugins: [shims], logLevel: 'error',
+			nodePaths: [path.join(UI, 'node_modules')], mainFields: ['main', 'module'],
+		});
+		fs.renameSync(tmpOut, OUT);
+		fs.writeFileSync(tmpInfo, JSON.stringify({ builtAt: new Date().toISOString(), srcNewestMs: srcNewest }, null, 1));
+		fs.renameSync(tmpInfo, infoPath);
+	}finally{
+		[tmpOut, tmpInfo].forEach((f)=>{ try{ fs.unlinkSync(f); }catch(e){ /* 已改名 / 没产生 */ } });
+	}
 	if(!quiet){ console.error(`[horosa] 无头运行时已打包:${path.relative(process.cwd(), OUT)}(${Date.now() - t0} ms)`); }
 }
 
-module.exports = { build, newestMtime, sourceNewest, HEADLESS_BUNDLED, OUT, OUT_DIR };
+// 重打的互斥锁(目录锁,mkdir 原子):两个进程同时发现产物陈旧时只让一个打,另一个等它打完直接用。
+// 持锁方崩了锁会留下 → 锁目录超过 LOCK_STALE_MS 没人动就视为遗留、接管。
+const LOCK_DIR = path.join(OUT_DIR, '.build.lock');
+const LOCK_STALE_MS = 180000;
+const LOCK_WAIT_MS = 120000;
+async function withBuildLock(fn){
+	fs.mkdirSync(OUT_DIR, { recursive: true });
+	const t0 = Date.now();
+	for(;;){
+		try{ fs.mkdirSync(LOCK_DIR); break; }catch(e){
+			if(!e || e.code !== 'EEXIST'){ throw e; }
+			let age = 0;
+			try{ age = Date.now() - fs.statSync(LOCK_DIR).mtimeMs; }catch(err){ continue; }   // 刚被释放:马上再抢
+			if(age > LOCK_STALE_MS){ try{ fs.rmdirSync(LOCK_DIR); }catch(err){ /* 别人先接管了 */ } continue; }
+			if(Date.now() - t0 > LOCK_WAIT_MS){ throw new Error('等另一个进程打包无头运行时超时(删掉 headless/dist/.build.lock 后重试)'); }
+			// eslint-disable-next-line no-await-in-loop
+			await new Promise((resolve)=>setTimeout(resolve, 150));
+		}
+	}
+	try{ return await fn(); }finally{ try{ fs.rmdirSync(LOCK_DIR); }catch(e){ /* 已被接管清掉 */ } }
+}
+
+module.exports = { build, withBuildLock, newestMtime, sourceNewest, HEADLESS_BUNDLED, OUT, OUT_DIR };
 if(require.main === module){
 	build().catch((e)=>{ console.error('[horosa] 打包失败:', (e && e.errors ? e.errors.slice(0, 10).map((x)=>`${x.text} @ ${x.location && x.location.file}:${x.location && x.location.line}`).join('\n') : e)); process.exit(1); });
 }

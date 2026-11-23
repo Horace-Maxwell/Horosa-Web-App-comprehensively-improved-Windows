@@ -1,6 +1,6 @@
 // 择日工作台(*ZeriWorkbench 与天星条件构建框)共用的条件树小工具,原先各抄一份、逐字相同,收成单一来源:
 // 方案导出存文件 / 连接门选项 / 树路径取改删 / UI 叶 DFS 收集 / 判读树门名 / 日期串。
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { saveBlobSmart } from '../../utils/fileSave';
 import { ZERI_GATE_CN } from '../../divination/zeri/zeriExplainText';
 import { pad2 } from './zeriHostUtils';
 

@@ -1,0 +1,24 @@
+diff --git a/astrostudyui/src/components/dunjia/main/compute.js b/astrostudyui/src/components/dunjia/main/compute.js
+index 862cc233..6f307cc1 100644
+--- a/astrostudyui/src/components/dunjia/main/compute.js
++++ b/astrostudyui/src/components/dunjia/main/compute.js
+@@ -19,6 +19,8 @@ import { BAGONG_PALACE_ORDER } from '../DunJiaBaGongRules';
+ import { safe, resolveCalcGeo, buildDisplaySolarParams, getNongliKey } from '../qimenPageShared';
+ import { DEFAULT_OPTIONS, DUNJIA_PAGE_SETTINGS, normalizeKenQimenOptions } from './options';
+ import { normalizeTimeAlg, getFieldKey, getNongliRequestKey, getQimenOptionsKey, rememberDunJiaLiveState, buildDunJiaNongliParamsPure } from './pageState';
++// [Windows-only] horosa_panel_ready_v1(P5):遁甲「画完」观测钉(验收配对靠它)。
++import { markPanelReady } from '../../../utils/perfMark';
+ 
+ export const computeMethods = {
+ 	getCachedPan(fields, nongli, options, displaySolarTime){
+@@ -423,6 +425,10 @@ export const computeMethods = {
+ 			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
+ 			this.lastPanSignature = panSignature;
+ 			this.setState({ pan, panSig: castSourceKey(flds), displaySolarTime: displaySolar, loading: false }, ()=>{
++				// [Windows-only] horosa_panel_ready_v1:奇门中栏九宫盘 + 右栏五页签全部派生自这一个 pan,
++				// 故本次 setState 落定 = 中栏+右栏画完(pan 为 null 时也算「本次交互到此为止」,
++				// 不记会让该次交互永远配不上对)。已在 panSignature 去重与 loading 置位之后。
++				markPanelReady('dunjia');
+ 				if(pan){
+ 					rememberDunJiaLiveState(this.scope, {
+ 						fieldKey: getFieldKey(flds),

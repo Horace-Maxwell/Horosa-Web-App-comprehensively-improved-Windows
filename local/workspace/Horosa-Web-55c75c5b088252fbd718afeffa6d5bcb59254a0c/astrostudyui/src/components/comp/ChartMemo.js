@@ -1,9 +1,9 @@
 import * as forge from 'node-forge';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
-import { Row, Col, Spin } from 'antd';
+import { Row, Col } from 'antd';
 import RichEditor from '../RichEditor';
-import { XQButton, XQSelect } from '../xq-ui';
+import { XQButton, XQSelect, XQSpin } from '../xq-ui';
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const Option = XQSelect.Option;
@@ -141,7 +141,7 @@ class ChartMemo extends Component{
 		let loading = this.props.loading ? this.props.loading : false;
 
 		return (
-			<Spin spinning={loading} size="large" tip="保存中...">
+			<XQSpin spinning={loading} size="large" tip="保存中...">
 			<div style={{height: height}}>
 				<Row gutter={12} style={{marginBottom: 10}}>
 					<Col span={12}>
@@ -162,7 +162,7 @@ class ChartMemo extends Component{
 					onChange={this.changeMemo} 
 				/>
 			</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shusuan/ZhengChuanMain.js b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-index 51375a81..d4cd96e6 100644
+index 152ecb4d..aeb66bf3 100644
 --- a/astrostudyui/src/components/shusuan/ZhengChuanMain.js
 +++ b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-@@ -24,6 +24,7 @@ import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+@@ -25,6 +25,7 @@ import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { SCHOOL_LABEL } from './zhengchuanSchools';
  import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
  import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
@@ -10,7 +10,7 @@ index 51375a81..d4cd96e6 100644
  
  const { TabPane } = Tabs;
  
-@@ -38,6 +39,7 @@ export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
+@@ -39,6 +40,7 @@ export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
  const sharedModelMemo = createSignatureMemo(4);
  
  class ZhengChuanMain extends Component {
@@ -18,7 +18,7 @@ index 51375a81..d4cd96e6 100644
  	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -350,7 +352,15 @@ class ZhengChuanMain extends Component {
+@@ -351,7 +353,15 @@ class ZhengChuanMain extends Component {
  				size="small"
  				className="horosa-huangji-tabs horosa-zhengchuan-tabs"
  			>

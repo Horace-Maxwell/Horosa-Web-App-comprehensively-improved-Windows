@@ -1,6 +1,7 @@
 // 回退确认(A5):三栏——将删除的消息 / 将撤销的 AI 动作(可逐条取消勾选)/ 将恢复的设置;「回退」= 先逐条撤销(任一失败即停、不删消息)→ 删消息 → 恢复设置 → 清压缩;「改为分支」保留原线。
 import React from 'react';
-import { Modal, Checkbox, Button, Tag } from 'antd';
+import { Modal, Button, Tag } from 'antd';
+import { XQCheckbox } from '../../xq-ui';
 
 export default function RewindConfirmModal({ plan, open, onCancel, onConfirm, onBranch, busy }){
 	const [skip, setSkip] = React.useState({});
@@ -29,7 +30,7 @@ export default function RewindConfirmModal({ plan, open, onCancel, onConfirm, on
 					<b>将撤销的 AI 动作 {chosen.length}/{actions.length}</b>{actions.length ? '(取消勾选=保留该结果)' : '(无)'}
 					{actions.map((a)=>(
 						<div key={a.actionId} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }} data-rewind-action={a.actionId}>
-							<Checkbox checked={!skip[a.actionId]} onChange={(e)=>setSkip((s)=>({ ...s, [a.actionId]: !e.target.checked }))} />
+							<XQCheckbox checked={!skip[a.actionId]} onChange={(e)=>setSkip((s)=>({ ...s, [a.actionId]: !e.target.checked }))} />
 							<Tag style={{ margin: 0 }}>{a.name}</Tag>
 							<span style={{ color: 'var(--horosa-text-soft, #8a8f99)' }}>{a.summary}</span>
 						</div>

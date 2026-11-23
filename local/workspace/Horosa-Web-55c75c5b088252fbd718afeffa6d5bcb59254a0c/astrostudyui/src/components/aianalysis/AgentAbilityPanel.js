@@ -3,7 +3,8 @@
 // / 五个子面板(本机 MCP 服务 · 外部服务器 · 联网检索 · 自动规则 · 动作账本)收进折叠区,缺省全部收起、头部显示状态与计数,
 // 导轨/胶囊跳到子分区时(horosa:adv-open)自动展开对应面板。关闭时子项整体不渲染;由开→关时同步关掉外部智能体服务(壳侧命令不可用时静默)。
 import React from 'react';
-import { Switch, Radio, Button, Select, Collapse, message } from 'antd';
+import { Button, Select, Collapse, message } from 'antd';
+import { XQRadio, XQSwitch } from '../xq-ui';
 import {
 	isAgentEnabled, setAgentEnabled, getAgentApprovalMode, setAgentApprovalMode, subscribeAgentPrefs,
 	getAgentApprovalCategories, setAgentApprovalCategory, getTrustedRecords, setTrustedRecords, AGENT_APPROVAL_CATEGORIES, getToolPolicy, setToolPolicy,
@@ -108,16 +109,16 @@ export default function AgentAbilityPanel(){
 	return (
 		<AdvCard span2 id={ADV_SECTION_IDS.agent} tone="danger" icon="quickAi" title="AI 助手行动能力" status={enabled ? <AdvStatus on>已开启</AdvStatus> : <AdvStatus>默认关闭</AdvStatus>}
 			desc={agentAbilityCopyText()}
-			actions={<Switch checked={enabled} data-agent-master-switch="1" onChange={(v)=>{ toggle(v); }} checkedChildren="开" unCheckedChildren="关" />}
+			actions={<XQSwitch checked={enabled} data-agent-master-switch="1" onChange={(v)=>{ toggle(v); }} checkedChildren="开" unCheckedChildren="关" />}
 			data-agent-ability-panel="1">
 			{enabled ? (
 				<div className={styles.nested}>
 					<AdvRow label="写入动作审批" help="全自动=直接执行但每个动作可撤销;每次确认=写入前弹审批;只读=禁止一切写入。只约束应用内(对话 / 任务 / 自动化)的调用;外部客户端(本机 MCP 服务)另有独立审批档,见下方「本机 MCP 服务」。">
-						<Radio.Group className={styles.segment} size="small" value={approval} data-approval-mode="1" onChange={(e)=>{ setAgentApprovalMode(e.target.value); setApproval(e.target.value); }}>
-							<Radio.Button value="never">全自动(可撤销)</Radio.Button>
-							<Radio.Button value="on-request">每次确认</Radio.Button>
-							<Radio.Button value="read-only">只读(禁写)</Radio.Button>
-						</Radio.Group>
+						<XQRadio.Group className={styles.segment} size="small" value={approval} data-approval-mode="1" onChange={(e)=>{ setAgentApprovalMode(e.target.value); setApproval(e.target.value); }}>
+							<XQRadio.Button value="never">全自动(可撤销)</XQRadio.Button>
+							<XQRadio.Button value="on-request">每次确认</XQRadio.Button>
+							<XQRadio.Button value="read-only">只读(禁写)</XQRadio.Button>
+						</XQRadio.Group>
 					</AdvRow>
 					<div data-agent-inline-collapse="1" style={{ display: 'contents' }}>
 					<Collapse ghost className={styles.collapse} onChange={(keys)=>{ if((keys || []).indexOf('trust') >= 0){ loadCharts(); } if((keys || []).indexOf('toolPolicy') >= 0 && toolOpts === null){ setToolOpts(listToolNameOptions()); } }}>
@@ -157,16 +158,16 @@ export default function AgentAbilityPanel(){
 						<Button size="small" data-caps-reset="1" onClick={()=>{ resetToolCapabilities(); message.success('已清空模型工具能力记忆,下次对话重新探测'); }}>重新探测模型工具能力</Button>
 					</AdvRow>
 					<AdvSwitchRow title="目标任务" desc="开启后 AI 可把多步长活建成目标任务在任务中心自动逐轮推进(每轮自检;预算四维封顶;写入按审批档;可暂停/纠偏/取消)。"
-						checked={goalOn} control={<Switch checked={goalOn} data-goal-switch="1" onChange={(v)=>{ setGoalEnabled(!!v); setGoalOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />}>
+						checked={goalOn} control={<XQSwitch checked={goalOn} data-goal-switch="1" onChange={(v)=>{ setGoalEnabled(!!v); setGoalOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />}>
 						{/* 任务中心此前只有右下角铃铛一个入口(进阶页零入口);这里与定时任务行各给一个直达按钮(输入框 /任务 同效) */}
 						<Button size="small" data-open-task-center="goal" className={styles.gapTop} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建目标 / 看进度)</Button>
 					</AdvSwitchRow>
 					<AdvSwitchRow title="定时任务" desc="开启后可在任务中心「新建定时」(每日简报/每月月运/自定义提示词/择日到期提醒),AI 也可替你排期(可撤销);壳 60 秒心跳,错过按策略补跑。"
-						checked={schedOn} control={<Switch checked={schedOn} data-scheduler-switch="1" onChange={(v)=>{ setSchedulerEnabled(!!v); setSchedOn(!!v); desktopSetSchedulerEnabled(!!v).catch(()=>{}); }} checkedChildren="开" unCheckedChildren="关" />}>
+						checked={schedOn} control={<XQSwitch checked={schedOn} data-scheduler-switch="1" onChange={(v)=>{ setSchedulerEnabled(!!v); setSchedOn(!!v); desktopSetSchedulerEnabled(!!v).catch(()=>{}); }} checkedChildren="开" unCheckedChildren="关" />}>
 						<Button size="small" data-open-task-center="scheduler" className={styles.gapTop} onClick={()=>{ openTaskCenter(); }}>打开任务中心(新建定时 / 看下次运行)</Button>
 					</AdvSwitchRow>
 					<AdvSwitchRow title="多技法并行分析" desc={<span>开启后输入 <code>/编排 问题</code>:先拆成最多 4 个「技法 × 子问题」,每个子任务只挂该技法的排盘数据、只读不写,末轮汇总并标出分歧。</span>}
-						checked={orchOn} control={<Switch checked={orchOn} data-orchestrate-switch="1" onChange={(v)=>{ setOrchestrateEnabled(!!v); setOrchOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
+						checked={orchOn} control={<XQSwitch checked={orchOn} data-orchestrate-switch="1" onChange={(v)=>{ setOrchestrateEnabled(!!v); setOrchOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
 					<div className={styles.groupLabel}>外部连接 · 自动化 · 账本(缺省收起;点头部展开)</div>
 					<div className={styles.agentCollapse} data-agent-collapse="1">
 						<Collapse expandIconPosition="end" activeKey={open} onChange={(k)=>setOpen(Array.isArray(k) ? k : [k].filter(Boolean))}>

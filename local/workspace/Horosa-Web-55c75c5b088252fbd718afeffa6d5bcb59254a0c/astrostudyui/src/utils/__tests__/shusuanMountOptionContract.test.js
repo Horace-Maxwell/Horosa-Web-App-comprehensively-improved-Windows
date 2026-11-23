@@ -9,12 +9,12 @@ jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => 
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));
 jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn() }));
-import fs from 'fs';
 import path from 'path';
 import { regenerateChartTechniqueSnapshot } from '../aiAnalysisContext';
 import { TECHNIQUE_SETTINGS_SCHEMA, mountFieldOptions } from '../techniqueMountSettings';
 import { XINYI_SOUNDS_A, XINYI_SOUNDS_B, XINYI_KE, XINYI_GONG, lookupBake, lookupXingqing, lookupXiang } from '../zhengchuanXinyiLocal';
 import { buildTiebanFramework, buildTiebanFrameworkSnapshot, tiebanKeOptions } from '../tiebanFrameworkLocal';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const DAY_ZHI = '卯辰巳午未申';
@@ -152,7 +152,7 @@ describe('铁板框架「考刻刻位」:每档 = 框架实际所考之刻', ()=
 			expect(buildTiebanFramework(FP, { keSystem: 'qing8', ke: v }).ke).toBe(1);
 		});
 		expect(mountFieldOptions(f, { tiebanKeSystem: 'qing8' }).map((o)=>o.value)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-		const src = fs.readFileSync(path.join(__dirname, '../../components/kinastro/KinAstroMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../components/kinastro/KinAstroMain.js'));
 		expect(src).toContain("keSystem: ov.tiebanKeSystem || 'qing8',");
 		expect(src).toContain("ke: ov.tiebanKe !== undefined && ov.tiebanKe !== null && ov.tiebanKe !== '' ? ov.tiebanKe : 1,");
 	});

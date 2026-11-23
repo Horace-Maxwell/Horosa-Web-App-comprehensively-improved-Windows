@@ -115,7 +115,7 @@ import './primaryDirectionSync';
 // 对外导出(名字与拆分前逐一相同)
 export {
 	sourceContextCacheStamp, resolveZhangshengElem, AI_CONTEXT_MAX_CHARS, ANALYSIS_TECHNIQUE_LABELS,
-	ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES, TIME_CASTABLE_DIVINATION, PAIR_SYNASTRY_MAX_CHARS,
+	ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES, TIME_CASTABLE_DIVINATION, PAIR_SYNASTRY_MAX_CHARS, PAGE_SNAPSHOT_ONLY_TECHNIQUES,
 } from './aiAnalysisContext/catalog';
 export { buildRecordFieldObject } from './aiAnalysisContext/recordFields';
 export { liurengHeadlessCastOpts, ensureLiurengChartObjects } from './aiAnalysisContext/regenDivination';

@@ -46,6 +46,14 @@ describe('参数补全', ()=>{
 		expect(p.values.length).toBe(1);
 		const q = await completeArgument({ type: 'ref/prompt', name: 'technique:bazi' }, { name: 'question', value: '财' });
 		expect(q).toEqual({ values: [], total: 0, hasMore: false });
+		// 合成卡 technique:technique 补技法键(中文名 / 键都认);cid 按已填技法分命盘 / 事盘
+		const tk = await completeArgument({ type: 'ref/prompt', name: 'technique' }, { name: 'technique', value: '八字' });
+		expect(tk.values).toContain('bazi');
+		expect((await completeArgument({ type: 'ref/prompt', name: 'technique' }, { name: 'technique', value: 'ziw' })).values).toContain('ziwei');
+		const pc = await completeArgument({ type: 'ref/prompt', name: 'technique' }, { name: 'cid', value: '' }, { arguments: { technique: 'bazi' } });
+		expect(pc.values.every((v)=>v.indexOf('local-case') !== 0)).toBe(true);
+		const pall = await completeArgument({ type: 'ref/prompt', name: 'technique' }, { name: 'cid', value: '' });
+		expect(pall.values.length).toBeGreaterThan(pc.values.length);   // 没填技法:命盘 + 事盘都给
 		expect(await completeArgument({ type: 'ref/prompt', name: 'nope' }, { name: 'x', value: '' })).toBeNull();
 		expect(await completeArgument({ type: 'ref/resource', uri: 'file:///x' }, { name: 'x', value: '' })).toBeNull();
 	});

@@ -8,7 +8,8 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = path.join(__dirname, '..', '..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const read = (rel) => readSource(path.join(SRC, rel));
 
 describe('日志调用不再包一层空 try(console 方法永不抛)', () => {
 	const files = ['utils/request.js', 'utils/astroAiSnapshot.js', 'utils/pageScreenshot.js'];

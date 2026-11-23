@@ -1,7 +1,7 @@
 // 占星右栏「细节」页签:三十张盘面细节表,选一张看。算法在 /astroextra/chartdetails。
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSelect as Select } from '../xq-ui';
+
+import { XQSelect as Select, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, chartParams, chartRequestKey, SmallTable, cardStyle, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from './AstroExtraCommon';
@@ -497,7 +497,7 @@ class AstroChartDetails extends Component{
 						</Select>
 					))}
 				</div>
-				<Spin spinning={this.state.loading && !r}>
+				<XQSpin spinning={this.state.loading && !r}>
 					<div style={{ ...cardStyle, overflowX: 'auto' }}>
 						<div className="horosa-info-card-title">{def.label}</div>
 						<div style={{ ...MUTED, marginBottom: 6 }}>{def.note}</div>
@@ -505,7 +505,7 @@ class AstroChartDetails extends Component{
 						{note ? <div style={{ ...MUTED, marginBottom: 6 }}>{note}</div> : null}
 						{r ? this.tableOf(r) : null}
 					</div>
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

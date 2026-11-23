@@ -39,7 +39,8 @@ export const KINASTRO_SERVICE_KEYS = ['shaozi', 'tieban', 'fendjing', 'beiji', '
 export const TECHNIQUE_SLOT_GROUPS = [
 	['sixyao', 'guazhan', 'liuyao'],
 	['qimen', 'dunjia'],
-	['direction', 'primarydirect', 'primarydirchart'],
+	// 主限法(表格)与主限法盘是两样东西、各有各的页面槽:不互为别名 —— 否则只存了其中一个时,问另一个会拿到它的正文
+	['primarydirect', 'direction'],
 	['zodialrelease', 'zodiacrelease'],
 	['decennials', 'decennial'],
 	['germany', 'germanytech'],

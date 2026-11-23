@@ -6,6 +6,7 @@ import {
 	normalizeBrightnessCustomTable, ZWBrightnessCustom, resetBrightnessCustomCache,
 } from '../data/ziweiTables';
 import { snapshotFromSource, STAR_GROUPS } from '../ZWBrightnessCustomModal';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 afterEach(()=>{
 	ZWBrightnessCustom.override = null;
@@ -92,7 +93,7 @@ describe('builder/needsLocalEngine 守卫', ()=>{
 			expect(ZWBrightnessCustom.override === null || ZWBrightnessCustom.override === undefined).toBe(true);
 			expect(writes.mock.calls.filter((c)=>/ziwei/i.test(`${c[0]}`))).toEqual([]);
 		}finally{ writes.mockRestore(); ZWBrightnessCustom.override = null; }
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		expect(src.includes('delete p.brightnessCustomTable')).toBe(true);
 	});
 	test('🔴 custom 亮度绝不进 needsLocalEngine(纯显示层;开着不该逼本地引擎重排)', ()=>{

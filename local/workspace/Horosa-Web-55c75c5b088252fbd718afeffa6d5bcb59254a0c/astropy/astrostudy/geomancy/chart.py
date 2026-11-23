@@ -8,7 +8,6 @@ timing/quantity/via_puncti/paternitas + 定局落星甲乙 + 图数三系 + 转�
 """
 from __future__ import annotations
 
-import random
 from typing import Optional
 
 from . import correspondences as corr
@@ -26,7 +25,7 @@ from .ifa import cast_ifa, CULTURAL_NOTICE as IFA_NOTICE, odu_of
 from .numbers import all_numbers, figure_number, normalize_number_system
 from .planetary import planetary_chart as build_planetary_chart, PCHART_ZODIAC_TABLES
 from .vedic import vedic_overlay
-from .random_source import make_rng, normalize_cast_method, normalize_mark_style
+from .random_source import make_rng, sub_rng, normalize_cast_method, normalize_mark_style
 from .shield import cast_shield, cast_shield_from_numbers, reconciler_from, RECONCILER_MODES
 from .sikidy import (cast_sikidy, check2b, col_to_figure, column_compare, princes_slaves,
                      quadrants, red_sikidy, sikidy_valid, tokan_sikidy, SIKIDY_COL_NAMES)
@@ -233,7 +232,7 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
     if g_proj == "astro_from_chart":
         planets = astro_place_planets_from_chart(hc)
     elif g_proj == "astro_bytwelves":
-        sub = random.Random(rng.getrandbits(64))
+        sub = sub_rng(rng, "bytwelves")
         planets_by12 = astro_place_planets_bytwelves(sub)
     elif g_proj == "real_ephemeris":
         planets_real = (astro_place_planets_real(jd, real_chart["cusps"])
@@ -339,7 +338,7 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         "houses": houses,
         "astro_erection": (lambda _a: {**_a, **house_signs(
             _a["sign"], g_hsys, real_chart if _a.get("asc_source") == "real_chart" else None)})(
-            ascendant_from_source(hc, zsys, g_asc, random.Random(rng.getrandbits(64)), s.judge,
+            ascendant_from_source(hc, zsys, g_asc, sub_rng(rng, "ascendant"), s.judge,
                                   real_chart)),
         "planet_placement": planets,
         "planet_placement_by_twelves": planets_by12,
@@ -360,7 +359,7 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
     # ⚠️ 子 rng 必取在 astro_erection 之后 —— 关此开关则一颗随机数不取,故开关关闭时全响应字节零变。
     if g_pchart:
         out["planetary_chart"] = build_planetary_chart(
-            s.mothers[0], random.Random(rng.getrandbits(64)), g_pczod, g_pcnodes, g_pcextras)
+            s.mothers[0], sub_rng(rng, "planetary"), g_pczod, g_pcnodes, g_pcextras)
 
     if g_chart == "buyut":
         b = house_chart_buyut(s)

@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC = path.resolve(__dirname, '..', '..');
-const tabKeys = (rel)=>[...fs.readFileSync(path.join(SRC, rel), 'utf8').matchAll(/<TabPane tab="([^"]+)" key="([a-zA-Z0-9_]+)"/g)].map((m)=>({ label: m[1], key: m[2] }));
+const tabKeys = (rel)=>[...require('./helpers/sourceSet').readSource(path.join(SRC, rel)).matchAll(/<TabPane tab="([^"]+)" key="([a-zA-Z0-9_]+)"/g)].map((m)=>({ label: m[1], key: m[2] }));
 const setTab = (top, sub)=>getStore.mockReturnValue({ astro: { currentTab: top, currentSubTab: sub } });
 const KNOWN = new Set(AI_EXPORT_TECHNIQUES.map((t)=>t.key));
 

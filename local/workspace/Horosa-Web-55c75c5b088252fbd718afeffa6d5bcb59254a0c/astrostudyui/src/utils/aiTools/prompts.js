@@ -7,6 +7,9 @@ import { BUILTIN_SKILLS, skillsOf, renderSkillPrompt, buildSkillDirective, norma
 import { pageOf } from './resources';
 
 export const PROMPT_TECHNIQUE_PREFIX = 'technique:';
+// 技法提示卡合成一条:名字 technique、参数 technique(技法键,可补全)/ cid / question。
+//   此前每个技法一条(同一模版只换技法名),提示列表被淹没;旧名 technique:<键> 不再列出,但 prompts/get 照收(老客户端 / 旧文档不断)。
+export const PROMPT_TECHNIQUE_NAME = 'technique';
 export const PROMPT_TEMPLATE_PREFIX = 'tpl:';
 // 技能包(内置 /流年 /合盘 /简报 + 用户自建)作提示 skill:<id>;使用指南 guide:horosa(典型流程与该调的工具)
 export const PROMPT_SKILL_PREFIX = 'skill:';
@@ -16,6 +19,7 @@ export const PROMPT_LIST_MAX = 100;
 function techniqueKeys(){
 	return Array.from(new Set(ANALYSIS_CHART_TECHNIQUES.concat(ANALYSIS_CASE_TECHNIQUES)));
 }
+export function promptTechniqueKeys(){ return techniqueKeys(); }
 export function labelOfTechnique(key){ return (ANALYSIS_TECHNIQUE_LABELS && ANALYSIS_TECHNIQUE_LABELS[key]) || `${key}`; }
 
 export const PROMPT_PAGE_SIZE = 100;
@@ -35,14 +39,16 @@ function skillArguments(skill){
 
 async function allPrompts(){
 	const guide = { name: PROMPT_GUIDE_NAME, description: '星阙使用指南:典型流程(找档 → 起盘 → 分析、合盘、择日、看当前页、读手册)各该调哪个工具 / 读哪个资源', arguments: [] };
-	const out = [guide].concat(techniqueKeys().map((k)=>({
-		name: `${PROMPT_TECHNIQUE_PREFIX}${k}`,
-		description: `${labelOfTechnique(k)}:怎么向星阙要这门技法的分析(要哪些参数、调哪个工具、结论口径)`,
+	const technique = {
+		name: PROMPT_TECHNIQUE_NAME,
+		description: `技法提示卡:怎么向星阙要某门技法的分析(要哪些参数、调哪个工具、结论口径);共 ${techniqueKeys().length} 门技法,技法键可补全(或调 list_techniques)`,
 		arguments: [
+			{ name: 'technique', description: '技法键(如 bazi / ziwei / astrochart;可补全)', required: true },
 			{ name: 'cid', description: '命盘/事盘 cid(可选;给了就直接对该盘发问)', required: false },
 			{ name: 'question', description: '你要问的问题(可选)', required: false },
 		],
-	})));
+	};
+	const out = [guide, technique];
 	try{
 		(await listStoreRecords(AI_ANALYSIS_STORES.templates)).forEach((t)=>{
 			if(!t || !t.id){ return; }
@@ -87,7 +93,7 @@ const GUIDE_TEXT = [
 	'【星阙(Horosa)使用指南】',
 	'一、先取真值再下结论',
 	'· 找人:list_records(按姓名 / 事件);没有档案就问用户出生时间与地点,再 create_chart_record(只增、可撤销)。',
-	'· 起盘:cast_technique({ technique, source:{ kind:"record", cid } });各技法怎么问见提示卡 technique:<技法键>;内容长时用 sections 按段取。',
+	'· 起盘:cast_technique({ technique, source:{ kind:"record", cid } });各技法怎么问见提示卡 technique(参数 technique = 技法键);内容长时用 sections 按段取。',
 	'· 合盘:cast_relative({ a, b, modes:["western","bazi","ziwei"] })(西洋比较盘 / 组合盘 / 影响盘、八字合婚对照、紫微合盘对照)。',
 	'· 择日:list_election_conditions 查条件类 → search_election(时间段 + 地点 + 条件树)→ explain_election(某一刻逐条判读)。',
 	'· 看用户眼前这一页:read_current_page(与页面「AI导出」同一份正文;只在桌面 App 里有)。',
@@ -136,8 +142,8 @@ export async function getPrompt(name, args){
 		if(!b){ return null; }
 		return { description: `技能包 ${b.name || b.id}`, messages: [{ role: 'user', content: { type: 'text', text: await skillMessage(b, args) } }] };
 	}
-	if(n.indexOf(PROMPT_TECHNIQUE_PREFIX) === 0){
-		const key = n.slice(PROMPT_TECHNIQUE_PREFIX.length);
+	if(n === PROMPT_TECHNIQUE_NAME || n.indexOf(PROMPT_TECHNIQUE_PREFIX) === 0){
+		const key = n === PROMPT_TECHNIQUE_NAME ? `${(args && args.technique) || ''}`.trim() : n.slice(PROMPT_TECHNIQUE_PREFIX.length);
 		if(techniqueKeys().indexOf(key) < 0){ return null; }
 		return { description: `${labelOfTechnique(key)} 提示卡`, messages: [{ role: 'user', content: { type: 'text', text: techniqueMessage(key, args) } }] };
 	}

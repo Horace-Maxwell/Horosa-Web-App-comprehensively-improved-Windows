@@ -43,6 +43,8 @@ const reg = (file, names, anchor)=>{
 };
 // 七政 C 类:storageKey 写全局,GuoLaoChartMain 回退读(B 路矩阵已核)。
 reg('components/guolao/GuoLaoChartMain.js', ['lifeMode', 'bodyMode', 'nodeMode', 'su28Mode', 'trueSolarTime', 'nodeType', 'lilithType']);
+// 地占另起行星地占盘四键:payload.options 原样进 buildGeomancySnapshotForFields(GeomancyMain 读 o.planetaryChart*,经人工核实)。
+reg('components/geomancy/GeomancyMain.js', ['geomancy.planetaryChart', 'geomancy.planetaryChartZodiac', 'geomancy.planetaryChartNodes', 'geomancy.planetaryChartExtras']);
 // 宿占起宫(SuZhanMain 读,B 路矩阵已核)。
 reg('components/suzhan/SuZhanMain.js', ['houseStartMode']);
 // 埃及历七轴:随盘键经 egyptSchoolFromFields(fields) 进 AI 快照埃及历段(astroAiSnapshot:1556);
@@ -52,11 +54,16 @@ reg('divination/data/egyptianSchools.js', ['egypt_decanRuler', 'egypt_decanAncho
 reg('utils/chartDetails.js', ['astrochart.detailFaces', 'astrochart.detailVariant', 'astrochart.detailLunar', 'astrochart.detailMundo', 'astrochart.detailMidpoint']);
 // 印占穿界表三项:IndiaChart.fetchIndiaTransitLinesHeadless 按 pick('indiaTransitXxx') 读齿轮值,读不到回本机保存值(已核)。
 reg('components/astro/IndiaChart.js', ['indiachart.indiaTransitPlanet', 'indiachart.indiaTransitKind', 'indiachart.indiaTransitDays']);
-// 奇门 20 键(qimen 与 sanshiunited 同名共享):options 整包进 payload,DunJiaCalc 起局消费。
-reg('components/dunjia/DunJiaCalc.js', ['godsPreset', 'anGanMode', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'kongMarkBoth', 'showAllKong', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'keZiZhengHuanShi', 'jinhanMenPai', 'showAnZhi']);
+// 奇门 24 键(qimen 与 sanshiunited 同名共享):options 整包进 payload,DunJiaCalc 起局消费。
+reg('components/dunjia/DunJiaCalc.js', ['godsPreset', 'anGanMode', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'kongMarkBoth', 'showAllKong', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'keZiZhengHuanShi', 'jinhanMenPai', 'showAnZhi', 'showJiGan', 'showTianQin', 'tuiYanView', 'tuiYanGong']);
+// 十二建星:奇门页经起盘出 pan.jianChu(盘外环 / 右栏卡 / 奇门快照一行);三式合一不交给起盘,快照「概览」段按 options.showJianChu 出日值 / 时值行(已核)。
+reg('components/dunjia/DunJiaCalc.js', ['qimen.showJianChu'], 'opts.showJianChu');
+reg('components/sanshi/main/snapshot.js', ['sanshiunited.showJianChu'], 'options.showJianChu');
 // 龟策:流派/起卦/大定表在 guiceSchools+engine 消费。
 reg('components/guice/guiceSchools.js', ['yanshuFa', 'qiguaShu', 'shiyingSet', 'dadingTable', 'shuXi', 'shiFang', 'shenSha']);
 reg('components/xiaoliuren/XiaoLiuRenMain.js', ['showOneThree']);
+// 世俗盘十键:regenCase 把 payload 交给 regenMundane.buildMundaneSnapshotForRecord,在那里逐个读(已核)。
+reg('utils/aiAnalysisContext/regenMundane.js', ['mundane.mundaneType', 'mundane.ingressTerm', 'mundane.ingressYear', 'mundane.regionKey', 'mundane.regionCandidate', 'mundane.regionTargetYear', 'mundane.solunarType', 'mundane.vedicEvent', 'mundane.mhKind', 'mundane.mundaneRuleset']);
 // 推运图族四法:重算分派(regenChart)把记录交给 directedFigureOptsFromSettings,齿轮键在那里逐个读成请求设置。
 reg('components/astro/AstroDirectedFigures.js', ['nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual', 'tlMethod', 'tlYearType', 'tlMovingYear', 'tlTurnStart', 'tlTurnOrder', 'tlOrbMode', 'tlAnnualDays', 'tlAnnualOrder', 'tlReleaser', 'tlVariant', 'tlNineTime', 'tlNineReverse', 'tlRateKind', 'tlMovingStart', 'tlDevBasis', 'tlDiurnalMode']);
 reg('components/xiaochengtu/XiaoChengTuMain.js', ['yongGong', 'piKoujing']);
@@ -170,7 +177,7 @@ describe('fieldParams ≡ fieldsToParams 逐键对拍(手抄副本漂移即红)'
 	}
 
 	it('🔴 AI 链构参键集与技法页构参键集对拍(差集必须走成文豁免)', ()=>{
-		const astroSrc = fs.readFileSync(path.join(UI_ROOT, 'models', 'astro.js'), 'utf8');
+		const astroSrc = readSource(path.join(UI_ROOT, 'models', 'astro.js'));   // 门面 + 子模块全集
 		// 锚必须是函数定义行(裸函数名首现在 :162 注释,曾致抓错函数体空转出假 diff)。
 		const aiKeys = extractKeys(CTX_SRC, 'function fieldParams(fields){');
 		const pageKeys = extractKeys(astroSrc, 'function fieldsToParams(fields){');

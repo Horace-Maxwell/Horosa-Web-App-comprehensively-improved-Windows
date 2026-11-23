@@ -20,6 +20,7 @@ import {
 import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2 } from './zeriTreeOps';
 import { ZERI_WB_TOP_STYLE, ZERI_WB_COND_BODY_STYLE } from './zeriWorkbenchLayout';
 import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
+import { pressable } from '../../utils/pressable';
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -124,6 +125,11 @@ export default function ConditionBuilderModal({
 	useEffect(() => {
 		if(scanning){ setView('result'); }
 	}, [scanning]);
+	// 工作台收起(点结果行起盘 / 点 ×)时概览浮窗一并关:弹窗收起后内容只是隐藏、浮窗仍挂着,它登记的 Esc 层留在栈顶,
+	//   之后全应用任何弹窗的第一下 Esc 都被这层看不见的浮窗吃掉
+	useEffect(() => {
+		if(!open){ setPreviewRow(null); }
+	}, [open]);
 
 	// 「从未打开过」粘性短路:弹窗关着时宿主每次 render(步进/改条件/扫描进度)
 	// 都要白跑本函数体的派生计算 + 白建 ~650 行元素树(antd Modal open=false 不挂 DOM 但构造照付)。
@@ -252,11 +258,11 @@ export default function ConditionBuilderModal({
 					borderRadius: 8, padding: '7px 10px', marginBottom: 6, cursor: 'pointer',
 					background: node.negate ? 'rgba(229,72,77,.06)' : (isSel ? 'rgba(212,175,55,.06)' : 'transparent'),
 				}}
-				onClick={(e) => {
+				{...pressable((e) => {
 					e.stopPropagation();
 					setSelectedPath(path);
 					if(!isGroup){ loadLeafToDraft(node); }
-				}}>
+				})}>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
 					{index > 0 ? (
 						<span style={{
@@ -399,7 +405,7 @@ export default function ConditionBuilderModal({
 						已选征象
 						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点击行选中→左下「连接门·取反」直接改;行首徽标=与上方结果的连接门</span>
 					</div>
-					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
+					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} {...pressable(() => setSelectedPath(null))}>
 						{renderNode(tree)}
 					</div>
 					<div style={{ padding: '6px 10px', borderTop: '1px solid var(--horosa-border)', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -459,9 +465,9 @@ export default function ConditionBuilderModal({
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
 							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以区间起始时刻起盘"
-								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
+								{...pressable(() => onPickInterval(row, 'start'))}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以区间结束时刻起盘"
-								onClick={() => onPickInterval(row, 'end')}>{row.end}</span>
+								{...pressable(() => onPickInterval(row, 'end'))}>{row.end}</span>
 							<span style={{ width: 76, textAlign: 'right', fontSize: 13 }}>
 								{row.durationMin >= 90 ? `${(row.durationMin / 60).toFixed(1)}小时` : `${Math.round(row.durationMin)}分`}
 							</span>
@@ -587,7 +593,7 @@ export default function ConditionBuilderModal({
 			destroyOnClose={false}
 		>
 			{view === 'result' ? resultView : (view === 'schemes' ? schemesView : editView)}
-			{previewRow && typeof onPreviewParams === 'function' ? (
+			{open && previewRow && typeof onPreviewParams === 'function' ? (
 				<MiniChartPopup
 					params={onPreviewParams(previewRow, 'start')}
 					title={previewRow.start}

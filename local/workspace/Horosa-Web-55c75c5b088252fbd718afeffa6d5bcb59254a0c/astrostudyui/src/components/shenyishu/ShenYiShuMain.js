@@ -2,12 +2,12 @@ import QuickDockBar from '../common/QuickDockBar';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
-import { InputNumber, Spin } from 'antd';
+
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQInputNumber, XQSpin } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
 import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
@@ -329,7 +329,8 @@ class ShenYiShuMain extends Component{
 			const payload = {
 				...dt,
 				hourSource: this.state.hourSource,
-				manualHour: this.state.manualHour,
+				// 时辰取「自动」时,真实路径先把 manualHour 改成步进后的时辰再取数(componentDidUpdate);这里取同一个值,跨时辰的步进才打得中
+				manualHour: this.state.hourSource === 'auto' ? dt.hour : this.state.manualHour,
 				seasonSource: this.state.seasonSource,
 				manualSeason: this.state.manualSeason,
 			};
@@ -429,7 +430,7 @@ class ShenYiShuMain extends Component{
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>手动小时</span>
-							<InputNumber value={this.state.manualHour} min={0} max={23} disabled={this.state.hourSource !== 'manual'} onChange={(v)=>this.setState({ manualHour: v || 0 })} />
+							<XQInputNumber value={this.state.manualHour} min={0} max={23} disabled={this.state.hourSource !== 'manual'} onChange={(v)=>this.setState({ manualHour: v || 0 })} />
 						</label>
 						<label className="horosa-huangji-select-field is-wide">
 							<span>五行季令</span>
@@ -706,7 +707,7 @@ class ShenYiShuMain extends Component{
 		return (
 			<div className={`horosa-huangji-page horosa-astro-redesign horosa-huangji-redesign horosa-taixuan-redesign horosa-shenyishu-redesign${embedded ? ' horosa-huangji-embedded' : ''}`} style={pageStyle}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">
-					<Spin spinning={this.state.loading}>
+					<XQSpin spinning={this.state.loading}>
 						<div className="horosa-astro-redesign-grid horosa-huangji-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-huangji-input-panel">
 								{this.renderInputPanel()}
@@ -724,7 +725,7 @@ class ShenYiShuMain extends Component{
 								{this.renderRightPanel()}
 							</div>
 						</div>
-					</Spin>
+					</XQSpin>
 					{!this.props.hideQuickDock && this.renderBottomQuickDock()}
 				</div>
 			</div>

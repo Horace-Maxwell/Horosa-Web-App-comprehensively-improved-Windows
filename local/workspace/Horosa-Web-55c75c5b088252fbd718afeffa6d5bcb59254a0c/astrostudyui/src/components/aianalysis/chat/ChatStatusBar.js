@@ -2,6 +2,7 @@
 // 模型 · 审批档/行动关 · 挂载 N 字/预算 M(超预算红、裁剪橙,点击开挂载抽屉)· 本会话 $ · 缓存命中 % · 上下文≈k% · 策略预设 · 命主▸ · 已压缩 N 条(点击查看摘要;弹窗里可取消)。
 // 纯展示:全部数字由钩子算好传入(computeSessionStats/estimateContextPct 与气泡同口径);data-* 供自动化机读;uiPrefs chatAssist.statusBar=false 可关。
 import React from 'react';
+import { pressable } from '../../../utils/pressable';
 
 export const PRESET_LABELS = { legacy: '现状', window: '窗口', economy: '经济', custom: '自定义' };
 export const APPROVAL_LABELS = { never: '全自动', 'on-request': '每次确认', 'read-only': '只读' };
@@ -9,7 +10,7 @@ export const APPROVAL_LABELS = { never: '全自动', 'on-request': '每次确认
 function Chip({ children, title, onClick, tone, attr }){
 	const color = tone === 'danger' ? 'var(--horosa-danger, #d4380d)' : (tone === 'warn' ? 'var(--horosa-warn, #d48806)' : 'var(--horosa-text-soft, #8a8f99)');
 	return (
-		<span title={title} onClick={onClick} data-tone={tone || 'normal'} {...(attr || {})}
+		<span title={title} {...pressable(onClick)} data-tone={tone || 'normal'} {...(attr || {})}
 			style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 6px', height: 18, borderRadius: 9, fontSize: 11, lineHeight: '18px', color,
 				border: `1px solid ${tone ? color : 'var(--horosa-border, #e5e7eb)'}`, cursor: onClick ? 'pointer' : 'default', whiteSpace: 'nowrap' }}>
 			{children}

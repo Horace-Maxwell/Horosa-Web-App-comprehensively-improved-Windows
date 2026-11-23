@@ -250,10 +250,20 @@ function zodiacPositionText(item){
 	return '--';
 }
 
+// 方位显示一律自正北顺时针(0=北 90=东 180=南 270=西,与地平圈刻度、「细节」页行星细节表同口径)。
+// 计算层(后端 / equatorialToHorizontal / 场景)的 azimuth 自正南起,只在显示这一刻换算,计算链不动。
+export function azimuthNorthOf(az){
+	if(az === null || az === undefined || az === '' || !Number.isFinite(Number(az))){ return az; }
+	return (((Number(az) + 180) % 360) + 360) % 360;
+}
+export function formatAzimuth(az){
+	return formatDeg(azimuthNorthOf(az));
+}
+
 function skyPositionText(item){
 	return joinParts([
 		`高度 ${formatDeg(item && item.altitudeAppa)}`,
-		`方位 ${formatDeg(item && item.azimuth)}`,
+		`方位 ${formatAzimuth(item && item.azimuth)}`,
 	]);
 }
 

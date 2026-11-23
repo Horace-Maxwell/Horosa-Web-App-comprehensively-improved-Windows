@@ -1,5 +1,5 @@
 import React from 'react';
-import { XQSelect, XQCheckItem } from '../xq-ui';
+import { XQSelect, XQCheckItem, XQInputNumber } from '../xq-ui';
 import { AstroMsgCN } from '../../constants/AstroText';
 import { CONDITION_TYPES, SCAN_BODIES } from '../../divination/zeri/conditionTypes';
 
@@ -71,11 +71,12 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 			const emptyNum = rawNum === '' || rawNum === null || rawNum === undefined || !Number.isFinite(Number(rawNum));
 			control = (
 				<div style={{ width: '100%' }}>
-					<input type="number" className="horosa-native-date" min={f.min} max={f.max} step={f.step || 1}
-						value={params[f.key]}
+					<XQInputNumber min={f.min} max={f.max} step={f.step || 1}
+						value={emptyNum ? null : Number(rawNum)}
+						status={emptyNum ? 'error' : undefined}
 						aria-invalid={emptyNum ? 'true' : undefined}
-						style={{ width: '100%', boxSizing: 'border-box', borderColor: emptyNum ? 'var(--horosa-danger)' : undefined }}
-						onChange={(e) => patch(f.key, e.target.value === '' ? '' : Number(e.target.value))} />
+						style={{ width: '100%' }}
+						onChange={(v) => patch(f.key, v === null || v === undefined ? '' : Number(v))} />
 					{emptyNum ? <div style={{ fontSize: 11, color: 'var(--horosa-danger)', marginTop: 2, lineHeight: 1.4 }}>不能留空(留空会按 0 / 内置默认求值)</div> : null}
 				</div>
 			);

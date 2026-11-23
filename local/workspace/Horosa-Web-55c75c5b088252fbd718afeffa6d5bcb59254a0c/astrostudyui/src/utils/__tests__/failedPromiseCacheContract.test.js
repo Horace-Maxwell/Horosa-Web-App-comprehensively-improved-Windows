@@ -12,6 +12,8 @@
 const fs = require('fs');
 const path = require('path');
 const parser = require('@babel/parser');
+// 拆成子模块的大文件按一个单位查(门面读「子模块 + 门面」全集、子模块跳过):缓存与写它的函数可能分在两个子模块
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');
 
 const SRC = path.join(__dirname, '..', '..');
 
@@ -148,9 +150,9 @@ describe('加载失败的 Promise 不被永久缓存(全 src 模块级缓存)', 
 	it('没有失败后永不复位的缓存 / 失败当成功的缓存 / 会被一次失败卡死的串行链', ()=>{
 		const bad = [];
 		const seen = new Set();
-		listJs(SRC, []).forEach((abs)=>{
+		listJs(SRC, []).filter((abs)=>!isSourceSetPart(abs)).forEach((abs)=>{
 			const rel = path.relative(SRC, abs).split(path.sep).join('/');
-			const text = fs.readFileSync(abs, 'utf8');
+			const text = readSource(abs);
 			scanText(text, rel).forEach((h)=>bad.push(h));
 			Object.keys(EXEMPT).filter((id)=>id.startsWith(`${rel}|`)).forEach((id)=>seen.add(id));
 		});
@@ -164,7 +166,7 @@ describe('加载失败的 Promise 不被永久缓存(全 src 模块级缓存)', 
 			if(!fs.existsSync(abs)){ stale.push(id); return; }
 			const save = EXEMPT[id];
 			delete EXEMPT[id];
-			const hits = scanText(fs.readFileSync(abs, 'utf8'), rel);
+			const hits = scanText(readSource(abs), rel);
 			EXEMPT[id] = save;
 			if(!hits.includes(id)){ stale.push(id); }
 		});

@@ -6,7 +6,7 @@
 import React, { Component } from 'react';
 import HelpBook from './HelpBook';
 import { STANCE_ROWS, STANCE_LAWS, STANCE_NOTE } from '../fengshui/fengshuiStanceData';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 
 
 // 第三参 key 只在 .map() 里成列渲染时才传(否则 React 报「列表缺 key」);单独调用照旧两参。

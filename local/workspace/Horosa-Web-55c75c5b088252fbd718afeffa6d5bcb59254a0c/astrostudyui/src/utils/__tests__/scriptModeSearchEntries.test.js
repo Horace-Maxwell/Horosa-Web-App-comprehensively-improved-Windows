@@ -12,7 +12,7 @@ import { scriptMatchSpan, scriptNodeOffset, scriptOriginalNodeText } from '../sc
 import { createLocalRecordStore } from '../localRecordStore';
 import { filterDeletedLogEntries } from '../../components/user/DeletedLogPanel';
 import { pageMatchesQuery, matchedKeyword } from '../../components/HomePageSetup';
-import { filterBiFaListByQuery } from '../../components/lrzhan/main/referenceMatch';
+import { filterBiFaListByQuery } from '../../components/lrzhan/main/referenceOverview';
 import { BIFA_LIST } from '../../components/liureng/LRBiFaDoc';
 import { buildStarIndex, findStarByName, suggestStars } from '../../components/planetarium/planetariumStarSearch';
 import { withQueryVariants } from '../../services/xuanshi';

@@ -6,7 +6,7 @@ import path from 'path';
 
 const SRC = path.join(__dirname, '..', '..');
 const UI = path.join(SRC, '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 const RETIRED = ['astroreader', 'liveplayer', 'admintools'];
 const RETIRED_LABELS = ['书籍阅读', '星阙直播', '管理工具'];
 

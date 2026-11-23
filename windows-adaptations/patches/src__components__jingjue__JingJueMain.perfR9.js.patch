@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/jingjue/JingJueMain.js b/astrostudyui/src/components/jingjue/JingJueMain.js
-index 47e7920a..e34f0c2b 100644
+index e46855df..1e8a35cb 100644
 --- a/astrostudyui/src/components/jingjue/JingJueMain.js
 +++ b/astrostudyui/src/components/jingjue/JingJueMain.js
 @@ -14,6 +14,8 @@ import { postKentang } from '../../services/kentangPost';   // 本机优先、
@@ -11,8 +11,8 @@ index 47e7920a..e34f0c2b 100644
  
  import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
  import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
-@@ -49,6 +51,9 @@ function defaultSeed(){
- 	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
+@@ -53,6 +55,9 @@ function defaultSeed(){
+ 	return newEntropySeed(CAST_ENTROPY_BYTES);
  }
  
 +// 🔴 故意【不加】horosa_kentang_result_cache_v1 结果缓存:荆诀是蓍草随机分揲
@@ -21,7 +21,7 @@ index 47e7920a..e34f0c2b 100644
  function postJingJue(path, payload){ return postKentang('jingjue', path, payload); }
  
  function fmtValue(value){
-@@ -320,6 +325,8 @@ class JingJueMain extends Component{
+@@ -326,6 +331,8 @@ class JingJueMain extends Component{
  				return;
  			}
  			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
@@ -30,7 +30,7 @@ index 47e7920a..e34f0c2b 100644
  				saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -514,17 +521,26 @@ class JingJueMain extends Component{
+@@ -522,17 +529,26 @@ class JingJueMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

@@ -4,8 +4,8 @@
 // + 只在卡内滚动的表格卡片。
 // 改任何设置自动重算,旧结果留着(角标「更新中…」);取不到结果时盘位显示原因,并每隔十几秒自动重试。
 import React, { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSelect as Select, XQInputNumber } from '../xq-ui';
+
+import { XQSelect as Select, XQInputNumber, XQSpin } from '../xq-ui';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { pointerLocalRatio } from '../../utils/zoomDomain';
 import styles from '../../css/styles.less';
@@ -24,7 +24,7 @@ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import {
 	DIRECTED_FIGURES, NEROMAN_EQUATOR_OPTIONS, BEZZA_KIND_LABELS, BEZZA_MUNDANE_ASPECTS, ZODIAC_ASPECT_LABELS, MICHON_FAMILY_LABELS,
-	directedFigureRequestFields, buildDirectedFigureText, pointName, fmtLon, fmtN,
+	directedFigureRequestFields, buildDirectedFigureText, pointName, fmtLon, fmtN, fmtHour,
 } from '../../utils/directedFigures';
 import {
 	TIMELORD_FIELD_LABELS, TIMELORD_METHOD_FIELDS, TIMELORD_METHODS, TIMELORD_OPTIONS, TIMELORD_POLAR_NOTE, normalizeTimeLordOpts, timeLordAspectText,
@@ -266,13 +266,13 @@ class DirectedFigurePage extends Component{
 		const height = this.props.height ? this.props.height - 10 : 700;
 		const failed = this.state.loadFailed && !has;
 		return (
-			<Spin spinning={this.state.loading && !has}>
+			<XQSpin spinning={this.state.loading && !has}>
 				<ProgPageShell height={height} updating={this.state.loading && has}>
 					<WheelSplit head={this.renderSideHead()} renderWheel={(size, h)=>(failed ? <LoadFailNote /> : this.renderWheel(has ? r : null, size, h))}>
 						{has ? this.renderTables(r) : null}
 					</WheelSplit>
 				</ProgPageShell>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }
@@ -374,7 +374,7 @@ export class AstroNeroman extends DirectedFigurePage{
 // ---------------------------------------------------------------------------
 // 推运图(Bezza)
 // ---------------------------------------------------------------------------
-const hp = (v)=>fmtN(v, 2);
+const hp = (v)=>fmtHour(v, 2);
 
 export class AstroBezzaFigure extends DirectedFigurePage{
 	constructor(props){ super(props, 'bezzafigure'); }

@@ -2,7 +2,8 @@
 // + 测试连接 + 一键校准(随包金标集打用户自己的 key,成绩按真实模型号钉住)+ 每个接入点的分开关(关 / 用 / 影子)+ 阈值 + 用量与决策日志。
 // 纪律:打开本卡不写任何键(只订阅、只读);总开关关着时连 IndexedDB 都不读(关路径零 IO);每个接入点「用」还要过校准与档案两道,卡上如实标状态。
 import React from 'react';
-import { Button, Input, InputNumber, Modal, Radio, Select, Switch, Tag, Tooltip, message } from 'antd';
+import { Button, Input, Modal, Select, Tag, Tooltip, message } from 'antd';
+import { XQInputNumber, XQRadio, XQSwitch } from '../../xq-ui';
 import { AdvCard, AdvStatus, AdvSwitchRow, ADV_SECTION_IDS, advStyles as styles } from './AdvCard';
 import { isSystemOneEnabled, setSystemOneEnabled, subscribeSystemOnePrefs, getPointMode, setPointMode, readThresholds, setThresholds, isDisclosureAcknowledged, acknowledgeDisclosure, pointOn, pointShadow, isSystemOneProfilePresent } from '../../../utils/systemOne/prefs';
 import { listPoints, POINT_GROUPS, KIND_LABELS } from '../../../utils/systemOne/registry';
@@ -142,7 +143,7 @@ export default function SystemOnePanel(){
 			desc="把一部分「小判断」(该不该拦、像不像软件求助、该不该带帮助文档、资料片段相不相关…)交给专门做类型化判断的模型,回答本身仍由你的聊天模型生成。缺省关 = 与现状逐字节相同;每个接入点各有分开关,失败一律回落原路径。"
 			data-systemone-panel="1" data-tick={tick}>
 			<AdvSwitchRow title="启用决策层" desc={`开启后按接入点逐个生效(下表);只发最小字段,不发密钥与出生资料;按输入 token 计费(约 $${SYSTEMONE_PRICE_USD_PER_MTOK_INPUT} / 百万 token)。`} checked={on}
-				control={<Switch checked={on} data-systemone-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
+				control={<XQSwitch checked={on} data-systemone-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
 			{on ? (
 				<div className={styles.subBody}>
 					<div className={styles.groupLabel}>档案</div>
@@ -187,11 +188,11 @@ export default function SystemOnePanel(){
 											<td>{GROUP_LABEL[p.group] || p.group}</td>
 											<td>{KIND_LABELS[p.kind] || p.kind}</td>
 											<td>
-												<Radio.Group className={styles.segment} size="small" value={mode} {...modeAnchor(p)} onChange={(e)=>{ setPointMode(p.id, e.target.value); bump(); }}>
-													<Radio.Button value="off">关</Radio.Button>
-													{p.shadowOnly ? null : <Radio.Button value="on">用</Radio.Button>}
-													<Radio.Button value="shadow">影子</Radio.Button>
-												</Radio.Group>
+												<XQRadio.Group className={styles.segment} size="small" value={mode} {...modeAnchor(p)} onChange={(e)=>{ setPointMode(p.id, e.target.value); bump(); }}>
+													<XQRadio.Button value="off">关</XQRadio.Button>
+													{p.shadowOnly ? null : <XQRadio.Button value="on">用</XQRadio.Button>}
+													<XQRadio.Button value="shadow">影子</XQRadio.Button>
+												</XQRadio.Group>
 											</td>
 											<td className={live ? '' : styles.soft}>{state}</td>
 											<td className={styles.soft}>{rec ? (rec.passed ? '通过' : (rec.reason || '未过')) : '—'}</td>
@@ -209,9 +210,9 @@ export default function SystemOnePanel(){
 						{th ? (
 							<>
 								<span className={styles.soft}>直接采纳 ≥</span>
-								<InputNumber size="small" min={0} max={1} step={0.05} value={th.act} data-systemone-threshold-act="1" onChange={(v)=>{ setThresholds(thTarget.id, { act: v }); bump(); }} />
+								<XQInputNumber size="small" min={0} max={1} step={0.05} value={th.act} data-systemone-threshold-act="1" style={{ width: 90 }} onChange={(v)=>{ setThresholds(thTarget.id, { act: v }); bump(); }} />
 								<span className={styles.soft}>先确认 ≥</span>
-								<InputNumber size="small" min={0} max={1} step={0.05} value={th.confirm} data-systemone-threshold-confirm="1" onChange={(v)=>{ setThresholds(thTarget.id, { confirm: v }); bump(); }} />
+								<XQInputNumber size="small" min={0} max={1} step={0.05} value={th.confirm} data-systemone-threshold-confirm="1" style={{ width: 90 }} onChange={(v)=>{ setThresholds(thTarget.id, { confirm: v }); bump(); }} />
 								<Button size="small" disabled={!Object.keys(thStored).length} data-systemone-threshold-reset="1" onClick={()=>{ setThresholds(thTarget.id, { act: null, confirm: null }); bump(); }}>恢复默认</Button>
 							</>
 						) : null}

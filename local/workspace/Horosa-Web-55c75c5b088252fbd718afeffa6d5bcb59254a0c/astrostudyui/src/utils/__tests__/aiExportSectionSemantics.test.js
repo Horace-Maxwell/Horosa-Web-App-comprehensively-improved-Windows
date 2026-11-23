@@ -232,7 +232,7 @@ describe('紫微身宫段 union 迁移', ()=>{
 		expect(n.sections.ziwei.length).toBe(kept.length + 2);
 		// bazi 同窗:已自定义者补「干支合冲」
 		const nb = normalizeAIExportSettings({ version: 55, sections: { bazi: ['起盘信息'] } });
-		expect(nb.sections.bazi).toEqual(['起盘信息', '干支合冲']);
+		expect(nb.sections.bazi).toEqual(['起盘信息', '干支合冲', '卦释']);   // v55 存档逐窗累加:v56 窗补「干支合冲」,v66 窗补「卦释」
 		// astrochart 同窗:补衍化三段;世界范式盘=默认关段不入 union(口径倒挂防线)
 		const na = normalizeAIExportSettings({ version: 55, sections: { astrochart: ['起盘信息'] } });
 		// 同一 v55 存档再进 v57 窗:尾插「分宫制宫神星表」(#79 拆段,窗口独立逐窗累加)
@@ -289,14 +289,14 @@ describe('分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 		expect(normalizeAIExportSettings({ version: 57, sections: { astrochart: ['起盘信息'] } }).sections.sanshiunited).toBeUndefined();
 		// 下一窗:量化盘「赤纬接触」独立段(自汉堡段拆出);只补已自定义过量化盘的用户,显式全清仍是全清,v59 起不再重跑
 		// (v58 存档同时吃到 v59 窗与 v60 窗:赤纬接触 + 中点坐标 / 公式求解)
-		expect(normalizeAIExportSettings({ version: 58, sections: { germany: ['中点', '六宫框落宫'] } }).sections.germany).toEqual(['中点', '六宫框落宫', '赤纬接触', '中点坐标', '公式求解']);
+		expect(normalizeAIExportSettings({ version: 58, sections: { germany: ['中点', '六宫框落宫'] } }).sections.germany).toEqual(['中点', '六宫框落宫', '赤纬接触', '中点坐标', '公式求解', '行运接触', '图形星历']);   // 再进 v67 / v68 窗补「行运接触」「图形星历」
 		expect(normalizeAIExportSettings({ version: 58, sections: { germany: [] } }).sections.germany).toEqual([]);
 		expect(normalizeAIExportSettings({ version: 58, sections: { astrochart: ['起盘信息'] } }).sections.germany).toBeUndefined();
 		expect(CUR).toBeGreaterThanOrEqual(59);
 		// 再下一窗:量化盘「中点坐标」「公式求解」两新段;v59 存档只补这两段,显式全清仍是全清,v60 起不再重跑
-		expect(normalizeAIExportSettings({ version: 59, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点', '中点坐标', '公式求解']);
+		expect(normalizeAIExportSettings({ version: 59, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点', '中点坐标', '公式求解', '行运接触', '图形星历']);   // 逐窗累加:v67 / v68 窗补「行运接触」「图形星历」
 		expect(normalizeAIExportSettings({ version: 59, sections: { germany: [] } }).sections.germany).toEqual([]);
-		expect(normalizeAIExportSettings({ version: 60, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点']);
+		expect(normalizeAIExportSettings({ version: 60, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点', '行运接触', '图形星历']);   // v60 窗不再重跑,只吃到 v67 / v68 窗
 		expect(CUR).toBeGreaterThanOrEqual(60);
 		expect(normalizeAIExportSettings({ version: CUR, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点']);
 		const g = AI_EXPORT_PRESET_SECTIONS.germany;

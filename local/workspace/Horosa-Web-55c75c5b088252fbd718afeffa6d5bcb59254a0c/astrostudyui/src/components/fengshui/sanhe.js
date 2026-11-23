@@ -3,7 +3,7 @@
 import {
 	sanheChangshengTable, sanheStageAt, sanheXiangFaAll,
 	huangquanBaYao, huangquanSiDa, boshaWuGe, shanAtDeg,
-	chuanshanAt, toudiAt, fenjinAt, nayinOf,
+	chuanshanAt, toudiAt, fenjinAt,
 } from './liqiCore';
 import { SANHE_STAGE_JX, SANHE_SHUANGSHAN, SHAN_24, GONG_GUA, ZHI_CHONG, ZHI_SANHE_JU,
 	SHAN_CENTER_DEG, GONG_CENTER_DEG, HOUTIAN_POS } from './fengshuiData';

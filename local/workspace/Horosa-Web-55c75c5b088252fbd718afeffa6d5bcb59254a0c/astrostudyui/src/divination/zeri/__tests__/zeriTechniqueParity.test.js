@@ -23,7 +23,7 @@ jest.mock('../qimenScanEngine', ()=>{
 });
 
 // eslint-disable-next-line import/first
-import { readSource, fnBody } from '../../../utils/__tests__/helpers/sourceSet';
+import { readSource, fnBody, sourceSetFiles } from '../../../utils/__tests__/helpers/sourceSet';
 // eslint-disable-next-line import/first
 import { saveModuleAISnapshot, loadModuleAISnapshot, clearModuleAISnapshot } from '../../../utils/moduleAiSnapshot';
 // eslint-disable-next-line import/first
@@ -523,6 +523,11 @@ const EMBED_CALIBRE = {
 		outerCoord: ex('外圈坐标是显示'),
 		ascRaMode: ex('外圈赤道分宫的上升取法只改外圈显示;择日条件不读外圈'),
 		showWeakSolid: ex('虚实标记是显示'),
+		showJiGan: ex('寄干只在盘面与快照里标出,不改盘;择日条件不读'),
+		showTianQin: ex('天禽落宫只在盘面与快照里标出,不改盘;择日条件不读'),
+		tuiYanView: ex('翻宫 / 转宫推演只在盘面标路径、概览写推演,不改盘;择日条件不读'),
+		tuiYanGong: ex('推演用神宫只决定推演从哪宫出发,不改盘'),
+		showJianChu: ex('十二建星是显示项(盘外圈地支旁 + 右栏参考卡),不改任何子盘'),
 		mode: ex('命局 / 事局只管这一盘存去哪,不改盘'),
 		faRelatedPeople: ex(`法奇门相关人是${SAME_CAST}`),
 		sex: ex('性别随命主'),
@@ -807,6 +812,8 @@ function dayBoundaryScanFiles(){
 		// 「不在扫描面」、同一文件以两种写法各进 Set 一次(macOS 恒绿)。归一到 POSIX 再入集合;扫描面零变化。
 		if(f){ set.add(path.relative(SRC, f).split(path.sep).join('/')); }
 	});
+	// 拆成子模块的引擎:子模块逐个文件一起扫(只扫门面的话,搬进子模块的回落写法逃出本检查)
+	Array.from(set).forEach((r)=>{ sourceSetFiles(path.join(SRC, r)).forEach((f)=>set.add(path.relative(SRC, f))); });
 	return Array.from(set);
 }
 

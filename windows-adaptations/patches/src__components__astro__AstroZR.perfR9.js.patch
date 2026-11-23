@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroZR.js b/astrostudyui/src/components/astro/AstroZR.js
-index 7961f2c8..f317e9c7 100644
+index 6c5c8925..1d6bb4bf 100644
 --- a/astrostudyui/src/components/astro/AstroZR.js
 +++ b/astrostudyui/src/components/astro/AstroZR.js
 @@ -21,6 +21,7 @@ import { natalClassicalParams } from './AstroExtraCommon';

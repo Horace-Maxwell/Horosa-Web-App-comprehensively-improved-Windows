@@ -39,7 +39,7 @@ const NOW_ISO = /^new Date\(\)\.toISOString\(\)$/;
 const BASELINE = {
 	'components/comp/DateTime.js': 3,	// parse(…, 'YYYYMMDD' / 'YYYYMMDDHHMMSS'):调用方显式声明定宽纯数字格式;另 1 处 split('-') 在先剥掉前导负号之后
 	'utils/dateStrSafe.js': 99,	// 单源本身(认不出时的旧口径兜底)
-	'components/astro/IndiaChartMain.js': 1,	// 时刻串 'HH:MM:SS' 取秒(定宽,不含年份)
+	'components/astro/indiaMain/prashnaPanels.js': 1,	// 时刻串 'HH:MM:SS' 取秒(定宽,不含年份;印占页卜卦面板)
 };
 
 function walk(dir, acc = []){

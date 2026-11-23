@@ -32,14 +32,15 @@ beforeEach(()=>{
 });
 
 describe('describe_settings / get_settings', ()=>{
-	it('app 面:可改项带 options/current,显示数组只读', async ()=>{
+	it('app 面:可改项带 options/current,显示数组可整组替换(带可选表)', async ()=>{
 		const r = await runTool('describe_settings', { facet: 'app' }, ctx());
 		expect(r.ok).toBe(true);
 		const ap = r.data.items.find((it)=>it.key === 'appearanceMode');
 		expect(ap.current).toBe('light');
 		expect(ap.options.map((o)=>o.value)).toContain('dark');
-		const ro = r.data.items.find((it)=>it.key === 'chartDisplay');
-		expect(ro.settable).toBe(false);
+		const cd = r.data.items.find((it)=>it.key === 'chartDisplay');
+		expect([cd.type, cd.settable, cd.current]).toEqual(['array', true, [1, 2]]);
+		expect(cd.options.length).toBeGreaterThan(10);
 		const g = await runTool('get_settings', { facet: 'app' }, ctx());
 		expect(g.data.values.appearanceMode).toBe('light');
 	});
@@ -53,6 +54,21 @@ describe('describe_settings / get_settings', ()=>{
 		const t = await runTool('describe_settings', { facet: 'technique', technique: 'bazi' }, ctx());
 		expect(t.ok).toBe(false);
 		expect(t.code).toBe('E_SETTING_KEY_NOT_ALLOWED');
+	});
+});
+
+describe('describe_settings 只描述指定几项(keys)', ()=>{
+	test('给 keys 只回这几项、值域照全;不认识的键列在 unknownKeys;不给 = 整面不变', async ()=>{
+		const full = await runTool('describe_settings', { facet: 'mount', technique: 'astrochart' }, { origin: 'mcp' });
+		const two = full.data.items.slice(0, 2).map((x)=>x.key);
+		const r = await runTool('describe_settings', { facet: 'mount', technique: 'astrochart', keys: [...two, 'noSuchKey'] }, { origin: 'mcp' });
+		expect(r.ok).toBe(true);
+		expect(r.data.items.map((x)=>x.key)).toEqual(two);
+		expect(r.data.items[0]).toEqual(full.data.items[0]);
+		expect(r.data.unknownKeys).toEqual(['noSuchKey']);
+		const again = await runTool('describe_settings', { facet: 'mount', technique: 'astrochart', keys: [] }, { origin: 'mcp' });
+		expect(again.data.items).toHaveLength(full.data.items.length);
+		expect(again.data.unknownKeys).toBeUndefined();
 	});
 });
 

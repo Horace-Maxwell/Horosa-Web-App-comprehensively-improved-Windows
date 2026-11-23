@@ -324,6 +324,7 @@ export const ZERI_COVERAGE_MAP = {
 			'盲派结构': { exempt: '真 gap:盲派做功结构可判但候选时刻语义弱(本命分析面),补全轮待议' },
 			'月令司令（分野）': { types: ['jieqi_month'] },
 			'干支合冲': { types: ['zhi_relation', 'gan_wuhe', 'sanhe_ju', 'bm_bu_chong', 'bm_he'] },
+			'卦释': { exempt: '四柱卦象(本卦/互卦/旁通)是干支的卦化转写,择时条件已按干支本身判,不另设卦象条件类' },
 			'大运': { exempt: '大运为本命推演量,不随候选时刻变化' },
 			'流年行运概略': { exempt: '行运为本命推演量,不随候选时刻变化' },
 			'多运限·指定时段': { exempt: '本命运限工具段,非候选时刻征象' },

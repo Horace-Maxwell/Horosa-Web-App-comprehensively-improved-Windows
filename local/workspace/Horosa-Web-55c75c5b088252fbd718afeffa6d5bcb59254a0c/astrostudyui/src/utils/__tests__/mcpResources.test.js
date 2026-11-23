@@ -36,6 +36,11 @@ it('🔴 列表=本机命盘/事盘/资料;读取走挂载快照单源;资料带
 	const helpTail = list.slice(4).map((r)=>r.uri);
 	expect(helpTail).toEqual(listHelpTabs().map((tab)=>`horosa://help/${tab}`));
 	expect(helpTail.length).toBeGreaterThanOrEqual(20);
+	// 手册名与其余各类同一写法「类别·名称」(不再「手册·八字四柱 · 操作手册」类别说两遍);描述带页签键
+	const bz = list.find((r)=>r.uri === 'horosa://help/bazi');
+	expect(bz.name).toBe('手册·八字四柱');
+	expect(bz.description).toBe('「八字四柱」页的操作手册(页签键 bazi)');
+	expect(list.filter((r)=>/操作手册$/.test(r.name))).toEqual([]);
 	expect(list[0].name).toBe('命盘·张三');
 	expect(list[1].name).toBe('事盘·问事');
 	const chart = await readResource('horosa://chart/local-1');
@@ -52,12 +57,18 @@ it('🔴 列表=本机命盘/事盘/资料;读取走挂载快照单源;资料带
 it('🔴 提示卡:每个技法一张,只给「怎么问」(指向 cast_technique)不产结论;带 cid/question 时进正文;用户模版按 format 取正文;未知 → null', async ()=>{
 	await putStoreRecord(AI_ANALYSIS_STORES.templates, { id: 't1', name: '事业模版', format: 'text', instructionText: '分四段:格局/大运/流年/建议' });
 	const prompts = await listPrompts({});
-	const bazi = prompts.find((p)=>p.name === `${PROMPT_TECHNIQUE_PREFIX}bazi`);
-	expect(bazi).toBeTruthy();
-	expect(bazi.description).toContain(labelOfTechnique('bazi'));
-	expect(bazi.arguments.map((a)=>a.name)).toEqual(['cid', 'question']);
+	// 技法卡合成一张 technique(参数 technique 必填);旧名 technique:<键> 不再列出,但 get 照收、正文逐字相同
+	expect(prompts.some((p)=>p.name.indexOf(PROMPT_TECHNIQUE_PREFIX) === 0)).toBe(false);
+	const card = prompts.find((p)=>p.name === 'technique');
+	expect(card.arguments.map((a)=>[a.name, a.required])).toEqual([['technique', true], ['cid', false], ['question', false]]);
+	expect(prompts.length).toBeLessThan(20);
 	expect(prompts.some((p)=>p.name === `${PROMPT_TEMPLATE_PREFIX}t1`)).toBe(true);
+	const merged = await getPrompt('technique', { technique: 'bazi', cid: 'local-1', question: '今年事业' });
+	expect(merged.description).toContain(labelOfTechnique('bazi'));
+	expect(await getPrompt('technique', { technique: 'nope' })).toBe(null);
+	expect(await getPrompt('technique', {})).toBe(null);
 	const got = await getPrompt(`${PROMPT_TECHNIQUE_PREFIX}bazi`, { cid: 'local-1', question: '今年事业' });
+	expect(got.messages[0].content.text).toBe(merged.messages[0].content.text);
 	expect(got.messages[0].role).toBe('user');
 	const text = got.messages[0].content.text;
 	// 示例参数必须与 cast_technique 的 inputSchema 同形(source:{kind,cid});旧文案教的 sourceCid

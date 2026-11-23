@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC = path.resolve(__dirname, '../../..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读,其余文件原样
 
 function walk(dir, out){
 	fs.readdirSync(dir, { withFileTypes: true }).forEach((d)=>{
@@ -24,7 +24,10 @@ function walk(dir, out){
 
 describe('竖排页签条单一来源', ()=>{
 	const xq = read('components/xq-ui/index.js');
-	const styles = read('components/xq-ui/styles.less');
+	const { readSource, sourceSetFiles } = require('../../../utils/__tests__/helpers/sourceSet');
+	const styles = readSource(path.join(SRC, 'components/xq-ui/styles.less'));   // 样式门面:@import 原位展开读全集
+	// 统一件样式按区段拆在 styles/ 下:门面 + 各份都是「单一来源」那一处
+	const STYLE_SET = new Set(sourceSetFiles(path.join(SRC, 'components/xq-ui/styles.less')));
 
 	test('竖排 XQTabs 缺省走自绘页签条,且带 xq-tabs-rail 类', ()=>{
 		expect(/function XQTabRailBar\(/.test(xq)).toBe(true);
@@ -62,7 +65,7 @@ describe('竖排页签条单一来源', ()=>{
 		const offenders = [];
 		less.forEach((f)=>{
 			const rel = path.relative(SRC, f);
-			if(rel === path.join('components', 'xq-ui', 'styles.less')){ return; }
+			if(STYLE_SET.has(f)){ return; }
 			// 主导航(rail={false})自有滚动样式,整段在 mainRootTabs 名下,不在此列
 			const s = fs.readFileSync(f, 'utf8');
 			const re = /([^{}]*\.ant-tabs-nav-wrap[^{}]*)\{([^{}]*)\}/g;

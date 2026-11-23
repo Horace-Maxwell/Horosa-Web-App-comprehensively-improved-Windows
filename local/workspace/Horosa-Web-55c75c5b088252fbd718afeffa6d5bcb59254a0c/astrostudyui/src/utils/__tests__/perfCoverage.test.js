@@ -9,11 +9,12 @@ import {
 } from '../perfCoverageManifest';
 import { AUX_SUBTABS, CNYIBU_SUBTABS, ZERI_SUBTABS, CNTRADITION_SUBTABS } from '../../constants/SubTabRegistry';
 import { XUANSHI_SUBPAGES } from '../xuanshiState';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = path.join(__dirname, '..', '..');
 
 function navKeysFromSource(){
-	const src = fs.readFileSync(path.join(SRC, 'pages', 'index.js'), 'utf8');
+	const src = readSource(path.join(SRC, 'pages', 'index.js'));   // 门面 + 子模块全集
 	const keys = new Set();
 	const re = /\{ label: '[^']+', key: '([a-zA-Z0-9]+)'/g;
 	let m;
@@ -100,7 +101,7 @@ function subtechniqueKeysFromSource(){
 	const mo = fs.readFileSync(path.join(SRC, 'components', 'mingother', 'MingOtherMain.js'), 'utf8');
 	const moBlk = (mo.match(/MING_OTHER_TECHNIQUE_TABS\s*=\s*\[([\s\S]*?)\];/) || [])[1] || '';
 	(moBlk.match(/key: '([A-Za-z0-9]+)'/g) || []).forEach((m)=>keys.add(`mingother/${m.replace(/key: '|'/g, '')}`));
-	const km = fs.readFileSync(path.join(SRC, 'components', 'kinastro', 'KinAstroMain.js'), 'utf8');
+	const km = readSource(path.join(SRC, 'components', 'kinastro', 'KinAstroMain.js'));
 	const railBlk = (km.match(/moduleKey === 'shusuan'\s*\?\s*\[([\s\S]*?)\]/) || [])[1] || '';
 	(railBlk.match(/key: '([A-Za-z0-9]+)'/g) || []).forEach((m)=>keys.add(`shusuan/${m.replace(/key: '|'/g, '')}`));
 	const cm = fs.readFileSync(path.join(SRC, 'components', 'calendar', 'CalendarMain.js'), 'utf8');

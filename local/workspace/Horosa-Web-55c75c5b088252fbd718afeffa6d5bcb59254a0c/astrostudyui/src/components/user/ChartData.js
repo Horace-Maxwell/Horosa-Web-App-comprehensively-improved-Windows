@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { RECORD_RODDEN_OPTIONS, RECORD_RELATION_OPTIONS } from '../../utils/recordMetaOptions';   // 生辰可信度 / 关系档位(与 AI 建档 / 提案同一份)
 import { Row, Col } from 'antd';
 import LatInput from '../astro/LatInput';
 import LonInput from '../astro/LonInput';
@@ -385,12 +386,7 @@ export default class ChartData extends Component{
 							<Col span={24}>生辰可信度：</Col>
 							<Col span={24}>
 								<XQSelect value={flds.rodden ? flds.rodden.value : null} onChange={this.changeRodden} style={{ width: '100%' }} allowClear placeholder='未评级'>
-									<Option value='AA'>AA 出生记录</Option>
-									<Option value='A'>A 本人口述</Option>
-									<Option value='B'>B 传记资料</Option>
-									<Option value='C'>C 来源不明</Option>
-									<Option value='DD'>DD 相互矛盾</Option>
-									<Option value='X'>X 无出生时间</Option>
+									{RECORD_RODDEN_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</XQSelect>
 							</Col>
 						</Row>
@@ -400,11 +396,7 @@ export default class ChartData extends Component{
 							<Col span={24}>关系：</Col>
 							<Col span={24}>
 								<XQSelect value={flds.relation ? flds.relation.value : null} onChange={this.changeRelation} style={{ width: '100%' }} allowClear placeholder='未指定'>
-									<Option value='self'>自己</Option>
-									<Option value='family'>家人</Option>
-									<Option value='friend'>朋友</Option>
-									<Option value='client'>客户</Option>
-									<Option value='other'>其他</Option>
+									{RECORD_RELATION_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</XQSelect>
 							</Col>
 						</Row>

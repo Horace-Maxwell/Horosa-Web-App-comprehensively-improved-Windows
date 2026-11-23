@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMap.js b/astrostudyui/src/components/xuanshi/XuanShiMap.js
-index cd215704..4cb36cfc 100644
+index 34fbbcf3..42b659df 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMap.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMap.js
 @@ -1,7 +1,7 @@
  import React from 'react';
  import { watchChartAppearance, watchChartScript } from '../../utils/chartDrawGuard';
- import { Spin, Empty } from 'antd';
+ import { XQEmpty, XQSpin } from '../xq-ui';
 -import * as echarts from 'echarts';
 +import echarts from './echartsCore';
  import chinaGeo from '../../assets/china.geo.json';

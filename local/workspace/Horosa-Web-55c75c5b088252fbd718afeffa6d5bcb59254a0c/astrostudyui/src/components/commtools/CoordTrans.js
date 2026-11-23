@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import { Row, Col, Divider, Statistic } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
-import { randomStr, isNumber } from '../../utils/helper';
+import { isNumber } from '../../utils/helper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 

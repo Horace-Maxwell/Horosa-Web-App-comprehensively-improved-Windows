@@ -6,7 +6,7 @@ import path from 'path';
 
 const { fnBody } = require('./helpers/sourceSet');
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (f)=>fs.readFileSync(path.join(SRC, f), 'utf8');
+const read = (f)=>require('./helpers/sourceSet').readSource(path.join(SRC, f));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 
 describe('已知的「滚到某一项」都按缩放折回单位', ()=>{
 	[

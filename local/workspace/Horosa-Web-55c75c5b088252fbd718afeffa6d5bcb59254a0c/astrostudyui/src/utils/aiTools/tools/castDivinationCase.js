@@ -87,9 +87,12 @@ export const castDivinationCaseTool = {
 		const recordLike = { divTime, zone: z.zone, lat: geo.lat, lon: geo.lon, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, ...(gender !== undefined ? { gender } : {}) };
 		const built = await buildCastCase(args.caseType, args.inputs, recordLike, { question: args.question || '' });
 		if(!built.ok){ return { ok: false, code: built.code, message: built.message, ...(built.retryable ? { retryable: true } : {}), data: { inputs: spec.inputs } }; }
+		if(Array.isArray(built.notes)){ assumptions.push(...built.notes); }
 		// payload 与页面「存为事盘」同形:模块 / 版本 / 存档时刻 / 口径快照(日界点、晚子时)+ 各技法冻结结果 + 快照正文
 		const fieldsLike = { after23NewDay: { value: defaultAfter23NewDay() }, lateZiHourUseNextDay: { value: defaultLateZiHourUseNextDay() } };
-		const payload = { module: spec.module, version: spec.version, savedAt: new Date().toISOString(), fieldSnapshot: caseFieldSnapshot(fieldsLike), createdBy: 'ai-assistant', ...built.body, snapshot: built.snapshot };
+		const payload = { module: spec.module, version: spec.version, savedAt: new Date().toISOString(), fieldSnapshot: caseFieldSnapshot(fieldsLike), createdBy: 'ai-assistant', ...built.body, snapshot: built.snapshot,
+			// 软件代摇(cast_random_case 转来):记一笔,一问一次据此去重
+			...(ctx && ctx.randomCast ? { randomCast: ctx.randomCast } : {}) };
 		const values = {
 			event, caseType: args.caseType, divTime, zone: z.zone,
 			lat: geo.lat, lon: geo.lon, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, pos,

@@ -4,7 +4,7 @@ import * as ZWCont from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import * as GraphHelper from '../graph/GraphHelper';
 import D3Arrow from '../graph/D3Arrow';
-import {randomStr, creatTooltip, genHtml, positionFloatingTooltip} from '../../utils/helper';
+import {randomStr, genHtml, positionFloatingTooltip} from '../../utils/helper';
 import { ZWEngineOptions } from './ziweiOptions';           // 亮度源(显示层庙旺覆盖)
 import { starLightOf, HOUSES as HOUSE_NAMES } from './data/ziweiTables';    // 亮度单一取值口 + 活盘重排名表
 import { borrowedStars } from './ziweiOverlays';           // 中州借宫(空宫借对宫十四正曜)

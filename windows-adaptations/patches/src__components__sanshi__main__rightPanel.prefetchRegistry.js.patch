@@ -1,0 +1,102 @@
+diff --git a/astrostudyui/src/components/sanshi/main/rightPanel.js b/astrostudyui/src/components/sanshi/main/rightPanel.js
+index aea28c0d..32056639 100644
+--- a/astrostudyui/src/components/sanshi/main/rightPanel.js
++++ b/astrostudyui/src/components/sanshi/main/rightPanel.js
+@@ -26,6 +26,7 @@ import { visualFloorPx } from '../../../utils/zoomDomain';
+ import { QIMEN_HARM_COLOR, tint } from '../../dunjia/qimenHarmColors';
+ import { getTimeAlgLabel } from './format';
+ import { SANSHI_TRUE_SOLAR_FALLBACK_NOTE, computeSanshiXun } from './liureng';
++import { FreezeSubTab } from '../../comp/FreezeInactive';
+ const TabPane = Tabs.TabPane;
+ 
+ export const rightPanelMethods = {
+@@ -321,14 +322,6 @@ export const rightPanelMethods = {
+ 		const bagongPalace = BAGONG_PALACE_NAME[this.state.bagongPalace] ? this.state.bagongPalace : BAGONG_PALACE_ORDER[0];
+ 		const bagongData = buildQimenBaGongPanelData(pan, bagongPalace);
+ 		const panelHeight = this.state.rightPanelHeight || Math.max(visualFloorPx(420), (this.state.viewportHeight || 900) - 120);
+-		let datetm = new DateTime();
+-		if(fields.date && fields.time){
+-			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
+-			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
+-			if(fields.zone){
+-				datetm.setZone(fields.zone.value);
+-			}
+-		}
+ 		return (
+ 			<div ref={this.captureRightPanel} className="horosa-sanshi-right-shell" style={{ display: 'flex', flexDirection: 'column', height: panelHeight, overflow: 'hidden' }}>
+ 				{/* 原此处有一整块 display:none 的旧右栏控件(模式/时间算法/性别/贵人/排盘/日界/值使/月家/
+@@ -337,6 +330,7 @@ export const rightPanelMethods = {
+ 				    ② 与左栏共用 this.timeHook,隐藏实例把左栏实例的注册顶掉,起盘读到的是隐藏控件的旧时刻;
+ 				    ③ 污染死开关审计指纹(取 innerHTML,隐藏子树照样计入)→ 快轮「有反应」全是这块的假活。
+ 				    整块已删;三档改由左栏可见控件承接(太乙流派节的「盘式 / 古法公式」、选项节的「宫制」)。 */}
++
+ 				<Tabs
+ 					activeKey={rightPanelTab}
+ 					onChange={(key)=>this.setState({ rightPanelTab: key })}
+@@ -345,7 +339,15 @@ export const rightPanelMethods = {
+ 					className="horosa-sanshi-right-tabs"
+ 					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
+ 				>
++					{/* horosa_freeze_subtabs_v1:外层 5 页签。注意本组的 Tabs 已带 destroyInactiveTabPane —— 那
++					    只让 antd 不【挂载】非激活面板,但 children 是父 render 里的内联 JSX,**求值照跑**:
++					    「太乙」页那段 computeTaiyiShuli/computeGeju/computeVictory/computeFenye/computeShenSuan
++					    的 IIFE、「六壬」页 6 个内层面板、「遁甲」页 8 宫 buildQimenBaGongPanelData,以前每次父
++					    重渲(切时间/改选项/换任一页签)全部白跑一遍。函数式 FreezeSubTab 把求值推到「本面板
++					    真被渲染」那一刻:非激活 → 函数不调用 = 真零成本;激活 → 拿本轮最新 children 立刻渲,
++					    内容与旧行为逐字一致(冻结≠卸载,与 destroyInactiveTabPane 的既有卸载语义互不干涉)。 */}
+ 					<TabPane tab="概览" key="overview">
++						<FreezeSubTab active={rightPanelTab === 'overview'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: '16px 3px 12px 0' }} className="horosa-sanshi-kv-host">
+ 							<div className="horosa-taiyi-overview-stack">
+ 								{sanshiKvCard('局与旬', [
+@@ -376,8 +378,10 @@ export const rightPanelMethods = {
+ 								)) : null}
+ 							</div>
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="太乙" key="taiyi">
++						<FreezeSubTab active={rightPanelTab === 'taiyi'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
+ 								{this.state.taiyi ? (()=>{
+ 									// 太乙数理/格局/胜负/分野/诸神之算 纯派生(据 kintaiyi pan,零碰后端 golden;与独立 TaiYiMain 同款 compute*)。
+@@ -496,8 +500,10 @@ export const rightPanelMethods = {
+ 									<div className="horosa-taiyi-empty">暂无太乙数据</div>
+ 								)}
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="六壬" key="liureng">
++						<FreezeSubTab active={rightPanelTab === 'liureng'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
+ 							<Tabs
+ 								activeKey={this.state.liurengRefTab}
+@@ -620,8 +626,10 @@ export const rightPanelMethods = {
+ 								</TabPane>
+ 							</Tabs>
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="遁甲" key="bagong">
++						<FreezeSubTab active={rightPanelTab === 'bagong'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: 0 }} className="horosa-sanshi-subtabs-card">
+ 							<Tabs
+ 								activeKey={this.state.bagongSubTab}
+@@ -725,10 +733,16 @@ export const rightPanelMethods = {
+ 								</TabPane>
+ 							</Tabs>
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="紫微四化" key="ziweisihua">
+ 						{/* onSnapshotState:上报盘+大运/流年选中态 → 快照产 [紫微四化] 段 */}
+-						<SanShiZiWeiSihua fields={this.getZiweiSihuaFields()} onSnapshotState={this.handleZiweiSihuaSnapshotState} />
++						{/* eager:本面板 componentDidMount 会发紫微盘请求并经 onSnapshotState 回报快照段,
++						    绝不由本 wrapper 再加一层「延迟首渲」(挂载时机仍完全由外层 destroyInactiveTabPane
++						    决定,与改动前一字不差);只取「冻结非激活期重渲」这一项收益。 */}
++						<FreezeSubTab active={rightPanelTab === 'ziweisihua'} eager>
++							<SanShiZiWeiSihua fields={this.getZiweiSihuaFields()} onSnapshotState={this.handleZiweiSihuaSnapshotState} />
++						</FreezeSubTab>
+ 					</TabPane>
+ 				</Tabs>
+ 			</div>

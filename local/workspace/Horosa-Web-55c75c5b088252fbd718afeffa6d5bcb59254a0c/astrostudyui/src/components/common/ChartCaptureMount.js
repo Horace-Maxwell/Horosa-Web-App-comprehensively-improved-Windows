@@ -14,7 +14,7 @@
 //   onCaptureError: (err) => void
 
 import React from 'react';
-import { Spin } from 'antd';
+import { XQSpin } from '../xq-ui';
 import DateTime from '../comp/DateTime';
 import BaZi from '../cntradition/BaZi';
 import ZiWeiMain, { applyZiweiRecordOverride } from '../ziwei/ZiWeiMain';

@@ -251,30 +251,40 @@ describe('刷新应答写槽带出生签名(全站命盘技法页)', ()=>{
 		const metaHasBirth = (a, src)=>!!a && (/\bdate\s*:/.test(src.slice(a.start, a.end)) || (a.type === 'CallExpression' && /SnapshotMeta$/.test((a.callee && a.callee.name) || '')));
 		const offenders = [];
 		let guarded = 0;
-		files.forEach((f)=>{
-			const src = fs.readFileSync(f, 'utf8');
-			if(src.indexOf("'horosa:refresh-module-snapshot'") < 0 || src.indexOf('saveModuleAISnapshot') < 0){ return; }
-			let ast;
-			try{ ast = parser.parse(src, { sourceType: 'module', plugins: ['jsx', 'classProperties', 'optionalChaining', 'objectRestSpread', 'dynamicImport'] }); }catch(e){ return; }
+		const guardedPages = new Set();
+		// 拆成子模块的页面按「门面 + 子模块」一起看:刷新监听留在门面、写槽调用搬进子模块的页面(七政)只看单个文件两头都对不上
+		const { sourceSetFiles, isSourceSetPart } = require('./helpers/sourceSet');
+		files.filter((f)=>!isSourceSetPart(f)).forEach((f)=>{
+			const parts = sourceSetFiles(f).map((fp)=>({ fp, src: fs.readFileSync(fp, 'utf8') }));
+			const all = parts.map((x)=>x.src).join('\n');
+			if(all.indexOf("'horosa:refresh-module-snapshot'") < 0 || all.indexOf('saveModuleAISnapshot') < 0){ return; }
 			const saves = [];
-			traverse(ast, { CallExpression(p){
-				if(!isSave(p.node.callee)){ return; }
-				let fn = p.getFunctionParent(); let owner = '';
-				while(fn){
-					const k = fn.node.key;
-					if(k && k.name){ owner = k.name; break; }
-					fn = fn.parentPath && fn.parentPath.getFunctionParent();
-				}
-				saves.push({ node: p.node, owner });
-			} });
-			const birthSaved = saves.some((s)=>chartSet.has(moduleLiteral(s.node.arguments[0])) && metaHasBirth(s.node.arguments[2], src));
+			parts.forEach(({ fp, src })=>{
+				if(src.indexOf('saveModuleAISnapshot') < 0){ return; }
+				let ast;
+				try{ ast = parser.parse(src, { sourceType: 'module', plugins: ['jsx', 'classProperties', 'optionalChaining', 'objectRestSpread', 'dynamicImport'] }); }catch(e){ return; }
+				traverse(ast, { CallExpression(p){
+					if(!isSave(p.node.callee)){ return; }
+					let fn = p.getFunctionParent(); let owner = '';
+					while(fn){
+						const k = fn.node.key;
+						if(k && k.name){ owner = k.name; break; }
+						fn = fn.parentPath && fn.parentPath.getFunctionParent();
+					}
+					saves.push({ node: p.node, owner, src, fp });
+				} });
+			});
+			const birthSaved = saves.some((s)=>chartSet.has(moduleLiteral(s.node.arguments[0])) && metaHasBirth(s.node.arguments[2], s.src));
 			if(!birthSaved){ return; }
 			saves.filter((s)=>/^handleSnapshotRefreshRequest$|^_?onSnap(shot)?Refresh/.test(s.owner)).forEach((s)=>{
 				guarded += 1;
-				if(s.node.arguments.length < 3){ offenders.push(`${path.relative(root, f)}:${s.node.loc.start.line}`); }
+				guardedPages.add(path.relative(root, f).split(path.sep).join('/'));   // horosa_win_pathsep_posix_v1:下方点名用的是正斜杠相对路径
+				if(s.node.arguments.length < 3){ offenders.push(`${path.relative(root, s.fp)}:${s.node.loc.start.line}`); }
 			});
 		});
-		expect(guarded).toBeGreaterThanOrEqual(3);   // 至少八字 / 紫微 / 七政三页在锁内
+		expect(guarded).toBeGreaterThanOrEqual(3);
+		// 八字 / 紫微 / 七政三页必须在锁内(点名:只数个数时,别的页凑够了数这三页掉出去也不红)
+		['cntradition/BaZi.js', 'ziwei/ZiWeiMain.js', 'guolao/GuoLaoChartMain.js'].forEach((pg)=>expect([pg, guardedPages.has(pg)]).toEqual([pg, true]));
 		expect(offenders).toEqual([]);
 	});
 });

@@ -8,7 +8,7 @@
 //      用途与吉格而未列全表（在图中），故本模块只落地明文给出的部分，其余标「须按所宗盘」。
 //   3. 可机械生成者才生成：廿四节气两式（起点与方向明确）、三针百二十分金、384 爻。
 
-import { SHAN_ORDER, GONG_CENTER_DEG } from './fengshuiData';
+import { SHAN_ORDER } from './fengshuiData';
 
 const norm360 = (d)=>((d % 360) + 360) % 360;
 

@@ -7,6 +7,8 @@ const path = require('path');
 
 const SRC = path.resolve(__dirname, '../../..');
 const BASE = path.join(SRC, 'components/xq-ui/styles.less');
+// 基础样式门面按区段拆在 styles/ 下:门面 + 各份都是「基础样式」本身(单一来源的那一处)
+const BASE_FILES = new Set(require('../../../utils/__tests__/helpers/sourceSet').sourceSetFiles(BASE));
 
 function walk(dir, out){
 	fs.readdirSync(dir, { withFileTypes: true }).forEach((ent)=>{
@@ -37,7 +39,7 @@ function leafRules(text){
 const PAINT = /(^|[;\s])(background(-color|-image)?|color|border-color|box-shadow)\s*:/;
 
 describe('XQSegmented 选中观感单一来源', ()=>{
-	const base = fs.readFileSync(BASE, 'utf8');
+	const base = require('../../../utils/__tests__/helpers/sourceSet').readSource(BASE);   // 样式门面:@import 原位展开读全集
 
 	test('基础样式:滑块在位时选中项自己不上底、不描边', ()=>{
 		const m = /\.xq-segmented\.xq-segmented-sliding \.ant-radio-button-wrapper\.ant-radio-button-wrapper-checked\s*\{([^}]*)\}/.exec(base);
@@ -64,7 +66,7 @@ describe('XQSegmented 选中观感单一来源', ()=>{
 					return /wrapper-checked/.test(sel) || /xq-segmented-thumb/.test(sel);
 				});
 				if(!hits || !PAINT.test(rule.body)){ return; }
-				if(file === BASE && /^\s*(\.xq-segmented|:is\(\.horosa-workspace-shell, body\) \.xq-segmented)/.test(rule.selector.split(',')[0])){ return; }
+				if(BASE_FILES.has(file) && /^\s*(\.xq-segmented|:is\(\.horosa-workspace-shell, body\) \.xq-segmented)/.test(rule.selector.split(',')[0])){ return; }
 				offenders.push(`${path.relative(SRC, file)} :: ${rule.selector.replace(/\s+/g, ' ').slice(0, 140)}`);
 			});
 		});

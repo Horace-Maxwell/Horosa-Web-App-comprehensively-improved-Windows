@@ -8,6 +8,7 @@ import cherrypy
 import jsonpickle
 
 from astrostudy.civil_calendar import format_display_date
+from astrostudy.truerandom import new_entropy_seed, request_entropy_seed, seed_display_text
 from websrv.helper import enable_crossdomain
 from websrv.horosa_engine_common import (
     build_snapshot as _build_snapshot,
@@ -17,6 +18,9 @@ from websrv.horosa_engine_common import (
     with_seed as _with_seed,
 )
 
+
+# 随机起一课要取的真随机记录长度(字节):三十算分三至多四次取数、每次 5 位,越界重读;32 字节读不完。
+JINGJUE_ENTROPY_BYTES = 32
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 _HOROSA_WEB_ROOT = os.path.abspath(os.path.join(_CUR_DIR, "..", ".."))
@@ -240,7 +244,7 @@ def _build_sections(payload):
             "rows": [
                 _row("起课时间", f"{payload.get('dateStr', '')} {payload.get('timeStr', '')}".strip()),
                 _row("起课方式", cast.get("method")),
-                _row("起筮种子", payload.get("seed")),
+                _row("起筮种子", seed_display_text(payload.get("seed"))),
                 _row("卦键", cast.get("key")),
                 _row("三分余数", cast.get("remainders")),
                 _row("第一次分界", cast.get("divider")),
@@ -284,8 +288,12 @@ class JingJueSrv:
             if cherrypy.request.method == "OPTIONS":
                 return jsonpickle.encode({"ResultCode": 0, "Result": "ok"}, unpicklable=False)
             data = cherrypy.request.json or {}
-            seed = _to_int(data.get("seed"), random.randint(0, 999999999))
-            seed = max(0, min(999999999, seed))
+            # 种子:真随机记录(随机起课,或重开一课随机起的)原样回放;整数种子(手填 / 旧存案)夹到合法域;
+            # 没带种子 = 随机起课,当场取一段真随机记录并回传,前端据它原样重开。
+            seed = request_entropy_seed(data.get("seed"))
+            if seed is None:
+                seed_int = _to_int(data.get("seed"), None)
+                seed = new_entropy_seed(JINGJUE_ENTROPY_BYTES) if seed_int is None else max(0, min(999999999, seed_int))
             year = _to_int(data.get("year"), 0)
             month = _to_int(data.get("month"), 0)
             day = _to_int(data.get("day"), 0)

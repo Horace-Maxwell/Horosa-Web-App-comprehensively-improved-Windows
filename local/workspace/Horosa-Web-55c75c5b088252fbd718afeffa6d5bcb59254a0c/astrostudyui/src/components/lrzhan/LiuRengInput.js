@@ -4,7 +4,7 @@ import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as LRConst from '../liureng/LRConst';
 import { randomStr } from '../../utils/helper';
-import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
+import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import DateTime from '../comp/DateTime';

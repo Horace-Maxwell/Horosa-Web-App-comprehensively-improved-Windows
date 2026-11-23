@@ -89,7 +89,7 @@ describe('按盘临时覆盖(挂载快照 / 盘面截图共用 applyZiweiRecordO
 	});
 	test('透传键在发后端前删除(请求体不带随盘表)', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		expect(src.includes('delete p.sihuaCustomTable')).toBe(true);
 	});
 	test('aiAnalysisContext 透传守卫:record.sihuaCustomTable 非空才挂', ()=>{

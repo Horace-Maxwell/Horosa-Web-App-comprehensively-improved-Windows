@@ -38,7 +38,7 @@ import { SU28_MODE_GROUPS } from '../../components/guolao/guolaoData';
 // huangli(纯日期确定,无齿轮)为 sectionsOnly 新成员。
 // 🔴 sixyao/geomancy/tarot 已按正口径转 payload:旧「sectionsOnly 不可重算」定性过宽 ——
 // 卦象/figure/牌面恒冻结(payload.gua / seedMode:manual+seed),判读口径重算恒安全。
-const SECTIONS_ONLY = ['tongshefa', 'mundane',   // (preflight [37] 锚:恒驻成员 tongshefa 须与常量同行)
+const SECTIONS_ONLY = ['tongshefa',   // (恒驻成员 tongshefa 须与常量同行;世俗盘可按起课时间现算,不在此列)
 	'astrochart_like',   // 派生盘聚合键=辅盘页模块快照只读
 	'huangli',
 	'huanglizeri', // 黄历择日:日课零可调参数(与 huangli 同理),择吉三段随快照实时产出
@@ -54,7 +54,9 @@ const SECTIONS_ONLY = ['tongshefa', 'mundane',   // (preflight [37] 锚:恒驻�
 	'qimenzeri', // 奇门择日:找局结果为一次性产物,按存档快照直读不按时间复算(与 tianxing 同范式)
 
 	// 派生盘五键独立技法键(读辅盘页本键模块快照,只认本命主;内容勾选走各键 preset)
-	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems',
+	// 调波盘 / 龙盘 / 重置盘已改为可按参数现算(调波数 / 宫位口径 / 重置地点),不再是只读
+	// 变换盘 / 黄道制同样改为可按单次覆盖现算
+	'hellenastro', 'dwadasamsa',
 ];
 
 beforeEach(()=>{
@@ -156,7 +158,7 @@ describe('默认即现状(prune / merge 等价性)', ()=>{
 
 	it('sectionsOnly 技法 merge/prune 不产生覆盖', ()=>{
 		expect(pruneOptionsToNonDefault('sixyao', { anything: 1 })).toEqual({});
-		expect(mergeOptionsIntoPayload({ x: 1 }, 'mundane', { anything: 1 })).toEqual({ x: 1 });
+		expect(mergeOptionsIntoPayload({ x: 1 }, 'tongshefa', { anything: 1 })).toEqual({ x: 1 });
 	});
 });
 
@@ -230,9 +232,9 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		// 三键齿轮差分实测正文不变(12 次),已从齿轮表撤下;此处同步锁住「不得再出现」。
 		const names = getTechniqueSettingsSchema('germany').fields.map((f)=>f.name).sort();
 		expect(names).toEqual([
-			'hsys', 'mpCoord', 'orb', 'orbPersonal', 'school', 'showDeclination', 'showEastPoint', 'showHouseFrames',
-			'siderealAyanamsa', 'strictFactors', 'virtualPointReceiveAsp', 'zodiacal',
-		]);
+			'dialBase', 'diffTargetAge', 'ephemEnd', 'ephemStart', 'hsys', 'mpCoord', 'orb', 'orbPersonal', 'saKey', 'school', 'showDeclination', 'showDiffList', 'showEastPoint', 'showHouseFrames',
+			'siderealAyanamsa', 'strictFactors', 'transitAt', 'virtualPointReceiveAsp', 'zodiacal',
+		]);   // 时间层七键:行运时刻 / 差值表开关 / 目标年龄 / 太阳弧换算 / 盘基 / 图形星历起止(快照有载体:[行运接触] [图形星历] 段与 [汉堡学派要素] 里的差值表)
 		['tradition', 'strongRecption', 'simpleAsp'].forEach((dead)=>{ expect(names).not.toContain(dead); });
 	});
 
@@ -599,7 +601,7 @@ describe('批3——推运/数算 builder 加 opts + 接线（schema 字段 + �
 	});
 
 	it('容许度 orbScale(数字,默认1) + useStoredOrbs(开关,默认0) 加入 astrochart(宿占已按 M-21 剔除死键)', ()=>{
-		['astrochart'].forEach((k)=>{   // astrochart_like 已改 sectionsOnly(F-26);suzhan 的 40 个古典判读键正文零消费 → 过滤
+		['astrochart'].forEach((k)=>{   // astrochart_like 已改 sectionsOnly;suzhan 的 40 个古典判读键正文零消费 → 过滤
 			expect(defOf(k, 'orbScale')).toBe(1);
 			expect(defOf(k, 'useStoredOrbs')).toBe(0);
 		});

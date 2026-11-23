@@ -13,8 +13,8 @@ import {
 	buildDaxianItems, buildLiunianItems, buildXiaoxianItems, buildLiuyueItems, buildLiuriItems, buildLiushiItems,
 	luckSelectDaxian, luckSelectLiunian, luckSelectLiuyue, luckSelectLiuri, luckSelectLiushi, rederiveLuckSel,
 } from '../ZWLuckPanel';
-const fs = require('fs');
 const path = require('path');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 // Java ZiWeiHelper.getSmallDirectioinHouse 直译(男顺女逆,0-based step):双端同构的对拍 oracle。
 function javaSmallHouse(step0, yearZi, male){
@@ -197,7 +197,7 @@ describe('rederiveLuckSel 快照整链重派生', ()=>{
 
 describe('静态接线锁(剥注释;L2 铁律:注释里出现键名≠代码消费了它)', ()=>{
 	const strip = (s)=>s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-	const read = (f)=>strip(fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8'));
+	const read = (f)=>strip(readSource(path.resolve(__dirname, '..', f)));
 	test('ZiWeiMain 广播监听器内真调 rederiveLuckSel(全键触发,不设白名单)', ()=>{
 		const src = read('ZiWeiMain.js');
 		expect(src.includes('rederiveLuckSel(c, s.luckSel)')).toBe(true);

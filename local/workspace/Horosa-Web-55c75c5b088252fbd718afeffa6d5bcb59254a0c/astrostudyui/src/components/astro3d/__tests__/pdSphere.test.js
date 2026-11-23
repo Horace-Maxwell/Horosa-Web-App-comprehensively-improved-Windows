@@ -8,6 +8,7 @@
 // 断言一一对应(后端新增 kind 而前端映射表未登 = 本套件红)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 
 jest.mock('../../../utils/request', ()=>jest.fn());
 
@@ -222,10 +223,10 @@ describe('🔴 circles kind → 渲染类型映射完整性(与后端 test_pd3d_
 
 describe('🔴 三件套挂载契约(缺一即隐性坏)', () => {
 	const SRC_DIR = path.join(__dirname, '..');
-	const DIRECT_MAIN_SRC = fs.readFileSync(
-		path.join(SRC_DIR, '..', 'direction', 'AstroDirectMain.js'), 'utf8');
-	const MODEL_SRC = fs.readFileSync(
-		path.join(SRC_DIR, '..', '..', 'models', 'astro.js'), 'utf8');
+	const DIRECT_MAIN_SRC = require('../../../utils/__tests__/helpers/sourceSet').readSource(
+		path.join(SRC_DIR, '..', 'direction', 'AstroDirectMain.js'));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
+	const MODEL_SRC = require('../../../utils/__tests__/helpers/sourceSet').readSource(
+		path.join(SRC_DIR, '..', '..', 'models', 'astro.js'));
 
 	test('① primaryDirectionSync:VALID_DIRECTION_SUB_TABS 含 primarydirsphere', () => {
 		expect(normalizePrimaryDirectionSubTabKey('primarydirsphere')).toBe('primarydirsphere');
@@ -248,7 +249,7 @@ describe('🔴 三件套挂载契约(缺一即隐性坏)', () => {
 	});
 
 	test('引擎自检在位:setData 后 console.assert 东点在地平圈上', () => {
-		const engineSrc = fs.readFileSync(path.join(SRC_DIR, 'PDSphereEngine.js'), 'utf8');
+		const engineSrc = readSource(path.join(SRC_DIR, 'PDSphereEngine.js'));
 		expect(engineSrc).toContain('horizonSelfCheck');
 		expect(engineSrc).toMatch(/console\.assert\(chk\.ok/);
 	});
@@ -264,7 +265,7 @@ describe('🔴 三件套挂载契约(缺一即隐性坏)', () => {
 // 病史:旧版补间整 skyGroup(应星连黄道一起转走)+ selGroup 复制锚一物两标,
 // 用户实读成「应星在动/方向搞反了」——本组契约钉死修后语义,回潮即红。
 describe('🔴 旋转承载者契约:唯 dirGroup 转,skyGroup 恒 0(应星不动)', () => {
-	const engineSrc = fs.readFileSync(path.join(__dirname, '..', 'PDSphereEngine.js'), 'utf8');
+	const engineSrc = readSource(path.join(__dirname, '..', 'PDSphereEngine.js'));
 
 	test('播放/拖拽/复位三路补间全部经 _applyDirRotation 中枢(dirGroup+真位层同角,逐帧真位更新)', () => {
 		// 改锁:旋转赋值收口到 _applyDirRotation —— 分散直写会漏真位层同步(复合运动断一半)。
@@ -404,7 +405,7 @@ describe('复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOfPoint
 	});
 
 	test('真位层源契约:纯 glyph 无点无环 / 单一银白 / 静止收敛门 / 历时用带符号弧', () => {
-		const src = fs.readFileSync(path.join(__dirname, '..', 'PDSphereEngine.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '..', 'PDSphereEngine.js'));
 		const layer = (src.match(/_buildTrueMotionLayer\(row, conv\)\{[\s\S]*?\n\t\}/) || [''])[0];
 		expect(layer.length).toBeGreaterThan(200);
 		// 用户三轮定案:①不用点(SphereGeometry 绝迹) ②不用环形徽记 ③真位统一银白单色
@@ -434,8 +435,9 @@ describe('复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOfPoint
 // 主锁是 utils/__tests__/heavyEngineImportGraph.test.js 的 AST 图遍历(自动覆盖未来新增页面);
 // 本组是逐处的贴身锁:红了能立刻指出是哪个文件、哪一行破了规矩,不用去读图遍历的链路。
 describe('🔴 重引擎宿主页必须懒加载(静态 import 即前功尽弃)', () => {
-	const readSrc = (rel) => require('fs').readFileSync(
-		require('path').resolve(__dirname, '..', '..', rel), 'utf8');
+	// 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
+	const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');
+	const readSrc = (rel) => readSource(require('path').resolve(__dirname, '..', '..', rel));
 
 	test('星运页:主限天球走 makeLazyBoundary + 具名 chunk,且无静态 import', () => {
 		const host = readSrc('direction/AstroDirectMain.js');

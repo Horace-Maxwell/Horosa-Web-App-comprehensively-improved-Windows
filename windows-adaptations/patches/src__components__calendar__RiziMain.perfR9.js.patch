@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/RiziMain.js b/astrostudyui/src/components/calendar/RiziMain.js
-index 9215375d..599e8667 100644
+index 577c7522..79534227 100644
 --- a/astrostudyui/src/components/calendar/RiziMain.js
 +++ b/astrostudyui/src/components/calendar/RiziMain.js
 @@ -10,6 +10,8 @@ import { buildRiziSnapshotText } from './riziSnapshot';
@@ -8,10 +8,10 @@ index 9215375d..599e8667 100644
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 当事人八字须随全局日界/晚子时
 +import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 +import { calendarPanelShouldUpdate } from './NongLiMain';
+ import { pressable } from '../../utils/pressable';
  
  const MODULE = 'calendar-rizi';
- const ROLE_LABEL = { self: '本人', spouse: '配偶', family: '家人' };
-@@ -22,16 +24,69 @@ function reasonTags(reasons) {
+@@ -23,16 +25,69 @@ function reasonTags(reasons) {
  	));
  }
  
@@ -36,7 +36,7 @@ index 9215375d..599e8667 100644
 +	return (
 +		<>
 +			{list.map((d, i)=> (
-+				<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === selectedYmd ? 'is-active' : ''}`} onClick={()=> onPick(d.ymd)}>
++				<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === selectedYmd ? 'is-active' : ''}`} {...pressable(()=> onPick(d.ymd))}>
 +					<span className={`horosa-rizi-rank-no ${i < 3 ? 'is-medal is-medal-' + (i + 1) : ''}`}>{i + 1}</span>
 +					<span className='horosa-rizi-rank-date'>{d.ymd}</span>
 +					<span className='horosa-rizi-rank-week'>周{d.week}</span>
@@ -90,7 +90,7 @@ index 9215375d..599e8667 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -50,6 +105,7 @@ class RiziMain extends Component {
+@@ -51,6 +106,7 @@ class RiziMain extends Component {
  		this.onAddPerson = this.onAddPerson.bind(this);
  		this.onRemovePerson = this.onRemovePerson.bind(this);
  		this.recompute = this.recompute.bind(this);
@@ -98,7 +98,7 @@ index 9215375d..599e8667 100644
  		this.deferRecompute = this.deferRecompute.bind(this);
  		this.saveAISnapshot = this.saveAISnapshot.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
-@@ -102,22 +158,41 @@ class RiziMain extends Component {
+@@ -103,22 +159,41 @@ class RiziMain extends Component {
  			// 选中：保留当前选择（若仍在榜），否则取榜首。
  			const list = result.list || [];
  			const keep = this.state.selectedYmd && list.some((d)=> d.ymd === this.state.selectedYmd);
@@ -144,7 +144,7 @@ index 9215375d..599e8667 100644
  
  	saveAISnapshot() {
  		const persons = this.state.personsWithBazi || this.state.persons.map((p)=> ({ ...p, bazi: this.baziOf(p) }));
-@@ -142,9 +217,19 @@ class RiziMain extends Component {
+@@ -143,9 +218,19 @@ class RiziMain extends Component {
  		if (this._recomputeTimer) { clearTimeout(this._recomputeTimer); this._recomputeTimer = null; }
  	}
  
@@ -165,12 +165,12 @@ index 9215375d..599e8667 100644
  		if (this.state.computing && !list.length) { return <div className='horosa-empty-hint'>正在计算全年吉日…</div>; }
  		if (!list.length) { return <div className='horosa-empty-hint'>请输入当事人生辰，或本年该事项无合适吉日</div>; }
  		const total = result.count || list.length;
-@@ -161,50 +246,13 @@ class RiziMain extends Component {
+@@ -162,50 +247,13 @@ class RiziMain extends Component {
  						) : null}
  					</span>
  				</div>
 -				{list.map((d, i)=> (
--					<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === this.state.selectedYmd ? 'is-active' : ''}`} onClick={()=> this.setState({ selectedYmd: d.ymd }, this.saveAISnapshot)}>
+-					<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === this.state.selectedYmd ? 'is-active' : ''}`} {...pressable(()=> this.setState({ selectedYmd: d.ymd }, this.saveAISnapshot))}>
 -						<span className={`horosa-rizi-rank-no ${i < 3 ? 'is-medal is-medal-' + (i + 1) : ''}`}>{i + 1}</span>
 -						<span className='horosa-rizi-rank-date'>{d.ymd}</span>
 -						<span className='horosa-rizi-rank-week'>周{d.week}</span>

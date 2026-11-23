@@ -397,7 +397,7 @@ describe('lifeMasterBy 命主取法', ()=>{
 	});
 	test('🔴 [哨兵] 两处本地 opts 读选项且保留 fallback 字面量;Java 路径后处理带 needsLocalEngine 闸', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		const hits = src.match(/lifeMasterBy: ZWEngineOptions\.lifeMasterBy \|\| 'year_branch'/g) || [];
 		expect(hits.length).toBe(2);                             // 禁区⑤有意识退役:显式选项+fallback
 		const apply = src.match(/applyLifeMasterOption\(/g) || [];
@@ -779,7 +779,7 @@ describe('xiaoxianMode 单例迁入', ()=>{
 		const core6 = fs6.readFileSync(path6.resolve(__dirname, '..', 'ziweiCore.js'), 'utf8');
 		expect(core6.includes('export function xiaoxianClockwiseFor')).toBe(true);
 		expect(luck.includes("localStorage.getItem('ziweiXiaoxianYinyang')")).toBe(false);
-		const main = fs6.readFileSync(path6.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const main = readSource(path6.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		expect(/ZW_ENGINE_SWITCH_KEYS = \[[\s\S]*?'xiaoxianMode'\]/.test(main)).toBe(true);
 		const ctx = readSource(path6.resolve(__dirname, '..', '..', '..', 'utils', 'aiAnalysisContext.js'));
 		expect(ctx.includes("params.xiaoxianMode = `${record.ziweiXiaoxianYinyang}`")).toBe(true);

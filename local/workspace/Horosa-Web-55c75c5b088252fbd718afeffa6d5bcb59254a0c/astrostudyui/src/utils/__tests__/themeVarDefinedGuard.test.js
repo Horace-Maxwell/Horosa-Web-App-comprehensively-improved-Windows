@@ -113,6 +113,7 @@ const SCOPED = [
 	['--horosa-ziwei-house-title', '策天 / 演禽紫微盘作用域里覆盖紫微宫名色(11-kinastro 亮暗两块);作用域外的引用带 var(--horosa-ziwei-house-name) 根变量兜底'],
 	['--horosa-lv', '布局视口单位 --horosa-lvw / --horosa-lvh(及工作区地板用的 -raw 两份):运行时由 utils/layoutViewportVars.js 写到 :root(setProperty),引用处都带 1vw / 1vh 兜底'],
 	['--horosa-tech-control-w', '技法设置字段右侧控件列宽:只在宽面板作用域里调大,别处引用一律带 208px 兜底'],
+	['--horosa-rail-tint', '竖排页签条钉边时的实底色调:各页在自己的页签条规则里给(壳层浮层页签 / 各技法页右侧页签条 / 中式参考页三处),xq-ui 钉边规则引用时带 var(--horosa-nav-bg) 根变量兜底'],
 	['--horosa-chart-floor-extra', '盘面最小字视觉下限要求的工作区加宽 / 加高量:运行时由 utils/chartTextFloor.js 写到工作区内层(setProperty 常量名),唯一引用处 13-layout-module 带 0px 兜底'],
 ];
 

@@ -10,8 +10,9 @@
 // 新增列或改文案后若需求变大,这里要跟着改 —— 红了就是"某列在横滚态会折行"的预警。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'AstroPrimaryDirection.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'AstroPrimaryDirection.js'));
 
 // 列 → 该列内容/表头的实测最小需求(px)。含单元格左右内边距 16 与表头筛选图标约 22。
 const NEED = {

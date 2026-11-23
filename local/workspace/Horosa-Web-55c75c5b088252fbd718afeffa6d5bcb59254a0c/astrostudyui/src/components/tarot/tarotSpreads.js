@@ -2,6 +2,7 @@
 // buildReading(spreadType, seed) 二参旧签名 → 回落 rws 牌组(engine buildReading('rws',...));新代码直接用 engine 四参。
 import { buildReading as engineBuildReading } from './engine/reading.js';
 import { cardKeywords } from './decks/core78.js';
+import { seedDisplayText } from '../../utils/trueRandom';
 
 export { SPREADS, SPREAD_KEYS, DEFAULT_SPREAD, getSpread, drawSpread, orientationLabel } from './engine/spreads.js';
 import { SPREADS, orientationLabel } from './engine/spreads.js';
@@ -18,7 +19,7 @@ export function buildReadingText(reading, question){
 	}
 	const spread = SPREADS[reading.spreadType];
 	const lines = [];
-	lines.push(`【${spread.label}】(种子:${reading.seed})`);
+	lines.push(`【${spread.label}】(种子:${seedDisplayText(reading.seed)})`);
 	if(question){
 		lines.push(`所问:${question}`);
 	}

@@ -70,7 +70,8 @@ describe('轨策·性能 · 盘之签名 memo', () => {
 describe('轨策 · ctx 取数源与键名(照想当然写=起卦恒失败)', () => {
 	// 派生逻辑移居 ctxLive();ctx() 只做「事盘冻结 ctx 优先,否则 ctxLive」分派。
 	// 取形守卫改瞄 ctxLive(取数源断言不变),另钉 ctx() 的分派形状。
-	const body = (src.match(/\n\tctxLive\(\) \{[\s\S]*?\n\t\}/) || [''])[0];
+	// 取数逻辑再移居模块级 guiceCtxFromNongli(页面 ctxLive 与无头起课时间源共用同一份);取形断言瞄它
+	const body = (src.match(/\nexport function guiceCtxFromNongli\([\s\S]*?\n\}/) || [''])[0];
 	const dispatchBody = (src.match(/\n\tctx\(\) \{[\s\S]*?\n\t\}/) || [''])[0];
 
 	test('🔴 ctx() 分派:frozenCtx 优先(事盘还原不随今日盘漂移),否则 ctxLive 活派生', () => {
@@ -79,7 +80,8 @@ describe('轨策 · ctx 取数源与键名(照想当然写=起卦恒失败)', ()
 	});
 
 	test('🔴 取自 props.value.chart.nongli(经与小六壬 / 飞宫同一单源 resolveDivinationNongli),不得取 props.fields.nongli(fields 上压根没有 nongli)', () => {
-		expect(body).toContain('resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value)');
+		// 页面取农历的入口仍在 ctxLive(交给 guiceCtxFromNongli 拆键)
+		expect(src).toContain('const nl = resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value);\n\t\treturn guiceCtxFromNongli(nl, this.state.inputs);');
 		expect(body).not.toMatch(/props\.fields\.nongli/);
 		const { resolveDivinationNongli } = require('../../../utils/divinationTimeDraft');
 		const nongli = { year: '丙午', date: '2026-01-01' };

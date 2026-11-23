@@ -1,0 +1,162 @@
+diff --git a/astrostudyui/src/components/astro/indiaMain/optionChanges.js b/astrostudyui/src/components/astro/indiaMain/optionChanges.js
+index 205d26ed..66d99481 100644
+--- a/astrostudyui/src/components/astro/indiaMain/optionChanges.js
++++ b/astrostudyui/src/components/astro/indiaMain/optionChanges.js
+@@ -12,6 +12,7 @@ import { sendScopedFields } from '../../../utils/scopedFieldsSink';
+ import { DASHA_SEED_DEFAULT, INDIA_OPTION_FIELD_STATE_MAP, seedIndiaOptionState, VARGA_GRID_MAX, VARGA_GRID_DEFAULT } from './optionState';
+ import { INDIA_DEGREE_DISPLAY_DEGREE, INDIA_DEGREE_DISPLAY_FULL } from './dasha';
+ import { hasYogaPayload, buildJyotishParamsKey, buildDashaFieldsKey, indiaValuesToFieldPatch } from './jyotishData';
++import DateTime from '../../comp/DateTime';
+ 
+ export const optionChangeMethods = {
+ 	changeTab(key){		
+@@ -62,8 +63,13 @@ export const optionChangeMethods = {
+ 		if(values && values.confirmed === false){
+ 			return;
+ 		}
+-		flds.chartnum = {};
+-		flds.chartnum.value = this.state.currentFractal;
++		// 🔴 复核修:withIndiaOptionFields 现在**会缓存并复用**返回对象(horosa_india_fields_memo_v1),
++		// 原地 `flds.chartnum = {}` 等于往那个被 render/子组件共享的缓存对象里塞键(改前每次都是新对象,
++		// 就地写无害)。改成不可变复制:内容逐字等价,且缓存对象保持只读、不被污染。
++		flds = {
++			...flds,
++			chartnum: { value: this.state.currentFractal },
++		};
+ 		let hook = this.state.hook[this.state.currentTab];
+ 		if(hook.fun){
+ 			hook.fun(flds);
+@@ -288,6 +294,53 @@ export const optionChangeMethods = {
+ 		this.setState({ indiaCounterClockwise: !!checked });
+ 	},
+ 
++	// horosa_india_settings_memo_v1:datetm 原来每帧 new 一个 DateTime,拿它当 prop 的
++	// SpaceTimePanel 于是每帧必重渲。按「日期|时刻|时区」三元组做实例级 memo:三者任一变即重建,
++	// 全同则复用同一实例(该实例只作为受控显示值下传,不由本组件写)。
++	resolveDateTime(fields){
++		const key = (fields && fields.date && fields.time)
++			? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}|${fields.zone ? fields.zone.value : ''}`
++			: '';
++		if(this._datetmMemo && this._datetmMemoKey === key){
++			return this._datetmMemo;
++		}
++		let datetm = new DateTime();
++		if(key){
++			datetm = datetm.parse(`${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`, 'YYYY-MM-DD HH:mm:ss');
++			if(fields.zone){
++				datetm.setZone(fields.zone.value);
++			}
++		}
++		this._datetmMemoKey = key;
++		this._datetmMemo = datetm;
++		return datetm;
++	},
++
++	// horosa_india_settings_memo_v1:分盘清单只由 state.hook 的 key/fractal/txt 派生,
++	// 而 hook 的这三项在构造后恒定(只有 fun 会被子盘实例回填,不进本清单)→ 算一次即可。
++	// 原来每帧重建两个数组,顺带让「当前分盘」Select 的 options 每帧换引用。
++	resolveSplitItems(){
++		if(!this._splitItemsMemo){
++			const splitItems = [];
++			for(let key in this.state.hook){
++				const hook = this.state.hook[key];
++				if(hook.fractal === 1){
++					continue;
++				}
++				splitItems.push({ key, ...hook });
++			}
++			this._splitItemsMemo = splitItems;
++			this._splitOptionsMemo = [
++				{ value: 'Natal', label: '命盘 D1' },
++				...splitItems.map((item)=>({
++					value: item.key,
++					label: `${item.fractal}分盘${item.txt ? ` · ${item.txt}` : ''}`,
++				})),
++			];
++		}
++		return this._splitItemsMemo;
++	},
++
+ 	// WP-B 换第1宫参照:纯显示重数房号(三盘 + 星曜面板宫位),零请求、零后端、不动黄经。
+ 	changeIndiaLagnaRef(value){
+ 		const next = value && value.target ? value.target.value : value;
+@@ -316,10 +369,57 @@ export const optionChangeMethods = {
+ 		);
+ 	},
+ 
++	// horosa_india_fields_memo_v1(PERF-R9 Ship 6):无 override 的调用(render 每帧一次 +
++	// 每次 componentDidUpdate 一次)此前**恒新建**一个 fields 对象 → 任何下游 memo/sCU 拿它做
++	// 引用比都必然失配,等于白比。这里对「无 override」路径做实例级 memo:
++	//   缓存键 = 源 fields 引用 + 本方法读取的全部 state 值(逐项列全 —— 漏一项就会返回陈旧对象,
++	//   那是「该更新时不更新」的正确性事故,比慢严重得多;新增读取的 state 必须同步加进 KEY)。
++	// 带 override 的调用(切流派/宫制/岁差/交点/年份/起座/过运日 的即时重取)一律绕过缓存:既不读也不写,
++	// 语义与改前逐字一致。
+ 	withIndiaOptionFields(fields, optionOverrides = {}){
+ 		if(!fields){
+ 			return fields;
+ 		}
++		// 🔴 复核修:memo 只有**一个**槽位,而 buildIndiaPrefetchParams(步进预取/预热)会拿
++		// steppedFields(另一个对象)来调本方法 —— 那会把 render 路径的槽位挤掉,下一帧 render 必然
++		// 未命中 → 重新造对象 → 下游拿 fields 做引用比的 memo / sCU 每帧失配,白包。
++		// 故槽位只服务「当前 props.fields」这条渲染主路径;预取/其它源一律绕过(返回新对象,内容不变)。
++		const memoable = fields === this.props.fields
++			&& (!optionOverrides || Object.keys(optionOverrides).length === 0);
++		let memoKey = null;
++		if(memoable){
++			// 依赖表 = 下方实际读取的全部 state(逐项按引用比:对象值 indiaVargaVariantMap / indiaDashaVariants /
++			// prashnaCast 经 setState 换新对象即失效;旧版拼字符串对对象只得 '[object Object]',故改逐项 ===)。
++			// 后 9 项(年长/流派/分盘变体/大运变体/Karaka/Yuddha/年盘口径/三旗/问事)此前漏列 —— 它们的处理函数
++			// 走「setState → withIndiaOptionFields(this.props.fields) 无 override」路径,漏列即取回陈旧对象(起卦/清卦
++			// 无 dispatch 往返,结果整个不生效)。
++			memoKey = [
++				this.state.indiaHsysValue,
++				this.state.indiaAyanamsaValue,
++				this.state.indiaNodeTypeValue,
++				this.state.indiaTajakaYearValue,
++				this.state.dashaSeed,
++				this.state.dashaSystem,
++				this.state.indiaSthiraStart,
++				this.state.indiaTransitDateValue,
++				this.effectiveFractal(),
++				this.state.indiaDashaYearLength,
++				this.state.indiaSchool,
++				this.state.indiaVargaVariantMap,
++				this.state.indiaDashaVariants,
++				this.state.indiaKarakaScheme,
++				this.state.indiaYuddhaCriterion,
++				this.state.indiaAnnualChartType,
++				this.state.indiaTripatakiOn,
++				this.state.prashnaCast,
++			];
++			const prevKey = this._optionFieldsMemoKey;
++			if(this._optionFieldsMemo && this._optionFieldsMemoSrc === fields
++				&& Array.isArray(prevKey) && prevKey.length === memoKey.length
++				&& prevKey.every((v, i)=> v === memoKey[i])){
++				return this._optionFieldsMemo;
++			}
++		}
+ 		const indiaHsys = optionOverrides.indiaHsys !== undefined && optionOverrides.indiaHsys !== null
+ 			? AstroConst.normalizeIndiaHouseSystem(optionOverrides.indiaHsys)
+ 			: (this.state.indiaHsysValue !== null && this.state.indiaHsysValue !== undefined
+@@ -356,7 +456,7 @@ export const optionChangeMethods = {
+ 			: (this.state.indiaTransitDateValue !== null && this.state.indiaTransitDateValue !== undefined
+ 			? this.state.indiaTransitDateValue
+ 			: (fields.indiaTransitDate ? fields.indiaTransitDate.value : null));
+-		return {
++		const optionFields = {
+ 			...fields,
+ 			indiaHsys: {
+ 				...(fields.indiaHsys || { name: ['indiaHsys'] }),
+@@ -460,6 +560,12 @@ export const optionChangeMethods = {
+ 				value: this.state.prashnaCast ? this.state.prashnaCast.primaryHouse : undefined,
+ 			},
+ 		};
++		if(memoable){
++			this._optionFieldsMemoSrc = fields;
++			this._optionFieldsMemoKey = memoKey;
++			this._optionFieldsMemo = optionFields;
++		}
++		return optionFields;
+ 	},
+ 
+ 	// ── G5/G13/G8/G1 设置变更 → 重取(与 changeDashaSystem 同范式) ──

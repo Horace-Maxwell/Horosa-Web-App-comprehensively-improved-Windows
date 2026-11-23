@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Input, Slider } from 'antd';
+import { Row, Col, Input } from 'antd';
 import moment from 'moment';
 import { labelMomentOfCivilDateStr, addLabelMonths } from '../../utils/civilMoment';
 import AcgD3Map, { STYLES, acgColors } from './AcgD3Map';
@@ -18,7 +18,7 @@ import { definePageSettings } from '../../utils/pageSettingsStore';
 import { convertLatStrToDegree, convertLonStrToDegree } from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import * as AstroConst from '../../constants/AstroConst';
-import { XQButton, XQCheckItem, XQCheckList, XQDatePicker, XQDrawer, XQPanel, XQSegmented, XQSelect, XQSwitch } from '../xq-ui';
+import { XQButton, XQCheckItem, XQCheckList, XQDatePicker, XQDrawer, XQPanel, XQSegmented, XQSelect, XQSwitch, XQSlider } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
 // 全 25 宫制(后端 HSYS_MAP 已备 23 友好名 + 单字码透传;落点报告高纬失效自动回退 Porphyry)。
@@ -152,76 +152,141 @@ export const ACG_PAGE_SETTINGS = definePageSettings('horosa.acg.settings.v1', {
 	climesObliquity: { label: '气候带·黄赤交角(改进 / 经典)', def: 'date', oneOf: CLIMES_OBLIQUITY },
 });
 
+// 地图状态初值(页面构造与 AI 工具 cast_acg 同一份):出厂值 + 上次亲手保存的地图设置(保留键以保存值为准)
+export function acgInitialState(savedAcg){
+	const saved = savedAcg || {};
+	const lines = saved.lines;
+	return {
+		acgData: null,
+		drawerVisible: false,
+		lines: lines,
+		linesSet: new Set(lines),
+		projection: 'equirect',
+		mapStyle: 'classic',
+		showGeo: true,
+		showLS: false,
+		showAspects: false,   // 相位线(60/90/120/45/135 到 MC/IC)
+		showPoints: false,    // 东/西点线 + 天顶点 + OOB 超界标
+		showMidpoints: false, // 中点线(主星两两短弧中点)
+		showLots: false,      // 阿拉伯点线(福点/精神点)
+		showCrossings: false, // 线交叉点(命运点)
+		showCuspLines: false, // 十二宫尖线(opt-in·后端重算·依赖宫制)
+		showStars: false,     // 固定星线(opt-in·后端重算·18 主要恒星 MC/IC/ASC/DSC)
+		showStarParans: false, // 固定星交映 parans(纯渲染;需先开固定星)
+		showTreasure: false,  // 寻宝图热力(自研透明评分·纯前端渲染层,零后端)
+		showZones: false,     // 影响带(§2.5:线两侧半透明带·纯渲染;宽度可调)
+		zoneWidth: 600,       // 行星线影响带宽度(英里,单侧;可调 400-800)
+		lsDialOpen: false,    // 本地空间罗盘盘面(360°方位轮·顶栏按钮开/盘内关)
+		ccgPlay: false,       // CCG 时间轴播放态(纯前端定时步进 ccgDate)
+		ccgDate: null,        // CCG 时间地图目标日期(moment;设了即画,清除即关)
+		ccgTime: '12:00:00',  // CCG 目标时刻(世运事件会带精确时刻)
+		ccgMix: 'mixed',      // CCG 口径:mixed 内二推外行运(文献标准)/transit/progressed
+		relMode: '',          // 关系盘:'' 关 / davison 时空中点 / composite 中点合盘 / synastry 双人叠加
+		relDate: null,        // B 盘出生日期(moment)
+		relTime: '12:00:00',  // B 盘出生时间
+		relPos: '',           // B 盘经纬(如 39n54 116e23;空=同 A 地)
+		relZone: '',          // B 盘时区(+HH:MM;空=按 B 盘经纬推断,无经纬随 A 盘)
+		hsys: 'placidus',     // 落点报告十二宫尖的宫制(§15)
+		showGeodetic: false,  // 地理等价线(§7)
+		geodetic: 'sepharial', // 地理等价流派:sepharial/mcrae/johndro
+		geodeticZero: '',     // 地理等价任意 0°♈ 子午线偏移(东经度;空=流派缺省)
+		orb: 2,               // 落点分析容许度(°;线偏差≤orb 才算命中)
+		geodeticVar: 'longitude', // 变体:longitude/ra
+		mode: 'mundo',        // 口径:mundo 本体(Jim Lewis 默认) / zodiac 黄道度(β=0)
+		coord: 'geo',         // 坐标系:geo 地心(默认) / helio 日心(仅绕日天体) / topo 站心(周日视差)
+		posType: 'apparent',  // 位置类型:apparent 视位置(默认) / true 真位置(去光行差) / j2000 历元(仅读数)
+		horizon: 'geometric', // 地平:geometric 几何 h=0(默认) / apparent 视地平(折射−34′,仅ASC/DSC)
+		nodeType: 'mean',     // 交点:mean 平交点(默认) / true 真交点(振荡)
+		lilithType: 'mean',   // 月孛/Lilith:mean 平 / true 真(振荡) / intp 插值 / body 星体(需星历)
+		draconic: 'off',      // 龙黄道:off / mean / true(λ'=λ−北交黄经 刚性旋转)
+		harmonic: 1,          // 谐波 H(1=关):λ_H=H·λ,β=0
+		midpointMode: 'zodiac', // 中点线口径:zodiac 黄经中点(默认) / mundo 赤经中点
+		lotsCustom: '',       // 自定义阿拉伯点 A,B,C[,sect]
+		showVibration: false, // Cochrane 5/7/9 振动线:渲染层开关,同时下发后端 vibration 参数(页面只有这一个开关,不另存别的键)
+		showRelCross: false,  // 关系盘交叉/派状渲染层
+		ayanamsa: '',         // 恒星黄道读数(''=回归;选一档→面板/线加恒星度,物理线不变)
+		lsMode: 'great',      // 本地空间画法:great 大圆 / rhumb 等角航线
+		paranMode: 'off',
+		eclipse: 'off',          // 日食路径:off / prenatal 出生前最近一次 / postnatal 出生后最近一次(后端重算)
+		eclipseFilter: 'any',    // any 任何日食 / central 只找中心食(全、环、全环)
+		climes: 'off',           // 气候带图层:off / klimata 七气候带 / parallels 托勒密纬圈(纯渲染)
+		climesObliquity: 'date', // 纬度推算用的黄赤交角:date 出生时刻(改进,缺省)/ ptolemy 托勒密值(经典)
+		showLabels: true,
+		layersOpen: false,    // 「图层与设置」抽屉(3栏工作台:全部图层/流派/时间/关系盘)
+		refOpen: false,       // 含义速查抽屉(右)
+		pointReport: null,
+		pointOpen: false,
+		pointLoading: false,
+		clickMarker: null,
+		...saved,
+	};
+}
+
+// /location/acg 请求体(页面 genParams 与 AI 工具 cast_acg 同一份)
+export function acgRequestParams(st, fields){
+	const p = {
+		...fieldsToParams(fields),
+		mode: st.mode,
+		lsMode: st.lsMode,
+		geodetic: st.geodetic,
+		geodeticVar: st.geodeticVar,
+		geodeticZero: st.geodeticZero || '',
+		cuspLines: st.showCuspLines ? '1' : '0',
+		hsys: st.hsys,
+		coord: st.coord,
+		posType: st.posType,
+		horizon: st.horizon,
+		nodeType: st.nodeType,
+		lilithType: st.lilithType,
+		draconic: st.draconic,
+		harmonic: String(st.harmonic || 1),
+		vibration: st.showVibration ? '1' : '0',
+		midpointMode: st.midpointMode,
+		lotsCustom: st.lotsCustom || '',
+		asteroids: hasAsteroidLine(st.linesSet) ? '1' : '0',
+		ayanamsa: st.ayanamsa,
+		stars: st.showStars ? '1' : '0',
+	};
+	if (st.eclipse && st.eclipse !== 'off') {   // 日食路径:开了才下发(关=零回归)
+		p.eclipse = st.eclipse;
+		p.eclipseFilter = st.eclipseFilter || 'any';
+	}
+	if (st.ccgDate) {   // CCG 时间地图:只在设了日期时下发(未设=零回归)
+		p.ccgDate = st.ccgDate.format('YYYY/MM/DD');
+		if (st.ccgTime) p.ccgTime = st.ccgTime;
+		p.ccgMix = st.ccgMix;
+	}
+	if (st.relMode && st.relDate) {   // 关系盘:模式+B盘日期都有才下发
+		p.relMode = st.relMode;
+		p.relDate = st.relDate.format('YYYY/MM/DD');
+		p.relTime = st.relTime || '12:00:00';
+		p.relZone = resolveRelZone(st.relZone, st.relPos, st.relDate, p.zone);   // 手填 → 随 B 盘地点 → 随 A 盘
+		const pos = (st.relPos || '').trim().split(/\s+/);
+		if (pos.length === 2) { p.relLat = pos[0]; p.relLon = pos[1]; }
+	}
+	return p;
+}
+
+// 快照的界面层状态(纯渲染开关;页面与 cast_acg 同一份)
+export function acgSnapshotUiState(st, pointReport){
+	return {
+		pointReport,
+		paranMode: st.paranMode,
+		showStarParans: st.showStars && st.showStarParans,   // 双 opt-in 口径同 AcgD3Map
+		// 本地空间线 / 地理等价线 两图层是纯渲染开关(数据恒在后端响应里):开着才进快照,
+		// 0°♈ 子午线自定义值不在后端 meta 里,随 uiState 带过去(空=流派缺省)。
+		showLS: !!st.showLS,
+		showGeodetic: !!st.showGeodetic,
+		geodeticZero: st.geodeticZero || '',
+		climes: st.climes || 'off',
+		climesObliquity: st.climesObliquity || 'date',
+	};
+}
+
 class AstroAcg extends Component {
 	constructor(props) {
 		super(props);
-		const savedAcg = ACG_PAGE_SETTINGS.load();   // 上次亲手设的地图设置(没存过 = 各键出厂值,与下面字面量逐个相同)
-		const lines = savedAcg.lines;
-
-		this.state = {
-			acgData: null,
-			drawerVisible: false,
-			lines: lines,
-			linesSet: new Set(lines),
-			projection: 'equirect',
-			mapStyle: 'classic',
-			showGeo: true,
-			showLS: false,
-			showAspects: false,   // 相位线(60/90/120/45/135 到 MC/IC)
-			showPoints: false,    // 东/西点线 + 天顶点 + OOB 超界标
-			showMidpoints: false, // 中点线(主星两两短弧中点)
-			showLots: false,      // 阿拉伯点线(福点/精神点)
-			showCrossings: false, // 线交叉点(命运点)
-			showCuspLines: false, // 十二宫尖线(opt-in·后端重算·依赖宫制)
-			showStars: false,     // 固定星线(opt-in·后端重算·18 主要恒星 MC/IC/ASC/DSC)
-			showStarParans: false, // 固定星交映 parans(纯渲染;需先开固定星)
-			showTreasure: false,  // 寻宝图热力(自研透明评分·纯前端渲染层,零后端)
-			showZones: false,     // 影响带(§2.5:线两侧半透明带·纯渲染;宽度可调)
-			zoneWidth: 600,       // 行星线影响带宽度(英里,单侧;可调 400-800)
-			lsDialOpen: false,    // 本地空间罗盘盘面(360°方位轮·顶栏按钮开/盘内关)
-			ccgPlay: false,       // CCG 时间轴播放态(纯前端定时步进 ccgDate)
-			ccgDate: null,        // CCG 时间地图目标日期(moment;设了即画,清除即关)
-			ccgTime: '12:00:00',  // CCG 目标时刻(世运事件会带精确时刻)
-			ccgMix: 'mixed',      // CCG 口径:mixed 内二推外行运(文献标准)/transit/progressed
-			relMode: '',          // 关系盘:'' 关 / davison 时空中点 / composite 中点合盘 / synastry 双人叠加
-			relDate: null,        // B 盘出生日期(moment)
-			relTime: '12:00:00',  // B 盘出生时间
-			relPos: '',           // B 盘经纬(如 39n54 116e23;空=同 A 地)
-			relZone: '',          // B 盘时区(+HH:MM;空=按 B 盘经纬推断,无经纬随 A 盘)
-			hsys: 'placidus',     // 落点报告十二宫尖的宫制(§15)
-			showGeodetic: false,  // 地理等价线(§7)
-			geodetic: 'sepharial', // 地理等价流派:sepharial/mcrae/johndro
-			geodeticZero: '',     // 地理等价任意 0°♈ 子午线偏移(东经度;空=流派缺省)
-			orb: 2,               // 落点分析容许度(°;线偏差≤orb 才算命中)
-			geodeticVar: 'longitude', // 变体:longitude/ra
-			mode: 'mundo',        // 口径:mundo 本体(Jim Lewis 默认) / zodiac 黄道度(β=0)
-			coord: 'geo',         // 坐标系:geo 地心(默认) / helio 日心(仅绕日天体) / topo 站心(周日视差)
-			posType: 'apparent',  // 位置类型:apparent 视位置(默认) / true 真位置(去光行差) / j2000 历元(仅读数)
-			horizon: 'geometric', // 地平:geometric 几何 h=0(默认) / apparent 视地平(折射−34′,仅ASC/DSC)
-			nodeType: 'mean',     // 交点:mean 平交点(默认) / true 真交点(振荡)
-			lilithType: 'mean',   // 月孛/Lilith:mean 平 / true 真(振荡) / intp 插值 / body 星体(需星历)
-			draconic: 'off',      // 龙黄道:off / mean / true(λ'=λ−北交黄经 刚性旋转)
-			harmonic: 1,          // 谐波 H(1=关):λ_H=H·λ,β=0
-			midpointMode: 'zodiac', // 中点线口径:zodiac 黄经中点(默认) / mundo 赤经中点
-			lotsCustom: '',       // 自定义阿拉伯点 A,B,C[,sect]
-			showVibration: false, // Cochrane 5/7/9 振动线:渲染层开关,同时下发后端 vibration 参数(页面只有这一个开关,不另存别的键)
-			showRelCross: false,  // 关系盘交叉/派状渲染层
-			ayanamsa: '',         // 恒星黄道读数(''=回归;选一档→面板/线加恒星度,物理线不变)
-			lsMode: 'great',      // 本地空间画法:great 大圆 / rhumb 等角航线
-			paranMode: 'off',
-			eclipse: 'off',          // 日食路径:off / prenatal 出生前最近一次 / postnatal 出生后最近一次(后端重算)
-			eclipseFilter: 'any',    // any 任何日食 / central 只找中心食(全、环、全环)
-			climes: 'off',           // 气候带图层:off / klimata 七气候带 / parallels 托勒密纬圈(纯渲染)
-			climesObliquity: 'date', // 纬度推算用的黄赤交角:date 出生时刻(改进,缺省)/ ptolemy 托勒密值(经典)
-			showLabels: true,
-			layersOpen: false,    // 「图层与设置」抽屉(3栏工作台:全部图层/流派/时间/关系盘)
-			refOpen: false,       // 含义速查抽屉(右)
-			pointReport: null,
-			pointOpen: false,
-			pointLoading: false,
-			clickMarker: null,
-			...savedAcg,            // 保留键以保存值为准(lines 同时决定上面的 linesSet)
-		};
+		this.state = acgInitialState(ACG_PAGE_SETTINGS.load());   // 上次亲手设的地图设置(没存过 = 各键出厂值)
 
 		this.unmounted = false;
 
@@ -285,18 +350,7 @@ class AstroAcg extends Component {
 
 	// AI 导出 uiState:落点报告 + 交映开关(交映是纯渲染开关、不触发后端重算,须写进快照,导出才知道开没开)
 	snapshotUiState(pointReport) {
-		return {
-			pointReport,
-			paranMode: this.state.paranMode,
-			showStarParans: this.state.showStars && this.state.showStarParans,   // 双 opt-in 口径同 AcgD3Map
-			// 本地空间线 / 地理等价线 两图层是纯渲染开关(数据恒在后端响应里):开着才进快照,
-			// 0°♈ 子午线自定义值不在后端 meta 里,随 uiState 带过去(空=流派缺省)。
-			showLS: !!this.state.showLS,
-			showGeodetic: !!this.state.showGeodetic,
-			geodeticZero: this.state.geodeticZero || '',
-			climes: this.state.climes || 'off',
-			climesObliquity: this.state.climesObliquity || 'date',
-		};
+		return acgSnapshotUiState(this.state, pointReport);
 	}
 
 	// 纯前端交映开关变更后重发快照:数据(后端响应)不变,仅刷新 uiState;acgData 未就绪时无事可发
@@ -369,47 +423,7 @@ class AstroAcg extends Component {
 	}
 
 	genParams() {
-		const p = {
-			...fieldsToParams(this.props.fields),
-			mode: this.state.mode,
-			lsMode: this.state.lsMode,
-			geodetic: this.state.geodetic,
-			geodeticVar: this.state.geodeticVar,
-			geodeticZero: this.state.geodeticZero || '',
-			cuspLines: this.state.showCuspLines ? '1' : '0',
-			hsys: this.state.hsys,
-			coord: this.state.coord,
-			posType: this.state.posType,
-			horizon: this.state.horizon,
-			nodeType: this.state.nodeType,
-			lilithType: this.state.lilithType,
-			draconic: this.state.draconic,
-			harmonic: String(this.state.harmonic || 1),
-			vibration: this.state.showVibration ? '1' : '0',
-			midpointMode: this.state.midpointMode,
-			lotsCustom: this.state.lotsCustom || '',
-			asteroids: hasAsteroidLine(this.state.linesSet) ? '1' : '0',
-			ayanamsa: this.state.ayanamsa,
-			stars: this.state.showStars ? '1' : '0',
-		};
-		if (this.state.eclipse && this.state.eclipse !== 'off') {   // 日食路径:开了才下发(关=零回归)
-			p.eclipse = this.state.eclipse;
-			p.eclipseFilter = this.state.eclipseFilter || 'any';
-		}
-		if (this.state.ccgDate) {   // CCG 时间地图:只在设了日期时下发(未设=零回归)
-			p.ccgDate = this.state.ccgDate.format('YYYY/MM/DD');
-			if (this.state.ccgTime) p.ccgTime = this.state.ccgTime;
-			p.ccgMix = this.state.ccgMix;
-		}
-		if (this.state.relMode && this.state.relDate) {   // 关系盘:模式+B盘日期都有才下发
-			p.relMode = this.state.relMode;
-			p.relDate = this.state.relDate.format('YYYY/MM/DD');
-			p.relTime = this.state.relTime || '12:00:00';
-			p.relZone = resolveRelZone(this.state.relZone, this.state.relPos, this.state.relDate, p.zone);   // 手填 → 随 B 盘地点 → 随 A 盘
-			const pos = (this.state.relPos || '').trim().split(/\s+/);
-			if (pos.length === 2) { p.relLat = pos[0]; p.relLon = pos[1]; }
-		}
-		return p;
+		return acgRequestParams(this.state, this.props.fields);
 	}
 
 	// 关系盘变更(模式/B盘日期/时间/经纬):重请求
@@ -720,7 +734,7 @@ class AstroAcg extends Component {
 							{row('影响带', <XQSwitch size="small" checked={s.showZones} onChange={() => this.toggle('showZones')} />)}
 							{s.showZones ? row('带宽', (
 								<span style={{ display: 'flex', alignItems: 'center', gap: 8, width: 200 }}>
-									<Slider min={400} max={800} step={50} value={s.zoneWidth} onChange={(v) => this.setState({ zoneWidth: v })} style={{ flex: 1 }} />
+									<XQSlider min={400} max={800} step={50} value={s.zoneWidth} onChange={(v) => this.setState({ zoneWidth: v })} style={{ flex: 1 }} />
 									<span style={{ fontSize: 12, opacity: 0.7, minWidth: 44 }}>{s.zoneWidth}mi</span>
 								</span>
 							)) : null}
@@ -793,7 +807,7 @@ class AstroAcg extends Component {
 					{sec('落点分析', '点击地图任意地点出落点报告;容许度=线偏差阈值', (
 						row('容许度 orb', (
 							<span style={{ display: 'flex', alignItems: 'center', gap: 8, width: 180 }}>
-								<Slider min={0.5} max={6} step={0.5} value={s.orb} onChange={(v) => this.setState({ orb: v })}
+								<XQSlider min={0.5} max={6} step={0.5} value={s.orb} onChange={(v) => this.setState({ orb: v })}
 									onAfterChange={() => { const m = this.state.clickMarker; if (m) this.onMapClick(m.lat, m.lon); }}   /* 改容许度即重算已选落点(与宫制/恒星读数同律) */
 									style={{ flex: 1 }} />
 								<span style={{ fontSize: 12, opacity: 0.7, minWidth: 28 }}>{s.orb}°</span>

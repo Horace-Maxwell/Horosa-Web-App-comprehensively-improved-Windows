@@ -1,0 +1,829 @@
+// 统一件 · 选择抽屉、设置行与分组、拾取网格、日期调节、空态、侧栏节头、面板头、状态填充
+// 从 styles.less 按区段拆出(规则原样、次序不变;读源码的检查经登记表读全集)。
+    .horosa-selector-drawer .xq-tabs.ant-tabs .ant-tabs-nav {
+        margin-bottom: 12px;
+    }
+
+    // 选择器里的勾选片 = 轻量复选列表:透明底、无边框,勾框自身表达选中;悬停只换一层淡底。
+    .horosa-selector-drawer .xq-check-list.xq-check-list-2,
+    .horosa-selector-drawer .xq-check-list.xq-check-list-3 {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(150px, 1fr))";
+        gap: 2px 8px;
+        align-items: stretch;
+    }
+
+    .horosa-selector-drawer .xq-check-item,
+    .horosa-selector-drawer .xq-check-item-checked {
+        align-items: flex-start;
+        min-height: 34px;
+        height: auto;
+        padding: 6px 8px;
+        border-color: transparent;
+        border-radius: 7px;
+        background: transparent;
+        box-shadow: none;
+        color: var(--horosa-text);
+        transform: none;
+    }
+
+    .horosa-selector-drawer .xq-check-item:hover,
+    .horosa-selector-drawer .xq-check-item:focus {
+        border-color: transparent;
+        background: var(--horosa-accent-soft);
+        box-shadow: none;
+        transform: none;
+    }
+
+    .horosa-selector-drawer .xq-check-item:focus-visible {
+        outline: var(--horosa-focus-outline);
+        outline-offset: var(--horosa-focus-offset);
+    }
+
+    .horosa-selector-drawer .xq-check-content {
+        white-space: normal;
+    }
+
+    .horosa-selector-drawer .xq-check-box {
+        margin-top: 1px;
+    }
+
+    // 选项文字标签：一律正常字族（inherit，非 ywastro），数字 / 度数（如「30°内」）才不会被 glyph 字体映射成乱码。
+    .horosa-selector-drawer .horosa-selector-label {
+        display: inline;
+        font-family: inherit;
+        font-size: var(--horosa-fs-body);
+        line-height: 1.45;
+        letter-spacing: 0;
+    }
+
+    .horosa-selector-drawer .horosa-selector-label-mark {
+        margin-left: 4px;
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-caption);
+    }
+
+    // 次级提示（如「仅经典传本生效」）：小胶囊。
+    .horosa-selector-drawer .horosa-selector-label-hint,
+    .xq-setting-row-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-caption);
+        font-weight: 600;
+        letter-spacing: 0;
+        line-height: 1.5;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .xq-setting-row-control > .horosa-selector-label-hint {
+        margin-left: 0;
+    }
+
+    // 禁用态：置灰 + 禁手势。
+    .horosa-selector-drawer .xq-check-item-disabled,
+    .xq-check-item.xq-check-item-disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        filter: grayscale(0.35);
+    }
+
+    .xq-check-item.xq-check-item-disabled:hover,
+    .xq-check-item.xq-check-item-disabled:focus {
+        border-color: var(--horosa-border);
+        color: var(--horosa-text);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    }
+
+    .horosa-selector-drawer .xq-check-item-disabled:hover,
+    .horosa-selector-drawer .xq-check-item-disabled:focus {
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    // ── 设置组:细边卡 + 小标题。
+    .xq-setting-group {
+        min-width: 0;
+        border: 1px solid var(--horosa-border);
+        border-radius: 10px;
+        background: var(--horosa-panel-soft);
+    }
+
+    .xq-setting-group-head {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 2px 10px;
+        padding: 11px 14px 5px;
+    }
+
+    .xq-setting-group-title {
+        color: var(--horosa-accent-strong);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.4;
+    }
+
+    .xq-setting-group-hint {
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.4;
+    }
+
+    .xq-setting-group-body {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 4px;
+    }
+
+    // ── 设置行:标签左、控件右;放不下时控件整体换到下一行右靠。行与行之间一道内缩细线。
+    .xq-setting-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        min-height: 42px;
+        margin: 0 14px;
+        padding: 7px 0;
+    }
+
+    .xq-setting-row + .xq-setting-row,
+    .xq-setting-note + .xq-setting-row,
+    .xq-setting-block + .xq-setting-row {
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    .xq-setting-row-text {
+        display: flex;
+        flex: 1 1 150px;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+    }
+
+    .xq-setting-row-label {
+        color: var(--horosa-text);
+        font-size: var(--horosa-fs-body);
+        font-weight: 600;
+        line-height: 1.45;
+        letter-spacing: 0;
+    }
+
+    .xq-setting-row-hint {
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.4;
+    }
+
+    .xq-setting-row-control {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 0;
+        max-width: 100%;
+        margin-left: auto;
+    }
+
+    .xq-setting-row-disabled .xq-setting-row-text {
+        opacity: 0.55;
+    }
+
+    // 行内分段钮:按内容宽、右靠(基座是 100% 宽 + 均分列,用在这里会把短选项拉成长条)。
+    .xq-setting-row-control > .xq-segmented.ant-radio-group {
+        width: auto;
+        max-width: 100%;
+        grid-auto-columns: auto;
+    }
+
+    .xq-setting-row-control > .xq-segmented .ant-radio-button-wrapper {
+        padding-inline: 10px;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    // 竖排行(窄宿主):标签在上,控件另起一行铺满、分段钮均分。
+    .xq-setting-row-stacked {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: 6px;
+        padding: 9px 0;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-text {
+        flex: 0 0 auto;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-control {
+        display: flex;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-control > .xq-segmented.ant-radio-group {
+        width: 100%;
+        grid-auto-columns: 1fr;
+    }
+
+    .xq-setting-row-stacked .xq-setting-row-control > .xq-segmented .ant-radio-button-wrapper {
+        padding-inline: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    // 组内小块:小标题 + 复选列表。
+    .xq-setting-block {
+        padding: 0 6px 6px;
+    }
+
+    .xq-setting-block + .xq-setting-block {
+        margin-top: 2px;
+    }
+
+    .xq-setting-subtitle {
+        padding: 6px 8px 3px;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.4;
+    }
+
+    .xq-setting-checks {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(168px, 1fr))";
+        gap: 2px 8px;
+    }
+
+    // 组内说明小字。
+    .xq-setting-note {
+        margin: 0 14px;
+        padding: 2px 0 8px;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.6;
+    }
+
+    .xq-setting-note-warn {
+        padding: 6px 0 8px;
+        color: var(--horosa-text-secondary);
+    }
+
+    // ── 面板骨架:窄 = 单列;宽(抽屉)= 左导航 + 右正文。
+    // 组头右侧的小动作(全选 / 清空 / 套用预设):文字钮,不抢正文。
+    .xq-setting-group-extra {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+    }
+
+    .xq-setting-group-action {
+        padding: 2px 8px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--horosa-accent-strong);
+        font: inherit;
+        font-size: var(--horosa-fs-small);
+        font-weight: 600;
+        line-height: 1.5;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    // :focus-visible 不与普通选择器同列(旧内核会把整条规则丢掉,连悬停态一起没了)。
+    .xq-setting-group-action:hover {
+        background: var(--horosa-accent-soft);
+    }
+
+    .xq-setting-group-action:focus-visible {
+        background: var(--horosa-accent-soft);
+        outline: none;
+    }
+
+    // 勾选格(显示星体 / 希腊点 / 相位):符号定宽居中,名称左对齐,整列竖直成线。
+    .xq-pick-grid {
+        display: grid;
+        grid-template-columns: ~"repeat(auto-fill, minmax(132px, 1fr))";
+        gap: 2px 8px;
+        padding: 0 6px 6px;
+    }
+
+    .xq-pick-grid-bare {
+        padding: 0;
+    }
+
+    .xq-pick-item {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .xq-pick-glyph {
+        flex: none;
+        width: 20px;
+        text-align: center;
+        font-size: var(--horosa-fs-subtitle);
+        line-height: 1.3;
+    }
+
+    .xq-pick-name {
+        min-width: 0;
+        font-size: var(--horosa-fs-body);
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    @supports not (overflow-wrap: anywhere) {
+        .xq-pick-name {
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+    }
+
+    .xq-pick-sub {
+        flex: none;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        font-weight: 400;
+    }
+
+    .xq-setting-row.xq-pick-row {
+        min-height: 38px;
+        padding: 5px 0;
+    }
+
+    .xq-setting-row.xq-pick-row .xq-setting-row-text {
+        flex: 1 1 96px;
+    }
+
+    .xq-setting-row.xq-pick-row .xq-setting-row-label {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+    }
+
+    .xq-setting-subtitle-ruled {
+        margin-top: 12px;
+        padding: 12px 2px 6px;
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    // 容许度:缩放滑杆 + 数值框同一行;数值框定宽,逐星各行右缘对齐。
+    .horosa-orb-scale {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 14px;
+        padding: 4px 0 8px;
+    }
+
+    .horosa-orb-scale-slider.ant-slider {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0 4px;
+    }
+
+    .horosa-orb-input.ant-input-number {
+        flex: none;
+        width: 84px;
+    }
+
+    // 面板底部的动作条:滚动时吸在抽屉底,正文从下面滑过。
+    .horosa-setting-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        gap: 10px;
+        padding: 12px 0 14px;
+        border-top: 1px solid var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    // 抽屉里:动作条出血到抽屉左右下三边(吸附参照是抽屉正文的内容盒,要把 24px 内边距吃回来),
+    // 不然条下面还会露出一截滚过去的正文。
+    .ant-drawer-body > .horosa-orb-panel {
+        padding-bottom: 0;
+    }
+
+    .ant-drawer-body > .horosa-orb-panel > .horosa-setting-actions {
+        bottom: -24px;
+        margin: 0 -24px -24px;
+        padding: 12px 24px 16px;
+    }
+
+    .horosa-setting-actions > .ant-btn {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    // 左栏设置浮层 portal 到 body,workspace-shell 作用域下的字段版式解析不到 —— 浮层自带一份(两下拉并排,标题在上)。
+    .horosa-settings-popover .horosa-popover-style-fields { padding: 2px 14px 12px; }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-grid {
+        display: grid;
+        grid-template-columns: ~"repeat(2, minmax(0, 1fr))";
+        gap: 12px;
+    }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-block { display: grid; gap: 6px; min-width: 0; }
+    .horosa-settings-popover .horosa-popover-style-fields .horosa-field-label {
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-small);
+        font-weight: 600;
+        line-height: 1.3;
+    }
+    .horosa-settings-popover .horosa-popover-style-fields .ant-select { width: 100%; min-width: 0; }
+    // 单一滚动流:浮层面板自己不滚,只让里面的设置列表滚(原先面板 + 列表两层都滚,滚轮在两层之间打架)。
+    .horosa-settings-popover-panel.horosa-settings-popover-panel-flow {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .horosa-settings-popover-panel-flow > .horosa-settings-popover-title { flex: none; }
+    .horosa-settings-popover .horosa-settings-popover-panel-flow > .horosa-selector-drawer {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .horosa-setting-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .horosa-setting-part {
+        margin: 6px 2px -4px;
+        color: var(--horosa-text);
+        font-size: var(--horosa-fs-body-lg);
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1.4;
+    }
+
+    .horosa-setting-body > .horosa-setting-part:first-child {
+        margin-top: 0;
+    }
+
+    .horosa-setting-scope {
+        margin: 0 2px -2px;
+        color: var(--horosa-muted);
+        font-size: 11.5px;
+        line-height: 1.6;
+    }
+
+    .horosa-setting-panel-wide {
+        display: grid;
+        grid-template-columns: 156px minmax(0, 1fr);
+        column-gap: 22px;
+        align-items: start;
+    }
+
+    .horosa-setting-nav {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .horosa-setting-nav-part {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .horosa-setting-nav-part-title {
+        padding: 0 10px 4px;
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-caption);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        line-height: 1.4;
+    }
+
+    .horosa-setting-nav-item {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--horosa-text-secondary);
+        font-family: inherit;
+        font-size: var(--horosa-fs-body);
+        line-height: 1.4;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .horosa-setting-nav-item:hover {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-text);
+    }
+
+    .horosa-setting-nav-item:focus-visible {
+        outline: var(--horosa-focus-outline);
+        outline-offset: var(--horosa-focus-offset);
+    }
+
+    .horosa-setting-nav-item-active,
+    .horosa-setting-nav-item-active:hover {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+        font-weight: 700;
+    }
+
+    // 时间微调条(adjustOnly 变体,散布各技法左栏):窄栏下 5 元素固定栅格会把「步长下拉」压到只剩箭头。
+    // 改弹性:各列自适应内容宽,步长下拉保底 84px 可读,放不下时「此刻/确定」换行——不动常规日期布局。
+    .xq-datetime-adjust-only .ant-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+    }
+
+    .xq-datetime-adjust-only .ant-row > .ant-col {
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
+    }
+
+    .xq-datetime-adjust-only .ant-row > .ant-col:nth-child(2) {
+        flex: 1 1 84px;
+        min-width: 84px;
+    }
+
+    .xq-datetime-adjust-only .ant-btn {
+        min-width: 34px;
+    }
+
+    // —— 中栏盘面空态 XQStageEmpty:提示落在舞台正中(宿主是顶 / 左对齐的可滚 flex 容器,靠 margin:auto 居中) ——
+    .xq-stage-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-sizing: border-box;
+        margin: auto;
+        min-height: 120px;
+        max-width: 100%;
+        padding: 24px;
+        text-align: center;
+        color: var(--horosa-muted);
+        font-size: var(--horosa-fs-body);
+        line-height: 1.7;
+    }
+
+    .xq-stage-empty-hint {
+        font-size: var(--horosa-fs-small);
+        color: var(--horosa-text-soft, var(--horosa-muted));
+        opacity: 0.86;
+    }
+
+    // —— 观象左栏设计语言:小节容器 XQSideSection ————————————————
+    .xq-side-section {
+        min-width: 0;
+        // 🔴 纵向 flex 面板里的节不许被压缩:节体是「1fr 网格行 + overflow:hidden 内盒」(折叠过渡所需),
+        //    按规范它的最小内容高只剩节头 —— 面板放不下时 flex-shrink 会先把节压扁,节内最后几行控件被内盒裁掉且滚不到,
+        //    而不是让面板自己滚。flex-shrink:0 = 节恒按内容高,放不下交给面板滚动(父不是 flex 时此声明零影响)。
+        flex-shrink: 0;
+    }
+
+    .xq-side-section-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 4px;
+        border-radius: 7px;
+        transition: background 0.18s ease, color 0.18s ease;
+    }
+
+    .xq-side-section-header-collapsible {
+        cursor: pointer;
+    }
+
+    .xq-side-section-header-collapsible:hover {
+        background: var(--horosa-accent-soft);
+    }
+
+    .xq-side-section-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        padding: 4px 2px;
+        border: 0;
+        background: transparent;
+        color: var(--horosa-text);
+        font: inherit;
+        font-size: var(--horosa-fs-small);
+        font-weight: 650;
+        text-align: left;
+        cursor: inherit;
+    }
+
+    .xq-side-section-icon {
+        font-size: var(--horosa-fs-body-lg);
+        color: var(--horosa-gold);
+    }
+
+    .xq-side-section-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .xq-side-section-extra {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+    }
+
+    // 折叠箭头:180ms 旋转(展开朝下,折叠转 -180°)
+    .xq-side-section-arrow {
+        flex: 0 0 auto;
+        font-size: var(--horosa-fs-body-lg);
+        color: var(--horosa-text-soft);
+        transition: transform 0.18s ease;
+    }
+
+    .xq-side-section-header-collapsible:hover .xq-side-section-arrow {
+        color: var(--horosa-accent-strong);
+    }
+
+    .xq-side-section-collapsed .xq-side-section-arrow {
+        transform: rotate(-180deg);
+    }
+
+    // 🔴 折叠=纯 CSS 高度过渡(grid 1fr→0fr),children 恒挂载不卸载(防表单状态丢/防重算);
+    //    不支持 fr 过渡的旧 WebView 优雅降级为瞬时开合,布局仍正确。
+    // 🔴 行高必须写 minmax(0, 1fr),不能写裸 1fr(= minmax(auto, 1fr)):WebKit 实测 —— 纵向 flex 滚动面板里,
+    //    占位式滚动条一出现 → 面板变窄 → 节内控件折行变高,裸 1fr 行停在变窄前的旧高度不重算,节内最后一行被内盒
+    //    (overflow:hidden)裁掉且滚不到(强制重排才恢复)。minmax(0, 1fr) 下同一场景行高随内容重算;折叠态同写
+    //    minmax(0, 0fr),两端同型才插值 = 过渡动画照旧。
+    .xq-side-section-body {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr);
+        transition: grid-template-rows 0.18s ease;
+    }
+
+    .xq-side-section-body-inner {
+        min-height: 0;
+        overflow: hidden;
+        /* [左栏统一] 节头与内容全局留距(此前紧贴,标题与首行控件挤在一起);
+           参与 grid 高度 → 折叠 0fr 时随体整体收起,无残缝 */
+        padding-top: 6px;
+    }
+
+    .xq-side-section-collapsed .xq-side-section-body {
+        grid-template-rows: minmax(0, 0fr);
+    }
+
+    /* a11y:折叠仅靠 0fr+overflow:hidden 时子控件仍在 Tab 序里,而 body 已 aria-hidden
+       —— 键盘用户会 Tab 进零高度不可见控件(WCAG aria-hidden-focus,终审抓获)。
+       visibility 过渡:折叠动画(0.18s)走完后再隐藏,展开瞬时恢复 → 动画观感零变化,
+       hidden 后天然移出 Tab 序与读屏树,与 aria-hidden 一致。 */
+    .xq-side-section-collapsed .xq-side-section-body-inner {
+        visibility: hidden;
+        transition: visibility 0s linear 0.2s;
+    }
+
+    // —— 面板头 XQPanelHeader:kicker 小题 + 金 hairline 右渐隐装饰线 ————
+    .xq-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 2px 0;
+    }
+
+    // 装饰线走伪元素,order 插在 kicker(0)与 extra(2)之间,吃掉剩余宽度右渐隐
+    .xq-panel-header::after {
+        content: '';
+        order: 1;
+        flex: 1 1 auto;
+        height: 1px;
+        background: linear-gradient(90deg, var(--horosa-gold), var(--horosa-gold-soft) 55%, transparent);
+    }
+
+    .xq-panel-header-kicker {
+        order: 0;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        // 衬线点缀:宋体参与栈,落不到再回系统衬线
+        font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
+        font-size: var(--horosa-fs-small);
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        color: var(--horosa-gold);
+    }
+
+    .xq-panel-header-extra {
+        order: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+    }
+
+    // 无障碍:系统减动效时全部过渡归零(箭头/高度/hover 反馈)
+    @media (prefers-reduced-motion: reduce) {
+        .xq-side-section-header,
+        .xq-side-section-arrow,
+        .xq-side-section-body {
+            transition: none;
+        }
+    }
+
+    /* —— [选中态可读性大修] 暗黑下「黄底选中态」全族统一为「金软底 + 金字 + 金描边」——
+       金实底(accent #e7bd75)上无论白字还是深墨字都曾看不清/突兀;与 antd primary 暗黑观感
+       (深底金字金边)同族化。范围=**选中态**(Toggle active / 裸 Radio.Button checked /
+       antd Segmented 选中;XQSegmented 走 --horosa-tab-seg-* 变量已在暗档同改);
+       行动号召按钮(XQButton primary,如「起盘/重算」)保持金实底不动。亮档零变。 —— */
+    :root:not([data-horosa-appearance='light']) .xq-button.xq-toggle-active.ant-btn {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.14));
+        color: var(--horosa-accent);
+        font-weight: 650;
+    }
+    :root:not([data-horosa-appearance='light']) .horosa-workspace-shell .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.14));
+        color: var(--horosa-accent);
+        box-shadow: inset 0 0 0 1px rgba(231, 189, 117, 0.35);
+    }
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-thumb,
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-item-selected {
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.16));
+        box-shadow: inset 0 0 0 1px rgba(231, 189, 117, 0.60);
+    }
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-item-selected .ant-segmented-item-label,
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-thumb .ant-segmented-item-label {
+        color: var(--horosa-accent) !important;
+    }
+
+    /* 三态件 XQState:加载 / 出错可重试 / 空 / 计算服务没回结果。只用主题变量与尺度令牌 */
+    .xq-state {
+        color: var(--horosa-text-soft);
+        font-size: var(--horosa-fs-body);
+        line-height: 1.6;
+    }
+    .xq-state-fill {
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--horosa-space-3);
+        text-align: center;
+        padding: var(--horosa-space-5);
+        box-sizing: border-box;
+    }
+    .xq-state-inline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--horosa-space-4);
+    }
+    .xq-state-card {
+        background: var(--horosa-surface);
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius-md);
+    }
+    .xq-state-error .xq-state-title,
+    .xq-state-offline .xq-state-title { color: var(--horosa-text); }
+    .xq-state-fill.xq-state-error .xq-state-title,
+    .xq-state-fill.xq-state-offline .xq-state-title { font-weight: 600; }
+    .xq-state-desc {
+        max-width: 420px;
+        font-size: var(--horosa-fs-small);
+        color: var(--horosa-text-secondary);
+        line-height: 1.7;
+    }
+
+    /* 键盘焦点环:pressable 接上的可点块(div / span … role="button")与带 role 的自绘控件。
+       :focus-visible 单独成条(旧内核不认它,和别的选择器写在一个列表里会整条作废);鼠标点击不出环(pressable 点完即让出焦点) */
+    [role='button'][tabindex]:focus-visible {
+        outline: var(--horosa-focus-outline);
+        outline-offset: var(--horosa-focus-offset);
+    }

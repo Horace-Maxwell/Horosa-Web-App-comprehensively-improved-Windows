@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index 3277da49..17de0407 100644
+index b9cda369..350e76d1 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 @@ -20,6 +20,10 @@ import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags'
@@ -13,7 +13,7 @@ index 3277da49..17de0407 100644
  import WuZhaoBoard from './WuZhaoBoard';
  
  import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
-@@ -179,6 +183,17 @@ function appendUnique(list, value){
+@@ -183,6 +187,17 @@ function appendUnique(list, value){
  	}
  }
  
@@ -31,7 +31,7 @@ index 3277da49..17de0407 100644
  async function postWuZhao(path, payload){
  	const roots = [];
  	const endpoints = [];
-@@ -651,6 +666,8 @@ class WuZhaoMain extends Component{
+@@ -656,6 +671,8 @@ class WuZhaoMain extends Component{
  				return;
  			}
  			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
@@ -40,7 +40,7 @@ index 3277da49..17de0407 100644
  				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -1249,32 +1266,53 @@ class WuZhaoMain extends Component{
+@@ -1254,32 +1271,53 @@ class WuZhaoMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

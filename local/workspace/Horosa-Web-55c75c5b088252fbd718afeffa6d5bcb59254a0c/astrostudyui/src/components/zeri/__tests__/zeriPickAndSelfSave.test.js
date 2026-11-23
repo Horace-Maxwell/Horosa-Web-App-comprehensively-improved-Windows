@@ -7,10 +7,11 @@ import path from 'path';
 import { setGlobalStore } from '../../../utils/storageutil';
 import { openKentangCaseDrawer } from '../../../utils/kentangCaseSave';
 import { newQimenLeaf, newQimenGroup } from '../../../divination/zeri/qimenConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 jest.mock('../../../services/astro', () => ({ fetchChart: jest.fn(async () => ({ Result: null })) }));
 
-const read = (rel)=>fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+const read = (rel)=>readSource(path.join(__dirname, '..', rel));
 
 describe('三式择日点结果行:阴盘报数随起局一起回写三式页', ()=>{
 	const { default: SanshiZeriMain } = require('../SanshiZeriMain');
@@ -286,7 +287,7 @@ describe('奇门择日「存为事盘」后:内嵌奇门页不还原刚存的那
 		expect(dj.state.options.qijuMethod).toBe('zhirun');
 	});
 	test('独立奇门页同理:读档去重键出自共用件(只认显式载入)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../dunjia/DunJiaMain.js'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '../../dunjia/DunJiaMain.js'));
 		expect(src).toContain('const caseVersion = caseRestoreKey(this.scope, userState);');
 	});
 });
@@ -327,7 +328,7 @@ describe('三式合一页(含三式择日内嵌):存为事盘后不把刚存的�
 		expect(m.state.options.school).toBe('飞盘');
 	});
 	test('读档去重键出自共用件(源码锚)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../sanshi/SanShiUnitedMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../sanshi/SanShiUnitedMain.js'));
 		expect(src).toContain('const caseVersion = caseRestoreKey(scope, userState);');
 	});
 });

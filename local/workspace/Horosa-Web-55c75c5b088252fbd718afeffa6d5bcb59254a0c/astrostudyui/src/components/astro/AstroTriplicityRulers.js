@@ -1,10 +1,10 @@
 import { Component } from 'react';
-import { Row, Col, InputNumber } from 'antd';
+import { Row, Col } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { buildTriplicityPeriods, buildTriplicityRulersSnapshotText, TRIPLICITY_DIVISIONS, TRIPLICITY_SYSTEMS, TRIPLICITY_SYSTEM_HINTS, TRIPLICITY_HOUSE_SIGS, TRIPLICITY_DEFAULT_OPTS, PLANETARY_PERIOD_YEARS } from '../../utils/triplicityRulers';
 import { symbolWithMeaning } from './AstroExtraCommon';
-import { XQSelect as Select, XQSegmented } from '../xq-ui';
+import { XQSelect as Select, XQSegmented, XQInputNumber } from '../xq-ui';
 import styles from '../../css/styles.less';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
@@ -136,7 +136,7 @@ class AstroTriplicityRulers extends Component{
 					</Col>
 					<Col span={10}>
 						<div className="horosa-balbillus-label">寿命基准（岁）</div>
-						<InputNumber value={opts.lifespan} min={30} max={120} style={{ width: '100%' }} onChange={(v) => this.changeOpt('lifespan', v)} />
+						<XQInputNumber value={opts.lifespan} min={30} max={120} style={{ width: '100%' }} onChange={(v) => this.changeOpt('lifespan', v)} />
 					</Col>
 				</Row>
 				</div>

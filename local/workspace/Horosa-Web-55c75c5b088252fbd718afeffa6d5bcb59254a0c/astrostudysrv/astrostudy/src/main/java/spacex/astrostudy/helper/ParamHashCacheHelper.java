@@ -187,6 +187,16 @@ public class ParamHashCacheHelper {
 	}
 
 	public static Object get(String scope, Map<String, Object> params, Function<Map<String, Object>, Object> fun, int expInSec) {
+		return getKeyed(scope, params, fun, expInSec, AstroHelper::withClientNow);
+	}
+
+	// horosa_paramhash_client_now_v1:客户端钉住的「此刻」并入缓存键。
+	// 结果里有随「此刻」变的东西(当前大运 / 当前年龄 / 缺省的目标时刻),请求带了钉住的时刻(请求头,见 AstroHelper.withClientNow)
+	// 就得落到自己的键上 —— 否则 Controller 这一层(键只看正文参数)会把别的时刻、甚至没钉时钟时算出来存下的结果原样返回。
+	// 只进键:计算函数拿到的参数原样(转给排盘引擎的正文字段由 AstroHelper.request 自己加)。没带头 = 键与从前逐字相同。
+	/** [测试缝] keyOf:由参数表得出「进缓存键的那张表」;生产路径恒为 AstroHelper::withClientNow。 */
+	static Object getKeyed(String scope, Map<String, Object> params, Function<Map<String, Object>, Object> fun, int expInSec,
+			java.util.function.UnaryOperator<Map<String, Object>> keyOf) {
 		Map<String, Object> req = new HashMap<String, Object>();
 		if(params != null) {
 			req.putAll(params);
@@ -196,7 +206,8 @@ public class ParamHashCacheHelper {
 		}
 
 		String cleanScope = sanitizeScope(scope);
-		String hash = hash(req);
+		Map<String, Object> keyed = keyOf == null ? null : keyOf.apply(req);
+		String hash = hash(keyed == null ? req : keyed);
 		String cacheKey = CacheHelper.buildCacheKey(Prefix, cleanScope, hash);
 		Object obj = getFromRedis(cacheKey);
 		if(obj != null) {

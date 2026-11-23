@@ -157,7 +157,8 @@ export function installTableResizeObserverDefer(win){
 			pending = pending || new Map();
 			for(const e of entries){ pending.set(e.target, e); }
 			if(first){
-				wraf(()=>{ const list = Array.from(pending.values()); pending = null; if(list.length){ callback.call(self || obs, list, self || obs); } });
+				// 排队到下一帧之间若已 disconnect(组件卸载 / 抽屉关闭),pending 已清空:直接放弃(此前照样取 pending.values() → TypeError)
+				wraf(()=>{ if(!pending){ return; } const list = Array.from(pending.values()); pending = null; if(list.length){ callback.call(self || obs, list, self || obs); } });
 			}
 		});
 		self = this;

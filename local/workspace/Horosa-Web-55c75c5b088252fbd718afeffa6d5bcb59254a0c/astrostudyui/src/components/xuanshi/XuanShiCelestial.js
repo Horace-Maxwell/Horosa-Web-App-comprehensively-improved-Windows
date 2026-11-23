@@ -1,5 +1,6 @@
 import React from 'react';
-import { Spin, Empty, Pagination, Select, Input, InputNumber } from 'antd';
+import { Pagination, Select, Input } from 'antd';
+import { XQEmpty, XQInputNumber, XQSpin } from '../xq-ui';
 import echarts from './echartsCore';
 import { fetchCelestial, fetchMicrochronology, fetchDecadeOmens, fetchCelestialEvent } from '../../services/xuanshi';
 import { marked } from 'marked';
@@ -9,6 +10,7 @@ import { fixedPopupFrame } from '../../utils/zoomDomain';
 import { matchesUserQuery } from '../../utils/scriptMode';
 import { watchChartScript } from '../../utils/chartDrawGuard';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { pressable } from '../../utils/pressable';
 
 // 天象事件收藏项(kind=celestial,案头可回跳星象大典)
 function celBookmarkItem(e) {
@@ -217,7 +219,7 @@ export default class XuanShiCelestial extends React.Component {
 							<th style={{ textAlign: 'left', paddingRight: 8, color: 'var(--ink-muted)', fontWeight: 400, minWidth: 80 }}>朝代</th>
 							{omens.map((o) => (
 								<th key={o} style={{ minWidth: 48, height: 56, color: 'var(--ink-muted)', fontWeight: 400, verticalAlign: 'bottom' }}>
-									<span onClick={() => this.setFilter({ omen: o, dynasty: '' })} style={{ display: 'inline-block', transform: 'rotate(-30deg)', transformOrigin: 'bottom left', whiteSpace: 'nowrap', cursor: 'pointer' }}>{o}</span>
+									<span {...pressable(() => this.setFilter({ omen: o, dynasty: '' }))} style={{ display: 'inline-block', transform: 'rotate(-30deg)', transformOrigin: 'bottom left', whiteSpace: 'nowrap', cursor: 'pointer' }}>{o}</span>
 								</th>
 							))}
 							<th style={{ paddingRight: 8, textAlign: 'right', color: 'var(--ink-muted)', fontWeight: 400, minWidth: 48 }}>合计</th>
@@ -227,14 +229,14 @@ export default class XuanShiCelestial extends React.Component {
 						{s.matrix_rows.map((row) => (
 							<tr key={row.macro}>
 								<th style={{ textAlign: 'left', paddingRight: 8, fontFamily: 'var(--xs-serif)', color: 'var(--ink)', fontWeight: 400 }}>
-									<span onClick={() => this.setFilter({ dynasty: row.macro, omen: '' })} style={{ cursor: 'pointer' }}>{row.macro}</span>
+									<span {...pressable(() => this.setFilter({ dynasty: row.macro, omen: '' }))} style={{ cursor: 'pointer' }}>{row.macro}</span>
 								</th>
 								{row.cells.map((c) => {
 									const ratio = mx ? c.n / mx : 0;
 									const alpha = 0.06 + ratio * 0.85;
 									return (
 										<td key={c.omen}
-											onClick={() => (c.n ? this.setFilter({ dynasty: row.macro, omen: c.omen }) : null)}
+											{...pressable(() => (c.n ? this.setFilter({ dynasty: row.macro, omen: c.omen }) : null), { role: false })}
 											title={`${row.macro} · ${c.omen} · ${c.n} 条`}
 											style={{
 												textAlign: 'center', width: 48, height: 28, borderRadius: 3,
@@ -262,7 +264,7 @@ export default class XuanShiCelestial extends React.Component {
 				<div className="xuanshi-stat-label" style={{ textAlign: 'left', marginBottom: 10 }}>十年密度 · 点柱下钻逐年微年表</div>
 				<div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 70, overflowX: 'auto' }}>
 					{s.by_decade.map((d) => (
-						<div key={d[0]} title={`${d[0]}年代:${d[1]} 条(点看微年表)`} onClick={() => this.loadMicro(d[0])} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '0 0 auto', cursor: 'pointer' }}>
+						<div key={d[0]} title={`${d[0]}年代:${d[1]} 条(点看微年表)`} {...pressable(() => this.loadMicro(d[0]))} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '0 0 auto', cursor: 'pointer' }}>
 							<div style={{ width: 7, height: `${Math.max(2, 60 * d[1] / maxN)}px`, background: this.state.microDecade === d[0] ? 'var(--vermilion)' : 'var(--jade)', borderRadius: '2px 2px 0 0', transition: 'background .15s' }} />
 						</div>
 					))}
@@ -283,14 +285,14 @@ export default class XuanShiCelestial extends React.Component {
 			<div className="xuanshi-card" style={{ marginTop: 12, padding: 14 }}>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
 					<span className="xuanshi-stat-label" style={{ textAlign: 'left' }}>{decLabel} 年代 · 微年表{evs.length ? `(${evs.length} 条)` : ''}</span>
-					<span className="xuanshi-link" style={{ fontSize: 12, marginLeft: 'auto' }} onClick={() => this.setState({ microDecade: null, micro: null })}>收起</span>
+					<span className="xuanshi-link" style={{ fontSize: 12, marginLeft: 'auto' }} {...pressable(() => this.setState({ microDecade: null, micro: null }))}>收起</span>
 				</div>
-				{microLoading ? <div className="xuanshi-center" style={{ minHeight: 80 }}><Spin tip="载入微年表…" /></div>
-					: !evs.length ? <Empty description="该年代无带年天象" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+				{microLoading ? <div className="xuanshi-center" style={{ minHeight: 80 }}><XQSpin tip="载入微年表…" /></div>
+					: !evs.length ? <XQEmpty description="该年代无带年天象" image={XQEmpty.PRESENTED_IMAGE_SIMPLE} />
 						: (
 							<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 								{pageEvs.map((e) => (
-									<div key={e.event_id} className="xuanshi-card is-link" style={{ padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 10 }} onClick={() => this.setState({ selected: e })}>
+									<div key={e.event_id} className="xuanshi-card is-link" style={{ padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 10 }} {...pressable(() => this.setState({ selected: e }))}>
 										<span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--vermilion)', fontFamily: 'var(--xs-serif)', minWidth: 64, fontSize: 13 }}>{e.modern_date_disp || (e.year != null ? (e.year < 0 ? `前${-e.year}` : e.year) : '—')}</span>
 										<span className="xuanshi-chip is-vermilion">{e.omen}</span>
 										<span className={e.original ? 'horosa-script-classic' : undefined} style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.original || e.date_phrase || e.interpretation || ''}</span>
@@ -319,7 +321,7 @@ export default class XuanShiCelestial extends React.Component {
 						const n = Array.isArray(d) ? d[1] : '';
 						const active = this.state[key] === name;
 						return (
-							<div key={name} className={`xuanshi-celcol-row${active ? ' is-active' : ''}`} onClick={() => this.setFilter({ [key]: active ? '' : name })}>
+							<div key={name} className={`xuanshi-celcol-row${active ? ' is-active' : ''}`} {...pressable(() => this.setFilter({ [key]: active ? '' : name }))}>
 								<span className="xuanshi-celcol-name">{wrap ? `《${name}》` : name}</span>
 								<span className="xuanshi-celcol-n">{(n || 0).toLocaleString()}</span>
 							</div>
@@ -342,8 +344,8 @@ export default class XuanShiCelestial extends React.Component {
 		if (d && d._loading) {
 			return (
 				<div>
-					<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回列表</span>
-					<div className="xuanshi-center" style={{ minHeight: 320 }}><Spin tip="载入天象…" /></div>
+					<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回列表</span>
+					<div className="xuanshi-center" style={{ minHeight: 320 }}><XQSpin tip="载入天象…" /></div>
 				</div>
 			);
 		}
@@ -362,7 +364,7 @@ export default class XuanShiCelestial extends React.Component {
 		const hasMeta = d.citation || d.date_phrase || d.era || d.subject || d.action || d.target || d.routing_theme;
 		return (
 			<div>
-				<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回</span>
+				<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回</span>
 				<div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginTop: 12 }}>
 						<h2 className="xuanshi-display is-h2" style={{ margin: 0 }}>{d.omen || '天象'} · {d.dynasty || ''}{d.modern_date_disp ? ` · ${celestialDateWithCalendar(d)}` : ''}</h2>
 						<XuanShiStar item={celBookmarkItem(d)} />
@@ -386,9 +388,9 @@ export default class XuanShiCelestial extends React.Component {
 									{/* 近似日期(月级/年级/年段)标「约」并说明起盘取法,不再冒充精确日。 */}
 									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? chartDateExactLabel(rd) : `${rd.disp}（${rd.note || '按年份最早'}${rd.calendar === 'julian' ? '·儒略历' : ''}）`} —— 排此历史日之盘(按朝代都城近似经纬·都城地方平时)</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此日 · 占星盘</span>
-										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此日 · 七政四余</span>
-										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'planetarium')}>此时此地 · 天文馆</span>
+										<span className="xuanshi-btn is-primary" {...pressable(() => this.props.onChartLink(d, 'astrochart'))}>排此日 · 占星盘</span>
+										<span className="xuanshi-btn" {...pressable(() => this.props.onChartLink(d, 'guolao'))}>排此日 · 七政四余</span>
+										<span className="xuanshi-btn" {...pressable(() => this.props.onChartLink(d, 'planetarium'))}>此时此地 · 天文馆</span>
 									</div>
 								</div>
 							);
@@ -429,7 +431,7 @@ export default class XuanShiCelestial extends React.Component {
 			<div>
 				{/* 面包屑 + 标题 + 摘要 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>星象大典</span>
 				</div>
 				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>星象大典</h1>
@@ -459,13 +461,13 @@ export default class XuanShiCelestial extends React.Component {
 						options={histOpt} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 					<Select allowClear showSearch size="small" placeholder="原始条目:全部" style={{ flex: '1 1 150px' }} value={this.state.source || undefined}
 						options={opt(sm.by_source)} onChange={(v) => this.setFilter({ source: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
-					<InputNumber size="small" placeholder="起年" style={{ flex: '0 1 92px' }} value={this.state.yearFrom !== '' ? this.state.yearFrom : null} onChange={(v) => this.setFilter({ yearFrom: v == null ? '' : v })} />
-					<InputNumber size="small" placeholder="终年" style={{ flex: '0 1 92px' }} value={this.state.yearTo !== '' ? this.state.yearTo : null} onChange={(v) => this.setFilter({ yearTo: v == null ? '' : v })} />
+					<XQInputNumber size="small" placeholder="起年" style={{ flex: '0 1 92px' }} value={this.state.yearFrom !== '' ? this.state.yearFrom : null} onChange={(v) => this.setFilter({ yearFrom: v == null ? '' : v })} />
+					<XQInputNumber size="small" placeholder="终年" style={{ flex: '0 1 92px' }} value={this.state.yearTo !== '' ? this.state.yearTo : null} onChange={(v) => this.setFilter({ yearTo: v == null ? '' : v })} />
 					<Select size="small" placeholder="同日近日:不限" style={{ flex: '1 1 130px' }} value={this.state.crosswalk || undefined} allowClear
 						options={[{ value: '1', label: '仅 ✓ 有交叉' }, { value: '0', label: '仅 ✗ 无交叉' }]} onChange={(v) => this.setFilter({ crosswalk: v || '' })} />
 					<Select size="small" placeholder="编纂稿:不限" style={{ flex: '1 1 120px' }} value={this.state.inChapter || undefined} allowClear
 						options={[{ value: '1', label: '仅 ✓ 已收' }, { value: '0', label: '仅 ✗ 未收' }]} onChange={(v) => this.setFilter({ inChapter: v || '' })} />
-					{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12, alignSelf: 'center' }} onClick={() => this.setState({ dynasty: '', omen: '', history: '', source: '', yearFrom: '', yearTo: '', crosswalk: '', inChapter: '', q: '', page: 1 }, () => this.load())}>清空</span> : null}
+					{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12, alignSelf: 'center' }} {...pressable(() => this.setState({ dynasty: '', omen: '', history: '', source: '', yearFrom: '', yearTo: '', crosswalk: '', inChapter: '', q: '', page: 1 }, () => this.load()))}>清空</span> : null}
 				</div>
 
 				{this.renderMatrix()}
@@ -475,13 +477,13 @@ export default class XuanShiCelestial extends React.Component {
 				</div>
 
 				<div style={{ marginTop: 18 }}>
-					{loading ? <div className="xuanshi-center"><Spin tip="检索…" /></div> : err ? (
-						<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
-					) : !events.length ? <div className="xuanshi-center"><Empty description="无匹配天象" /></div> : (
+					{loading ? <div className="xuanshi-center"><XQSpin tip="检索…" /></div> : err ? (
+						<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
+					) : !events.length ? <div className="xuanshi-center"><XQEmpty description="无匹配天象" /></div> : (
 						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
 							{events.map((e) => (
 								<div className="xuanshi-card is-link" key={e.event_id} style={{ position: 'relative' }}
-									onClick={() => this.setState({ selected: e })}
+									{...pressable(() => this.setState({ selected: e }))}
 									onMouseEnter={(ev) => this.showHover(ev, e)} onMouseLeave={() => this.hideHover()}>
 									<div style={{ position: 'absolute', top: 8, right: 10, zIndex: 2 }}>
 										<XuanShiStar item={celBookmarkItem(e)} />

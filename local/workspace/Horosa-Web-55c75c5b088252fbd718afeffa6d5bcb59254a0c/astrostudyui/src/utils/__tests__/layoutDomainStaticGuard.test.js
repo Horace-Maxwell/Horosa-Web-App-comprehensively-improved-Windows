@@ -10,7 +10,7 @@
 // 严禁只为「让测试变绿」而加豁免 —— 理由必须能自证。
 const fs = require('fs');
 const path = require('path');
-const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 // 壳内三页(启动/诊断/偏好)。这次事故里它们的密度探测犯了同样的错,却因为不在任何
@@ -135,8 +135,10 @@ const RECT_WRITE_EXEMPT = [
 	// (摘除 GuoLaoChart.js:窗口底余高改走 utils/viewportCap 单源,文件已零 gBCR)
 ];
 
+// 子模块折回门面:「同一组件里既读 rect 又写 style 尺寸」按整个组件判(类方法按职责拆在子文件里时两者常分在不同文件),
+// 拆成子模块的门面按全集读,子模块本身不单列;豁免表记门面名
 function fileHasRectStyleWrite(fullPath){
-	const src = fs.readFileSync(fullPath, 'utf8');
+	const src = readSource(fullPath);
 	// 注释里的字样不算(哨兵纯文本陷阱,上面 isComment 同教训)
 	const code = src.split('\n').filter((l) => !isComment(l)).join('\n');
 	return code.indexOf('getBoundingClientRect') >= 0
@@ -172,7 +174,7 @@ describe('T4 rect→style 写回族(第三族域混)', () => {
 	it('🔴 components 全树:gBCR 与 style 尺寸写共存的文件必须在豁免表内(带依据)', () => {
 		const compDir = path.join(SRC, 'components');
 		const offenders = walkJs(compDir, [])
-			.filter((f) => fileHasRectStyleWrite(f))
+			.filter((f) => !isSourceSetPart(f) && fileHasRectStyleWrite(f))
 			.map((f) => path.relative(SRC, f).split(path.sep).join('/'))
 			.filter((rel) => !RECT_WRITE_EXEMPT.includes(rel));
 		expect(offenders.join('\n')).toBe('');
@@ -209,8 +211,8 @@ const PHYS_EXEMPT = {
 	'components/ziwei/ZWCommHouse.js': '悬浮卡翻转判定:clientHeight − event.clientY,两端同为视觉(物理)域',
 	// (摘除 SuZhanChart.js / GuoLaoChart.js:窗口底余高改走 utils/viewportCap 单源 —— 同域相减再 ÷ 实测缩放换回布局域,组件里已零物理域直读)
 	// 已是布局域优先、物理读数只作最末兜底(带 🔴 注释自证):
-	'components/dunjia/DunJiaMain.js': 'getViewportHeight():布局域 getLayoutViewportHeight 优先,clientHeight 仅无 window 时兜底',
-	'components/sanshi/SanShiUnitedMain.js': '同 DunJiaMain',
+	'components/dunjia/main/pageState.js': 'getViewportHeight():布局域 getLayoutViewportHeight 优先,clientHeight 仅无 window 时兜底',
+	'components/sanshi/main/format.js': '同 DunJiaMain(三式合一页的 getViewportHeight 拆进了子模块)',
 };
 const PHYS_PATTERN = 'document\\.documentElement\\.client(Height|Width)';
 

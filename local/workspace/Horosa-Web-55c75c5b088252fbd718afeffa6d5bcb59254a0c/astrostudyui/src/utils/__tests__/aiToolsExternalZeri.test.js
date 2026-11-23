@@ -22,7 +22,7 @@ beforeEach(()=>{
 });
 
 describe('条件目录', ()=>{
-	it('🔴 八家各有注册表;单类查询;不开放的三式说清原因', async ()=>{
+	it('🔴 九家各有注册表(含三式);单类查询', async ()=>{
 		for(let i = 0; i < ZERI_SCHOOLS.length; i++){
 			const r = await runTool('list_zeri_conditions', { school: ZERI_SCHOOLS[i] }, ctx());   // eslint-disable-line no-await-in-loop
 			expect(`${ZERI_SCHOOLS[i]}:${r.ok}`).toBe(`${ZERI_SCHOOLS[i]}:true`);
@@ -32,8 +32,12 @@ describe('条件目录', ()=>{
 		const one = await runTool('list_zeri_conditions', { school: 'huangli', type: 'jianchu' }, ctx());
 		expect(one.data.types.map((t)=>t.type)).toEqual(['jianchu']);
 		expect(one.data.types[0].fields[0].values).toContain('成');
+		// 三式:条件跨六壬 / 奇门 / 太乙三家(前缀区分),跨度上限比单家小
 		const q = await runTool('list_zeri_conditions', { school: 'sanshi' }, ctx());
-		expect(q.code).toBe('E_ARGS_INVALID'); expect(q.message).toContain('择日页');
+		expect(q.ok).toBe(true);
+		const pre = new Set(q.data.types.map((t)=>t.type.slice(0, 3)));
+		expect(['lr_', 'qm_', 'ty_'].every((x)=>pre.has(x))).toBe(true);
+		expect(ZERI_AI_MAX_SPAN_DAYS.sanshi).toBeLessThan(ZERI_AI_MAX_SPAN_DAYS.liureng);
 	});
 });
 
@@ -75,11 +79,13 @@ describe('本机引擎', ()=>{
 		const sch = await loadZeriSchool('qimen');
 		expect(sch.defaults()).toEqual(dunjiaZeriOptions());
 	});
-	// 紫微 / 六壬 / 太乙:与择日页同一引擎真扫,命中区间的 pick 经 explain_zeri 判读必成立(判读与扫描同口径)
+	// 紫微 / 六壬 / 太乙 / 三式:与择日页同一引擎真扫,命中区间的 pick 经 explain_zeri 判读必成立(判读与扫描同口径)
 	it.each([
 		['ziwei', { type: 'wuxing_ju', params: { values: ['2', '3', '4', '5', '6'] } }, '2026-03-01', '2026-03-03'],
 		['liureng', { type: 'ke_name', params: { values: ['元首课', '重审课', '知一课', '涉害课', '昴星课', '别责课', '八专课', '伏吟课', '返吟课'] } }, '2026-03-01', '2026-03-02'],
 		['taiyi', { type: 'yinyang_ju', params: { value: '阳' } }, '2026-03-01', '2026-03-01'],
+		// 三式:跨三家混排的一棵树(六壬课体 + 奇门八门 + 太乙阴阳遁)
+		['sanshi', { op: 'all', conditions: [{ type: 'lr_ke_name', params: { values: ['元首课', '重审课', '知一课', '涉害课', '昴星课', '别责课', '八专课', '伏吟课', '返吟课'] } }, { type: 'qm_door', params: { values: ['开', '休', '生', '伤', '杜', '景', '死', '惊'] } }, { type: 'ty_yinyang_ju', params: { value: '阳' } }] }, '2026-03-01', '2026-03-01'],
 	])('🔴 %s:真引擎搜索有命中,pick 判读成立', async (school, conditions, start, end)=>{
 		const r = await runTool('search_zeri', { school, start, end, place: '北京', conditions }, ctx());
 		expect(`${school}:${r.ok}:${r.message || ''}`).toBe(`${school}:true:`);
@@ -104,7 +110,7 @@ describe('本机引擎', ()=>{
 		expect((await runTool('search_zeri', { school: 'bazi', start: '2026/3', end: '2026-03-02', place: '北京', conditions: c }, ctx())).code).toBe('E_ARGS_INVALID');
 		expect((await runTool('search_zeri', { school: 'bazi', start: '2026-03-01', end: '2026-03-02', place: '北京', conditions: { type: 'nope' } }, ctx())).message).toContain('list_zeri_conditions');
 		expect((await runTool('search_zeri', { school: 'bazi', start: '2026-03-01', end: '2026-03-02', place: '北京', conditions: c, natalBirth: '一九九零年' }, ctx())).message).toContain('本命');
-		expect((await runTool('search_zeri', { school: 'sanshi', start: '2026-03-01', end: '2026-03-02', place: '北京', conditions: c }, ctx())).message).toContain('择日页');
+		expect((await runTool('search_zeri', { school: 'sanshi', start: '2026-01-01', end: '2026-08-01', place: '北京', conditions: { type: 'lr_ke_name' } }, ctx())).message).toContain('上限');
 	});
 });
 

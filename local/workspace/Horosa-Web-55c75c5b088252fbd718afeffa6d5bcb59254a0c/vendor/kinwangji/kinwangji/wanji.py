@@ -511,6 +511,12 @@ def gangzhi(
         mTG1 = find_lunar_month(yTG).get(lunar_date_d(year, month, day).get("月"))
     else:
         mTG1 = mTG
+        # 交节当日按精确交节时刻校正年 / 月柱(sxtwl 日级:交节当日整天已算新月,立春当日整天已算新年)
+        try:
+            from kin_year_domain import jie_exact_year_month as _jie_exact
+            yTG, mTG1 = _jie_exact(year, month, day, hour, minute, yTG, mTG1)
+        except ImportError:
+            pass
 
     # Minute stems-branches
     gangzhi_minute = minutes_jiazi_d().get(f"{hour}:{minute}")
@@ -623,9 +629,13 @@ def wanji_four_gua(
 
     lmonth = lunar_date_d(year, month, day).get("月")
 
-    # Adjust for lunar new-year crossover (農曆跨年)
-    if lmonth == 12 and month == 1:
-        year = year - 1
+    # Lunar new-year crossover (農曆跨年): only the cycle year (積年 / 會運世 / 甲子年表)
+    # follows the lunar year. Stems-branches, solar term and the displayed date use the
+    # civil date as given — shifting those too put every pillar on the previous year's
+    # same month and day (1990-01-01 came out with 1989-01-01's pillars).
+    # 一律取农历年(腊月落在一月、二月,十一月落在一月,都按农历年)
+    _lunar_year = lunar_date_d(year, month, day).get("年")
+    cycle_year = _lunar_year if isinstance(_lunar_year, int) else year
 
     j_q = jq(year, month, day, hour, minute)
 
@@ -634,7 +644,7 @@ def wanji_four_gua(
     ygz, _, dgz, hgz, fgz = gz
 
     # -- Cycle decomposition (積年數計算) --
-    effective_year = year
+    effective_year = cycle_year
     if effective_year == 0:
         effective_year = 1
     acum_year, hui, yun, shi = _compute_cycles(effective_year)
@@ -669,7 +679,7 @@ def wanji_four_gua(
         [-56 - 60 * i for i in range(100)] + [4 + 60 * i for i in range(100)]
     )
     close_jiazi_year = (
-        closest(jiazi_years, year) if year not in jiazi_years else year
+        closest(jiazi_years, cycle_year) if cycle_year not in jiazi_years else cycle_year
     )
     cyear = lunar_date_d(year, month, day).get("年")
     try:
@@ -770,8 +780,7 @@ def display_pan(
         an2cn(lunar_date_d(year, month, day).get("日")),
     )
     c = f"干支︰{gz[0]}年  {gz[1]}月  {gz[2]}日  {gz[3]}時\n"
-    if lmonth == 12 and month == 1:
-        year = year - 1
+    # 農曆跨年只影響會運世(在 wanji_four_gua 內處理);節氣與四柱按原公曆日期
     j_q = jq(year, month, day, hour, minute)
     c0 = "節氣︰{} | 旺︰{} | 相︰{}\n".format(
         j_q,

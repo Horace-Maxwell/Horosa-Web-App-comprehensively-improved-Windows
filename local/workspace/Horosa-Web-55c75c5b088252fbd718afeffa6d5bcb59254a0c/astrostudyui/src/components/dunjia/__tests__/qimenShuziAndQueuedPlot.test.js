@@ -6,6 +6,7 @@
 // 「传本设置」弹窗底部说明只讲改后即时重排。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SAVED_DJ = 'horosa.dunjia.settings.v1';
 const SAVED_SS = 'horosa.sanshi.settings.v1';
@@ -147,14 +148,14 @@ describe('三式紫微四化页的时间算法取本页的', ()=>{
 		expect([f.date.value, f.time.value]).toEqual(['d', 't']);
 	});
 	test('右栏四化页传的是它(源码锚)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../sanshi/SanShiUnitedMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../sanshi/SanShiUnitedMain.js'));
 		expect(src).toContain('<SanShiZiWeiSihua fields={this.getZiweiSihuaFields()}');
 	});
 });
 
 describe('奇门「传本设置」弹窗底部说明', ()=>{
 	test('只说改后即时重排,不写用户无从对照的「与以往结果相同」', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../DunJiaMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../DunJiaMain.js'));
 		expect(src).toContain("}改后中栏盘与右栏信息即时按所选重排。</div>");
 		expect(src).not.toContain('与以往结果相同');
 	});

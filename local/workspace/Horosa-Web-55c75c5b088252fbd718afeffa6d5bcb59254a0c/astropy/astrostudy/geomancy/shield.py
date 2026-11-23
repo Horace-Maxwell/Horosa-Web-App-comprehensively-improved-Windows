@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from .figures import add, points
+from ..truerandom import system_random
 
 
 @dataclass
@@ -73,7 +74,7 @@ def cast_shield_from_numbers(numbers: List[int]) -> Shield:
 
 def cast_shield(rng: Optional[random.Random] = None, fill: str = "top_down") -> Shield:
     """随机起盘:16 随机比特 → 四母 → 全盘。fill='top_down' 先火(主流);'bottom_up' 罕见变体先地。"""
-    r = rng or random
+    r = rng or system_random()
     bits = [r.randint(0, 1) for _ in range(16)]
     M = [0, 0, 0, 0]
     for i in range(4):

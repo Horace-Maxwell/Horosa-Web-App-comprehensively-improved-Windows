@@ -3,6 +3,7 @@
 // `pointOn(id) ? await decide(id, …) : null`)· 只加严类(B2)只升不降 · 客户端缓存 / 在途去重 / 永不抛。
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import * as prefs from '../systemOne/prefs';
 import { setSystemOneEnabled, setPointMode, setThresholds, pointOn, pointShadow, isSystemOneEnabled, setSystemOneProfilePresent, __resetSystemOnePrefsForTest, SYSTEMONE_ENABLED_KEY } from '../systemOne/prefs';
 import { __setCalibrationForTest, __resetCalibrationStoreForTest, noteResponseModel, readCalibration } from '../systemOne/calibrationStore';
@@ -187,7 +188,7 @@ describe('关路径零 await(源码级)', ()=>{
 		expect(offenders).toEqual([]);
 		['src/utils/aiAnalysisRag.js', 'src/utils/aiAnalysisContext.js', 'src/utils/aiChat/promptLayers.js'].forEach((rel)=>{
 			const f = path.join(UI, rel);
-			if(fs.existsSync(f)){ expect({ file: rel, importsSystemOne: /systemOne/.test(fs.readFileSync(f, 'utf8')) }).toEqual({ file: rel, importsSystemOne: false }); }
+			if(fs.existsSync(f)){ expect({ file: rel, importsSystemOne: /systemOne/.test(readSource(f)) }).toEqual({ file: rel, importsSystemOne: false }); }   // 门面按全集读
 		});
 	});
 	it('prefs 零 IO 依赖(不 import IndexedDB 层);pointOn 是同步函数', ()=>{

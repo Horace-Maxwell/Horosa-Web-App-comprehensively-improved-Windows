@@ -60,9 +60,9 @@ describe('antd 主色族别名到主题金', ()=>{
 		tail.split('\n').filter((l)=>/\.ant-btn-primary:not\(/.test(l)).forEach((l)=>{
 			expect([l.trim(), /^#mainContent \.ant-btn\.ant-btn-primary:not\(/.test(l.trim())]).toEqual([l.trim(), true]);
 		});
-		// 壳内按钮的中性底规则仍在(这条规则存在,上面的不抬特异度才是必要条件)
+		// 壳内按钮的中性实底规则仍在(这条规则存在,上面的不抬特异度才是必要条件)
 		const shell = read('src/layouts/app/02-shell.less');
-		expect(/\.horosa-workspace-shell \.ant-btn \{[^}]*background:\s*var\(--horosa-panel-soft\)[^}]*color:\s*var\(--horosa-text\)/.test(shell)).toBe(true);
+		expect(/\.horosa-workspace-shell \.ant-btn \{[^}]*background:\s*var\(--horosa-surface-solid\)[^}]*color:\s*var\(--horosa-text\)/.test(shell)).toBe(true);
 	});
 
 	test('页面内主按钮单一皮:金淡底 + 金边 + 金字,只取主题变量,且压得过各页带 !important 的共用皮', ()=>{

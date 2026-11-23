@@ -78,7 +78,8 @@ async function allResources(){
 	}catch(e){ /* noop */ }
 	try{
 		const help = await import('./helpText');
-		help.listHelpTabs().forEach((tab)=>{ out.push({ uri: resourceUri('help', tab), name: `手册·${help.helpTitleOf(tab)}`, description: `技法页「${tab}」的操作手册`, mimeType: 'text/plain' }); });
+		// 名字与其余各类同一写法「类别·名称」(此前写成「手册·西洋占星 · 操作手册」,类别说了两遍);描述带页签键,读模版时填它
+		help.listHelpTabs().forEach((tab)=>{ const title = `${help.helpTitleOf(tab) || tab}`.replace(/\s*·\s*操作手册\s*$/, '') || tab; out.push({ uri: resourceUri('help', tab), name: `手册·${title}`, description: `「${title}」页的操作手册(页签键 ${tab})`, mimeType: 'text/plain' }); });
 	}catch(e){ /* noop */ }
 	return out;
 }

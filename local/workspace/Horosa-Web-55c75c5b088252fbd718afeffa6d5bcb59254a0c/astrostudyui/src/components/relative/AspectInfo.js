@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Divider, Popover, } from 'antd';
+import { Row, Col, Divider, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';

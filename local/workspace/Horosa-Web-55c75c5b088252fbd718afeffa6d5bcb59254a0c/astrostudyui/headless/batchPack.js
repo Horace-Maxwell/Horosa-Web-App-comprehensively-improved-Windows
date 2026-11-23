@@ -16,8 +16,24 @@ const REPO = path.resolve(WEB, '..');
 const EXIT = { OK: 0, USAGE: 2, FAILED: 5 };
 
 // 包内只带这几件无头脚本(批量入口 + 运行时 + 端口单源 + 版本号读取链);其余(MCP / REST 服务、终端命令)批量用不到
-const HEADLESS_FILES = ['batch.js', 'runtime.js', 'ports.js', 'build.js', 'server.js', 'protocol.js', 'rest.js', 'exit.js'];
-const PY_EXCLUDE = /(^|\/)(__pycache__|\.pytest_cache|tests?)(\/|$)|\.py[co]$|(^|\/)\.DS_Store$/;
+const HEADLESS_FILES = ['batch.js', 'verify.js', 'verifyKernel.js', 'runtime.js', 'ports.js', 'build.js', 'server.js', 'protocol.js', 'rest.js', 'exit.js'];
+// 命题验证的示例(命题文件 + 合成的命例),随包放在 examples/verify/
+const VERIFY_EXAMPLES = ['claim-sample.json', 'cases-sample.csv'];
+// 不进包的通用项:字节码 / 测试;任何一级以「.」开头的目录与文件(本机结果缓存 .horosa-cache、测试缓存、编辑器与托管平台配置)、
+//   以「$」开头的目录(日志路径里的变量没展开时落下的目录,里面是后端请求日志)、*.egg-info、*.log —— 这些是本机运行留下的东西,
+//   有的含本机算过的命例;包是按工作树拷的,不排除就会被带上服务器、进镜像。
+const PY_EXCLUDE = /(^|\/)(__pycache__|tests?)(\/|$)|(^|\/)[.$][^/]*(\/|$)|(^|\/)[^/]+\.egg-info(\/|$)|\.py[co]$|\.log$/;
+// 批量 / 命题验证用不到的大件数据不进包(起盘不读它们;计算服务照常起):
+//   astropy:玄学史两份数据库(只有玄学史接口读,约 98 MB);vendor:内置第三方引擎自带界面程序才读的城市表(约 27 MB)
+const PACK_DATA_EXCLUDE = {
+	astropy: /(^|\/)astrostudy\/xuanshi\/data\/[^/]+\.sqlite(-shm|-wal)?$/,
+	vendor: /(^|\/)kinastro\/tools\/cities(\/|$)/,
+};
+// 一个目录的排除判据:通用的(缓存 / 测试 / 字节码)+ 这个目录自己的大件数据
+function packExclude(dir){
+	const extra = PACK_DATA_EXCLUDE[dir];
+	return extra ? { test: (rel)=>PY_EXCLUDE.test(rel) || extra.test(rel) } : PY_EXCLUDE;
+}
 
 function parsePackArgs(argv){
 	const o = { out: null, java: true, celebrities: true, help: false };
@@ -94,16 +110,19 @@ function findJar(){
 	return c.find((f)=>fs.existsSync(f)) || null;
 }
 
-const LAUNCHER = `#!/usr/bin/env bash
-# 星阙批量验证(运行包):./horosa-batch <命例文件> -t <技法,…> [选项];./horosa-batch --help 看全部
+// 运行包里的两个入口脚本:horosa-batch(批量验证)与 horosa-verify(命题验证),只差名字与要跑的脚本
+const launcher = (name, script, what)=>`#!/usr/bin/env bash
+# ${what};./${name} --help 看全部
 set -euo pipefail
 ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 NODE_BIN="\${HOROSA_NODE:-node}"
-command -v "\${NODE_BIN}" >/dev/null 2>&1 || { echo "horosa-batch: 找不到 Node.js(要 18+;装好后再跑,或设 HOROSA_NODE=/绝对路径/node)" >&2; exit 3; }
+command -v "\${NODE_BIN}" >/dev/null 2>&1 || { echo "${name}: 找不到 Node.js(要 18+;装好后再跑,或设 HOROSA_NODE=/绝对路径/node)" >&2; exit 3; }
 major="$("\${NODE_BIN}" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
-[ "\${major}" -ge 18 ] 2>/dev/null || { echo "horosa-batch: Node.js 要 18+(现在是 $("\${NODE_BIN}" -v 2>/dev/null))" >&2; exit 3; }
-exec "\${NODE_BIN}" "\${ROOT}/Horosa-Web/astrostudyui/headless/batch.js" "$@"
+[ "\${major}" -ge 18 ] 2>/dev/null || { echo "${name}: Node.js 要 18+(现在是 $("\${NODE_BIN}" -v 2>/dev/null))" >&2; exit 3; }
+exec "\${NODE_BIN}" "\${ROOT}/Horosa-Web/astrostudyui/headless/${script}" "$@"
 `;
+const LAUNCHER = launcher('horosa-batch', 'batch.js', '星阙批量验证(运行包):./horosa-batch <命例文件> -t <技法,…> [选项]');
+const VERIFY_LAUNCHER = launcher('horosa-verify', 'verify.js', '星阙命题验证(运行包):./horosa-verify <命题.json> [选项] · ./horosa-verify --check <凭据.json>');
 
 async function main(argv, ioIn){
 	const io = ioIn || { out: (s)=>process.stdout.write(s), err: (s)=>process.stderr.write(s) };
@@ -141,14 +160,16 @@ async function main(argv, ioIn){
 				copyTree(path.join(ad, 'vendor'), path.join(root, 'Horosa-Web/astrostudyui/public/astrodata/vendor'));
 			}
 			// Python 计算引擎(源码 + 星历文件)
-			['astropy', 'flatlib-ctrad2', 'vendor'].forEach((d)=>copyTree(path.join(WEB, d), path.join(root, 'Horosa-Web', d), PY_EXCLUDE));
+			['astropy', 'flatlib-ctrad2', 'vendor'].forEach((d)=>copyTree(path.join(WEB, d), path.join(root, 'Horosa-Web', d), packExclude(d)));
 			// 后端 jar(放在仓库里构建产物的同一位置,起停脚本照常找得到)
 			if(jar){ copyFile(jar, path.join(root, 'Horosa-Web/astrostudysrv/astrostudyboot/target/astrostudyboot.jar')); }
 			// 起停脚本 / Dockerfile / 依赖清单 / 说明 / 许可
-			['scripts/linux/backends.sh', 'scripts/linux/Dockerfile', 'scripts/requirements/mac-python.txt', 'scripts/requirements/linux-python.txt'].forEach((f)=>copyFile(path.join(REPO, f), path.join(root, f)));
+			['scripts/linux/backends.sh', 'scripts/linux/Dockerfile', 'scripts/requirements/linux-python.txt'].forEach((f)=>copyFile(path.join(REPO, f), path.join(root, f)));
 			['LICENSE', 'THIRD_PARTY_NOTICES.md'].forEach((f)=>{ if(fs.existsSync(path.join(REPO, f))){ copyFile(path.join(REPO, f), path.join(root, f)); } });
 			copyFile(path.join(REPO, 'docs/HEADLESS.md'), path.join(root, 'HEADLESS.md'));
 			fs.writeFileSync(path.join(root, 'horosa-batch'), LAUNCHER, { mode: 0o755 });
+			fs.writeFileSync(path.join(root, 'horosa-verify'), VERIFY_LAUNCHER, { mode: 0o755 });
+			VERIFY_EXAMPLES.forEach((f)=>copyFile(path.join(__dirname, 'examples/verify', f), path.join(root, 'examples/verify', f)));
 			fs.writeFileSync(path.join(root, 'pack-info.json'), `${JSON.stringify({ version, builtAt: new Date().toISOString(), java: !!jar, celebrities: o.celebrities, node: '>=18', python: '>=3.11', jdk: jar ? '17+' : null }, null, 1)}\n`);
 			fs.mkdirSync(path.dirname(out), { recursive: true });
 			const t = spawnSync('tar', ['-czf', out, '-C', stage, name], { stdio: ['ignore', 'inherit', 'inherit'] });
@@ -158,7 +179,7 @@ async function main(argv, ioIn){
 		}
 		const mb = (fs.statSync(out).size / 1048576).toFixed(0);
 		io.err(`[batch-pack] 已打包:${out}(${mb} MB;${jar ? '含后端 jar' : '不含后端 jar,只算不要 Java 的技法'}${o.celebrities ? ' · 含名人库' : ''})\n`
-			+ '[batch-pack] 服务器上:tar -xzf 包 && cd 目录 && pip install -r scripts/requirements/linux-python.txt && bash scripts/linux/backends.sh start && ./horosa-batch --help(详见包里 HEADLESS.md「批量验证」)\n');
+			+ '[batch-pack] 服务器上:tar -xzf 包 && cd 目录 && pip install -r scripts/requirements/linux-python.txt && bash scripts/linux/backends.sh start && ./horosa-batch --help(命题验证:./horosa-verify --help;详见包里 HEADLESS.md「批量验证」「命题验证」)\n');
 		return EXIT.OK;
 	}catch(e){
 		io.err(`horosa batch-pack: ${e && e.message ? e.message : e}\n`);
@@ -166,7 +187,7 @@ async function main(argv, ioIn){
 	}
 }
 
-module.exports = { main, dependencyClosure, parsePackArgs, HEADLESS_FILES };
+module.exports = { main, dependencyClosure, parsePackArgs, packExclude, HEADLESS_FILES, VERIFY_EXAMPLES, LAUNCHER, VERIFY_LAUNCHER };
 if(require.main === module){
 	main(process.argv.slice(2)).then((code)=>{ process.exitCode = code; });
 }

@@ -31,7 +31,7 @@ const countReads = (code)=>READ_RES.reduce((n, re)=>n + (code.match(re) || []).l
 const ALLOWED = {
 	'utils/aiExport/settingsModel.js': [2, 'textOf 经 readOriginalText 读简体原文(AI 导出按页签名认技法 / 子页)'],
 	'components/calendar/NongLi.js': [3, '只量字数挑最长的卡片定字号,简繁等长'],
-	'components/aianalysis/AIAnalysisMain.js': [1, '复制代码块:代码块(pre)不转换,读到的就是原文'],
+	'components/aianalysis/main/pageEffects.js': [1, '复制代码块(AI 分析页聊天区的事件委托):代码块(pre)不转换,读到的就是原文'],
 	'components/common/ChartCaptureMount.js': [1, '只量字数判「盘画出来没有」'],
 	'components/ziwei/ZWCenterHouse.js': [1, 'd3 sel.text() 同步段里先写后读拿到的是简体原文(观察者在微任务里才转),只量宽度'],
 	'utils/aiExport/output.js': [1, '读的是不挂进文档的临时 wrap(观察者看不到,永远是原文),写进打印 iframe'],

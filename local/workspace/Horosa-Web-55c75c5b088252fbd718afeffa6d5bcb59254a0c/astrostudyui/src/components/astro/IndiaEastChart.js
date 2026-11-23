@@ -2,7 +2,6 @@ import { Component } from 'react';
 import * as AstroText from '../../constants/AstroText';
 import {
 	SIGN_NAMES,
-	getAscSignNumber,
 	getAspectedSignNumbers,
 	getHouseCuspDegree,
 	getHouseLabel,
@@ -24,6 +23,7 @@ import {
 } from './IndiaSouthChart';
 import { indiaDiagramBoardRef } from '../../utils/boxSizeVars';
 import '../../css/styles.less';
+import { pressable } from '../../utils/pressable';
 
 // 东印(孟加拉 / 奥里萨)盘式:白羊恒居上中格,逆时针排 —— 金牛、双子在左上角,巨蟹左中,
 // 狮子、处女左下角,天秤下中,天蝎、射手右下角,摩羯右中,水瓶、双鱼右上角。
@@ -140,7 +140,7 @@ class IndiaEastChart extends Component{
 							key={`${signNumber}_${obj.id}_${idx}_${obj.lon}`}
 							title={`${AstroText.AstroMsgCN[obj.id] || obj.name || obj.id} ${degree}${clickable ? (caster ? ' · 点击高亮相映宫' : ' · 点击选中') : ''}`}
 							style={{ '--india-object-color': getObjectColor(obj) }}
-							onClick={handleClick}
+							{...pressable(handleClick)}
 						>
 							{glyph
 								? <span className="horosa-india-square-object-name horosa-india-square-object-glyph">{glyph}</span>

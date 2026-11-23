@@ -125,14 +125,19 @@ function walkStaticGraph(entry){
 
 // 从 pages/index.js 抽全部 lazy 页面目标(复用 lazyTargetsSmoke 的现成正则)
 function lazyPageTargets(){
-	const src = fs.readFileSync(path.join(SRC, 'pages', 'index.js'), 'utf8');
+	// 拆成子模块的门面:全集里每个文件各自抽、按各自所在目录解析(相对路径只在本文件里有意义)
+	const { sourceSetFiles } = require('./helpers/sourceSet');
 	const re = /lazyPreloadable\(\s*\(\)\s*=>\s*import\(\s*['"](\.\.\/[^'"]+)['"]\s*\)/g;
 	const out = [];
-	let m;
-	while((m = re.exec(src))){
-		const f = resolveModule(path.join(SRC, 'pages', 'index.js'), m[1]);
-		if(f){ out.push(f); }
-	}
+	sourceSetFiles(path.join(SRC, 'pages', 'index.js')).forEach((file)=>{
+		const src = fs.readFileSync(file, 'utf8');
+		let m;
+		re.lastIndex = 0;
+		while((m = re.exec(src))){
+			const f = resolveModule(file, m[1]);
+			if(f){ out.push(f); }
+		}
+	});
 	return out;
 }
 
@@ -158,7 +163,9 @@ describe('重引擎不得进入页面的静态 import 图', () => {
 	});
 
 	test('🔴 首屏面(pages/index.js 自身静态图)不得出现重引擎', () => {
-		const { hits } = walkStaticGraph(path.join(SRC, 'pages', 'index.js'));
+		// 从全集每个文件出发(门面本就引入各子模块,结果与只从门面走相同;这样写子模块被单独引用时也覆盖到)
+		const { sourceSetFiles } = require('./helpers/sourceSet');
+		const hits = sourceSetFiles(path.join(SRC, 'pages', 'index.js')).flatMap((file) => walkStaticGraph(file).hits);
 		expect(hits.map((h) => h.chain.slice(-2).join(' ← '))).toEqual([]);
 	});
 
@@ -185,6 +192,6 @@ describe('重引擎不得进入页面的静态 import 图', () => {
 		const { hits } = walkStaticGraph(direct);
 		expect(hits).toEqual([]);
 		// 且该文件确实存在动态 import(证明测的是「剪枝」而非「本来就没引」)
-		expect(fs.readFileSync(direct, 'utf8')).toMatch(/import\(\s*\/\*\s*webpackChunkName/);
+		expect(require('./helpers/sourceSet').readSource(direct)).toMatch(/import\(\s*\/\*\s*webpackChunkName/);   // 门面 + 子模块全集
 	});
 });

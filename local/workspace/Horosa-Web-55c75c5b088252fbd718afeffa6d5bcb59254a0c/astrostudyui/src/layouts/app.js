@@ -3,13 +3,7 @@ import { connect  } from 'dva';
 import { Layout,  BackTop, message, notification } from 'antd';
 import { reconcileShadowOnBoot } from '../utils/shadowMirror';
 import { bindAutoBackupTicks } from '../utils/autoBackup';
-import { bindMcpBridge } from '../utils/aiAgent/mcpBridge';
-import { bindTaskCenter, bindSchedulerTicks, unbindSchedulerTicks } from '../utils/aiAgent/tasks';
-import { bindAutomationEngine } from '../utils/aiAgent/automation/engine';
-import { buildDefaultAutomationDeps } from '../utils/aiAgent/automation/deps';
-import { bindCrossWindowPrefs } from '../utils/aiAgent/prefs';
-import { emitAutomationEvent } from '../utils/aiAgent/automation/events';
-import TaskCenterBell from '../components/aianalysis/TaskCenterBell';
+import { makeLazyBoundary } from '../utils/lazyBoundary';
 import { reportDesktopBridgeDiag, reportPageTelemetry } from '../utils/desktopBridgeDiag';
 import { markWebLedger } from '../utils/startupLedger';   // 前端启动账本
 import { subscribeServiceStatus } from '../utils/serviceStatus';
@@ -20,6 +14,7 @@ import * as AstroConst from '../constants/AstroConst';
 import PageHeader from '../components/homepage/PageHeader';
 import UpdateNotifier from '../components/update/UpdateNotifier';
 import ServiceStatusBanner from '../components/common/ServiceStatusBanner';
+import { SystemNoticeHost } from '../components/common/SystemNotice';
 import LocalStoreHealthBanner from '../components/common/LocalStoreHealthBanner';
 import MultiInstanceNotice from '../components/common/MultiInstanceNotice';
 import StartupGate from '../components/common/StartupGate';
@@ -38,6 +33,9 @@ import {
 import { bootScriptMode } from '../utils/scriptMode';
 import { installShellScriptSync } from '../utils/shellScriptSync';
 import styles from './app.less';
+
+// 任务中心铃铛懒加载:它连带任务抽屉 / 目标执行器 / 工具目录,首帧之后在后台拉(加载中 / 出错都不占位)
+const TaskCenterBell = makeLazyBoundary(()=>import(/* webpackChunkName: "task-center" */ '../components/aianalysis/TaskCenterBell'), { label: '任务中心', silent: true });
 
 const App = ({children, dispatch, app, user, astro, })=>{
     const { userInfo, admin, } = user;
@@ -66,18 +64,27 @@ const App = ({children, dispatch, app, user, astro, })=>{
         }).catch(()=>{});
         // 自动备份心跳接线:壳侧每 30 分钟 emit,前端组 zip 回送写盘(内容没变自动跳过)。
         bindAutoBackupTicks();
-        // AI 助手·外部智能体桥:总开关(默认关)开且在桌面壳内才挂钩;关=零挂钩零监听。
-        bindMcpBridge();
-        // 任务中心接线:启动对账(上次仍在跑的任务 → 中断);铃铛只在有任务/通知或行动能力开启时渲染=首启零变化
-        bindTaskCenter();
-        // 自动化引擎必须喂真依赖:selectSource / runBrief / archiveIdleConversations 三件动作(此前裸调=三件恒不可用)
-        const automationDeps = buildDefaultAutomationDeps();
-        bindAutomationEngine(automationDeps);
-        // 多窗口:另一窗口改了 AI 助手偏好 → 本窗口重发偏好事件(订阅方重读)
-        bindCrossWindowPrefs();
-        emitAutomationEvent('app.start', {});
-        // 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
-        bindSchedulerTicks();
+        // AI 助手子系统接线:首帧提交后才加载门面模块(它背后是工具目录 / 智能体运行时,不进首屏),
+        // 接线顺序不变。壳侧对钩子晚装有兜底(定时心跳先排队、外部桥补读在途队列),见 utils/aiAgent/boot.js 头注。
+        let agentDisposed = false;
+        let agent = null;
+        import(/* webpackChunkName: "agent-boot" */ '../utils/aiAgent/boot').then((m)=>{
+            if(agentDisposed){ return; }
+            agent = m;
+            const { bindMcpBridge, bindTaskCenter, buildDefaultAutomationDeps, bindAutomationEngine, bindCrossWindowPrefs, emitAutomationEvent, bindSchedulerTicks } = m;
+            // AI 助手·外部智能体桥:总开关(默认关)开且在桌面壳内才挂钩;关=零挂钩零监听。
+            bindMcpBridge();
+            // 任务中心接线:启动对账(上次仍在跑的任务 → 中断);铃铛只在有任务/通知或行动能力开启时渲染=首启零变化
+            bindTaskCenter();
+            // 自动化引擎必须喂真依赖:selectSource / runBrief / archiveIdleConversations 三件动作(此前裸调=三件恒不可用)
+            const automationDeps = buildDefaultAutomationDeps();
+            bindAutomationEngine(automationDeps);
+            // 多窗口:另一窗口改了 AI 助手偏好 → 本窗口重发偏好事件(订阅方重读)
+            bindCrossWindowPrefs();
+            emitAutomationEvent('app.start', {});
+            // 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
+            bindSchedulerTicks();
+        }).catch((e)=>{ try{ console.warn('[agent-boot] AI 助手子系统接线失败', e); }catch(_e){ /* noop */ } });
         // 真栈审计钩:仅 localStorage['horosa.debug.mountAudit']==='1' 时惰性装载(缺省键缺席=零路径零 chunk);
         // 壳按窗口宽度封顶缩放档:⌘+ 超限时壳 eval 本钩子说明原因(布局视口宽必须 ≥ 1000 CSS px)。
         if(typeof window !== 'undefined'){
@@ -132,7 +139,8 @@ const App = ({children, dispatch, app, user, astro, })=>{
                 window.clearInterval(telemetryTimer);
             }
             // 非桌面 60 秒兜底定时器此前没有解绑出口
-            try{ unbindSchedulerTicks(); }catch(_e){ /* noop: 卸载期拆定时器失败无害 */ }
+            agentDisposed = true;
+            try{ if(agent){ agent.unbindSchedulerTicks(); } }catch(_e){ /* noop: 卸载期拆定时器失败无害 */ }
         };
     }, []);
 
@@ -219,7 +227,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
     const astroHeaderBg = resolvedAppearance === APPEARANCE_DARK ? '#050607' : 'var(--horosa-header-bg)';
     const astroHeaderBorder = resolvedAppearance === APPEARANCE_DARK ? 'rgba(215, 173, 105, 0.18)' : 'var(--horosa-border)';
     let headerstyle = {
-        position: 'fixed', width:'100%', zIndex: 100,
+        position: 'fixed', width:'100%', zIndex: 'var(--horosa-z-header)',
         backgroundColor: astroHeaderBg,
         height:72, padding: 0,
         borderBottom: '1px solid',
@@ -274,9 +282,12 @@ const App = ({children, dispatch, app, user, astro, })=>{
 
             <div id='globalFooter' style={{height: 0, overflow: 'hidden'}} />
             <UpdateNotifier />
-            <ServiceStatusBanner />
-            <LocalStoreHealthBanner />
-            <MultiInstanceNotice />
+            {/* 系统提示条宿主:几条提示自上而下排成一列,不互叠;低于弹窗遮罩 */}
+            <SystemNoticeHost>
+                <ServiceStatusBanner />
+                <LocalStoreHealthBanner />
+                <MultiInstanceNotice />
+            </SystemNoticeHost>
             <TaskCenterBell />
             <BackendStatusDot />
             <StartupGate />

@@ -3,6 +3,7 @@
 import { GUIDE } from './_shared';
 import { isWebFetchEnabled } from '../../aiAgent/prefs';
 import { runWebFetch, WEB_FETCH_MAX_CHARS, WEB_FETCH_DEFAULT_CHARS, WEB_FETCH_URL_MAX, WEB_FETCH_UNVERIFIED } from '../../../integrations/webFetch';
+import { switchHintText } from '../switchHints';
 
 export default {
 	name: 'web_fetch',
@@ -11,6 +12,7 @@ export default {
 	undoKind: 'none',
 	cacheable: true,
 	enabled: ()=>isWebFetchEnabled(),
+	disabledHint: ()=>switchHintText('webFetch'),
 	timeoutMs: 35000,
 	description: `读取一个公开网页的正文(纯文本,已去脚本样式;默认 ${WEB_FETCH_DEFAULT_CHARS} 字、最多 ${WEB_FETCH_MAX_CHARS} 字,按段落截断)。用于把检索结果里的某条链接读全、核对外部资料;只出 http/https 公开网址,本机与内网地址会被拒绝。${GUIDE},或用户给了链接要你读;不要用它读排盘数据(排盘一律用 cast_technique)。`,
 	inputSchema: {

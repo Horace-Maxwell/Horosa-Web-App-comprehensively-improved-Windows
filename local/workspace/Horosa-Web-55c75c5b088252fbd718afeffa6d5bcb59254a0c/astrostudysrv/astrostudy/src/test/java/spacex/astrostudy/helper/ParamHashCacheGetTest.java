@@ -102,6 +102,49 @@ public class ParamHashCacheGetTest {
 	}
 
 	@Test
+	public void pinnedClientNowGoesIntoTheKeyButNotIntoTheComputeParams() throws Exception {
+		// 结果随「此刻」变的接口:请求带了钉住的时刻就落到自己的键上;没带时的键与从前相同;计算函数拿到的参数原样
+		Assume.assumeTrue("缓存总开关或本地层关闭时不适用", Boolean.TRUE.equals(staticField("EnableCache")) && Boolean.TRUE.equals(staticField("EnableLocal")));
+		Map<String, Object> params = new LinkedHashMap<String, Object>();
+		params.put("date", "1989-11-20");
+		params.put("zone", "+08:00");
+		final AtomicInteger calls = new AtomicInteger();
+		final java.util.List<Map<String, Object>> seen = new java.util.ArrayList<Map<String, Object>>();
+		java.util.function.Function<Map<String, Object>, Object> fun = (req) -> {
+			seen.add(new LinkedHashMap<String, Object>(req));
+			Map<String, Object> out = new LinkedHashMap<String, Object>();
+			out.put("n", calls.incrementAndGet());
+			return out;
+		};
+		java.util.function.UnaryOperator<Map<String, Object>> noPin = (p) -> AstroHelper.withClientNow(p, null, null);
+		java.util.function.UnaryOperator<Map<String, Object>> pinA = (p) -> AstroHelper.withClientNow(p, "1906516800000", "480");
+		java.util.function.UnaryOperator<Map<String, Object>> pinB = (p) -> AstroHelper.withClientNow(p, "1780000000000", "480");
+
+		Object plain = ParamHashCacheHelper.getKeyed(SCOPE, params, fun, 3600, noPin);
+		Object a1 = ParamHashCacheHelper.getKeyed(SCOPE, params, fun, 3600, pinA);
+		Object b1 = ParamHashCacheHelper.getKeyed(SCOPE, params, fun, 3600, pinB);
+		assertEquals("没钉 / 钉在两个不同的时刻:各算一次,谁也拿不到谁的结果", 3, calls.get());
+		assertNotEquals(plain, a1);
+		assertNotEquals(a1, b1);
+		assertEquals("同一刻再来:命中", a1, ParamHashCacheHelper.getKeyed(SCOPE, params, fun, 3600, pinA));
+		assertEquals("没钉再来:命中没钉的那份", plain, ParamHashCacheHelper.getKeyed(SCOPE, params, fun, 3600, noPin));
+		assertEquals(3, calls.get());
+		for (Map<String, Object> got : seen) {
+			assertEquals("计算函数拿到的参数原样(钉住的时刻只进键)", params, got);
+		}
+		// 没带头时的键 = 纯参数的键(桌面 App 的缓存不因此失效)
+		String plainHash = ParamHashCacheHelper.hash(params);
+		Path local = Paths.get((String) staticField("LocalDir"), CLEAN_SCOPE, plainHash.substring(0, 2), plainHash + ".json");
+		assertTrue("没钉时的缓存文件仍在纯参数哈希路径:" + local, Files.isRegularFile(local));
+		String pinnedHash = ParamHashCacheHelper.hash(AstroHelper.withClientNow(params, "1906516800000", "480"));
+		assertNotEquals(plainHash, pinnedHash);
+		assertTrue(Files.isRegularFile(Paths.get((String) staticField("LocalDir"), CLEAN_SCOPE, pinnedHash.substring(0, 2), pinnedHash + ".json")));
+		// 生产入口走的就是「读当前请求头」这一条;没有请求上下文时等于没钉
+		assertEquals(plain, ParamHashCacheHelper.get(SCOPE, params, fun, 3600));
+		assertEquals(3, calls.get());
+	}
+
+	@Test
 	public void keyCarriesRuntimeVersion() throws Exception {
 		Map<String, Object> params = new LinkedHashMap<String, Object>();
 		params.put("date", "1976-07-06");

@@ -129,7 +129,7 @@ describe('🔴 「亲手改过」的锁不跨盘', ()=>{
 		const fs = require('fs');
 		const path = require('path');
 		const SRC = path.resolve(__dirname, '../..');
-		const astro = fs.readFileSync(path.join(SRC, 'models/astro.js'), 'utf8');
+		const astro = require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, 'models/astro.js'));   // 门面 + 子模块全集
 		const effects = astro.split(/\n\t\t\*(?=[a-zA-Z]+\()/).slice(1);
 		const switching = effects.filter((e)=>/_dayBoundaryRecordPinned:/.test(e));
 		expect(switching.map((e)=>e.slice(0, e.indexOf('('))).sort()).toEqual(['fetchByChartData', 'nowChart']);
@@ -138,7 +138,8 @@ describe('🔴 「亲手改过」的锁不跨盘', ()=>{
 		});
 		const comps = ['components/ziwei/ZiWeiMain.js', 'components/dunjia/DunJiaMain.js', 'components/jinkou/JinKouMain.js', 'components/lrzhan/LiuRengMain.js', 'components/taiyi/TaiYiMain.js', 'components/guazhan/GuaZhanMain.js', 'components/sanshi/SanShiUnitedMain.js'];
 		comps.forEach((f)=>{
-			const lines = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n').map((l)=>l.replace(/\/\/.*$/, ''));
+			const lines = require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, f)).split('\n')   // 拆成子模块的页面按全集读
+				.map((l)=>l.replace(/\/\/.*$/, ''));
 			const raw = lines.filter((l)=>/this\._(?:after23BoundaryUserOverrode|lateZiHourUserOverrode)\b/.test(l) && !/=\s*false\s*;/.test(l));
 			expect([f, raw]).toEqual([f, []]);
 		});
@@ -196,10 +197,11 @@ describe('🔴 模型层日界锁 × 换事盘', ()=>{
 	test('源码合同:user 模型里写载入代次 / 载入的事盘的每个函数都同一处复位模型层两把锁(单一出处 DAY_BOUNDARY_LOCKS_RELEASED)', ()=>{
 		const fs = require('fs');
 		const path = require('path');
-		const src = fs.readFileSync(path.resolve(__dirname, '../user.js'), 'utf8');
-		const chunks = src.split(/\n(?=function\s*\*?\s*[A-Za-z]|\t\t\*[A-Za-z]+\(|export default)/).filter((c)=>!/^export default/.test(c));
+		const src = require('../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '../user.js'));   // 门面 + 子模块全集
+		// 搬进子模块的助手带 export(export function* …),同样是一个函数块
+		const chunks = src.split(/\n(?=(?:export )?function\s*\*?\s*[A-Za-z]|\t\t\*[A-Za-z]+\(|export default)/).filter((c)=>!/^export default/.test(c));
 		const writers = chunks.filter((c)=>/\b(?:caseApplySeq|appliedCaseCid)\s*(?::|=(?!=))/.test(c.replace(/\/\/.*$/gm, '')));
-		const name = (c)=>(c.match(/^(?:function\s*\*?\s*|\t\t\*)([A-Za-z]+)/) || [])[1];
+		const name = (c)=>(c.match(/^(?:(?:export )?function\s*\*?\s*|\t\t\*)([A-Za-z]+)/) || [])[1];
 		expect(writers.map(name).sort()).toEqual(['applyCase', 'clearCurrentCaseIn', 'reloadCurrentCaseFromStore']);
 		writers.forEach((c)=>{ expect([name(c), /\.\.\.DAY_BOUNDARY_LOCKS_RELEASED/.test(c)]).toEqual([name(c), true]); });
 		const { DAY_BOUNDARY_LOCKS_RELEASED } = require('../../utils/dayBoundaryLock');

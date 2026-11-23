@@ -69,7 +69,7 @@
 	--moira-tooltip-border: var(--horosa-border-strong, #333333);
 	position: fixed;
 	/* portal 挂 body 后与 setupFloatingTooltip(helper.js) 同层:2600 稳压 app chrome */
-	z-index: 2600;
+	z-index: var(--horosa-z-chart-tooltip);
 	width: max-content;
 	min-width: 220px;
 	max-width: ~"min(420px, calc(100 * var(--horosa-lvw, 1vw) - 32px))";
@@ -79,7 +79,7 @@
 	color: var(--moira-tooltip-text);
 	box-shadow: var(--horosa-small-shadow, 1px 1px 3px rgba(0, 0, 0, 0.26));
 	font-family: "Songti SC", "STSong", "SimSun", serif;
-	font-size: 18px;
+	font-size: var(--horosa-fs-title);
 	font-weight: 700;
 	line-height: 1.36;
 	letter-spacing: 0;

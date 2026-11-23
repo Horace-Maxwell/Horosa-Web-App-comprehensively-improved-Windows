@@ -128,7 +128,7 @@ class JinKouChart extends Component{
 
 		this.drawChart();
 		return (
-			<svg id={this.state.chartid} style={chartstyle}>
+			<svg id={this.state.chartid} className="horosa-plain-text-board" style={chartstyle}>
 			</svg>
 		);
 	}

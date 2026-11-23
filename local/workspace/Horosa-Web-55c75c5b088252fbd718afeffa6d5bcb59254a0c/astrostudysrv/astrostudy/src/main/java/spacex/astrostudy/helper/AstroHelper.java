@@ -112,6 +112,7 @@ public class AstroHelper {
 	public static final String PrimaryDirectionPoles = PropertyPlaceholder.getProperty("pdpoles", "/predict/pdpoles");
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
+		params = withClientNow(params);   // 客户端钉住的「此刻」进正文:既转给排盘引擎,也进下面的结果缓存键
 		if(Debug || DisableRequestCache) {
 			return requestNoCache(path, params);
 		}
@@ -145,8 +146,62 @@ public class AstroHelper {
 		return null;
 	}
 
+	// 客户端钉住的「此刻」:批量验证(./horosa batch --now)把前端的时钟钉在一个时刻,并随请求头带来
+	// (X-Horosa-Now = 自 1970-01-01 UTC 起的毫秒数;X-Horosa-Now-Offset = 客户端时区偏移分钟,东为正,可缺)。
+	// 这里把它放进发给排盘引擎的正文(clientNowMs / clientNowOffsetMin):引擎里「请求没给目标时刻就取当前时间」的地方
+	// 改用它(astropy/astrostudy/clock.py),同一批命例重跑结果才相同;放进正文也就进了结果缓存键,时刻不同不会串缓存。
+	// 没带这两个头(桌面 App、单例调用)= 原样,引擎照旧读系统时钟。不经签名(签名只覆盖三个客户端头 + 正文)。
+	static final String NOW_HEADER = "X-Horosa-Now";
+	static final String NOW_OFFSET_HEADER = "X-Horosa-Now-Offset";
+	static final String NOW_FIELD = "clientNowMs";
+	static final String NOW_OFFSET_FIELD = "clientNowOffsetMin";
+
+	/** 头里的值只认整数(毫秒:公元 1–9999 年之间;偏移:±18 小时以内),其余一律当没带。 */
+	static Long parseClientNowMs(String v){
+		if(v == null){ return null; }
+		String t = v.trim();
+		if(!t.matches("-?\\d{1,16}")){ return null; }
+		long ms = Long.parseLong(t);
+		return (ms < -62135596800000L || ms > 253402300799000L) ? null : Long.valueOf(ms);
+	}
+
+	static Integer parseClientNowOffsetMin(String v){
+		if(v == null){ return null; }
+		String t = v.trim();
+		if(!t.matches("-?\\d{1,4}")){ return null; }
+		int m = Integer.parseInt(t);
+		return (m < -1080 || m > 1080) ? null : Integer.valueOf(m);
+	}
+
+	static Map<String, Object> withClientNow(Map<String, Object> params){
+		try{
+			Object req = TransData.getRequestHeader(KeyConstants.RequestObject);
+			if(req instanceof HttpServletRequest){
+				return withClientNow(params, ((HttpServletRequest)req).getHeader(NOW_HEADER), ((HttpServletRequest)req).getHeader(NOW_OFFSET_HEADER));
+			}
+		}catch(Exception e){
+			// 无请求上下文(自热身 / 定时任务)= 没带
+		}
+		return params;
+	}
+
+	/** [测试缝] 头的原文 → 带上两个字段的新表;头不合规 / 没带 → 原表原样(同一个对象)。已带同名字段的不覆盖。 */
+	static Map<String, Object> withClientNow(Map<String, Object> params, String nowHeader, String offsetHeader){
+		Long ms = parseClientNowMs(nowHeader);
+		if(ms == null || params == null || params.containsKey(NOW_FIELD)){
+			return params;
+		}
+		Map<String, Object> out = new HashMap<String, Object>(params);
+		out.put(NOW_FIELD, ms);
+		Integer off = parseClientNowOffsetMin(offsetHeader);
+		if(off != null){
+			out.put(NOW_OFFSET_FIELD, off);
+		}
+		return out;
+	}
+
 	public static Map<String, Object> requestNoCache(String path, Map<String, Object> params){
-		return requestEngineAt(AstroSrvUrl, path, params);
+		return requestEngineAt(AstroSrvUrl, path, withClientNow(params));
 	}
 
 	/** [测试缝] 指定引擎根地址发一次不缓存的请求;生产路径只经 requestNoCache(根 = AstroSrvUrl)。 */

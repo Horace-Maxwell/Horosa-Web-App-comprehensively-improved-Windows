@@ -96,7 +96,9 @@ describe('接线', ()=>{
 		expect(t).toMatch(/return this\.uiJsonOf\(\{ \.\.\.this\.state, options: this\.effectiveScanOptions\(\) \}\);/);   // 过期指纹按扫描口径
 	});
 	test.each(['LiurengZeriWorkbench.js', 'TaiyiZeriWorkbench.js', 'SanshiZeriWorkbench.js'])('%s:存方案用宿主给的扫描口径', (f)=>{
-		expect(read(f)).toMatch(/saveScheme\(schemeName, \{ cfg, geo, options: schemeOptionsOf\(getSchemeOptions, options\)/);
+		// 时刻粒度的家都经共用壳存方案:参数取宿主给的扫描口径(getSchemeOptions),没给才用工作台现值(行为见 zeriWorkbenchShellBehaviour)
+		expect(read(f)).not.toMatch(/dayGrain: true/);
+		expect(read('ZeriWorkbenchShell.js')).toContain('conf.options = schemeOptionsOf(getSchemeOptions, opts);');
 	});
 	test('三个内嵌页:口径变了先通知宿主(componentDidUpdate 第一件事)', ()=>{
 		const calls = [];

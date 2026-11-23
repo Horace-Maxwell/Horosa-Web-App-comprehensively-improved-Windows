@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatZoneLabel } from '../../utils/zoneText';
+import { spreadAngles } from '../../utils/circleSpread';
 import './GuoLaoQizhengWheel.less';
 
 const SIZE = 960;
@@ -236,6 +237,36 @@ function groupByMansion(planets){
 	return map;
 }
 
+// 行星落位:同一宿内多星在宿宽 72% 里摊开(星点 / 相位线用这个角度,与此前相同)
+export function qizhengPlanetSlots(planetGroups){
+	const out = [];
+	Array.from(planetGroups.entries()).forEach(([mansionIndex, list])=>{
+		const width = mansionWidth(mansionIndex);
+		const base = mansionChartStart(mansionIndex) + width / 2;
+		const span = width * 0.72;
+		list.forEach((planet, idx)=>{
+			const lon = norm(planet.longitude);
+			const angle = list.length === 1 ? eclToChart(lon) : base - span / 2 + (span * idx) / Math.max(1, list.length - 1);
+			out.push({ planet, idx, angle });
+		});
+	});
+	return out;
+}
+
+// 名字 / 度数标签的角度:字沿切向排,相邻两星的标签按字宽推开(单源 utils/circleSpread);星点不动、标签与星点同色
+const NAME_FONT = 10;
+const DEGREE_CHAR_W = 4.8;
+export function qizhengLabelAngles(slots){
+	if(!slots.length){ return []; }
+	const toDeg = (px, radius)=>(px / radius) * 180 / Math.PI;
+	const nameW = Math.max(...slots.map((x)=>`${planetLabel(x.planet.name)}${x.planet.retrograde ? '℞' : ''}`.length)) * NAME_FONT;
+	const degreeW = Math.max(...slots.map((x)=>`${num(x.planet.signDegree).toFixed(1)}°`.length)) * DEGREE_CHAR_W;
+	const angles = slots.map((x)=>x.angle);
+	const names = spreadAngles(angles, toDeg(nameW, R.planet - 19) + 1.2);
+	const degrees = spreadAngles(angles, toDeg(degreeW, R.planet + 16) + 0.8);
+	return slots.map((slot, i)=>({ slot, name: norm(names[i]), degree: norm(degrees[i]) }));
+}
+
 function aspectPairs(planets){
 	const aspects = [
 		{name: '合', angle: 0, orb: 8, color: 'var(--qz-aspect-conj)'},
@@ -338,6 +369,10 @@ function GuoLaoQizhengWheel({pan}){
 	const branchToHouse = new Map(houses.map((house)=>[num(house.branch, -1), house]));
 	const planetAngles = new Map();
 	const planetGroups = groupByMansion(planets);
+	const planetSlots = qizhengPlanetSlots(planetGroups);
+	const nameAngleOf = new Map();
+	const degreeAngleOf = new Map();
+	qizhengLabelAngles(planetSlots).forEach((x)=>{ nameAngleOf.set(x.slot, x.name); degreeAngleOf.set(x.slot, x.degree); });
 	const currentPeriod = safeMap(dasha.current);
 	const pillars = [
 		bazi.year_pillar || bazi.yearPillar,
@@ -491,31 +526,28 @@ function GuoLaoQizhengWheel({pan}){
 				</g>
 
 				<g className="qz-wheel-planets">
-					{Array.from(planetGroups.entries()).map(([mansionIndex, list])=>{
-						const width = mansionWidth(mansionIndex);
-						const base = mansionChartStart(mansionIndex) + width / 2;
-						const span = width * 0.72;
-						return list.map((planet, idx)=>{
-							const lon = norm(planet.longitude);
-							const angle = list.length === 1 ? eclToChart(lon) : base - span / 2 + (span * idx) / Math.max(1, list.length - 1);
-							planetAngles.set(planet.name, angle);
-							const color = planetColor(planet.name);
-							const dot = polar(R.planet, angle);
-							const namePos = polar(R.planet - 19, angle);
-							const degreePos = polar(R.planet + 16, angle);
-							const rot = textRotation(angle);
-							return (
-								<g key={`planet-${planet.name}-${idx}`}>
-									<circle cx={dot.x} cy={dot.y} r="5.4" fill={color} stroke="var(--qz-planet-stroke)" strokeWidth="0.85" />
-									<text x={namePos.x} y={namePos.y} textAnchor="middle" dominantBaseline="central" fill={color} fontSize="10" fontWeight="800" fontFamily="serif" transform={`rotate(${rot.toFixed(1)} ${namePos.x.toFixed(1)} ${namePos.y.toFixed(1)})`}>
-										{planetLabel(planet.name)}{planet.retrograde ? '℞' : ''}
-									</text>
-									<text x={degreePos.x} y={degreePos.y} textAnchor="middle" dominantBaseline="central" fill={color} fontSize="8" fontWeight="700" fontFamily="sans-serif" opacity="0.94" transform={`rotate(${rot.toFixed(1)} ${degreePos.x.toFixed(1)} ${degreePos.y.toFixed(1)})`}>
-										{num(planet.signDegree).toFixed(1)}°
-									</text>
-								</g>
-							);
-						});
+					{planetSlots.map((slot)=>{
+						const { planet, idx, angle } = slot;
+						planetAngles.set(planet.name, angle);
+						const color = planetColor(planet.name);
+						const dot = polar(R.planet, angle);
+						const nameAngle = nameAngleOf.get(slot);
+						const degreeAngle = degreeAngleOf.get(slot);
+						const namePos = polar(R.planet - 19, nameAngle);
+						const degreePos = polar(R.planet + 16, degreeAngle);
+						const nameRot = textRotation(nameAngle);
+						const degreeRot = textRotation(degreeAngle);
+						return (
+							<g key={`planet-${planet.name}-${idx}`}>
+								<circle cx={dot.x} cy={dot.y} r="5.4" fill={color} stroke="var(--qz-planet-stroke)" strokeWidth="0.85" />
+								<text x={namePos.x} y={namePos.y} textAnchor="middle" dominantBaseline="central" fill={color} fontSize="10" fontWeight="800" fontFamily="serif" transform={`rotate(${nameRot.toFixed(1)} ${namePos.x.toFixed(1)} ${namePos.y.toFixed(1)})`}>
+									{planetLabel(planet.name)}{planet.retrograde ? '℞' : ''}
+								</text>
+								<text x={degreePos.x} y={degreePos.y} textAnchor="middle" dominantBaseline="central" fill={color} fontSize="8" fontWeight="700" fontFamily="sans-serif" opacity="0.94" transform={`rotate(${degreeRot.toFixed(1)} ${degreePos.x.toFixed(1)} ${degreePos.y.toFixed(1)})`}>
+									{num(planet.signDegree).toFixed(1)}°
+								</text>
+							</g>
+						);
 					})}
 				</g>
 

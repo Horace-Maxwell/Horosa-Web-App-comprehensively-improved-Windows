@@ -1,4 +1,4 @@
-// 七政四余页 · 盘面取数与 AI 快照:行星 / 神煞 / 宫位行、本地 Moira 格局与规则、快照各段与快照正文(含快照显示口径开关)。
+// 七政四余页 · 盘面取数与 AI 快照:行星 / 神煞 / 宫位行、本地 Moira 格局与规则、快照各段与快照正文(含快照显示口径开关)、快照槽的出生签名。
 // 只被 components/guolao/GuoLaoChartMain.js 与同目录 main/ 下的兄弟模块引用。
 import { buildTimeBasisLine, GUOLAO_TIME_BASIS_NOTE } from '../../../utils/timeBasisLine';
 import * as Constants from '../../../utils/constants';
@@ -818,10 +818,20 @@ async function buildGuolaoSnapshotAfterChart(params, result, fields, ovScope){
 	// 无头路径曾漏传第 5 参 moiraRules(恒 undefined)→ 挂载复算恒丢 [虚实]/[本命化曜]/
 	// [流年流曜] 三段、[神煞] 降级历法源——与页面快照不等长。补:远端规则同页面口径,
 	// 不完整/失败回退本地纯算(与 requestMoiraRules 同两级兜底,绝不阻断主体段)。
+	// 流年:与七政页同一构参(paramsWithMoiraTransit:挂载指定了流年时刻用它,否则此刻)并取流年盘一并交给规则层。
+	// 此前无头给的是 transitParams:null —— 规则层只好拿本命年当流年,[流年流曜] 段写的其实是出生那年的干支与化曜
+	// (同一份快照的 [限法实算] 按今年算,两段对不上)。流年盘取不到时仍把流年时刻交给规则层(年柱照样对)。
+	const transitParams = runInGuolaoStoredOverrides(ovScope, ()=>paramsWithMoiraTransit(fields, null));   // 构参按挂载覆盖(与本命构参同一作用域)
+	let transitObj = null;
+	try{
+		const tr = await request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify({ ...transitParams, cid: null }), silent: true });
+		const trResult = tr && tr[Constants.ResultKey] ? tr[Constants.ResultKey] : null;
+		transitObj = trResult ? (applyGuolaoNodeMode(trResult, fields) || trResult) : null;
+	}catch(e){ transitObj = null; }
 	let rules = null;
 	try{
 		const rsp = await fetchMoiraQizhengRules({
-			params, chartObj: display, transitParams: null, transitChartObj: null,
+			params, chartObj: display, transitParams, transitChartObj: transitObj,
 		}, { silent: true, timeoutMs: 12000 });
 		const remote = rsp && rsp[Constants.ResultKey] ? rsp[Constants.ResultKey] : null;
 		rules = isIncompleteMoiraRules(remote)
@@ -1330,4 +1340,10 @@ export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, t
 	}catch(e){
 		return '';
 	}
+}
+
+// 快照槽的出生签名(对话挂载按它认命主):惰性存与刷新应答同一份。
+export function guolaoSnapshotMeta(p){
+	const q = p || {};
+	return { date: q.date, time: q.time, zone: q.zone, lon: q.lon, lat: q.lat };
 }

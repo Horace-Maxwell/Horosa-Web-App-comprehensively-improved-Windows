@@ -98,7 +98,8 @@ jest.setTimeout(120000);
 
 // ───────── 从 index.js 现读「技法页 → 组件模块」表 ─────────
 const INDEX_PATH = path.resolve(__dirname, '..', 'index.js');
-const INDEX_SRC = fs.readFileSync(INDEX_PATH, 'utf8');
+// 门面按「子模块 + 门面」全集读(上游 v3.15.0 起 pages/index.js 登记为拆分门面)
+const INDEX_SRC = require('../../utils/__tests__/helpers/sourceSet').readSource(INDEX_PATH);
 
 function readImportMap(src){
 	const map = {};

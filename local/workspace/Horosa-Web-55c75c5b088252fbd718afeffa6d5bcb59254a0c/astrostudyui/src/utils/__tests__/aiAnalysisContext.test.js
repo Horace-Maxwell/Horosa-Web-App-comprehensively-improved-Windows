@@ -689,7 +689,8 @@ describe('aiAnalysisContext', ()=>{
 			jieqi_qiufen: '节气盘秋分快照',
 			jieqi_dongzhi: '节气盘冬至快照',
 			primarydirect: '主限法结构化快照',
-			primarydirchart: '主限法结构化快照',
+			// 主限法盘不在「必有内容」集内:它与主限法(表格)是两样东西、各有各的页面槽。此前两者登记成同一个槽的别名,
+			// 这里曾写着「挂主限法盘拿到主限法表格的快照」—— 那正是「只取自己的内容」要防的串槽,不是该锁的行为。
 			firdaria: '',
 			planetaryages: '',
 			balbillus: '',

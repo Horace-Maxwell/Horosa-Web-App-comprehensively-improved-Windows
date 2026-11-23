@@ -12,6 +12,7 @@ from flatlib import const
 from flatlib.dignities import essential, tables as dignity_tables
 
 from astrostudy.directed_figures import norm360
+from astrostudy.stable_order import tie_sorted
 
 FLAGS = swisseph.FLG_SWIEPH
 TEN = ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto')
@@ -432,7 +433,7 @@ def in_mundo(frame, view, system):
             if orb <= RADII[a] + RADII[b]:
                 pairs.append({'a': a, 'b': b, 'distance': d, 'aspect': angle, 'orb': orb})
                 break
-    pairs.sort(key=lambda row: row['orb'])
+    pairs = tie_sorted(pairs, lambda row: row['orb'])   # 容许度相等的(南北交点成对的相位)保持生成时的先后
     # 这个宫制在本纬度对某些点不成立(极区半弧无解、拱极星不出没)时,如实列出缺哪些点,页面与快照据此注明
     missing = [name for name in MUNDO_POINTS if positions[name] is None]
     return {'system': system, 'positions': rows, 'aspects': pairs, 'missing': missing}

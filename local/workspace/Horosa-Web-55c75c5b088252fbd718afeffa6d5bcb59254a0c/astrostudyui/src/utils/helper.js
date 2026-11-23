@@ -2,6 +2,7 @@
 import {GPS} from './gps';
 import {innerHandleError} from './request';
 import { clientToFixed } from './zoomDomain';
+import { randomInt } from './trueRandom';
 
 export function twoTextOneLine(ary, howmanyLines){
 	let res = [];
@@ -90,11 +91,10 @@ export function randomStr(len){
 	return res.join('');
 }
 
+// [0, 10^exp) 上等概率的整数(缺省四位)。起卦 / 掷骰用:取自系统随机源(见 trueRandom.js),不是 Math.random。
 export function randomNum(exp){
 	let expn = exp > 0 ? exp : 4;
-	let p = Math.pow(10, expn);
-	let num = Math.floor(Math.random()*p);
-	return num;
+	return randomInt(Math.pow(10, expn));
 }
 
 export function gcj02ToGps(lat, lon){ // 高德地图坐标转gps	 
@@ -468,7 +468,7 @@ export function setupFloatingTooltip(divTooltip, overrideStyles){
 		'line-height': '1.4',
 		'box-sizing': 'border-box',
 		'overscroll-behavior': 'contain',
-		'z-index': '2600',
+		'z-index': 'var(--horosa-z-chart-tooltip)',
 		'pointer-events': 'none',
 		width: '560px',
 		'max-width': 'min(560px, calc(100 * var(--horosa-lvw, 1vw) - 28px))',

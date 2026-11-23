@@ -176,7 +176,7 @@ describe('六爻翻动中不定卦的操作', () => {
 				g.release({ n: 1 }); await r1;
 				expect(order).toEqual([]);
 			}finally{ spy.mockRestore(); }
-			const src = require('fs').readFileSync(require('path').join(__dirname, '../GuaZhanMain.js'), 'utf8');
+			const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require('path').join(__dirname, '../GuaZhanMain.js'));
 			const body = (name)=>{ const i = src.indexOf(`\n\t${name}(`); return src.slice(i, src.indexOf('\n\t}\n', i)); };
 			expect(body('changeGua')).toContain('this.supersedePendingCast();');
 			expect(body('restoreFromCurrentCase')).toContain('this.supersedePendingCast({ dropNongli: true });');

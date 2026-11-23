@@ -1,0 +1,57 @@
+diff --git a/astrostudyui/src/components/guolao/main/election.js b/astrostudyui/src/components/guolao/main/election.js
+index 4d41f90d..3f8f4533 100644
+--- a/astrostudyui/src/components/guolao/main/election.js
++++ b/astrostudyui/src/components/guolao/main/election.js
+@@ -7,6 +7,7 @@ import { fetchQizhengElection } from '../../../services/qizheng';
+ import { getMagneticDeclination } from '../electionGeomag';
+ import { paramsWithMoiraTransit } from './params';
+ import { toSlashDate, parseDateParts } from '../../../utils/dateStrSafe';
++import { guolaoSunriseMode } from './params';
+ 
+ export const electionMethods = {
+ 	// ── 天星择日双轮(pick 盘式)数据链 ──
+@@ -79,8 +80,44 @@ export const electionMethods = {
+ 		});
+ 	},
+ 
++	// horosa_guolao_render_memo_v1(PERF-R9 Ship 6):render() 内每次都现造的派生值做**按输入记忆化**。
++	// 三处调用点(择日表/择日轮/左栏)每渲一帧就跑三遍 paramsWithMoiraTransit + WMM 磁偏模型;
++	// 且每次返回新对象 → 下游 memo/浅比较必然失效。键=(fields, moiraTransitTime) 引用,
++	// 与既有 componentDidUpdate 的判变口径(prevState.moiraTransitTime !== this.state.moiraTransitTime)
++	// 完全一致:任一变化即重算,不存在陈旧。
++	memoTransitParams(){
++		const fields = this.props.fields;
++		const tm = this.state.moiraTransitTime;
++		// horosa_slice_prop_cover_v1:上游 v3.13.1 起 paramsWithMoiraTransit 还读「日出口径」—— fields 里没有时回落全局设置,
++		// 全局改了而 fields 引用不变(嵌入宿主不回写)时只按 (fields, time) 记会一直给旧口径,故有效口径一并入键
++		const sm = guolaoSunriseMode(fields);
++		if(this._tpValue && this._tpFields === fields && this._tpTime === tm && this._tpSun === sm){
++			return this._tpValue;
++		}
++		this._tpFields = fields;
++		this._tpTime = tm;
++		this._tpSun = sm;
++		this._tpValue = paramsWithMoiraTransit(fields, tm);
++		return this._tpValue;
++	},
++
+ 	// 磁偏解析:自行修正=WMM(按择时年月);手动=输入值恒优先。超模型年限打标供角注警示。
++	// horosa_guolao_render_memo_v1:同帧多次调用只算一次(键=electionOptions/fields/moiraTransitTime 引用)。
+ 	resolveElectionDeclination(){
++		if(this._declValue !== undefined
++			&& this._declEle === this.state.electionOptions
++			&& this._declFields === this.props.fields
++			&& this._declTime === this.state.moiraTransitTime){
++			return this._declValue;
++		}
++		this._declEle = this.state.electionOptions;
++		this._declFields = this.props.fields;
++		this._declTime = this.state.moiraTransitTime;
++		this._declValue = this.computeElectionDeclination();
++		return this._declValue;
++	},
++
++	computeElectionDeclination(){
+ 		const ele = this.state.electionOptions || {};
+ 		if(ele.adjNorth === false){
+ 			if(this.state.electionDeclOutOfRange){

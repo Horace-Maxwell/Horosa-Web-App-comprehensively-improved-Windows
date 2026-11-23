@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.14.0
-date-released: 2026-11-09
+version: 3.15.0
+date-released: 2026-11-22
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,7 +12,19 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.14.0 beta is a local-first metaphysics workstation. This release adds a batch of
+  Horosa for Windows v3.15.0 beta is a local-first metaphysics workstation. This release completes a set of
+  Qi Men Dun Jia overlay layers (a sixth hidden-stem method, lodged stems and Tian Qin, palace-flip and
+  palace-turn derivations, the twelve day officers) and corrects two board-casting cases; switches every
+  random cast, card draw and dice roll to true randomness taken from the operating system, with the raw
+  record stored so a saved case replays exactly; makes the whole interface keyboard-reachable (Tab, Enter,
+  Space, Esc) with one unified set of buttons, basic controls, banners and dialogs; halves the script size
+  of the first screen; adds 29 tools to the external agent interface (51 to 80) and lets each tool declare
+  its own call time limit, with the ceiling raised to 30 minutes across MCP, REST and the terminal command;
+  and applies a batch of convention corrections (declination parallels grouped so that every pair in a
+  group is within one degree, planetary station moments taken at the longitude extremum, a fixed order for
+  tied rows, Huangji Jingshi cycles by lunar year, year and month pillars by clock time before a solar
+  term, charts inside the polar circles for the Seven Governors, and sub-second natal charts at high
+  latitudes). It builds on v3.14.0, which adds a batch of
   techniques: twelve time-lord rotation methods in the timing workspace, a thirty-table Details tab on the
   natal chart, transformed charts and alternative zodiac systems among the auxiliary charts, East Asian and
   world calendrical arts (Tibetan, Mongolian, Nine Star Ki, Maya, Human Design and others), mundane cycle

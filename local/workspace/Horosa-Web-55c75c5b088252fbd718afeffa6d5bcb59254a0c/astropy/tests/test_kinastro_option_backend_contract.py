@@ -30,6 +30,7 @@ from websrv import webchunzisrv as CZ  # noqa: E402
 from websrv import webnanjisrv as NJ  # noqa: E402
 from websrv import webshaozisrv as SZ  # noqa: E402
 from websrv.kentang.kinastro_common import display_text, parse_datetime  # noqa: E402
+from source_sets import read_ui_source, ui_source_files  # noqa: E402  前端拆成子模块的大文件按「门面 + 子模块」全集读
 
 UI_SRC = os.path.abspath(os.path.join(_ASTRO, '..', 'astrostudyui', 'src'))
 KIN_OPTIONS = os.path.join(UI_SRC, 'components', 'kinastro', 'kinastroOptions.js')
@@ -251,7 +252,7 @@ def test_chunzi_tables_match_backend():
 def test_mount_field_reuses_page_table(case_id):
     technique, field = CASES[case_id][0], CASES[case_id][1]
     _, table_name = _mount_field(technique, field)
-    main = _read(KIN_MAIN)
+    main = read_ui_source(KIN_MAIN)
     assert re.search(r'\b%s\.map\(' % re.escape(table_name), main), f'页面没用同一张档位表 {table_name}({case_id})'
 
 
@@ -367,9 +368,11 @@ _SCHEMA = {}
 
 def _schema():
     if not _SCHEMA:
-        out = _dump_schema(MOUNT_SETTINGS)
-        assert out['__decls'] == 1 and out['__object'], 'TECHNIQUE_SETTINGS_SCHEMA 应是唯一一处对象字面量声明'
-        _SCHEMA.update(out['techniques'])
+        # 门面 + 子模块逐个文件解析(总表声明在 techniqueMountSettings/schema.js;全集里只许有一处)
+        outs = [_dump_schema(p) for p in ui_source_files(MOUNT_SETTINGS)]
+        hits = [o for o in outs if o['__decls']]
+        assert sum(o['__decls'] for o in outs) == 1 and hits[0]['__object'], 'TECHNIQUE_SETTINGS_SCHEMA 应是唯一一处对象字面量声明'
+        _SCHEMA.update(hits[0]['techniques'])
     return _SCHEMA
 
 
@@ -417,7 +420,7 @@ def _inline_options(technique, name):
 
 def _page_default(key):
     """技法页初始状态里的缺省值(KinAstroMain 的 state 初值字面量)。"""
-    m = re.search(r"\n\t+%s:\s*'([^']*)'," % re.escape(key), _read(KIN_MAIN))
+    m = re.search(r"\n\t+%s:\s*'([^']*)'," % re.escape(key), read_ui_source(KIN_MAIN))
     assert m, f'页面初值里找不到 {key}'
     return m.group(1)
 

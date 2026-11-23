@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Slider, Table } from 'antd';
-import { XQSelect, XQDatePicker } from '../xq-ui';
+import { Table } from 'antd';
+import { XQSelect, XQDatePicker, XQSlider } from '../xq-ui';
 import { rectificationHits, SA_RATE } from '../../utils/uranianDial';
 
 // WP-10 校时工具(只读预览):事件日期→周岁→太阳弧→推进 MC/Asc→命中本命因子。
@@ -137,7 +137,7 @@ export default class UranianRectify extends Component {
 					<div style={{ marginBottom: 10 }}>
 						<div style={headStyle}>建议 Asc 微调 <b>{this.state.ascNudge > 0 ? '+' : ''}{this.state.ascNudge.toFixed(2)}°</b>
 							<span style={{ marginLeft: 6 }}>（≈ {(this.state.ascNudge * 4).toFixed(1)} 分钟 出生时间）</span></div>
-						<Slider min={-3} max={3} step={0.05} value={this.state.ascNudge}
+						<XQSlider min={-3} max={3} step={0.05} value={this.state.ascNudge}
 							onChange={(v) => this.setState({ ascNudge: Number(v) })} />
 						<div style={{ ...soft, fontSize: 11 }}>命中合计 <b style={{ color: totalHits > 0 ? 'var(--horosa-accent, #c0392b)' : 'inherit' }}>{totalHits}</b> · 只预览，松手不改盘</div>
 					</div>

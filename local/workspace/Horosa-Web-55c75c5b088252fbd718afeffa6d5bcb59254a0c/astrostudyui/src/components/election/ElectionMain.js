@@ -2,7 +2,7 @@ import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { shortOptionLabel } from '../../utils/shortOptionLabel';
 import { Modal } from 'antd';
-import { XQSelect, XQButton, XQSideSection } from '../xq-ui';
+import { XQSelect, XQButton, XQSideSection, XQCheckbox } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import ElectionJudgment from './ElectionJudgment';
 import ElectionReference from './ElectionReference';
@@ -423,11 +423,10 @@ class ElectionMain extends Component{
 								<Option key={sg} value={sg}>{SIGNS[sg].cn} · {(SIGNS[sg].body_parts || []).join('/')}</Option>
 							))}
 						</XQSelect>
-						<label className="horosa-divi-note" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer' }}>
-							<input type="checkbox" checked={!!extra.surgeryPartOpposite}
-								onChange={(e) => setExtra({ surgeryPartOpposite: e.target.checked })} />
+						<XQCheckbox className="horosa-divi-note" style={{ marginTop: 6 }} checked={!!extra.surgeryPartOpposite}
+							onChange={(e) => setExtra({ surgeryPartOpposite: e.target.checked })}>
 							部位禁忌延及对宫（诸家多延及，默认不延）
-						</label>
+						</XQCheckbox>
 						<div className="horosa-field-label" style={{ marginTop: 8 }}>病始日期（危象日参照，可选）</div>
 						<IsoDateTimeField showTime={false} placeholder="未设(可选)"
 							date={(extra.crisisBase && extra.crisisBase.date) || ''}

@@ -47,7 +47,7 @@ describe('奇门命盘结构挂载重算', ()=>{
 		expect(TMS.effectiveMountBaseline('qimen', { ...base, payload: JSON.stringify({ qimen: { options: savedOpts } }) }).chartCategory).toBe('ming');
 		const evt = await regen({ ...base, divTime: '2026-03-04 05:06:00', payload: JSON.stringify({ options: savedOpts }) });
 		expect(evt.opts[0].cat).not.toBe('ming');
-		const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/dunjia/DunJiaMain.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(require('path').join(__dirname, '../../components/dunjia/DunJiaMain.js'));
 		expect(src).toContain("options: { ...fixedOptions, chartCategory: 'ming' },");
 	});
 });

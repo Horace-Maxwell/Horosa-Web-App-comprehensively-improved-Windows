@@ -37,6 +37,14 @@ export function makeHealingFactory(factory){
 	};
 }
 
+// 静默边界:浮层小部件懒加载失败时不在版面里出错误卡(那张卡会落在布局末尾、和小部件的位置毫无关系),只记控制台。
+class SilentBoundary extends React.Component {
+	constructor(props){ super(props); this.state = { failed: false }; }
+	static getDerivedStateFromError(){ return { failed: true }; }
+	componentDidCatch(error){ try{ console.warn(`[lazy] ${this.props.label || '小部件'} 加载失败`, error); }catch(_e){ /* noop */ } }
+	render(){ return this.state.failed ? null : this.props.children; }
+}
+
 /**
  * 把一个 `() => import('...')` 包成可直接当组件用的懒边界。
  *
@@ -50,22 +58,32 @@ export function makeHealingFactory(factory){
  * @param {string}  [opts.label]     错误回退卡标题(传了更好定位是哪个面板挂了)
  * @param {string}  [opts.tip]       加载态文案，默认「加载中…」
  * @param {boolean} [opts.plainFallback] true=用轻量单行加载态(适合嵌在已有卡片里的子视图)
+ * @param {boolean} [opts.silent]    true=加载中与出错都不占位(浮在页面角落的小部件:铃铛 / 状态灯;出错只记控制台,不在版面里出错误卡)
+ * @param {React.ReactNode} [opts.fallback] 自定加载态(占住成品的最终尺寸 + 骨架,分包到达时版面不跳;给了就不用上面两种)
  * @returns {Function} 可当组件渲染的包装件，并挂 `.preload()` 供空闲预热调用
  */
 export function makeLazyBoundary(factory, opts = {}){
 	const healingFactory = makeHealingFactory(factory);
 	const C = React.lazy(healingFactory);
 	const tip = opts.tip || '加载中…';
-	const fallback = opts.plainFallback
+	const fallback = opts.fallback ? opts.fallback : opts.plainFallback
 		? (<div style={{ padding: 16, textAlign: 'center', opacity: 0.75 }}><Spin size="small" /> {tip}</div>)
 		: (<div style={{ padding: 40, textAlign: 'center' }}><Spin size="large" tip={tip} /></div>);
-	const Wrapped = (props) => (
-		<TechniqueErrorBoundary label={opts.label}>
-			<React.Suspense fallback={fallback}>
-				<C {...props} />
-			</React.Suspense>
-		</TechniqueErrorBoundary>
-	);
+	const Wrapped = opts.silent
+		? (props) => (
+			<SilentBoundary label={opts.label}>
+				<React.Suspense fallback={null}>
+					<C {...props} />
+				</React.Suspense>
+			</SilentBoundary>
+		)
+		: (props) => (
+			<TechniqueErrorBoundary label={opts.label}>
+				<React.Suspense fallback={fallback}>
+					<C {...props} />
+				</React.Suspense>
+			</TechniqueErrorBoundary>
+		);
 	Wrapped.displayName = 'LazyBoundary';
 	// 供空闲预热/悬停预取复用同一个 healingFactory —— React.lazy 幂等,重复调用共享同一 promise。
 	Wrapped.preload = healingFactory;

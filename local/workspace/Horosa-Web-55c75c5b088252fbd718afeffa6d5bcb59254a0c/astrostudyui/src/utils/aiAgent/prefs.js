@@ -17,6 +17,8 @@ export const AGENT_WEB_FETCH_KEY = 'horosa.ai.tools.webFetch.enabled';   // 网�
 export const AGENT_PRIVATE_READ_KEY = 'horosa.ai.tools.privateRead.enabled';   // 私人内容可读(对话记录 / 备注 / 断事日志,只经本机 MCP):'1' 才开;关=三件不进任何目录
 export const AGENT_HEADLESS_KEY = 'horosa.ai.tools.headless.enabled';   // 无头分析出口(run_analysis,只经本机 MCP):'1' 才开;关=不进任何目录
 export const AGENT_GOAL_PARALLEL_KEY = 'horosa.ai.tasks.goal.parallel';   // 目标任务并行上限:0=现状(不排队不限),1..3=同时最多几条,其余排队
+
+// 目标任务并行上限:0=现状(不排队不限),1..3=同时最多几条,其余排队
 export const AGENT_GOAL_PARALLEL_MAX = 3;
 export const AGENT_AUTOMATION_KEY = 'horosa.ai.automation.enabled';   // 自动化规则(P4)总开关:'1' 才开;关=事件照发但引擎零动作
 export const AGENT_SCHEDULER_ENABLED_KEY = 'horosa.ai.tasks.scheduler.enabled';   // 定时任务(P3)子开关:'1' 才开;缺省关=零定时器零执行

@@ -15,6 +15,10 @@ import { agentBatchSelectEnabled } from '../../perfFlags';
 import { INPUT_CASTABLE } from '../divinationCast';
 import { datePartOf } from '../../dateStrSafe';
 import DateTime from '../../../components/comp/DateTime';
+import { getTechniqueSettingsSchema, fieldCurrentDefault, resolveEffectiveTechniqueOptions } from '../../techniqueMountSettings';
+import { normalizeTechniqueKey } from '../../aiAnalysisContext/techniqueKey';
+import { classifyCastOptions } from './castTechnique';
+import { castInputKeysIn, castInputRejectMessage } from '../castInputKeys';
 
 const KENTANG = ['liureng', 'jinkou', 'qimen', 'taiyi', 'sanshiunited'];
 
@@ -23,6 +27,30 @@ function buildPayload(meta){
 	const base = { module: meta.module, version: 1, savedAt: new Date().toISOString(), fieldSnapshot: caseFieldSnapshot(fieldsLike), createdBy: 'ai-assistant' };
 	if(KENTANG.indexOf(meta.module) >= 0){ return base; }
 	return { ...base, settings: { zodiacal: 0, siderealAyanamsa: '', hsys: 0, tradition: 1 }, extra: {}, questionCategory: null, topicId: null };
+}
+
+// 建档即冻结口径(与页面「保存」存下当时设置同义):挂载齿轮每一项取 显式 options > 同类默认 > 本机现值,写进该技法齿轮的落点
+// (optionsPath;顶层或命名空间)。之后用户改全局设置,这条事盘挂载出来的仍是建档时的口径。只对 payload 类齿轮做。
+export function freezeCaseOptions(payload, technique, explicit){
+	const schema = getTechniqueSettingsSchema(technique);
+	if(!schema || schema.kind !== 'payload' || !Array.isArray(schema.fields) || !schema.fields.length){ return payload; }
+	const base = (resolveEffectiveTechniqueOptions([technique], { record: null }) || {})[technique] || {};
+	const own = (o, k)=>!!o && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined;
+	const frozen = {};
+	schema.fields.forEach((f)=>{
+		if(own(explicit, f.name)){ frozen[f.name] = explicit[f.name]; return; }
+		if(own(base, f.name)){ frozen[f.name] = base[f.name]; return; }
+		const d = fieldCurrentDefault(f);
+		if(d !== undefined){ frozen[f.name] = d; }
+	});
+	const next = { ...payload };
+	if(schema.optionsPath){
+		const stored = next[schema.optionsPath] && typeof next[schema.optionsPath] === 'object' ? next[schema.optionsPath] : {};
+		next[schema.optionsPath] = typeof schema.applyOverrides === 'function' ? schema.applyOverrides(stored, frozen) : { ...stored, ...frozen };
+	}else{
+		Object.assign(next, frozen);
+	}
+	return next;
 }
 
 // 去重指纹:类型 + 起卦输入(规整后,键序无关)+ 所问。同一分钟里摇两卦 / 问两件事是两条事盘,不是重复提交。
@@ -132,7 +160,7 @@ export default {
 		properties: { cid: { type: 'string' }, created: { type: 'boolean' }, duplicate: { type: 'boolean' }, persisted: { type: 'boolean' }, record: { type: 'object' }, selected: { type: 'boolean' }, loaded: { type: 'boolean' } },
 	},
 	undoKind: 'trash-record',
-	description: `新建一条事盘(占卜/择日案例)档案,起课时间缺省=现在。${GUIDE}:仅当用户明确要求起课/建事盘时调用。六壬/金口诀/奇门/太乙/三式合一/卜卦/择日七类可凭时间起盘;其余(六爻/塔罗/灵棋/报数类等)必须由用户在技法页手动起卦后保存——遇到这些类型直接告诉用户,不要硬建;用户已报出起卦结果的(六爻 / 小六壬 / 灵棋 / 统摄法 / 小成图 / 飞宫)改用 cast_divination_case。`,
+	description: `新建一条事盘(占卜/择日案例)档案,起课时间缺省=现在。${GUIDE}:仅当用户明确要求起课/建事盘时调用。六壬/金口诀/奇门/太乙/三式合一/卜卦/择日,以及皇极经世/五兆/太玄/荆诀/神易数/皇极轨策/小六壬/小成图/飞宫/世俗盘可凭时间起盘(后十类建档当场起好、结果冻结进事盘);options 给该技法起盘口径(缺的取同类默认与本机现值,一并冻结);其余(六爻时间卦/塔罗/灵棋/报数类等)必须由用户在技法页手动起卦后保存——遇到这些类型直接告诉用户,不要硬建;用户已报出起卦结果的(六爻 / 小六壬 / 灵棋 / 统摄法 / 小成图 / 飞宫)改用 cast_divination_case。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['caseType'],
 		properties: {
@@ -149,6 +177,7 @@ export default {
 			tags: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 20 } },
 			selectAsAnalysisSource: { type: 'boolean', default: true },
 			loadIntoWorkspace: { type: 'boolean', default: false },
+			options: { type: 'object', additionalProperties: true, description: '该技法的起盘口径(键 / 值域同 cast_technique 的 options,以 describe_settings(facet=mount) 为准);缺的项取同类默认与本机现值,一并冻结进事盘' },
 			allowDuplicate: { type: 'boolean', default: false, description: '同题同一分钟同类且所问相同的事盘已存在时,用户明确要求再建一条才为 true' },
 		},
 	},
@@ -162,7 +191,8 @@ export default {
 		const ct = normalizeCaseTypeStrict(args.caseType);
 		if(!ct.ok){ return { ok: false, code: 'E_CASE_TYPE_UNKNOWN', message: `未知事盘类型「${args.caseType}」` }; }
 		if(!ct.castable){
-			return { ok: false, code: 'E_NEEDS_MANUAL_CAST', message: `「${ct.meta.label}」属随机起卦法,不能凭时间起盘;请引导用户到技法页(${ct.meta.tab}${ct.meta.subTab ? '/' + ct.meta.subTab : ''})手动起卦后保存${INPUT_CASTABLE.indexOf(ct.meta.value) >= 0 ? ';用户已报出起卦结果的,改用 cast_divination_case 按结果建事盘' : ''}`, data: { caseType: ct.meta.value, label: ct.meta.label, tab: ct.meta.tab, subTab: ct.meta.subTab, ...(INPUT_CASTABLE.indexOf(ct.meta.value) >= 0 ? { castable: 'cast_divination_case' } : {}) } };
+			// 不可起的不止随机起卦类(世俗盘、各派择日等是「页面里做完才有结果」):不一律说成「随机起卦」,也不念页面内部路由键
+			return { ok: false, code: 'E_NEEDS_MANUAL_CAST', message: `「${ct.meta.label}」不能只凭一个起课时间新建事盘(它的结果要在「${ct.meta.label}」页里起好 / 做完才有);请用户到该页操作后保存${INPUT_CASTABLE.indexOf(ct.meta.value) >= 0 ? ';用户已报出起卦结果的,改用 cast_divination_case(格式见 list_divination_casts)' : ''}`, data: { caseType: ct.meta.value, label: ct.meta.label, tab: ct.meta.tab, subTab: ct.meta.subTab, ...(INPUT_CASTABLE.indexOf(ct.meta.value) >= 0 ? { castable: 'cast_divination_case' } : {}) } };
 		}
 		const tp = await resolveCaseTimePlace(args, assumptions);
 		if(!tp.ok){ return tp.error; }
@@ -174,22 +204,46 @@ export default {
 			return { ok: true, data: { cid: dup.cid, created: false, duplicate: true, persisted: recordStorePersisted('case') }, message: `已存在同题同时刻、所问相同的事盘「${dup.event}」,未重复新建(确要再建一条请带 allowDuplicate)`, summary: `已有事盘 ${dup.event}`, assumptions };
 		}
 		const gender = normalizeGender(args.gender, { forCase: true });
+		const technique = normalizeTechniqueKey(ct.meta.module);
+		// 起卦输入键(报数 / 选时 / 心易 / 种子…)只走 cast_divination_case(按用户报出的结果建事盘);这里与 cast_technique 同样拒
+		const castKeys = castInputKeysIn(technique, args.options);
+		if(castKeys.length){ return { ok: false, code: 'E_ARGS_INVALID', message: castInputRejectMessage(technique, castKeys, { label: ct.meta.label }), data: { castInputKeys: castKeys } }; }
+		const sorted = classifyCastOptions(technique, args.options, null);
+		if(sorted.ignored.length){ assumptions.push(`options 里没生效的项:${sorted.ignored.map((x)=>`${x.key}(${x.message})`).join('、')}`); }
 		const values = {
 			event, caseType: ct.meta.value, divTime, zone: z.zone,
 			lat: geo.lat, lon: geo.lon, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, pos,
 			group: Array.isArray(args.tags) && args.tags.length ? args.tags : undefined,
 			memo: args.question || undefined,
-			payload: buildPayload(ct.meta),
+			payload: freezeCaseOptions(buildPayload(ct.meta), technique, sorted.options),
 			sourceModule: ct.meta.module,
 			aiOrigin: aiOriginOf(ctx, 'create_case_record', { inputFingerprint }),
 		};
 		if(gender !== undefined){ values.gender = gender; }
+		// 后加的十类:事盘挂载读的是存下的结果(页面保存即存正文),只凭时间的档挂载时不补算 → 建档当场按起课时间起一次,正文冻结进 payload.snapshot
+		if(ct.castAtCreate){
+			let snapshot = '';
+			try{
+				// 皇极轨策:已存事盘绝不按时重起卦 → 建档时按「年月日时起例」起好卦存进 payload(与页面存档同形),之后挂载 / 改口径都读这一卦
+				if(technique === 'guice'){
+					const gm = await import('../../../components/guice/GuiceMain');
+					const { deriveLocalNongli } = await import('../../divinationTimeDraft');
+					const { buildFieldObject } = await import('../../aiAnalysisContext/recordFields');
+					const gp = gm.guiceTimeCastPayload(deriveLocalNongli(buildFieldObject(values)), values.payload);
+					if(gp){ values.payload = gp; }
+				}
+				const { regenerateCaseTechniqueSnapshot } = await import('../../aiAnalysisContext/regenCase');
+				snapshot = `${(await regenerateCaseTechniqueSnapshot(values, technique, values.payload)) || ''}`.trim();
+			}catch(e){ snapshot = ''; }
+			if(!snapshot){ return { ok: false, code: 'E_CAST_BACKEND_FAILED', message: `「${ct.meta.label}」按这个起课时间没起出来(部分技法需本机计算服务在线),事盘未建`, retryable: true }; }
+			values.payload = { ...values.payload, snapshot };
+		}
 		const p = persistCaseRecord('create_case_record', values, args, ctx, assumptions);
 		if(!p.ok){ return p.error; }
 		const { saved, persisted, selected, selectionDeferred, loaded } = p;
 		return {
 			ok: true,
-			data: { cid: saved.cid, created: true, duplicate: false, persisted, castable: true, record: { event: saved.event, caseType: saved.caseType, divTime: saved.divTime, zone: saved.zone, pos: saved.pos, module: saved.sourceModule }, selected, loaded, ...(selectionDeferred ? { selectionDeferred: true } : {}) },
+			data: { cid: saved.cid, created: true, duplicate: false, persisted, castable: true, ...(sorted.ignored.length ? { ignoredOptions: sorted.ignored } : {}), record: { event: saved.event, caseType: saved.caseType, divTime: saved.divTime, zone: saved.zone, pos: saved.pos, module: saved.sourceModule }, selected, loaded, ...(selectionDeferred ? { selectionDeferred: true } : {}) },
 			message: `已新建事盘「${saved.event}」(${ct.meta.label})`,
 			summary: `新建事盘 ${saved.event}`,
 			assumptions,

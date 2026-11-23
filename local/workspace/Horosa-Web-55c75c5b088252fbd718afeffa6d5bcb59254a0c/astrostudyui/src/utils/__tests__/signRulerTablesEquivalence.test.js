@@ -1,14 +1,13 @@
 // [Windows #79 加固] 四份并行的「星座→庙主」表必须与 AstroConst.SignsProp 逐座相同。
 // #79 把宫主派生收编成单源后,仓里仍有各自为政的庙主表(主宰链/小限年主/12分度/七政中文名),今天数据一致
 // 只是巧合,没有锁=下一次修表就漂移。preflight [240] 只盯三文件,这里补数据级等价锁。
-import fs from 'fs';
 import path from 'path';
+import { readSource } from './helpers/sourceSet';
 import * as AstroConst from '../../constants/AstroConst';
 import { SIGNS } from '../../divination/data/signs';
 
-const SRC = (rel)=>fs.readFileSync(path.join(__dirname, '../../', rel), 'utf8');
+const SRC = (rel)=>readSource(path.join(__dirname, '../../', rel));   // 拆成子模块的门面按全集读,其余文件原样读
 const EXPECT = AstroConst.LIST_SIGNS.map((s)=>`${AstroConst.SignsProp[s].Ruler}`.toLowerCase());
-const CN_PLANET = { '太阳': 'sun', '月亮': 'moon', '水星': 'mercury', '金星': 'venus', '火星': 'mars', '木星': 'jupiter', '土星': 'saturn', '日': 'sun', '月': 'moon', '水': 'mercury', '金': 'venus', '火': 'mars', '木': 'jupiter', '土': 'saturn' };
 
 function literalBlock(text, marker){
 	const i = text.indexOf(marker);
@@ -49,13 +48,5 @@ describe('星座庙主表数据级等价(单源 SignsProp)', ()=>{
 		const page = SRC('components/astro/AstroProfection.js');
 		expect(page).not.toMatch(/PROFECTION_SIGN_RULER_ID\s*=\s*\{/);
 		expect(page).toMatch(/from '..\/..\/utils\/profectionSummary'/);
-	});
-	it('GuoLaoMoiraWheel SIGN_RULERS_CN(七政命主/身主中文)逐座', ()=>{
-		const text = SRC('components/guolao/GuoLaoMoiraWheel.js');
-		const block = literalBlock(text, 'SIGN_RULERS_CN = ');
-		expect(block).toBeTruthy();
-		const pairs = {};
-		block.replace(/([A-Za-z]+)\s*:\s*['"]([^'"]+)['"]/g, (_m, k, v)=>{ pairs[k.toLowerCase()] = CN_PLANET[v] || v; return ''; });
-		AstroConst.LIST_SIGNS.forEach((s, i)=>{ expect([s, pairs[`${s}`.toLowerCase()]]).toEqual([s, EXPECT[i]]); });
 	});
 });

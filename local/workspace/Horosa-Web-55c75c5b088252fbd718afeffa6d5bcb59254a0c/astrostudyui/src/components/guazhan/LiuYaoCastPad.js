@@ -1,7 +1,7 @@
 // 起卦法尾包:手动摇钱逐掷录入(字/背,吃 coinFace 口径)+米卦+掷骰+逐爻四态+测字笔画+方位外应,
 // 统一出口 onCast({ lines:[6 个 0/1 初→上], moving:[1-6] })。另附寻物方位小盘(先天八卦双向量)。
-import { Component, Fragment } from 'react';
-import { Checkbox } from 'antd';
+import { Component } from 'react';
+
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQSideSection } from '../xq-ui';
 import { Gua8 } from '../gua/GuaConst';
 
@@ -34,7 +34,30 @@ export function numsToGua(nUp, nDown, nMove){
 	return { lines: [...down.value, ...up.value], moving: [move] };
 }
 // 先天卦数:乾1兑2离3震4巽5坎6艮7坤8(=Gua8 顺序);方位外应:后天八方→取象成卦
-const FANGWEI = [{ k: '北', g: 5 }, { k: '东北', g: 6 }, { k: '东', g: 3 }, { k: '东南', g: 4 }, { k: '南', g: 2 }, { k: '西南', g: 7 }, { k: '西', g: 1 }, { k: '西北', g: 0 }];
+export const FANGWEI = [{ k: '北', g: 5 }, { k: '东北', g: 6 }, { k: '东', g: 3 }, { k: '东南', g: 4 }, { k: '南', g: 2 }, { k: '西南', g: 7 }, { k: '西', g: 1 }, { k: '西北', g: 0 }];
+// 方位外应成卦(页面「方位」按钮与 AI 起卦同一份):方位取先天卦为上卦,上卦数 + 时辰数取下卦,(卦数 + 时辰数) 取动爻
+export function fangweiToGua(fangIdx, hourNum){
+	const g = FANGWEI[fangIdx] ? FANGWEI[fangIdx].g : 0;
+	const h = Number(hourNum) || 0;
+	const up = Gua8[g], down = Gua8[(g + h) % 8];
+	const move = ((g + 1 + h - 1) % 6) + 1;
+	return { lines: [...down.value, ...up.value], moving: [move] };
+}
+// 单数字起卦(六爻页「数字起卦」与 AI 起卦同一份):数位对半,前半数位和取上卦、后半取下卦(余 0 作坤),
+// 动爻 = (两半之和 + addend) 取 6 余(余 0 作上爻);addend:加时辰 = 时辰序数(子 1 … 亥 12),只取总和 = 0
+export function singleNumberGua(numStr, addend){
+	const nstr = `${numStr == null ? '' : numStr}`.replace(/\D/g, '');
+	if(!nstr){ return null; }
+	const pos = Math.floor(nstr.length / 2);
+	let upcnt = 0; let downcnt = 0;
+	for(let i = 0; i < pos; i++){ upcnt += Number(nstr.charAt(i)); }
+	for(let i = pos; i < nstr.length; i++){ downcnt += Number(nstr.charAt(i)); }
+	let up = upcnt % 8 - 1; up = up < 0 ? 7 : up;
+	let down = downcnt % 8 - 1; down = down < 0 ? 7 : down;
+	const dong = upcnt + downcnt;
+	let idx = (dong + (Number(addend) || 0)) % 6 - 1; idx = idx < 0 ? 5 : idx;
+	return { up, down, dongIdx: idx, lines: [...Gua8[down].value, ...Gua8[up].value], moving: [idx + 1] };
+}
 
 export default class LiuYaoCastPad extends Component{
 	constructor(props){
@@ -89,12 +112,7 @@ export default class LiuYaoCastPad extends Component{
 		const r = numsToGua(n1, n2, n1 + n2);
 		this.emit(r.lines, r.moving);
 	};
-	castFang = () => {
-		const g = FANGWEI[this.state.fangwei] ? FANGWEI[this.state.fangwei].g : 0;
-		const up = Gua8[g], down = Gua8[(g + this.state.hourNum) % 8];
-		const move = ((g + 1 + this.state.hourNum - 1) % 6) + 1;
-		this.emit([...down.value, ...up.value], [move]);
-	};
+	castFang = () => { const r = fangweiToGua(this.state.fangwei, this.state.hourNum); this.emit(r.lines, r.moving); };
 	castSound = () => {
 		const n1 = Number(this.state.sound1) || 1, n2 = Number(this.state.sound2) || 1;
 		const r = numsToGua(n1, n2, n1 + n2);

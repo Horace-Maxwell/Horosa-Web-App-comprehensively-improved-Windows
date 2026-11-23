@@ -3,7 +3,7 @@
   "sets": {
     "components/aianalysis/AIAnalysisMain.js": {
       "dir": "components/aianalysis/main",
-      "files": ["providerForm.js", "chatHelpers.js", "templates.js", "sourceContext.js", "AssistantMarkdown.js"]
+      "files": ["providerForm.js", "chatHelpers.js", "templates.js", "sourceContext.js", "AssistantMarkdown.js", "pageConst.js", "chatFlow.js", "conversationActions.js", "materialActions.js", "templateProviderActions.js", "mountViews.js", "analysisView.js", "sideViews.js", "derivedState.js", "pageEffects.js", "dialogs.js", "conversationFlow.js", "workspaceActions.js"]
     },
     "utils/aiExport.js": {
       "dir": "utils/aiExport",
@@ -11,27 +11,155 @@
     },
     "utils/aiAnalysisContext.js": {
       "dir": "utils/aiAnalysisContext",
-      "files": ["catalog.js", "recordFields.js", "regenDivination.js", "pair.js", "regenCase.js", "chartParams.js", "regenHoraryElection.js", "primaryDirection.js", "regenPredictive.js", "regenChart.js", "sourceContext.js", "techniqueKey.js", "snapshotMatch.js", "techniqueContext.js", "contextLayers.js", "derivedLabsHeadless.js"]
+      "files": ["catalog.js", "recordFields.js", "regenDivination.js", "pair.js", "regenCase.js", "regenMundane.js", "chartParams.js", "regenHoraryElection.js", "primaryDirection.js", "regenPredictive.js", "regenChart.js", "sourceContext.js", "techniqueKey.js", "snapshotMatch.js", "techniqueContext.js", "contextLayers.js", "derivedLabsHeadless.js"]
+    },
+    "utils/aiAnalysisStore.js": {
+      "dir": "utils/aiAnalysisStore",
+      "files": ["schema.js", "records.js", "migrate.js", "db.js", "crud.js", "conversation.js"]
+    },
+    "utils/astroAiSnapshot.js": {
+      "dir": "utils/astroAiSnapshot",
+      "files": ["format.js", "infoSection.js", "chartSections.js", "classical.js", "store.js", "predictive.js"]
+    },
+    "utils/techniqueMountSettings.js": {
+      "dir": "utils/techniqueMountSettings",
+      "files": ["fieldAtoms.js", "divinationFields.js", "astroFields.js", "schema.js", "baseline.js", "draft.js", "persist.js"]
+    },
+    "components/direction/AstroDirectMain.js": {
+      "dir": "components/direction/main",
+      "files": ["snapshot.js", "fetchFields.js"]
+    },
+    "components/dunjia/DunJiaCalc.js": {
+      "dir": "components/dunjia/calc",
+      "files": ["options.js", "tables.js", "basics.js", "juMeta.js", "kinqimen.js", "pan.js", "yinyangdun.js", "shensha.js", "overlay.js", "snapshot.js"]
+    },
+    "components/jinkou/JinKouCalc.js": {
+      "dir": "components/jinkou/calc",
+      "files": ["tables.js", "basics.js", "wangShuai.js", "shensha.js", "readings.js", "layers.js", "backend.js"]
+    },
+    "constants/AstroConst.js": {
+      "dir": "constants/AstroConst",
+      "files": ["bodies.js", "terms.js", "mansions.js", "chartOptions.js", "indiaOptions.js", "colors.js"]
+    },
+    "components/guolao/GuoLaoMoiraWheel.js": {
+      "dir": "components/guolao/moiraWheel",
+      "files": ["constants.js", "geometry.js", "text.js", "stellar.js", "limits.js", "gods.js"]
+    },
+    "components/jinkou/JinKouMain.js": {
+      "dir": "components/jinkou/main",
+      "files": ["runYear.js", "snapshot.js", "pageState.js", "inputs.js", "requests.js", "caseState.js", "inputPanel.js", "rightPanel.js"]
+    },
+    "components/mundane/MundaneMain.js": {
+      "dir": "components/mundane/main",
+      "files": ["tables.js", "cards.js", "compute.js", "leftPanels.js", "westernCards.js", "vedicCards.js", "cycleCards.js"]
+    },
+    "components/sanshi/SanShiUnitedMain.js": {
+      "dir": "components/sanshi/main",
+      "files": ["options.js", "format.js", "liureng.js", "outerRing.js", "snapshot.js", "meaningTips.js", "caseState.js", "inputs.js", "compute.js", "recalc.js", "board.js", "inputPanel.js", "rightPanel.js"]
+    },
+    "components/tongshefa/TongSheFaMain.js": {
+      "dir": "components/tongshefa/main",
+      "files": ["data.js", "model.js", "snapshot.js"]
+    },
+    "components/kinastro/KinAstroMain.js": {
+      "dir": "components/kinastro/main",
+      "files": ["config.js", "snapshot.js", "ziweiChart.js", "settings.js", "lazyPanels.js", "compute.js", "inputPanel.js", "schoolCenters.js", "subTechniques.js", "rightPanel.js"]
+    },
+    "components/ziwei/ZiWeiMain.js": {
+      "dir": "components/ziwei/main",
+      "files": ["snapshot.js", "headless.js"]
+    },
+    "components/jieqi/JieQiChartsMain.js": {
+      "dir": "components/jieqi/main",
+      "files": ["fields.js", "charts.js", "snapshot.js"]
     },
     "components/lrzhan/LiuRengMain.js": {
       "dir": "components/lrzhan/main",
-      "files": ["birthRunYear.js", "referenceData.js", "referenceMatch.js", "ganzhiHelpers.js", "castLayout.js", "panData.js", "snapshot.js"]
+      "files": ["birthRunYear.js", "referenceDaGe.js", "referenceXiaoJu.js", "referenceOverview.js", "referenceMatch.js", "ganzhiHelpers.js", "castLayout.js", "panData.js", "snapshot.js", "inputs.js", "requests.js", "caseState.js", "inputPanel.js", "rightTabs.js"]
     },
     "components/planetarium/PlanetariumBabylon.js": {
       "dir": "components/planetarium/babylon",
-      "files": ["PlanetariumTimeEditor.js", "constants.js", "skyMath.js", "itemText.js", "textures.js", "sceneParams.js", "labelCrop.js", "labelUploadQueue.js", "playbackClock.js", "playbackHotkey.js", "PlanetariumRenderer.js"]
+      "files": ["PlanetariumTimeEditor.js", "constants.js", "skyMath.js", "itemText.js", "textures.js", "sceneParams.js", "labelCrop.js", "labelUploadQueue.js", "playbackClock.js", "playbackHotkey.js", "rendererScene.js", "rendererView.js", "rendererProjection.js", "rendererStars.js", "rendererGrids.js", "rendererAsterisms.js", "rendererInteraction.js", "PlanetariumRenderer.js", "stateFlow.js", "observerControls.js", "playbackControl.js", "viewControls.js"]
+    },
+    "components/astro/IndiaChart.js": {
+      "dir": "components/astro/indiaChart",
+      "files": ["request.js", "dashaLines.js", "jyotishLines.js", "snapshot.js"]
     },
     "components/astro/IndiaChartMain.js": {
       "dir": "components/astro/indiaMain",
-      "files": ["dasha.js", "optionState.js", "jyotishData.js", "IndiaExtraTables.js", "IndiaTransitEvents.js", "IndiaYogaRuleTable.js"]
+      "files": ["dasha.js", "optionState.js", "jyotishData.js", "IndiaExtraTables.js", "IndiaTransitEvents.js", "IndiaYogaRuleTable.js", "optionChanges.js", "dashaPanels.js", "chartPanels.js", "tajakaPanels.js", "statePanels.js", "prashnaPanels.js"]
+    },
+    "components/dunjia/DunJiaMain.js": {
+      "dir": "components/dunjia/main",
+      "files": ["options.js", "pageState.js", "caseState.js", "compute.js", "board.js", "inputPanel.js", "rightPanel.js"]
+    },
+    "components/geomancy/GeomancyMain.js": {
+      "dir": "components/geomancy/main",
+      "files": ["tables.js", "snapshot.js", "caseState.js", "cast.js", "inputPanel.js", "shieldViews.js", "houseCharts.js", "rightPanel.js", "techniqueCard.js"]
+    },
+    "components/guazhan/GuaZhanMain.js": {
+      "dir": "components/guazhan/main",
+      "files": ["gua.js", "snapshot.js", "panels.js", "caseState.js", "cast.js"]
+    },
+    "components/fengshui/LiqiWorkspace.js": {
+      "dir": "components/fengshui/liqiWorkspace",
+      "files": ["options.js", "compute.js", "snapshot.js"]
     },
     "components/guolao/GuoLaoChartMain.js": {
       "dir": "components/guolao/main",
-      "files": ["prefs.js", "moiraConst.js", "chartCache.js", "format.js", "snapshot.js", "aspectsNodeMode.js", "fieldModes.js", "params.js"]
+      "files": ["prefs.js", "moiraConst.js", "chartCache.js", "format.js", "snapshot.js", "aspectsNodeMode.js", "fieldModes.js", "params.js", "inputs.js", "requests.js", "election.js", "quickPanels.js", "kinPanels.js"]
+    },
+    "models/astro.js": {
+      "dir": "models/astro",
+      "files": ["fields.js", "chartFlow.js"]
     },
     "layouts/app.less": {
       "dir": "layouts/app",
-      "files": ["01-base.less", "02-shell.less", "03-bazi.less", "04-calendar.less", "05-astro.less", "06-guolao-modules.less", "07-qizheng-ziwei.less", "08-india-sanshi.less", "09-jinkou-suzhan.less", "10-huangji-wuzhao.less", "11-kinastro-guazhan.less", "12-india-tarot-geomancy.less", "13-layout-module.less", "14-page-fixes.less", "15-fengshui.less", "16-zhengchuan-heluo.less", "17-divination-cards.less", "18-ziwei.less", "19-cnx-divination.less", "20-india-prashna.less", "21-lingqi.less", "22-tail-fixes.less"]
+      "files": ["01-base.less", "02-shell.less", "02b-shell-portal.less", "03-bazi.less", "03b-bazi-info.less", "03c-bazi-ancient.less", "04-calendar.less", "05-astro.less", "05b-astro-layout.less", "05c-astro-tabs.less", "06-guolao-modules.less", "06b-direction-panels.less", "07-qizheng-ziwei.less", "08-india-sanshi.less", "08b-liureng-zeri.less", "08c-dunjia-taiyi.less", "09-jinkou-suzhan.less", "10-huangji-wuzhao.less", "10b-wuzhao-board.less", "11-kinastro-guazhan.less", "11b-guazhan-cast.less", "11c-india-cards.less", "12-india-tarot-geomancy.less", "13-layout-module.less", "14-page-fixes.less", "15-fengshui.less", "16-zhengchuan-heluo.less", "17-divination-cards.less", "18-ziwei.less", "19-cnx-divination.less", "20-india-prashna.less", "21-lingqi.less", "22-tail-fixes.less"]
+    },
+    "components/xq-ui/styles.less": {
+      "dir": "components/xq-ui/styles",
+      "files": ["controls.less", "navigation.less", "settings.less"]
+    },
+    "components/aianalysis/AIAnalysisMain.less": {
+      "dir": "components/aianalysis/AIAnalysisMain",
+      "files": ["shell.less", "chat.less"]
+    },
+    "components/astro/AstroPrimaryDirection.js": {
+      "dir": "components/astro/primaryDirection",
+      "files": ["tableConfig.js", "rowLabels.js", "settingsState.js", "lens.js", "filters.js", "rowText.js"]
+    },
+    "components/tarot/TarotMain.js": {
+      "dir": "components/tarot/main",
+      "files": ["layout.js", "settings.js", "snapshot.js", "caseState.js", "spreadViews.js", "inputPanel.js", "rightPanel.js"]
+    },
+    "components/fengshui/fengshuiEngine.js": {
+      "dir": "components/fengshui/engine",
+      "files": ["constants.js", "state.js", "geometry.js", "draw.js", "exportCards.js", "tools.js", "pointer.js"]
+    },
+    "components/astro/AstroChartCircle.js": {
+      "dir": "components/astro/chartCircle",
+      "files": ["displayStyle.js", "setupLookup.js", "bands.js", "placement.js", "drawing.js", "overlays.js"]
+    },
+    "components/astro3d/PDSphereEngine.js": {
+      "dir": "components/astro3d/pdSphere",
+      "files": ["sceneConst.js", "pointNames.js", "setupView.js", "frames.js", "points.js", "selection.js", "playback.js"]
+    },
+    "components/astro3d/Astro3D.js": {
+      "dir": "components/astro3d/astro3dMain",
+      "files": ["bodyScale.js", "modelAvailability.js", "sceneConst.js", "paramsMorph.js", "interaction.js", "setupTeardown.js", "gui.js", "cameraCenter.js", "chartMeshes.js", "skyStars.js"]
+    },
+    "pages/index.js": {
+      "dir": "pages/components/astroIndex",
+      "files": ["accountDrawers.js", "recordDrawers.js"]
+    },
+    "models/user.js": {
+      "dir": "models/user",
+      "files": ["recordHelpers.js", "emptyFields.js"]
+    },
+    "utils/localRecordStore.js": {
+      "dir": "utils/localRecordStore",
+      "files": ["recordShape.js", "listSerialize.js", "trashLog.js", "backupIO.js", "trashOps.js", "recordOps.js"]
     }
   },
   "pySets": {

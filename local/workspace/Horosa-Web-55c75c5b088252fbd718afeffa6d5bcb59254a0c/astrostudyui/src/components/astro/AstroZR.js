@@ -1,7 +1,7 @@
 import { civilWallMsOfStr, civilDateStrOfMs } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
-import { Row, Col, Radio, Divider, } from 'antd';
+import { Row, Col, Divider } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
@@ -14,7 +14,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { fetchChart } from '../../services/astro';
 import styles from '../../css/styles.less';
-import { XQSelect as Select } from '../xq-ui';
+import { XQSelect as Select, XQRadio } from '../xq-ui';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams } from './AstroExtraCommon';
@@ -25,7 +25,7 @@ import { markPanelReady } from '../../utils/perfMark';
 
 const zrBaseNarrowVars = (w)=>({ attrs: { 'data-zr-narrow': w < 160 } });
 
-const RadioGroup = Radio.Group;
+const RadioGroup = XQRadio.Group;
 const Option = Select.Option;
 
 const AI_MODE_L1_ALL = 'l1_all';
@@ -796,10 +796,10 @@ class AstroZR extends Component{
 		];
 
 		const mkRadio = (item)=>(
-			<Radio style={radioStyle} className="horosa-zr-base-radio" value={item} key={`zrbp_${item}`}>
+			<XQRadio style={radioStyle} className="horosa-zr-base-radio" value={item} key={`zrbp_${item}`}>
 				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item]}&nbsp;</span>
 				<span style={{fontFamily: AstroConst.NormalFont}}>{AstroText.AstroTxtMsg[item]}</span>
-			</Radio>
+			</XQRadio>
 		);
 
 		// 第二列:十二星座基点(glyph + 两字座名,如「白羊」),用户可从任意星座释放;不占额外纵向空间。

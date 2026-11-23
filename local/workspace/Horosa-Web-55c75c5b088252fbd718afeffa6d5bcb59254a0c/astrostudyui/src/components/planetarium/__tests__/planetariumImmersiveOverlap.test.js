@@ -2,7 +2,10 @@
 import fs from 'fs';
 import path from 'path';
 
-const LESS = fs.readFileSync(path.join(__dirname, '..', 'planetarium.less'), 'utf8');
+import { resolveTokens } from '../../../utils/__tests__/helpers/cssTokens';
+
+// 尺度令牌(var(--horosa-fs-*) 等)先解析回数值再量
+const LESS = resolveTokens(fs.readFileSync(path.join(__dirname, '..', 'planetarium.less'), 'utf8'));
 const px = (block, prop) => { const m = block.match(new RegExp(`${prop}:\\s*(\\d+)px`)); return m ? Number(m[1]) : null; };
 const block = (sel) => { const at = LESS.indexOf(`${sel} {`); return at < 0 ? '' : LESS.slice(at, LESS.indexOf('}', at)); };
 

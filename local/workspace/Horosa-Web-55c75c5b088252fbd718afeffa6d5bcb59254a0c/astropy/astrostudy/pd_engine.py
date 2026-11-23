@@ -25,6 +25,16 @@ import math
 
 import swisseph
 
+from astrostudy.stable_order import tie_sorted
+
+
+def sort_pd_rows(rows):
+    """主限法行的次序(就地排):弧的绝对值 → 弧 → 迫星 → 应星。
+    弧相等按「差不到 1e-9 度」认:同一个点的两种写法(南交点本体 与 北交点的 180° 相位处)弧在数学上相等,
+    不同机器上末位各差各的 —— 直接按数值排,这两行谁先谁后由末位决定。并列的按迫星、应星的名字排。"""
+    rows[:] = tie_sorted(rows, lambda r: abs(r[0]), lambda r: r[0], lambda r: r[1], lambda r: r[2])
+    return rows
+
 DEG = math.pi / 180.0
 
 
@@ -841,7 +851,7 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
                             if (a < 0) if not converse else (a > 0):
                                 continue
                             rows.append([a, 'RP_%s_%s' % (pname, axis_name), sig_id, cat])
-    rows.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
+    sort_pd_rows(rows)
     return rows
 
 

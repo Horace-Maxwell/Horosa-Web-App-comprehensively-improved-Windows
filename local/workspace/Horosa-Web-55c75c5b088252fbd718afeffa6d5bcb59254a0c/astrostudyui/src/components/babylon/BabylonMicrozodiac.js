@@ -6,6 +6,7 @@ import { XQSelect } from '../xq-ui';
 import { BABYLON_SIGNS, MICROZODIAC_EXTRA, babylonSign } from '../../divination/data/babylonianData';
 import { dodeca12, microSegment, kalendertextD, kalendertextK, lonToSchematicDate, buildMicroGrid } from '../../divination/babylon/microzodiac';
 import { lonToSignDeg, signDegToLon, sexFormat } from '../../divination/babylon/units';
+import { pressable } from '../../utils/pressable';
 
 const GRID = buildMicroGrid();
 
@@ -88,7 +89,7 @@ class BabylonMicrozodiac extends Component{
 										<div key={`${s.n}-${k}`}
 											className={`cell${isSel ? ' hl' : ''}${is13 ? ' hl13' : ''}`}
 											title={`${s.cn}第 ${k} 段(${from}°–${from + 2.5}°)→ 微宫 ${msInfo ? msInfo.cn : ms}`}
-											onClick={() => { this._touched = true; this.setLon(from + 1.25); }}>
+											{...pressable(() => { this._touched = true; this.setLon(from + 1.25); })}>
 											{msInfo ? msInfo.cn : ms}
 										</div>
 									);

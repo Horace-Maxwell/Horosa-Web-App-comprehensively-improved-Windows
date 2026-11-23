@@ -4,6 +4,7 @@ import path from 'path';
 import { RARE_CHARS, hasRareChar, rareCharFallback, rareCharGloss, rareSafeText, rareSafeDeep,
 	canRenderRareChar, setRareGlyphProbe } from '../rareChars';
 import { pdfSafeText } from '../aiExportPdfVector';
+const { readSource } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '..', '..');
 const RARE_G = /[\u{20000}-\u{3FFFF}]/gu;
@@ -114,6 +115,7 @@ describe('落点接线', ()=>{
 		const renderPart = tx.slice(tx.indexOf('	renderLineDiagram(){'), tx.indexOf('	renderBottomQuickDock(){'));
 		expect(renderPart.replace(/hasResult: !!this\.state\.pan/, '')).not.toMatch(/this\.state\.pan/);
 		expect(read('components/guazhan/LiuYaoZhanLeiView.js').match(/rareSafeText\(r\.text\)/g).length).toBe(2);
-		expect(read('components/planetarium/babylon/PlanetariumRenderer.js')).toMatch(/const name = rareSafeText\(item\.name \|\| item\.pinyin \|\| ''\)/);
+		// 天文馆渲染器的方法按职责拆在同目录各文件里:按天文馆页全集读(登记表 scripts/source-sets.json)
+		expect(readSource(path.join(SRC, 'components/planetarium/PlanetariumBabylon.js'))).toMatch(/const name = rareSafeText\(item\.name \|\| item\.pinyin \|\| ''\)/);
 	});
 });

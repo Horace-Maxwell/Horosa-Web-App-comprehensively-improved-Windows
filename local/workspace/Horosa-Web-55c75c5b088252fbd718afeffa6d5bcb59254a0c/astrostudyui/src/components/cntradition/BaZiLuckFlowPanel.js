@@ -3,8 +3,8 @@ import { markInteractionStart } from '../../utils/perfMark';
 import { parseYearFromDateStr, addDisplayYears, displayYearDiff, parseDateParts } from '../../utils/dateStrSafe';
 import { civilLocalDate, civilYmdOfLocalDate } from '../../utils/civilCalendar';
 import { julianDayIndex } from '../../utils/julianDayIndex';
-import { Spin } from 'antd';
-import { Solar, SolarMonth } from 'lunar-javascript';
+import { XQSpin } from '../xq-ui';
+import { Solar } from 'lunar-javascript';
 import { BaziMonthTime, NaYin, SixtyJiaZi } from '../../constants/ZWConst';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
 import { buildFlowMonthsByYear } from '../../utils/baziLunarLocal';
@@ -745,7 +745,7 @@ class BaZiLuckFlowPanel extends Component{
 		if(this.props.loading && !this.props.fullValue){
 			return (
 				<div className="horosa-bazi-flow-loading" style={{ minHeight: typeof height === 'number' ? height - 80 : 320 }}>
-					<Spin />
+					<XQSpin />
 					<span>正在生成行运系统</span>
 				</div>
 			);

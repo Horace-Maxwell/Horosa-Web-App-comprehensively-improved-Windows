@@ -2,7 +2,7 @@
 // 登记不闭合 = 新子模块里的代码逃出全部「读源码」的检查(读不到 → 判缺席 → 假绿)。
 const fs = require('fs');
 const path = require('path');
-const { readSource, sourceSetFiles, SOURCE_SETS, PY_SOURCE_SETS, SOURCE_SETS_MANIFEST } = require('./helpers/sourceSet');
+const { readSource, sourceSetFiles, SOURCE_SETS, MANIFEST_SOURCE_SETS, PY_SOURCE_SETS, SOURCE_SETS_MANIFEST } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '..', '..');
 const UI = path.resolve(SRC, '..');
@@ -15,12 +15,18 @@ const PY_FACADES = Object.keys(PY_SOURCE_SETS);
 const pyModule = (rel)=>rel.replace(/\.py$/, '').split('/').join('.');
 
 describe('拆成子模块的大文件 · 登记表合同', ()=>{
-	it('登记表读得出,且就是这八个门面', ()=>{
+	it('登记表读得出,且就是下面列的这些门面(新拆一个就在这里加一行)', ()=>{
 		expect(SOURCE_SETS_MANIFEST).toBe(path.join(UI, 'scripts', 'source-sets.json'));
-		expect(FACADES.slice().sort()).toEqual([
-			'components/aianalysis/AIAnalysisMain.js', 'components/astro/IndiaChartMain.js', 'components/guolao/GuoLaoChartMain.js',
-			'components/lrzhan/LiuRengMain.js', 'components/planetarium/PlanetariumBabylon.js',
-			'layouts/app.less', 'utils/aiAnalysisContext.js', 'utils/aiExport.js',
+		// 登记表里的门面
+		expect(Object.keys(MANIFEST_SOURCE_SETS).sort()).toEqual([
+			'components/aianalysis/AIAnalysisMain.js', 'components/aianalysis/AIAnalysisMain.less', 'components/astro/AstroChartCircle.js', 'components/astro/AstroPrimaryDirection.js',
+			'components/astro/IndiaChart.js', 'components/astro/IndiaChartMain.js', 'components/astro3d/Astro3D.js', 'components/astro3d/PDSphereEngine.js', 'components/direction/AstroDirectMain.js',
+			'components/dunjia/DunJiaCalc.js', 'components/dunjia/DunJiaMain.js', 'components/fengshui/LiqiWorkspace.js', 'components/fengshui/fengshuiEngine.js', 'components/geomancy/GeomancyMain.js',
+			'components/guazhan/GuaZhanMain.js', 'components/guolao/GuoLaoChartMain.js', 'components/guolao/GuoLaoMoiraWheel.js', 'components/jieqi/JieQiChartsMain.js', 'components/jinkou/JinKouCalc.js',
+			'components/jinkou/JinKouMain.js', 'components/kinastro/KinAstroMain.js', 'components/lrzhan/LiuRengMain.js', 'components/mundane/MundaneMain.js', 'components/planetarium/PlanetariumBabylon.js',
+			'components/sanshi/SanShiUnitedMain.js', 'components/tarot/TarotMain.js', 'components/tongshefa/TongSheFaMain.js', 'components/xq-ui/styles.less', 'components/ziwei/ZiWeiMain.js',
+			'constants/AstroConst.js', 'layouts/app.less', 'models/astro.js', 'models/user.js', 'pages/index.js', 'utils/aiAnalysisContext.js', 'utils/aiAnalysisStore.js', 'utils/aiExport.js', 'utils/astroAiSnapshot.js', 'utils/localRecordStore.js',
+			'utils/techniqueMountSettings.js',
 		]);
 	});
 
@@ -40,6 +46,14 @@ describe('拆成子模块的大文件 · 登记表合同', ()=>{
 		expect(files).toEqual([...set.files.map((f)=>path.join(SRC, set.dir, f)), path.join(SRC, rel)]);
 		expect(readSource(path.join(SRC, rel))).toBe(files.map((f)=>fs.readFileSync(f, 'utf8')).join(''));
 		files.forEach((f)=>{ expect(fs.readFileSync(f, 'utf8').endsWith('\n')).toBe(true); });   // 首尾相接不粘行
+	});
+
+	it('🔴 登记表不嵌套:没有一个门面又是别的门面的子模块(各读法都只认「一个门面 + 一层子模块」,嵌套会让上级全集漏读)', ()=>{
+		const members = new Set(Object.values(SOURCE_SETS).flatMap((set)=>set.files.map((f)=>`${set.dir}/${f}`)));
+		expect(Object.keys(SOURCE_SETS).filter((rel)=>members.has(rel))).toEqual([]);
+		// 门面本身已是别的门面子模块时,拆出来的类方法子文件登记进上级集合(例:天文馆渲染器)
+		const planet = SOURCE_SETS['components/planetarium/PlanetariumBabylon.js'];
+		expect(planet.files.indexOf('rendererScene.js')).toBeLessThan(planet.files.indexOf('PlanetariumRenderer.js'));
 	});
 
 	it('未登记的文件:sourceSetFiles 只含它自己,readSource 与 fs 原样读一致', ()=>{
@@ -63,7 +77,71 @@ describe('拆成子模块的大文件 · 登记表合同', ()=>{
 		expect(seen).toBeGreaterThan(set.files.length);   // 判据自证:确实抽到了导入
 	});
 
-	it.each(['utils/aiExport.js', 'utils/aiAnalysisContext.js'])('%s:门面只有导入与重导出(实现全在子模块)', (rel)=>{
+	// 惰性加载 require('<相对>') / import('<相对>') / require.resolve('<相对>') 不走 import 语句:代码搬进子目录而路径没跟着改,
+	// `try { return require(…) } catch(e){ return 兜底 }` 会静默落到兜底值(一个下拉的显示判据恒为真、几个字段的现状默认读不到页面保存值)。
+	const LAZY_EXTS = ['', '.js', '.jsx', '.json', '/index.js'];
+	const lazySpecs = (node, out)=>{
+		if(!node || typeof node.type !== 'string'){ return out; }
+		if(node.type === 'CallExpression'){
+			const c = node.callee;
+			const lazy = (c.type === 'Identifier' && c.name === 'require') || c.type === 'Import'
+				|| (c.type === 'MemberExpression' && c.object.type === 'Identifier' && c.object.name === 'require' && c.property.name === 'resolve');
+			const a = node.arguments[0];
+			if(lazy && a && a.type === 'StringLiteral' && a.value.startsWith('.')){ out.push(a); }
+		}
+		Object.keys(node).forEach((k)=>{
+			if(k === 'loc' || k === 'leadingComments' || k === 'trailingComments'){ return; }
+			const v = node[k];
+			if(Array.isArray(v)){ v.forEach((x)=>lazySpecs(x, out)); } else if(v && typeof v === 'object'){ lazySpecs(v, out); }
+		});
+		return out;
+	};
+	it.each(FACADES.filter((rel)=>rel.endsWith('.js')))('🔴 %s:全集里每处惰性加载的相对路径都解析得到文件(搬家后路径跟着改了)', (rel)=>{
+		const parser = require('@babel/parser');
+		const bad = [];
+		sourceSetFiles(path.join(SRC, rel)).forEach((fp)=>{
+			const ast = parser.parse(fs.readFileSync(fp, 'utf8'), { sourceType: 'module', plugins: ['jsx', 'classProperties', 'dynamicImport', 'optionalChaining', 'nullishCoalescingOperator', 'objectRestSpread'] });
+			lazySpecs(ast.program, []).forEach((a)=>{
+				const base = path.resolve(path.dirname(fp), a.value);
+				if(!LAZY_EXTS.some((e)=>fs.existsSync(base + e) && fs.statSync(base + e).isFile())){ bad.push(`${path.relative(SRC, fp)}:${a.loc.start.line} '${a.value}'`); }
+			});
+		});
+		expect(bad).toEqual([]);
+	});
+	it('判别力自证:惰性加载路径判据认得出 require / import() / require.resolve 三种写法,解析不到的会报', ()=>{
+		const parser = require('@babel/parser');
+		const ast = parser.parse("const a = ()=>require('./x'); const b = ()=>import('../y'); const c = require.resolve('./z'); const d = require('pkg');", { sourceType: 'module', plugins: ['dynamicImport'] });
+		expect(lazySpecs(ast.program, []).map((n)=>n.value)).toEqual(['./x', '../y', './z']);
+		const fp = path.join(SRC, 'utils', 'techniqueMountSettings', 'astroFields.js');
+		const base = path.resolve(path.dirname(fp), '../components/astro/AstroExtraCommon');   // 搬家前的写法(少一层 ../)
+		expect(LAZY_EXTS.some((e)=>fs.existsSync(base + e))).toBe(false);
+	});
+
+	// 测试环境的 babel 按旧式编译 JSX(React.createElement),不像正式构建那样自动补 import React;
+	// 门面导入了 React、搬去子模块的代码里有 JSX 而子模块没导入 → 测试里一渲染就 React is not defined。
+	const jsxReactGap = (text)=>{
+		const parser = require('@babel/parser'); const traverse = require('@babel/traverse').default;
+		const ast = parser.parse(text, { sourceType: 'module', plugins: ['jsx', 'classProperties', 'optionalChaining', 'nullishCoalescingOperator', 'dynamicImport', 'decorators-legacy', 'exportDefaultFrom'] });
+		let jsx = 0; let bound = false;
+		traverse(ast, { JSXElement(){ jsx++; }, JSXFragment(){ jsx++; }, Program(q){ bound = !!q.scope.getBinding('React'); } });
+		return { jsx, bound };
+	};
+	it('🔴 子模块里有 JSX、门面导入了 React 的,子模块也导入 React(测试环境不自动补)', ()=>{
+		const bad = [];
+		FACADES.filter((f)=>f.endsWith('.js')).forEach((f)=>{
+			const set = SOURCE_SETS[f];
+			if(!jsxReactGap(fs.readFileSync(path.join(SRC, f), 'utf8')).bound){ return; }
+			set.files.forEach((x)=>{ const rel = `${set.dir}/${x}`; const g = jsxReactGap(fs.readFileSync(path.join(SRC, rel), 'utf8')); if(g.jsx && !g.bound){ bad.push(`${rel}(JSX ${g.jsx} 处)`); } });
+		});
+		expect(bad).toEqual([]);
+	});
+	it('判别力自证:JSX 缺 React 的判据认得出缺的,带了的不报', ()=>{
+		expect(jsxReactGap('export const a = ()=><g />;')).toEqual({ jsx: 1, bound: false });
+		expect(jsxReactGap("import React from 'react';\nexport const a = ()=><><g /></>;")).toEqual({ jsx: 2, bound: true });
+		expect(jsxReactGap('export const a = 1;')).toEqual({ jsx: 0, bound: false });
+	});
+
+	it.each(['utils/aiExport.js', 'utils/aiAnalysisContext.js', 'utils/techniqueMountSettings.js', 'utils/astroAiSnapshot.js', 'constants/AstroConst.js'])('%s:门面只有导入与重导出(实现全在子模块)', (rel)=>{
 		const parser = require('@babel/parser');
 		const ast = parser.parse(fs.readFileSync(path.join(SRC, rel), 'utf8'), { sourceType: 'module' });
 		ast.program.body.forEach((s)=>{
@@ -177,6 +255,29 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 	const PARSE = { sourceType: 'module', plugins: ['jsx', 'classProperties', 'dynamicImport', 'optionalChaining', 'nullishCoalescingOperator', 'objectRestSpread'] };
 	const FACADE_BASES = FACADES.map((f)=>path.basename(f));
 	const PART_BASES = [...new Set(Object.values(SOURCE_SETS).flatMap((s)=>s.files))];
+	// 文件名在 src 里不唯一的门面(pages/index.js、models/user.js …)不能只按文件名认,否则读别的 index.js / user.js 也算裸读:
+	// 这些门面按路径认 —— 字面量拼起来的路径以门面的相对路径结尾,或相对路径字面量按测试文件所在目录解析后就是门面
+	const baseCount = new Map();
+	(function walkSrc(dir){
+		fs.readdirSync(dir, { withFileTypes: true }).forEach((e)=>{
+			const p = path.join(dir, e.name);
+			if(e.isDirectory()){ if(e.name !== 'node_modules' && !e.name.startsWith('.umi')){ walkSrc(p); } }
+			else if(/\.(js|jsx|less)$/.test(e.name)){ baseCount.set(e.name, (baseCount.get(e.name) || 0) + 1); }
+		});
+	})(SRC);
+	const AMBIG_FACADES = FACADES.filter((rel)=>(baseCount.get(path.basename(rel)) || 0) > 1);
+	const UNIQUE_BASES = FACADE_BASES.filter((b, i)=>AMBIG_FACADES.indexOf(FACADES[i]) < 0);
+	const posixNorm = (v)=>path.posix.normalize(`${v}`.split(path.sep).join('/'));
+	// lits:一次读文件调用里收到的字符串字面量;file:测试文件路径(给了才按目录解析相对路径)
+	function hitsFacade(lits, file){
+		const vals = lits.filter((v)=>!/^utf-?8$/i.test(v));
+		if(vals.some((v)=>UNIQUE_BASES.some((b)=>v.endsWith(b)))){ return true; }
+		if(!AMBIG_FACADES.length){ return false; }
+		const joined = posixNorm(vals.join('/'));
+		const cands = vals.map(posixNorm).concat([joined]);
+		return AMBIG_FACADES.some((rel)=>cands.some((c)=>`/${c}`.endsWith(`/${rel}`))
+			|| (file && vals.some((v)=>/^\.\.?\//.test(v) && path.resolve(path.dirname(file), v) === path.join(SRC, rel))));
+	}
 	// 「下一个函数 / 导出」式的截取终点:`\nasync function ` / `\nexport ` / `\n\tfunction ` / `\nconst ` …
 	const END_MARKER = /^\n[\t ]*(?:export |async function |function |const |let |class )/;
 	const listTests = (dir, out = [])=>{
@@ -189,7 +290,7 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 	};
 	const literalOf = (n)=>(n && n.type === 'StringLiteral' ? n.value : n && n.type === 'TemplateLiteral' && !n.expressions.length ? n.quasis[0].value.cooked : null);
 	// 一个测试文件的三类违规:① 读全集的文本上拿「下一个函数」当终点;② 裸 readFileSync 读登记门面;③ 按文件名筛出门面、漏掉子模块却不按全集读
-	function lintTestSource(code){
+	function lintTestSource(code, file){
 		const ast = parser.parse(code, PARSE);
 		const out = [];
 		const usesReadSource = /\breadSource\b/.test(code);
@@ -217,14 +318,20 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 						const own = literalOf(a.node);
 						if(own !== null){ lits.push(own); }
 					});
-					if(lits.some((v)=>FACADE_BASES.some((b)=>v.endsWith(b)))){ out.push(`raw-facade@${p.node.loc.start.line}`); }
+					// readFileSync(require.resolve('../X')) 这类不带扩展名的模块写法同样认(补上 .js 再比;只认直接传给 require.resolve 的那个字面量)
+					const a0 = p.node.arguments[0];
+					const resolved = a0 && a0.type === 'CallExpression' && a0.callee.type === 'MemberExpression' && a0.callee.object.name === 'require'
+						&& a0.callee.property.name === 'resolve' && a0.arguments[0] && a0.arguments[0].type === 'StringLiteral' ? a0.arguments[0].value : null;
+					const asModule = resolved && !/\.[a-z]+$/.test(resolved) ? `/${resolved}.js` : null;
+					if(hitsFacade(lits, file) || (asModule && hitsFacade([asModule.replace(/^\//, '')], file))){ out.push(`raw-facade@${p.node.loc.start.line}`); }
 				}
 			},
 			RegExpLiteral(p){
 				if(!/\\\.(?:jsx?|less)|\(js\|jsx\)|\.js/.test(p.node.pattern)){ return; }
 				let re;
 				try{ re = new RegExp(p.node.pattern, p.node.flags.replace(/[gy]/g, '')); }catch(e){ return; }
-				if(FACADE_BASES.some((b)=>re.test(b)) && !PART_BASES.some((b)=>re.test(b)) && !(/\bisSourceSetPart\b/.test(code) && usesReadSource)){
+				// 正确写法两种:走查跳过子模块、门面按全集读(isSourceSetPart + readSource);或把筛出的每个文件展开成它的全集(sourceSetFiles)
+				if(FACADE_BASES.some((b)=>re.test(b)) && !PART_BASES.some((b)=>re.test(b)) && !((/\bisSourceSetPart\b/.test(code) && usesReadSource) || /\bsourceSetFiles\b/.test(code))){
 					out.push(`name-filter@${p.node.loc.start.line}`);
 				}
 			},
@@ -236,7 +343,7 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 				if(c.type !== 'Identifier' || !wrappers.has(c.name)){ return; }
 				const lits = [];
 				JSON.stringify(p.node.arguments).replace(/"value":"([^"]*)"/g, (m, v)=>{ lits.push(v); return m; });
-				if(lits.some((v)=>FACADE_BASES.some((b)=>v.endsWith(b)))){ out.push(`raw-facade@${p.node.loc.start.line}`); }
+				if(hitsFacade(lits, file)){ out.push(`raw-facade@${p.node.loc.start.line}`); }
 			},
 		});
 		return out;
@@ -248,10 +355,18 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 		expect(lintTestSource("const s = fs.readFileSync(path.join(SRC, 'components', 'astro', 'IndiaChartMain.js'), 'utf8');\n")).toEqual(['raw-facade@1']);
 		expect(lintTestSource("const F = path.join(SRC, 'utils/aiExport.js');\nconst s = fs.readFileSync(F, 'utf8');\n")).toEqual(['raw-facade@2']);
 		expect(lintTestSource("const read = (r)=>fs.readFileSync(path.join(SRC, r), 'utf8');\nconst s = read('layouts/app.less');\n")).toEqual(['raw-facade@2']);
+		expect(lintTestSource("const s = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');\n")).toEqual(['raw-facade@1']);
 		expect(lintTestSource("const mains = ALL.filter((f)=>/Main\\.js$/.test(f));\nmains.forEach((f)=>fs.readFileSync(f, 'utf8'));\n")).toEqual(['name-filter@1']);
+		// 文件名不唯一的门面按路径认:读 pages/index.js(拼路径 / 相对路径都认)算裸读,读别处的 index.js 不算
+		expect(AMBIG_FACADES).toEqual(expect.arrayContaining(['pages/index.js']));
+		expect(lintTestSource("const s = fs.readFileSync(path.join(SRC, 'pages', 'index.js'), 'utf8');\n")).toEqual(['raw-facade@1']);
+		expect(lintTestSource("const s = fs.readFileSync(path.join(__dirname, '../../pages/index.js'), 'utf8');\n")).toEqual(['raw-facade@1']);
+		expect(lintTestSource("const s = fs.readFileSync(path.resolve(__dirname, '../index.js'), 'utf8');\n", path.join(SRC, 'pages', '__tests__', 'x.test.js'))).toEqual(['raw-facade@1']);
+		expect(lintTestSource("const s = fs.readFileSync(path.join(SRC, 'components/xq-ui/index.js'), 'utf8');\nconst t = fs.readFileSync(path.join(UI, 'node_modules/dom-align/dist-node/index.js'), 'utf8');\n")).toEqual([]);
 		// 正确写法:按全集读、走查跳过子模块、按全文件后缀筛(子模块也选中)
 		expect(lintTestSource("const { readSource, isSourceSetPart } = require('./helpers/sourceSet');\nconst mains = ALL.filter((f)=>/Main\\.js$/.test(f) && !isSourceSetPart(f));\nconst s = readSource(path.join(SRC, 'utils/aiExport.js'));\nconst b = fnBody(s, 'function x(');\n")).toEqual([]);
 		expect(lintTestSource("const all = walk(dir).filter((f)=>/\\.js$/.test(f)).map((f)=>fs.readFileSync(f, 'utf8'));\n")).toEqual([]);
+		expect(lintTestSource("const { sourceSetFiles } = require('./helpers/sourceSet');\nconst mains = ALL.filter((f)=>/Main\\.js$/.test(f)).flatMap((f)=>sourceSetFiles(f));\nmains.forEach((f)=>fs.readFileSync(f, 'utf8'));\n")).toEqual([]);
 	});
 
 	it('🔴 全仓 __tests__:没有越界截取、没有裸读门面、没有按名筛门面却不按全集读(本文件核门面原文形态,除外)', ()=>{
@@ -259,8 +374,48 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 		const files = listTests(SRC).filter((f)=>f !== SELF);
 		expect(files.length).toBeGreaterThan(500);   // 判据自证:扫到了整棵树
 		const bad = [];
-		files.forEach((f)=>{ lintTestSource(fs.readFileSync(f, 'utf8')).forEach((v)=>bad.push(`${path.relative(SRC, f)}:${v}`)); });
+		files.forEach((f)=>{ lintTestSource(fs.readFileSync(f, 'utf8'), f).forEach((v)=>bad.push(`${path.relative(SRC, f)}:${v}`)); });
 		expect(bad).toEqual([]);
+	});
+
+	// 上一条只认「门面路径字面量直接进 readFileSync / 读文件小工具」;按清单循环读的写法(['…/DunJiaCalc.js', …].forEach((f)=>fs.readFileSync(…)))
+	// 看不出来,只读门面的话搬进子模块的代码逃出检查。这里换个角度兜:
+	// 测试文件里写着某个登记门面的路径 / 文件名、用 readFileSync 读文件、又完全没碰全集读法 → 红;
+	// 例外只给「全树逐文件走查」(子模块本身就是被扫的文件之一,门面名只出现在按文件计数的登记表里),逐个写明。
+	const WHOLE_TREE_WALKERS = {
+		'utils/__tests__/processCacheDiscovery.test.js': '全树逐文件找结果缓存,门面名只在「文件|变量」豁免表里(那个句柄留在门面)',
+		'models/__tests__/astroSaveUserFieldsGuard.test.js': '全树逐文件找「推运结果与盘一并提交」的写法,门面名只在按文件登记的豁免表里(那处在组件类里)',
+		'utils/__tests__/resizeObserverDeferred.test.js': '全树逐文件找尺寸观察回调的同步量取,门面名只在按文件登记的豁免表里(回调在组件类里)',
+		'utils/__tests__/requestSeqOwnershipContract.test.js': '全树逐文件找请求代次的归属,门面名只在按文件登记的豁免表里(代次在组件类里)',
+		'utils/__tests__/scriptLayerBoundary.test.js': '把 aiAnalysisContext/ 与 aiExport/ 两个子模块目录整个走一遍再加上门面,逐文件判 import',
+		'utils/__tests__/scriptModeCanvasHosts.test.js': '全树逐文件找画布宿主,门面名只在「宿主 → 由谁触发重画」的登记表里',
+	};
+	it('🔴 全仓 __tests__:写着登记门面名、用 readFileSync 读文件的测试都按全集读(全树逐文件走查的逐个登记)', ()=>{
+		const SELF = path.join(__dirname, 'sourceSetManifest.test.js');
+		const facadeNames = FACADES.filter((rel)=>rel.endsWith('.js')).map((rel)=>[rel, path.basename(rel)]);
+		const bad = [];
+		listTests(SRC).filter((f)=>f !== SELF).forEach((f)=>{
+			const src = fs.readFileSync(f, 'utf8');
+			if(!/readFileSync/.test(src) || /helpers\/sourceSet|sourceSetFiles|readSource|isSourceSetPart/.test(src)){ return; }
+			const named = facadeNames.filter(([rel, base])=>{
+				if(src.includes(rel)){ return true; }
+				if(AMBIG_FACADES.indexOf(rel) < 0){ return src.includes(`'${base}'`) || src.includes(`/${base}'`); }
+				// 文件名不唯一:拆开写的路径段('pages', 'index.js')或按本测试目录解析到门面的相对路径才算
+				const segs = rel.split('/');
+				if(new RegExp(`['"\`]${segs[segs.length - 2]}['"\`]\\s*,\\s*['"\`]${segs[segs.length - 1].replace('.', '\\.')}['"\`]`).test(src)){ return true; }
+				return [...src.matchAll(/['"\`](\.\.?\/[^'"\`\n]+)['"\`]/g)].some((m)=>path.resolve(path.dirname(f), m[1]) === path.join(SRC, rel));
+			}).map(([rel])=>rel);
+			// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):登记表 WHOLE_TREE_WALKERS 的键是正斜杠相对路径,
+			// path.relative 在 Windows 给反斜杠 ⇒ 登记过的走查测试一律查不到、整条假红。归一到 POSIX 分隔符(macOS 上为 no-op)。
+			const rel = path.relative(SRC, f).split(path.sep).join('/');
+			if(named.length && !WHOLE_TREE_WALKERS[rel]){ bad.push(`${rel} → ${named.join(' ')}`); }
+		});
+		expect(bad).toEqual([]);
+		// 登记不过期:登记的文件还在、还写着门面名(不然这条例外就是空的)
+		Object.keys(WHOLE_TREE_WALKERS).forEach((rel)=>{
+			const src = fs.readFileSync(path.join(SRC, rel), 'utf8');
+			expect(`${rel}:${facadeNames.some(([r, base])=>src.includes(r) || src.includes(`'${base}'`) || src.includes(`/${base}'`))}`).toBe(`${rel}:true`);
+		});
 	});
 
 	it('🔴 fnBody:登记的每个 .js 全集里每个顶层函数声明,截出来的恰好是它自己(babel 解析路径与字符配平退路两条都核)', ()=>{
@@ -273,7 +428,7 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截�
 				parser.parse(code, PARSE).program.body.forEach((st)=>{
 					const d = /^Export/.test(st.type) && st.declaration ? st.declaration : st;
 					if(d.type !== 'FunctionDeclaration' || !d.id){ return; }
-					const sig = `${d.async ? 'async ' : ''}function ${d.id.name}(`;
+					const sig = `${d.async ? 'async ' : ''}function${d.generator ? '*' : ''} ${d.id.name}(`;   // 生成器(dva effect 助手)签名带 *
 					const want = code.slice(d.start, d.end);
 					n += 1;
 					expect(`${rel}:${d.id.name}:${fnBody(all, sig) === want}`).toBe(`${rel}:${d.id.name}:true`);

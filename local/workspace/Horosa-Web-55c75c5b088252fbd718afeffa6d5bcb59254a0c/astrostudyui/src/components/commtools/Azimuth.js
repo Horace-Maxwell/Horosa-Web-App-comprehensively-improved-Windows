@@ -6,7 +6,7 @@ import LonInput from '../astro/LonInput';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import DateTime from '../comp/DateTime';
 import GeoCoordModal from '../amap/GeoCoordModal';
-import { randomStr, getAzimuthStr, isNumber } from '../../utils/helper';
+import { getAzimuthStr, isNumber } from '../../utils/helper';
 import {convertLatStrToDegree, convertLonStrToDegree, splitDegree} from '../astro/AstroHelper';
 import { message } from 'antd';
 

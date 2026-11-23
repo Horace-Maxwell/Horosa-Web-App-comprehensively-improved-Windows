@@ -8,15 +8,32 @@
 //   ④ 双向:产生⊆登记∪豁免(防漏登) + 登记⊆产生(防僵尸登记) + 登记∩豁免=∅。
 import fs from 'fs';
 import path from 'path';
+const { readSource, sourceSetFiles } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = path.resolve(__dirname, '..', 'SanShiUnitedMain.js');
-const raw = fs.readFileSync(SRC, 'utf8');
+const raw = readSource(SRC);
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 const code = strip(raw);
 
 // —— 产生面:onOptionChange('key', ...) 全部字面量键 ——
+// 页面把 onOptionChange={this.onOptionChange} 原样传给的子组件(如奇门 / 三式共用的附加层控件 QimenOverlayControls)
+// 在自己文件里写 onOptionChange('key', …):那些键同样由本页产生 —— 按 import 找到子组件文件一并读。
+// horosa_slice_local_delegate_v1:本全集里自己定义的子组件(左栏拆出来的 SanShiInputPanel)不是「别的文件里的委托组件」——
+// 它的代码已在 code 里,键照常被下面的提取读到;只有从别处 import 进来的才按 import 找文件。
+const delegates = Array.from(new Set(Array.from(code.matchAll(/<([A-Z][A-Za-z0-9]*)\b[^>]*onOptionChange=\{this\.onOptionChange\}/g)).map((m) => m[1])))
+	.filter((name) => !new RegExp(`class\\s+${name}\\s+extends\\b`).test(code));
+expect(delegates.length).toBeGreaterThanOrEqual(2);   // 判据自证:附加层控件与十二建星两件委托组件都认得出
+// 引入路径按写着它的那个文件解析(类方法拆在 main/ 下时,引入跟着用它的方法走)
+const delegateFiles = delegates.map((name) => {
+	const re = new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*'([^']+)'`);
+	const owner = sourceSetFiles(SRC).find((f) => re.test(fs.readFileSync(f, 'utf8')));
+	const im = owner ? fs.readFileSync(owner, 'utf8').match(re) : null;
+	return im ? path.resolve(path.dirname(owner), `${im[1]}.js`) : null;
+});
+expect(delegateFiles.every(Boolean)).toBe(true);   // 判据自证:每个委托组件都找得到文件
+const delegateCode = delegateFiles.filter(Boolean).map((f) => strip(fs.readFileSync(f, 'utf8'))).join('\n');
 const produced = Array.from(new Set(
-	Array.from(code.matchAll(/onOptionChange\(\s*'([a-zA-Z0-9_]+)'/g)).map((m) => m[1])
+	Array.from((code + '\n' + delegateCode).matchAll(/onOptionChange\(\s*'([a-zA-Z0-9_]+)'/g)).map((m) => m[1])
 )).sort();
 
 // —— 登记面:SANSHI_RECALC_OPTION_KEYS Set 字面量 ——
@@ -50,6 +67,11 @@ const EXEMPT = {
 };
 
 describe('三式合一重算白名单完备性(L3)', () => {
+	it('原样传下去的子组件都找得到文件,且各自真产生键(子组件改名 / 挪走时这条先红)', () => {
+		expect(delegates.length).toBeGreaterThanOrEqual(1);
+		delegateFiles.forEach((f, i) => { expect(`${delegates[i]}:${!!f && fs.existsSync(f)}`).toBe(`${delegates[i]}:true`); });
+		expect(Array.from(delegateCode.matchAll(/onOptionChange\(\s*'([a-zA-Z0-9_]+)'/g)).length).toBeGreaterThanOrEqual(4);
+	});
 	it('提取自证:产生面 ≥ 25 键、登记面 ≥ 20 键(正则漂移塌缩必红)', () => {
 		expect(produced.length).toBeGreaterThanOrEqual(25);
 		expect(registered.length).toBeGreaterThanOrEqual(20);

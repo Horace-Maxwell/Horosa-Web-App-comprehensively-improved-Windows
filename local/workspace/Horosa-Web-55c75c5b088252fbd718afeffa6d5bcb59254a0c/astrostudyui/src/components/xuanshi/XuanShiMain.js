@@ -1,5 +1,5 @@
 import React from 'react';
-import { Spin, Empty } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import {
 	XUANSHI_SUBPAGES,
 	loadXuanShiState,
@@ -15,6 +15,7 @@ import XuanShiEvents from './XuanShiEvents';
 //   天象、地图两个用得着图表。两者都在 renderBody 的 switch 分支里按需返回,懒化后
 //   「不进这两个子页=零成本」天然成立;边界由 makeLazyBoundary 自带。
 import { makeLazyBoundary, idleWarm } from '../../utils/lazyBoundary';
+import { pressable } from '../../utils/pressable';
 const XuanShiCelestial = makeLazyBoundary(
 	() => import(/* webpackChunkName: "xuanshi-celestial" */ './XuanShiCelestial'),
 	{ label: '天象', tip: '天象图表加载中…', plainFallback: true }
@@ -230,16 +231,16 @@ export default class XuanShiMain extends React.Component {
 
 	renderOverview() {
 		const { summary, summaryLoading, summaryErr, featured } = this.state;
-		if (summaryLoading) { return <div className="xuanshi-center"><Spin tip="载入玄学史…" /></div>; }
+		if (summaryLoading) { return <div className="xuanshi-center"><XQSpin tip="载入玄学史…" /></div>; }
 		if (summaryErr) {
 			return (
 				<div className="xuanshi-center">
-					<Empty description={`总览载入失败:${summaryErr}`} />
-					<span className="xuanshi-link" onClick={() => this.loadSummary()}>重试</span>
+					<XQEmpty description={`总览载入失败:${summaryErr}`} />
+					<span className="xuanshi-link" {...pressable(() => this.loadSummary())}>重试</span>
 				</div>
 			);
 		}
-		if (!summary) { return <div className="xuanshi-center"><Empty description="暂无数据" /></div>; }
+		if (!summary) { return <div className="xuanshi-center"><XQEmpty description="暂无数据" /></div>; }
 		const c = summary.counts || {};
 		const trad = summary.events_by_tradition || {};
 		const ed = summary.editorial || {};
@@ -267,9 +268,9 @@ export default class XuanShiMain extends React.Component {
 				<div className="xuanshi-display" style={{ fontSize: 17, color: 'var(--ink)', marginTop: 14, letterSpacing: '.04em' }}>卜筮 · 占梦 · 相术 · 道术 · 风水 · 天象</div>
 				<div className="xuanshi-stat-sub" style={{ fontSize: 13, marginTop: 6 }}>三千载玄虚之学 · 正史野载兼收</div>
 				<div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26 }}>
-					<span className="xuanshi-btn is-primary" onClick={() => this.setSubpage('events')}>玄学万象 →</span>
-					<span className="xuanshi-btn" onClick={() => this.setSubpage('celestial')}>星象大典</span>
-					<span className="xuanshi-btn" onClick={() => this.setSubpage('figures')}>名家列传</span>
+					<span className="xuanshi-btn is-primary" {...pressable(() => this.setSubpage('events'))}>玄学万象 →</span>
+					<span className="xuanshi-btn" {...pressable(() => this.setSubpage('celestial'))}>星象大典</span>
+					<span className="xuanshi-btn" {...pressable(() => this.setSubpage('figures'))}>名家列传</span>
 				</div>
 
 				{/* 检索 */}
@@ -281,11 +282,11 @@ export default class XuanShiMain extends React.Component {
 					<div>
 						<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
 							<h2 className="xuanshi-display is-h2" style={{ margin: 0 }}>玄典甄选</h2>
-							<span className="xuanshi-link" onClick={() => this.setSubpage('events')}>看更多 →</span>
+							<span className="xuanshi-link" {...pressable(() => this.setSubpage('events'))}>看更多 →</span>
 						</div>
 						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
 							{(featured || []).map((e) => (
-								<div className="xuanshi-card is-link" key={e.event_id} onClick={() => this.goEvent(e.event_id)}>
+								<div className="xuanshi-card is-link" key={e.event_id} {...pressable(() => this.goEvent(e.event_id))}>
 									<div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
 										{e.dynasty ? <span className="xuanshi-chip is-ink">{e.dynasty}</span> : null}
 										{e.techniques ? <span className="xuanshi-chip is-jade">{`${e.techniques}`.split(/[;,、，]/)[0]}</span> : null}
@@ -302,11 +303,11 @@ export default class XuanShiMain extends React.Component {
 					<aside>
 						<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
 							<h2 className="xuanshi-display is-h2" style={{ margin: 0 }}>玄学名家</h2>
-							<span className="xuanshi-link" onClick={() => this.setSubpage('figures')}>全部 →</span>
+							<span className="xuanshi-link" {...pressable(() => this.setSubpage('figures'))}>全部 →</span>
 						</div>
 						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
 							{figs.slice(0, 6).map((f) => (
-								<div className="xuanshi-card is-link" key={f.slug} style={{ padding: 14 }} onClick={() => this.setSubpage('figures')}>
+								<div className="xuanshi-card is-link" key={f.slug} style={{ padding: 14 }} {...pressable(() => this.setSubpage('figures'))}>
 									<div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
 										<span className="xuanshi-fig-seal" style={{ width: 40, height: 40, flex: '0 0 40px', fontSize: (f.name || '').length >= 3 ? 12 : 15 }}>{f.name}</span>
 										<div style={{ minWidth: 0 }}>
@@ -325,7 +326,7 @@ export default class XuanShiMain extends React.Component {
 				<h2 className="xuanshi-display is-h2" style={{ marginTop: 36 }}>图谱工具</h2>
 				<div className="xuanshi-tool-grid">
 					{toolCards.map((t) => (
-						<div className="xuanshi-tool-card" key={t.key} style={{ '--accent': t.accent }} onClick={() => this.setSubpage(t.key)}>
+						<div className="xuanshi-tool-card" key={t.key} style={{ '--accent': t.accent }} {...pressable(() => this.setSubpage(t.key))}>
 							<div className="xuanshi-tool-name">{t.name}</div>
 							<div className="xuanshi-tool-sub">{t.sub}</div>
 						</div>
@@ -383,7 +384,7 @@ export default class XuanShiMain extends React.Component {
 			return <XuanShiMicro ui={this.state.ui} onPersist={(k, p) => this.persist({ [k]: { ...(this.state.ui[k] || {}), ...p } })} onHome={() => this.setSubpage('overview')} />;
 		}
 		const label = (XUANSHI_SUBPAGES.find((s) => s.key === subpage) || {}).label || subpage;
-		return <div className="xuanshi-center"><Empty description={`「${label}」建设中`} /></div>;
+		return <div className="xuanshi-center"><XQEmpty description={`「${label}」建设中`} /></div>;
 	}
 
 	render() {
@@ -400,7 +401,7 @@ export default class XuanShiMain extends React.Component {
 						<div
 							key={s.key}
 							className={`xuanshi-nav-item${subpage === s.key ? ' is-active' : ''}`}
-							onClick={() => this.setSubpage(s.key)}
+							{...pressable(() => this.setSubpage(s.key))}
 						>{s.label}</div>
 					))}
 				</div>

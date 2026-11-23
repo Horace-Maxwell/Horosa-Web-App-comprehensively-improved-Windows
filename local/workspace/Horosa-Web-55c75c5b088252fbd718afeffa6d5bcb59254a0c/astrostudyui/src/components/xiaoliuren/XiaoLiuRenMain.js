@@ -6,7 +6,7 @@
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQSideSection, XQSwitch as Switch, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button } from '../xq-ui';
-import { Tabs, Tag } from 'antd';
+import { Tabs } from 'antd';
 import { qiKe, teLi } from './core/xiaoliurenKe';
 import {
 	MAIN_RING, MAIN_PALM, DAO_RING, DAO_NINE, DAO_YI, BAI_JIE, DAO_FA_TEXT, MAIN_FA_TEXT,
@@ -17,7 +17,7 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
 import { ownedBoxSizeRef, narrowBoardVars, squareGridFitVars } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';

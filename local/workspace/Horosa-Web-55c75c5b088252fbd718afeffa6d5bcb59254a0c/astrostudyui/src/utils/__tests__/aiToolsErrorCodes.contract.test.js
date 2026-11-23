@@ -13,6 +13,7 @@ jest.mock('../aiAnalysisContext', ()=>({
 	ANALYSIS_CASE_TECHNIQUES: [],
 	listAnalysisTechniqueOptions: jest.fn(()=>[{ value: 'astrochart' }, { value: 'bazi' }]),
 	getAnalysisTechniqueContexts: jest.fn(async ()=>[]),
+	analysisTechniqueLabelMap: jest.fn((keys)=>Object.fromEntries((keys || []).map((k)=>[k, k === 'bazi' ? '八字' : '星盘']))),
 }));
 jest.mock('../aiAnalysisSources', ()=>({ findAnalysisSourceById: jest.fn(()=>null) }));
 

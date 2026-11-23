@@ -57,7 +57,7 @@ export async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 			zodiacal: np.zodiacal, siderealAyanamsa: np.siderealAyanamsa,
 			tradition: np.tradition,
 			datetime: datetimeForPoint,
-			tmType: 'y',   // 页面同款固定值;后端不消费(F-12 已撤齿轮)
+			tmType: 'y',   // 页面同款固定值;后端不消费(已撤齿轮)
 			nodeRetrograde: nodeRetrograde,
 			asporb: asporb,
 		};

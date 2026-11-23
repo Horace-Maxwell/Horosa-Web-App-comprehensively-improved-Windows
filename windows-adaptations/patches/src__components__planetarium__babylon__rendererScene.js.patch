@@ -1,0 +1,53 @@
+diff --git a/astrostudyui/src/components/planetarium/babylon/rendererScene.js b/astrostudyui/src/components/planetarium/babylon/rendererScene.js
+index 593716ee..761113b9 100644
+--- a/astrostudyui/src/components/planetarium/babylon/rendererScene.js
++++ b/astrostudyui/src/components/planetarium/babylon/rendererScene.js
+@@ -65,6 +65,7 @@ export const rendererSceneMethods = {
+ 				return;
+ 			}
+ 			evt.preventDefault();
++			this.markCameraSettle();
+ 			if(this.viewMode === 'orbit'){
+ 				this.camera.radius = clamp(this.camera.radius + (evt.deltaY > 0 ? 64 : -64), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
+ 				return;
+@@ -80,6 +81,7 @@ export const rendererSceneMethods = {
+ 			if(this.onInteraction){
+ 				this.onInteraction();
+ 			}
++			this.markCameraSettle();
+ 			this.pointerDrag = {
+ 				id: evt.pointerId,
+ 				x: evt.clientX,
+@@ -115,6 +117,7 @@ export const rendererSceneMethods = {
+ 				if(this.camera){ this.camera.lockedTarget = null; }
+ 			}
+ 			evt.preventDefault();
++			this.markCameraSettle();
+ 			if(this.viewMode === 'orbit'){
+ 				if(this.onInteraction){
+ 					this.onInteraction();
+@@ -241,22 +244,8 @@ export const rendererSceneMethods = {
+ 			}
+ 		});
+ 
+-		this.engine.runRenderLoop(()=>{
+-			if(this.scene){
+-				this.updateGroundScenePosition();
+-				this.applyLabelVisibility();
+-				this.applyGridLod();
+-				this._labelUploads.tick();
+-				this.scene.render();
+-				if(this.onMetrics){
+-					const fps = Math.round(this.engine.getFps());
+-					this.onMetrics({
+-						fps: Number.isFinite(fps) ? Math.min(240, Math.max(0, fps)) : 0,
+-						meshes: this.scene.meshes.length,
+-					});
+-				}
+-			}
+-		});
++		// perf:planetariumRenderGating —— 循环体抽成具名 _renderTick(可停/起 + 静止降帧 + metrics 节流),内容不变。
++		this._startRenderLoop();
+ 		this.resizeHandler = ()=>{
+ 			if(this.engine){
+ 				// Keep the backing store at full device resolution; re-apply on resize so

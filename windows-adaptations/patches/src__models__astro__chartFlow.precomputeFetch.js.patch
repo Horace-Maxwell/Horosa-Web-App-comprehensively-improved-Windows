@@ -1,0 +1,87 @@
+diff --git a/astrostudyui/src/models/astro/chartFlow.js b/astrostudyui/src/models/astro/chartFlow.js
+index 10154871..9ec62b73 100644
+--- a/astrostudyui/src/models/astro/chartFlow.js
++++ b/astrostudyui/src/models/astro/chartFlow.js
+@@ -10,6 +10,9 @@ import { stepPrefetchArmEnabled, stepPrefetchDepth } from '../../utils/perfFlags
+ import { shouldArmForTab, reportStepUnit, registerArmPlanBuilder } from '../../utils/stepPrefetchArm';
+ import DateTime from '../../components/comp/DateTime';
+ import { fieldsToParams } from './fields';
++// [Windows-ahead] stepStreak:horosa_pump_skew_v1 连击计量读端(见 buildStepPrefetchTasks 偏斜分支)。
++import { armStepPrefetch, stepStreak } from '../../utils/stepPrefetchArm';
++import { stepPrefetchSkewEnabled } from '../../utils/perfFlags';
+ 
+ export function shouldIncludePrimaryDirection(state){
+ 	// primarydirsphere = WS-3 主限天球(3D):与表格/盘同吃 PD 数据(/chart 携带
+@@ -130,9 +133,29 @@ export function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+ 	let plan;
+ 	if(stepHint && stepHint.dir){
+ 		const d = Math.max(2, depth || 2);
+-		plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
+-		for(let k = 2; k <= d; k += 1){
+-			plan.push({ k, dir: stepHint.dir });
++		// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3
++		// 且间隔 <2s 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,
++		// 丢弃零损;任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
++		// 判定失败=不偏(fail-open 回对称计划)。kill:horosa.perf.stepPrefetchSkew。
++		let skew = false;
++		try{
++			if(stepPrefetchSkewEnabled()){
++				const s = stepStreak(astroState.currentTab);
++				skew = s.count >= 3 && s.dir === stepHint.dir
++					&& (!stepHint.unit || s.unit === stepHint.unit)
++					&& (Date.now() - s.at) < 2000;
++			}
++		}catch(e){ /* 不偏 */ }
++		if(skew){
++			plan = [];
++			for(let k = 1; k <= Math.min(d + 1, 5); k += 1){
++				plan.push({ k, dir: stepHint.dir });
++			}
++		}else{
++			plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
++			for(let k = 2; k <= d; k += 1){
++				plan.push({ k, dir: stepHint.dir });
++			}
+ 		}
+ 	}else if(depth > 0){
+ 		plan = [];
+@@ -220,28 +243,18 @@ export function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+ 	return tasks;
+ }
+ 
+-// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 以 store 现
+-// fields 双向 ±1、±2 预取(键构造与真点同源 = buildStepPrefetchTasks 唯一路径)。
+-// 无 store/无 fields(启动早期/测试)静默跳过;预算 4 任务(调度器硬顶 5)。
++// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
++// R4-B2(武装引擎接管上游触发线):上游触发面(opt-in 宿主 + 5s 去重)保持原样;
++// ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
++// NO_ARM/early-boot/reportStepUnit(settle 兜底取档靠它)全在 armStepPrefetch 体内。
++// [Windows-only] F1 收敛(v3.7.1,gotcha #90):旧形态在此处**内联复刻** armStepPrefetch
++// 的全部守卫后直发 submitStepPrefetch —— 语义同路但绕过 arm 台账,__horosaPrefetch.arms
++// 在主盘时间条上恒 0(验收探针的「武装线活着」信号盲区,R12-P2 实测 arms=0 即此)。
++// 改为委托:同守卫、同构造器(planBuilder=buildStepPrefetchTasks 注入)、同 5s 去重,
++// 唯一行为差 = stats.arms/lastReason 正确入账。sameMinute 闸天然豁免(不传 selectorDatetime,
++// v3.5.1 裁决:opt-in 宿主已在源头滤掉旁路时间条)。
+ registerStepSelectHandler((unit)=>{
+-	const store = getStore();
+-	if(!store || !store.astro || !store.astro.fields){
+-		return;
+-	}
+-	const st = store.astro;
+-	// R4-B2(武装引擎接管上游触发线):
+-	// · 上游触发面(opt-in 宿主 + 5s 去重)保持原样;此处把「±2 固定窗」升级为
+-	//   ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
+-	// · reportStepUnit 记录该技法最近档位 —— settle 兜底武装(无 stepHint 分支)靠它
+-	//   取档,「不选步长直接点 ±」的第一下也命中;
+-	// · NO_ARM 技法(随机/取现时/流式/浏览型/择日)由 shouldArmForTab 拦下,零任务。
+-	if(!(stepPrefetchArmEnabled() && shouldArmForTab(st.currentTab))){
+-		return;
+-	}
+-	reportStepUnit(st.currentTab, unit);
+-	submitStepPrefetch(
+-		buildStepPrefetchTasks(st.fields, { unit, dir: 0, depth: stepPrefetchDepth() }, st)
+-	);
++	armStepPrefetch('unit-select', { unit });
+ });
+ 
+ // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。

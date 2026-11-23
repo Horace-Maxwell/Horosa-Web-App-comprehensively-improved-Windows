@@ -220,7 +220,7 @@ describe('⑥ 旧版快照(没有 pinned)cid 空:按页签分事盘与此刻盘'
 		expect(out.unpinnedTimeAlg).toBe(1);
 	});
 	it('「卜」组页签清单与导航一致', ()=>{
-		const src = fs.readFileSync(path.join(SRC, 'pages/index.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.join(SRC, 'pages/index.js'));   // 门面 + 子模块全集
 		const block = src.slice(src.indexOf('const navigationPages = ['), src.indexOf('];', src.indexOf('const navigationPages = [')));
 		const keys = [];
 		const re = /key: '([^']+)'[^}]*group: '卜'/g;

@@ -6,6 +6,8 @@ import { SIGNS } from '../../divination/data/signs';
 import { buildMeaningTipByCategory } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning } from './AstroMeaningPopover';
 import { labelCellStyle } from '../../utils/labelCell';
+import { pressable } from '../../utils/pressable';
+import request from '../../utils/request';
 
 export function unwrapResult(data){
 	return data && data.Result ? data.Result : data;
@@ -140,8 +142,8 @@ export function natalClassicalParams(params){
 		// 「七政命度点」与主页/挂载同源 —— 但 Java 两端的参数白名单(PredictiveController /
 		// AstroExtraController)都不收这两键,请求到了后端即被剥掉:发了四个月,结果一字未变,
 		// 只是把两个键掺进了请求体与缓存键。按「不发无效键」删除(产物零变化)。
-		// ⚠ F-17 记的那条分叉因此**并未**被修好:真要对齐得让 Java 白名单收这两键(那会改推运页产物),
-		// 属另案,勿把本处删除误读成「分叉已解决」。
+		// ⚠ 推运页与主盘在这两键上的口径并不因此对齐:真要对齐得让 Java 白名单收这两键(那会改推运页产物),
+		// 勿把本处删除读成「已对齐」。
 		...classicalBackendOverridesFromPlain(p),
 		// 随盘容许度(本命盘回显里带着):推运族的本命 / 推运盘相位与主盘同一套容许度。
 		...chartOrbOverridesFromPlain(p),
@@ -179,6 +181,13 @@ export function chartParams(chartObj){
 // 语义:失败记 (key, 时刻),同 key 在窗口期内不自动重试;新 key(改日期/换盘)立即放行;窗口期过后
 // 下一次更新自然重试;成功后 clear。宿主组件在 componentDidUpdate/ensureLoaded 的重载条件里并入 !loadParked。
 export const LOAD_RETRY_PARK_MS = 15000;
+// 派生盘取数:request() 的既有语义是失败时只弹全局错误、自身 resolve undefined(不抛)—— 宿主的 catch 永远走不到,
+// 页面把「没取到」当成「没有数据」显示空态、也没有重试钮。这里把「没有回包」翻成抛错,宿主照常进 catch → 出错态 + 重试
+export async function requestDerived(url, options){
+	const data = await request(url, options);
+	if(data === undefined){ throw new Error('计算服务没有返回结果(服务未就绪或网络异常)'); }
+	return data;
+}
 export function parkLoadFailure(inst, key){ inst._loadFailKey = key; inst._loadFailAt = Date.now(); }
 export function clearLoadFailure(inst){ inst._loadFailKey = null; inst._loadFailAt = 0; }
 export function loadParked(inst, key){
@@ -281,7 +290,7 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX, ma
 				{(rows || []).map((row, idx)=>(
 					<tr key={rowKey ? rowKey(row, idx) : idx}
 						ref={rowRef ? (node)=>rowRef(node, row, idx) : undefined}
-						onClick={onRowClick ? ()=>onRowClick(row, idx) : undefined}
+						{...pressable(onRowClick ? ()=>onRowClick(row, idx) : undefined, { role: false })}
 						style={onRowClick ? { cursor: 'pointer', ...(rowStyle ? rowStyle(row, idx) : null) } : (rowStyle ? rowStyle(row, idx) : undefined)}>
 						{columns.map((col)=>{
 							const content = col.render ? col.render(row[col.key], row, idx) : row[col.key];

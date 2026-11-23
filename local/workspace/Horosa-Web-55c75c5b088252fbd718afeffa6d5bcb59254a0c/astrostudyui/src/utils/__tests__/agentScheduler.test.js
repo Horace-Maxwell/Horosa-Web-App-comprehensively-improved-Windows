@@ -259,6 +259,16 @@ describe('taskKinds 执行体', ()=>{
 		expect(bad.ok).toBe(false);
 		expect(bad.error).toContain('接口配置');
 	});
+	it('🔴 任务选的技法照挂进模型轮(techniqueKeys = spec.techniques;此前被注释吞掉恒为空 → 只挂整盘)', async ()=>{
+		const profile = { id: 'p1', name: 'P', providerType: 'openai', protocolFamily: 'openai', baseUrl: 'http://x', apiKey: 'k', providerOptions: {} };
+		const t = await createTask({ kind: 'scheduled', status: 'scheduled', title: '月运', spec: { kind: 'daily-brief', schedule: { type: 'daily', time: '08:00' }, techniques: ['bazi', 'ziwei'] } });
+		const runHeadlessTurn = jest.fn(async ()=>({ content: 'ok', error: null, usage: null }));
+		await runScheduledTask(t, { now: new Date(2026, 8, 5, 8, 0), deps: { resolved: { profile, model: 'm' }, runHeadlessTurn } });
+		expect(runHeadlessTurn.mock.calls[0][0].techniqueKeys).toEqual(['bazi', 'ziwei']);
+		const t2 = await createTask({ kind: 'scheduled', status: 'scheduled', title: '无技法', spec: { kind: 'daily-brief', schedule: { type: 'daily', time: '08:00' } } });
+		await runScheduledTask(t2, { now: new Date(2026, 8, 5, 8, 0), deps: { resolved: { profile, model: 'm' }, runHeadlessTurn } });
+		expect(runHeadlessTurn.mock.calls[1][0].techniqueKeys).toEqual([]);
+	});
 });
 
 // 非桌面 60 秒兜底定时器此前没有生产解绑出口(布局层卸载后仍跑)

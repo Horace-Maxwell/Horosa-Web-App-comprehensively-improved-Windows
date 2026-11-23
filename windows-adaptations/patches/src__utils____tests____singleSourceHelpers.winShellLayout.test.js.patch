@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js b/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
-index f2738853..2c3e5c02 100644
+index 2b77be5f..fd9bed4a 100644
 --- a/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
 +++ b/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
-@@ -119,10 +119,13 @@ describe('读源码的导入锁一律按 AST 认 import', () => {
+@@ -126,10 +126,13 @@ describe('读源码的导入锁一律按 AST 认 import', () => {
  		expect(hits).toEqual([]);
  	});
  	// 发布前自检的 pf_imports(preflight/import_specs.js)用同一份助手:排版 / 先后 / 同条多名都认,少一个名字、只写在注释里都红

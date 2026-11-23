@@ -42,7 +42,7 @@
 	}
 	.horosa-babylon-card-title {
 		font-weight: 600;
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		letter-spacing: 0.03em;
 		margin-bottom: 5px;
 		color: var(--horosa-gold, #9a6a25);
@@ -51,7 +51,7 @@
 		gap: 6px;
 	}
 	.horosa-babylon-caveat {
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		opacity: 0.72;
 		border-left: 2px solid var(--horosa-gold, #9a6a25);
 		padding-left: 7px;
@@ -76,7 +76,7 @@
 	table.horosa-babylon-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		th, td { border: 1px solid rgba(154, 106, 37, 0.16); padding: 3px 7px; text-align: left; }
 		th { background: rgba(154, 106, 37, 0.07); font-weight: 600; white-space: nowrap; }
 		td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -89,7 +89,7 @@
 			align-items: center;
 			gap: 8px;
 			margin-top: 6px;
-			.lbl { flex: 0 0 62px; opacity: 0.78; font-size: 12px; }
+			.lbl { flex: 0 0 62px; opacity: 0.78; font-size: var(--horosa-fs-small); }
 		}
 	}
 	.horosa-babylon-toolbar {
@@ -98,7 +98,7 @@
 		gap: 10px;
 		flex-wrap: wrap;
 		padding: 6px 10px 2px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 	}
 	.horosa-babylon-svgwrap {
 		width: 100%;
@@ -121,7 +121,7 @@
 		gap: 3px;
 		width: 100%;
 		max-width: 1180px;
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		.cell {
 			border-radius: 4px;
 			text-align: center;
@@ -136,12 +136,12 @@
 		}
 		/* 窄容器逐档缩回:12 列 + 表头列在小窗下仍要装得住 */
 		@media (max-width: 1500px) {
-			font-size: 12px;
+			font-size: var(--horosa-fs-small);
 			grid-template-columns: 62px repeat(12, 1fr);
 			.cell { padding: 6px 0; }
 		}
 		@media (max-width: 1280px) {
-			font-size: 11px;
+			font-size: var(--horosa-fs-caption);
 			gap: 2px;
 			grid-template-columns: 56px repeat(12, 1fr);
 			.cell { padding: 5px 0; }

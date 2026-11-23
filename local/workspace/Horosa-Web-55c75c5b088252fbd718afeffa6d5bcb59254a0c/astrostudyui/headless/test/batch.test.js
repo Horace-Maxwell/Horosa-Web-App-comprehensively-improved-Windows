@@ -103,8 +103,10 @@ function freePort(){
 	return new Promise((resolve)=>{ const s = net.createServer(); s.listen(0, '127.0.0.1', ()=>{ const p = s.address().port; s.close(()=>resolve(p)); }); });
 }
 let fake = null; let fakePort = 0; let javaPort = 0; let hangHits = 0;
+const seenClock = [];   // 假排盘服务收到的每个请求带没带「钉住的此刻」两个头
 before(async ()=>{
 	fake = http.createServer((req, res)=>{
+		seenClock.push({ url: req.url, now: req.headers['x-horosa-now'], offset: req.headers['x-horosa-now-offset'] });
 		if(/\/qizhengkin\//.test(req.url)){ hangHits += 1; return; }   // 一直不回:验单技法超时
 		res.writeHead(503, { 'Content-Type': 'application/json' }); res.end('{"ResultCode":503}');
 	});
@@ -440,5 +442,192 @@ describe('⑥ 命令行入口退出前等输出写完(接管道时大回包不�
 			assert.ok(src.includes("require('./exit').exitAfterFlush("), `${f} 没走 exitAfterFlush`);
 			assert.ok(!/setImmediate\(\(\)=>process\.exit\(/.test(src), `${f} 还有直接退出`);
 		}
+	});
+});
+
+// ── 钉住「此刻」与时区:同一批命例重跑,结果不该随跑的那一分钟、机器设的时区而变 ──
+
+describe('⑨ --now / --tz:解析(纯函数)', ()=>{
+	it('钟面写法按 --tz 读(缺省 Asia/Shanghai);带偏移的写法是确定的一刻;夏令时照算', ()=>{
+		assert.equal(B.resolveClock(null, null), null);
+		assert.deepEqual(B.resolveClock('2030-06-01 12:00', null), { ms: 1906516800000, iso: '2030-06-01T04:00:00.000Z', tz: 'Asia/Shanghai', given: '2030-06-01 12:00' });
+		assert.equal(B.resolveClock('2030-06-01T12:00:00+08:00', null).ms, 1906516800000);
+		assert.equal(B.resolveClock('2030-06-01T04:00:00Z', 'Asia/Kolkata').ms, 1906516800000);
+		assert.equal(B.resolveClock('2030-06-01 12:00', 'UTC').iso, '2030-06-01T12:00:00.000Z');
+		assert.equal(B.resolveClock('2030-06-01 12:00', 'America/New_York').iso, '2030-06-01T16:00:00.000Z');   // 夏令时 −4
+		assert.equal(B.resolveClock('2030-01-01 12:00', 'America/New_York').iso, '2030-01-01T17:00:00.000Z');   // 冬令时 −5
+		assert.equal(B.resolveClock('2030-06-01 12:00:30', 'UTC').iso, '2030-06-01T12:00:30.000Z');
+		assert.deepEqual(B.resolveClock(null, 'Asia/Tokyo'), { ms: null, iso: null, tz: 'Asia/Tokyo', given: null });   // 只钉时区
+	});
+	it('写错了报用法错(退 2),不悄悄用别的时刻', ()=>{
+		['yesterday', '2030-02-30 12:00', '2030-13-01 12:00', '2030-06-01 25:00', '2030-06-01'].forEach((v)=>{
+			assert.throws(()=>B.resolveClock(v, null), (e)=>e.exitCode === 2, v);
+		});
+		assert.throws(()=>B.resolveClock('2030-06-01 12:00', 'Mars/Olympus'), (e)=>e.exitCode === 2);
+		assert.throws(()=>B.parseBatchArgs(['x.csv', '-t', 'bazi', '--now']), (e)=>e.exitCode === 2);
+		const o = B.parseBatchArgs(['x.csv', '-t', 'bazi', '--now', '2030-06-01 12:00', '--tz=UTC']);
+		assert.equal(o.clock.iso, '2030-06-01T12:00:00.000Z');
+		assert.equal(B.parseBatchArgs(['x.csv', '-t', 'bazi']).clock, null);
+	});
+	it('带给计算服务的两个头:毫秒数 + 该时区在那一刻的偏移分钟(东为正)', ()=>{
+		assert.deepEqual(B.clockHeaders(B.resolveClock('2030-06-01 12:00', null)), { 'X-Horosa-Now': '1906516800000', 'X-Horosa-Now-Offset': '480' });
+		assert.deepEqual(B.clockHeaders(B.resolveClock('2030-06-01 12:00', 'America/New_York')), { 'X-Horosa-Now': '1906560000000', 'X-Horosa-Now-Offset': '-240' });
+		assert.equal(B.clockHeaders(B.resolveClock(null, 'UTC')), null);   // 只钉时区:不带头,计算服务照旧读自己的时钟
+		assert.equal(B.clockHeaders(null), null);
+	});
+});
+
+describe('⑨b 子进程里的时钟', ()=>{
+	const probe = (code, env)=>new Promise((resolve, reject)=>{
+		const c = spawn(process.execPath, ['-e', code], { env: { ...process.env, ...(env || {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+		CHILDREN.add(c);
+		let out = ''; let err = '';
+		c.stdout.on('data', (b)=>{ out += b; }); c.stderr.on('data', (b)=>{ err += b; });
+		c.on('exit', (code2)=>{ CHILDREN.delete(c); if(code2 !== 0){ reject(new Error(err.slice(-600))); return; } resolve(JSON.parse(out)); });
+	});
+	it('🔴 钉住后 new Date() / Date.now() 回那一刻;带参数的照常;时间仍单调前进但慢到取到的「此刻」不变;reset 回原点', async ()=>{
+		const r = await probe(`
+			const B = require(${JSON.stringify(BATCH)});
+			const RealDate = Date; const t0 = RealDate.now();
+			const clock = B.installPinnedClock(1906516800000);
+			const a = Date.now(); const b = new Date().getTime(); const s = Date();
+			const fixed = new Date(2020, 0, 2, 3, 4, 5); const parsed = Date.parse('2001-02-03T04:05:06Z'); const utc = Date.UTC(2001, 1, 3);
+			setTimeout(()=>{
+				const later = Date.now(); clock.reset(); const afterReset = Date.now();
+				process.stdout.write(JSON.stringify({ a, b, sIsString: typeof s === 'string', sYear: /2030/.test(s),
+					instance: new Date() instanceof RealDate && fixed instanceof Date, fixedYear: fixed.getFullYear(), parsed, utc,
+					later, afterReset, realAdvanced: clock.real() - t0 >= 1100, proto: Object.prototype.toString.call(new Date()) }));
+			}, 1200);
+		`);
+		assert.equal(r.a, 1906516800000); assert.equal(r.b, 1906516800000);
+		assert.equal(r.sIsString && r.sYear && r.instance, true);
+		assert.equal(r.fixedYear, 2020); assert.equal(r.parsed, 981173106000); assert.equal(r.utc, 981158400000);
+		assert.equal(r.later, 1906516800001, '过了真实的 1.2 秒:只走 1 毫秒');
+		assert.equal(r.afterReset, 1906516800000);
+		assert.equal(r.realAdvanced, true); assert.equal(r.proto, '[object Date]');
+	});
+	it('🔴 系统时钟被往回拨(校时)时「此刻」不倒退:不会掉到上一分钟', async ()=>{
+		// 装钉住的时钟前先把系统时钟的读数换成「越读越早」的假钟:若还按系统时钟量流逝,取到的就是那一刻减 1 毫秒(钟面成了上一分钟)
+		const r = await probe(`
+			const RealNow = Date.now.bind(Date); let back = 0;
+			Date.now = ()=>RealNow() - (back += 5000);
+			const B = require(${JSON.stringify(BATCH)});
+			const clock = B.installPinnedClock(1906516800000);
+			const seen = []; for(let i = 0; i < 5; i++){ seen.push(Date.now(), new Date().getTime()); }
+			clock.reset(); seen.push(Date.now());
+			process.stdout.write(JSON.stringify({ min: Math.min(...seen), max: Math.max(...seen), minute: new Date().getUTCMinutes() }));
+		`);
+		assert.equal(r.min, 1906516800000); assert.equal(r.max, 1906516800000); assert.equal(r.minute, 0);
+	});
+	it('时区经环境变量在起子进程时给:同一刻在不同时区写出不同的钟面', async ()=>{
+		const code = `const B = require(${JSON.stringify(BATCH)}); B.installPinnedClock(1906516800000); const d = new Date(); process.stdout.write(JSON.stringify([d.getHours(), d.getDate(), d.getTimezoneOffset()]));`;
+		assert.deepEqual(await probe(code, { TZ: 'Asia/Shanghai' }), [12, 1, -480]);
+		assert.deepEqual(await probe(code, { TZ: 'America/New_York' }), [0, 1, 240]);
+		assert.deepEqual(await probe(code, { TZ: 'UTC' }), [4, 1, 0]);
+	});
+});
+
+describe('⑨c 端到端:钉住的时刻写进汇总、随请求带给计算服务;不给 --now 一切照旧', ()=>{
+	it('🔴 --now + --tz:汇总里记下时刻与时区;发给排盘服务的请求都带两个头;本地技法两次跑逐字相同', async ()=>{
+		const home = tmp();
+		const input = path.join(home, 'n.csv');
+		writeCsv(input, 4);
+		const run = async (name, extra)=>{
+			const out = path.join(home, name);
+			seenClock.length = 0;
+			const r = await runBatch([input, '-t', 'bazi,cetian', '-o', out, '--no-progress', '--no-probe', '--python-only', ...extra], home);
+			assert.ok(r.code === 0 || r.code === 1, r.err);   // cetian 要打排盘服务(假服务回 503):成败不论,只看请求带没带头;bazi 本地算
+			return { rows: readRows(out), summary: JSON.parse(fs.readFileSync(`${out}.summary.json`, 'utf8')), seen: seenClock.slice() };
+		};
+		const a = await run('a.jsonl', ['--now', '2030-06-01 12:00', '--tz', 'America/New_York']);
+		assert.deepEqual(a.summary.clock, { now: '2030-06-01T16:00:00.000Z', given: '2030-06-01 12:00', tz: 'America/New_York' });
+		assert.ok(a.seen.length >= 4, `假排盘服务收到的请求数 ${a.seen.length}`);
+		a.seen.forEach((x)=>assert.deepEqual([x.now, x.offset], ['1906560000000', '-240'], x.url));
+		const b = await run('b.jsonl', ['--now', '2030-06-01T12:00:00-04:00', '--tz', 'America/New_York', '-j', '1']);
+		const pick = (rows)=>rows.slice().sort((x, y)=>x.n - y.n).map((x)=>[x.key, x.results.bazi, x.results.cetian]);
+		assert.deepEqual(pick(a.rows), pick(b.rows));
+		// 不给 --now:汇总里 clock 为 null,请求不带这两个头
+		const c = await run('c.jsonl', []);
+		assert.equal(c.summary.clock, null);
+		assert.ok(c.seen.length >= 4);
+		c.seen.forEach((x)=>assert.deepEqual([x.now, x.offset], [undefined, undefined], x.url));
+	});
+});
+
+describe('⑩ --kind timepoint:每一行是一个起课时间,起按时间起盘的技法', ()=>{
+	it('一行 → timepoint 源(时间进 divTime,其余列照旧);缺时间如实报;--kind 写错 / 配名人库 = 用法错', ()=>{
+		const cols = B.resolveColumns(['id', 'date', 'time', 'tz', 'lat', 'lon', '地点'], {});
+		const t = B.rowToTask({ id: 'm1', date: '2024-03-10', time: '15:30', tz: '+8', lat: '39n54', lon: '116e24', 地点: '北京' }, cols, 1, 'timepoint');
+		assert.deepEqual(t.source, { kind: 'timepoint', divTime: '2024-03-10 15:30', zone: '+08:00', gpsLat: 39.9, gpsLon: 116.4, pos: '北京', gender: 'unknown' });
+		assert.match(B.rowToTask({ id: 'm2', date: '' }, cols, 2, 'timepoint').error.message, /没有起课时间/);
+		assert.equal(B.rowToTask({ id: 'n1', date: '1990-01-01', time: '08:00' }, cols, 3).source.kind, 'natal', '不给 kind = 出生资料(原行为)');
+		assert.equal(B.parseBatchArgs(['x.csv', '-t', 'qimen', '--kind', 'timepoint']).kind, 'timepoint');
+		assert.equal(B.parseBatchArgs(['x.csv', '-t', 'bazi']).kind, 'natal');
+		assert.throws(()=>B.parseBatchArgs(['x.csv', '-t', 'qimen', '--kind', 'moment']), /--kind 只认 natal \/ timepoint/);
+		assert.throws(()=>B.parseBatchArgs(['--celebrities', '-t', 'qimen', '--kind', 'timepoint']), /只能按 --kind natal/);
+	});
+	it('🔴 端到端:只有一列 time 写完整时刻也认;结果一行一例、汇总记 kind;重跑逐字相同;命盘类技法在这种来源下不认', async ()=>{
+		const home = tmp();
+		const input = path.join(home, 'moments.csv');
+		fs.writeFileSync(input, 'id,time,zone,lat,lon,place\nt1,2024-03-10 15:30,+08:00,39.9042,116.4074,北京\nt2,2011-03-11 14:46,+09:00,38.322,142.369,宫城外海\nt3,1976-07-28 03:42,+08:00,39.6,118.2,唐山\nt4,,+08:00,39.6,118.2,没写时间\n');
+		const run = async (name, extra)=>{
+			const out = path.join(home, name);
+			const r = await runBatch([input, '--kind', 'timepoint', '-t', 'qimen,xiaoliuren', '-o', out, '--no-progress', '--python-only', '--now', '2030-06-01 12:00', ...(extra || [])], home);
+			assert.equal(r.code, 1, r.err);            // 第 4 行没写起课时间 → 有失败行
+			return { rows: readRows(out).sort((x, y)=>x.n - y.n), summary: JSON.parse(fs.readFileSync(`${out}.summary.json`, 'utf8')) };
+		};
+		const a = await run('a.jsonl');
+		assert.equal(a.summary.kind, 'timepoint'); assert.deepEqual(a.summary.techniques, ['qimen', 'xiaoliuren']);
+		assert.equal(a.rows.length, 4);
+		a.rows.slice(0, 3).forEach((x)=>{
+			assert.equal(x.ok, true, JSON.stringify(x).slice(0, 300));
+			assert.match(x.results.qimen.data.content, /\[起盘信息\]/); assert.ok(x.results.xiaoliuren.data.content.length > 100);
+		});
+		assert.match(a.rows[0].results.qimen.data.content, /2024-03-10/);
+		assert.equal(a.rows[3].error.code, 'E_INPUT_INVALID'); assert.match(a.rows[3].error.message, /起课时间/);
+		const b = await run('b.jsonl', ['-j', '1']);
+		assert.deepEqual(a.rows.map((x)=>[x.key, x.results]), b.rows.map((x)=>[x.key, x.results]), '同一批起课时间重跑逐字相同(不含随机起卦)');
+		const bad = await runBatch([input, '--kind', 'timepoint', '-t', 'bazi', '-o', path.join(home, 'c.jsonl'), '--no-progress', '--python-only'], home);
+		assert.equal(bad.code, 2); assert.match(bad.err, /不认识的技法:bazi/); assert.match(bad.err, /--kind natal/);
+		const list = await runBatch(['--kind', 'timepoint', '--list-techniques'], home);
+		assert.equal(list.code, 0, list.err);
+		['qimen', 'liureng', 'taiyi', 'jinkou', 'huangli', 'jieqi'].forEach((k)=>assert.match(list.out, new RegExp(`^${k}\\s`, 'm'), k));
+		assert.doesNotMatch(list.out, /^(bazi|astrochart|tarot|lingqi)\s/m, '命盘类、要亲手摇出结果的不在这张表里');
+	});
+});
+
+describe('⑪ 起盘途中有计算服务请求失败而工具仍回报成功:这一格不采用', ()=>{
+	it('🔴 台账:失败记下;同一个请求(地址 + 正文相同)后来成功 = 重试成功,抹掉;上一技法迟到的请求不算到这一技法头上', ()=>{
+		const L = B.createBackendLedger();
+		L.reset();
+		const at = L.begin();
+		L.fail(at, 'u1\nb1', 'http://127.0.0.1:9999/predict/givenyear?x=1', 'HTTP 503');
+		L.fail(at, 'u2\nb2', 'http://127.0.0.1:8899/chart', '超时或被取消');
+		assert.deepEqual(L.unrecovered(), [{ path: '/predict/givenyear', why: 'HTTP 503' }, { path: '/chart', why: '超时或被取消' }]);
+		L.ok(at, 'u2\nb2');                                   // 第二个重试成功
+		assert.deepEqual(L.unrecovered().map((x)=>x.path), ['/predict/givenyear']);
+		L.reset();                                            // 下一个技法
+		assert.deepEqual(L.unrecovered(), []);
+		L.fail(at, 'late', 'http://127.0.0.1:9999/late', '连接失败');   // 上一技法发出的请求这时才失败
+		assert.deepEqual(L.unrecovered(), [], '不算到这一技法头上');
+		const now = L.begin(); L.fail(now, 'k', 'http://x/a', 'ECONNREFUSED');
+		assert.equal(L.unrecovered().length, 1);
+	});
+	it('🔴 回报成功 + 途中有失败 → 改记 E_BACKEND_PARTIAL(可重算);本来就失败的、没有失败请求的原样', ()=>{
+		const ok = { ok: true, data: { content: 'x' } };
+		const g = B.guardPartial(ok, [{ path: '/predict/dist', why: 'HTTP 503' }, { path: '/chart', why: '连接失败' }]);
+		assert.deepEqual([g.ok, g.code, g.retryable], [false, 'E_BACKEND_PARTIAL', true]);
+		assert.match(g.message, /有 2 个计算服务请求失败\(\/predict\/dist:HTTP 503\)/); assert.match(g.message, /--retry-failed/);
+		assert.equal(B.guardPartial(ok, []), ok);
+		const bad = { ok: false, code: 'E_TOOL_TIMEOUT' };
+		assert.equal(B.guardPartial(bad, [{ path: '/a', why: 'b' }]), bad);
+	});
+	it('🔴 接线:每个技法开算前清台账、算完后过一遍;--python-only 就地回的 503 不进台账;只盯发给计算服务的请求', ()=>{
+		const src = fs.readFileSync(BATCH, 'utf8');
+		assert.match(src, /if\(ledger\)\{ ledger\.reset\(\); \}/);
+		assert.match(src, /if\(ledger\)\{ r = guardPartial\(r, ledger\.unrecovered\(\)\); \}/);
+		assert.match(src, /return which \? tracked\(url, opts, orig\(input, opts\)\) : orig\(input, opts\);/);
+		const py = src.slice(src.indexOf("if(which === 'java' && init.pythonOnly){"), src.indexOf('// 时钟钉住时,把这一刻随请求带给计算服务'));
+		assert.doesNotMatch(py, /tracked\(/, '就地回的 503 不经台账');
 	});
 });

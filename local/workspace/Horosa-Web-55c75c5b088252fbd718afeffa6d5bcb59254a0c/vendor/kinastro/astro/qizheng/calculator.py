@@ -306,7 +306,12 @@ def compute_chart(
     jd = swe.julday(year, month, day, decimal_hour)
 
     # 計算宮位 (使用 Placidus 宮位制)
-    cusps, ascmc = swe.houses(jd, latitude, longitude, b"P")
+    # horosa_qizheng_polar_ascmc_v1:極圈以內 Placidus 無定義,星曆庫直接報錯,整盤起不出來。本函數只取上升與天頂,
+    # 兩者與宮位制無關(極圈內照樣有值),故報錯時改用處處有定義的 Porphyry 取同一對上升 / 天頂;極圈以外路徑不變。
+    try:
+        cusps, ascmc = swe.houses(jd, latitude, longitude, b"P")
+    except swe.Error:
+        cusps, ascmc = swe.houses(jd, latitude, longitude, b"O")
     ascendant = ascmc[0]
     midheaven = ascmc[1]
 

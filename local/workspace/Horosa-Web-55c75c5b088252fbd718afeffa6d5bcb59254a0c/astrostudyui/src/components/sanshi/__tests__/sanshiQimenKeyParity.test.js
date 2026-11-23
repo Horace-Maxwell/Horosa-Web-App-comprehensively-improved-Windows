@@ -3,8 +3,9 @@
 //   机械提取两文件字面量(剥不掉就红),不手抄清单——新键漏同步当场判红。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+const read = (rel)=>readSource(path.join(__dirname, rel));
 
 function extractObjKeys(src, marker){
 	const i = src.indexOf(marker);

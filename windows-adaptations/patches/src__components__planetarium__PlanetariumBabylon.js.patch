@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/planetarium/PlanetariumBabylon.js b/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
-index 2d91601d..3dbfb801 100644
+index b31fcbce..b55eed62 100644
 --- a/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
 +++ b/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
 @@ -2,6 +2,8 @@ import { Component, createRef,  } from 'react';
@@ -8,10 +8,10 @@ index 2d91601d..3dbfb801 100644
  import '../comp/DateTimeSelector';
 +import { planetariumRenderGatingEnabled, planetariumTimeEditDebounceEnabled } from '../../utils/perfFlags';
 +import { markPanelReady } from '../../utils/perfMark';
- import { fetchPlanetariumState } from '../../services/planetarium';
  import GeoCoordModal from '../amap/GeoCoordModal';
- import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
-@@ -188,7 +190,11 @@ class PlanetariumBabylon extends Component{
+ import XQIcon from '../xq-icons';
+ import { QuickTimeText } from '../comp/QuickTimeField';
+@@ -176,7 +178,11 @@ class PlanetariumBabylon extends Component{
  		if(Object.keys(DEFAULT_LAYERS).some((k)=>savedView.layers[k] !== DEFAULT_LAYERS[k])){ restore.layers = { ...DEFAULT_LAYERS, ...savedView.layers }; }
  		if(savedView.viewMode !== this.state.viewMode){ restore.viewMode = savedView.viewMode; }
  		if(Object.keys(restore).length){ this.setState(restore); }
@@ -23,7 +23,7 @@ index 2d91601d..3dbfb801 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -220,6 +226,8 @@ class PlanetariumBabylon extends Component{
+@@ -208,6 +214,8 @@ class PlanetariumBabylon extends Component{
  		}
  		if(prevState.speed !== this.state.speed){
  			this.setupPlayback();
@@ -32,7 +32,7 @@ index 2d91601d..3dbfb801 100644
  		}
  		if(prevState.viewMode !== this.state.viewMode && this.renderer){
  			this.renderer.setViewMode(this.state.viewMode);
-@@ -250,6 +258,14 @@ class PlanetariumBabylon extends Component{
+@@ -238,6 +246,14 @@ class PlanetariumBabylon extends Component{
  			document.removeEventListener('fullscreenchange', this._onFullscreenChange);
  			this._onFullscreenChange = null;
  		}
@@ -47,78 +47,3 @@ index 2d91601d..3dbfb801 100644
  		this.pushPerfLog('release', { canvasReleased: true });
  		if(this.playTimer){
  			cancelAnimationFrame(this.playTimer);
-@@ -273,6 +289,24 @@ class PlanetariumBabylon extends Component{
- 		this.lastInteractionAt = nowMs();
- 	}
- 
-+	// perf:planetariumRenderGating —— 依「可见 + 激活」决定渲染循环停/起。
-+	// 本组件仅在天文馆为激活 tab 时挂载(切走即卸载释放),故此处实质门控的是窗口隐藏/最小化;
-+	// 可见+激活时:照常满帧/降帧渲染,行为一字不动。
-+	_applyRenderActivity(){
-+		if(!this.renderer){
-+			return;
-+		}
-+		const gate = planetariumRenderGatingEnabled();
-+		const hidden = (typeof document !== 'undefined') && document.hidden;
-+		const shouldRun = gate ? ((this.props.active !== false) && !hidden) : true;
-+		if(shouldRun){
-+			this.renderer.startRenderLoop();
-+			this.renderer.renderOnce();
-+		}else{
-+			this.renderer.stopRenderLoop();
-+		}
-+	}
-+
- 	scheduleBackgroundFull(options = {}){
- 		if(this._isUnmounted){
- 			return;
-@@ -419,6 +453,9 @@ class PlanetariumBabylon extends Component{
- 				catalogCount: data.meta ? data.meta.renderedCatalogCount : 0,
- 			},
- 		}), ()=>{
-+			// horosa_panel_ready_v1:数据已应用到 3D 场景与右栏,本次提交即「点击→画完」终点。
-+			// 播放帧的 setState({time}) 不经此路,不会刷样本;归属键=页签键 'planetarium'。
-+			markPanelReady('planetarium');
- 			this.requestInFlight = false;
- 			this.flushPendingRequest();
- 			if(followupFull && !this._isUnmounted){
-@@ -624,12 +661,27 @@ class PlanetariumBabylon extends Component{
- 			document.removeEventListener('mousedown', this._onTimeEditorDocMouseDown, true);
- 		}
- 		this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
-+		const confirmed = !!(res && res.confirmed);
-+		const fireRequest = ()=>{
-+			if(this._isUnmounted){ return; }
-+			this.requestState({ requestKind: 'full', reason: 'time-edit', syncLabel: '重算此时天空...' });
-+		};
- 		this.setState({
- 			time: dt,
- 			selected: null,
- 			speed: 0,
--			...(res && res.confirmed ? { timeEditorOpen: false } : {}),
--		}, ()=>this.requestState({ requestKind: 'full', reason: 'time-edit', syncLabel: '重算此时天空...' }));
-+			...(confirmed ? { timeEditorOpen: false } : {}),
-+		}, ()=>{
-+			// C 去抖:显示与外推基线已同步更新(即时实时);只把「后端整盘重算」合并 —— 连续 +/- 期间不重复打后端,
-+			//   「确定」或关总开关 → 立即重算。requestState 触发时读当下 this.state.time(=最后一次 setState 的值)→
-+			//   最终结果精确无误,只是省掉中间多余的来回与 syncing 闪烁(不改任何计算内容)。
-+			if(this._timeEditDebounce){ clearTimeout(this._timeEditDebounce); this._timeEditDebounce = null; }
-+			if(confirmed || !planetariumTimeEditDebounceEnabled()){
-+				fireRequest();
-+			}else{
-+				this._timeEditDebounce = setTimeout(()=>{ this._timeEditDebounce = null; fireRequest(); }, 220);
-+			}
-+		});
- 	}
- 
- 	// 双击时间行键入 14 位数字 → 与编辑面板「确定」同路(confirmed=true:暂停播放 + 全量重取该时刻天象)。
-@@ -1004,6 +1056,9 @@ class PlanetariumBabylon extends Component{
- 				syncing: false,
- 				syncLabel: '',
- 				error: data && data.err ? data.err : '天文馆数据载入失败',
-+			}, ()=>{
-+				// 错误横幅画出同样终结本次交互(失败终态盖章,与七政各失败终态先例同)。
-+				markPanelReady('planetarium');
- 			});
- 			this.requestInFlight = false;
- 			this.flushPendingRequest();

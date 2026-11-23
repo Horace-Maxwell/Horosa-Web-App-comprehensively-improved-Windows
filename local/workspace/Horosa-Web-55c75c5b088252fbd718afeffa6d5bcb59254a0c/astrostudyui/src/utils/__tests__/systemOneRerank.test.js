@@ -2,6 +2,7 @@
 // 入 ≤ 12 段、片段截 2000 字、收 signal;稳定层组装器不 import 本模块。
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import { rerankPassages, rerankQuestions, rerankState, RERANK_MAX_ITEMS, RERANK_PASSAGE_MAX_CHARS, RERANK_DEFAULTS } from '../systemOne/rerank';
 import { validateQuestions } from '../systemOne/questions';
 import { setSystemOneProfilePresent, __resetSystemOnePrefsForTest } from '../systemOne/prefs';
@@ -59,6 +60,6 @@ it('🔴 稳定层组装器(aiAnalysisRag / 提示层)不 import rerank', ()=>{
 	const UI = path.resolve(__dirname, '..', '..', '..');
 	['src/utils/aiAnalysisRag.js', 'src/utils/aiChat/promptLayers.js', 'src/utils/aiAnalysisContext.js'].forEach((rel)=>{
 		const f = path.join(UI, rel);
-		if(fs.existsSync(f)){ expect({ file: rel, imports: /systemOne\/rerank/.test(fs.readFileSync(f, 'utf8')) }).toEqual({ file: rel, imports: false }); }
+		if(fs.existsSync(f)){ expect({ file: rel, imports: /systemOne\/rerank/.test(readSource(f)) }).toEqual({ file: rel, imports: false }); }   // 门面按全集读
 	});
 });

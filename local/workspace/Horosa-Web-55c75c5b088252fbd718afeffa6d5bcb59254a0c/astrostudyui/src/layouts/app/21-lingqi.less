@@ -55,7 +55,7 @@
 	gap: 3px;
 	min-width: 66px;
 	b {
-		font-size: 24px;
+		font-size: var(--horosa-fs-display);
 		font-weight: 700;
 		line-height: 1.15;
 		letter-spacing: 2px;
@@ -63,12 +63,12 @@
 	}
 	em {
 		font-style: normal;
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		letter-spacing: 1.5px;
 		color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
 	}
 	span {
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		color: rgba(239, 228, 210, 0.75);
 		border: 1px solid rgba(216, 173, 99, 0.22);
 		border-radius: 8px;
@@ -172,7 +172,7 @@
 	align-items: baseline;
 	gap: 12px;
 }
-.horosa-lingqi-result-ordinal { font-size: 13px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); letter-spacing: 2px; }
+.horosa-lingqi-result-ordinal { font-size: var(--horosa-fs-body); color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); letter-spacing: 2px; }
 .horosa-lingqi-result-name {
 	font-size: 28px;
 	font-weight: 700;
@@ -180,7 +180,7 @@
 	text-shadow: 0 0 14px rgba(216, 173, 99, 0.25);
 	letter-spacing: 4px;
 }
-.horosa-lingqi-result-xiang { font-size: 15px; color: rgba(239, 228, 210, 0.85); letter-spacing: 1px; }
+.horosa-lingqi-result-xiang { font-size: var(--horosa-fs-subtitle); color: rgba(239, 228, 210, 0.85); letter-spacing: 1px; }
 .horosa-lingqi-result-sub {
 	display: flex;
 	align-items: center;
@@ -191,11 +191,11 @@
 	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
 	letter-spacing: 1px;
 }
-.horosa-lingqi-origin-tag { margin: 0; font-size: 11px; line-height: 16px; color: #8fc48f; background: rgba(127, 176, 127, 0.1); border-color: rgba(127, 176, 127, 0.4); }
-.horosa-lingqi-wu-tag { margin: 0; font-size: 11px; line-height: 16px; color: #ecb2a0; background: rgba(236, 100, 78, 0.1); border-color: rgba(236, 100, 78, 0.4); }
+.horosa-lingqi-origin-tag { margin: 0; font-size: var(--horosa-fs-caption); line-height: 16px; color: #8fc48f; background: rgba(127, 176, 127, 0.1); border-color: rgba(127, 176, 127, 0.4); }
+.horosa-lingqi-wu-tag { margin: 0; font-size: var(--horosa-fs-caption); line-height: 16px; color: #ecb2a0; background: rgba(236, 100, 78, 0.1); border-color: rgba(236, 100, 78, 0.4); }
 .horosa-lingqi-empty-hint {
 	text-align: center;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	line-height: 1.8;
 	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
 	padding: 4px 0 0; /* 底衬 10px 在 1.8 档让空态板多出 5px 发丝滚动条(板 overflow-y:auto);空态提示不需要底衬 */
@@ -225,7 +225,7 @@
 	}
 	code {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		color: var(--horosa-gold, #d8ad63);
 		word-break: break-all;
 		line-height: 1.5;
@@ -242,7 +242,7 @@
 		border: 1px solid var(--horosa-border, rgba(216, 173, 99, 0.2));
 		border-radius: 8px;
 		background: rgba(255, 255, 255, 0.02);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		white-space: nowrap;
 		transition: border-color 0.18s, background 0.18s;
 		&:hover { border-color: rgba(216, 173, 99, 0.45); }
@@ -265,7 +265,7 @@
 	margin-bottom: 8px;
 }
 .horosa-lingqi-ov-ord {
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	letter-spacing: 1px;
 	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
 	border: 1px solid rgba(216, 173, 99, 0.3);
@@ -313,7 +313,7 @@
 	gap: 9px;
 	padding: 6px 0;
 	border-bottom: 1px dashed rgba(216, 173, 99, 0.14);
-	.horosa-lingqi-sancai-role { font-size: 11px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); width: 46px; }
+	.horosa-lingqi-sancai-role { font-size: var(--horosa-fs-caption); color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); width: 46px; }
 	.horosa-lingqi-sancai-val { font-size: 12.5px; color: rgba(239, 228, 210, 0.88); flex: 1; }
 }
 .horosa-lingqi-sancai-pos {
@@ -331,7 +331,7 @@
 	flex: none;
 }
 .horosa-lingqi-sancai-xing {
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	padding: 0 9px;
 	line-height: 18px;
 	border-radius: 9px;
@@ -343,7 +343,7 @@
 }
 .horosa-lingqi-rel {
 	margin-top: 7px;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 1.7;
 	padding: 4px 9px;
 	border-radius: 7px;
@@ -353,11 +353,11 @@
 }
 .horosa-lingqi-yy {
 	margin-top: 8px;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: rgba(239, 228, 210, 0.7);
 	em { font-style: normal; margin-left: 8px; color: var(--horosa-gold, #d8ad63); }
 }
-.horosa-lingqi-timelines { font-size: 12px; line-height: 1.95; color: rgba(239, 228, 210, 0.8); }
+.horosa-lingqi-timelines { font-size: var(--horosa-fs-small); line-height: 1.95; color: rgba(239, 228, 210, 0.8); }
 // 繇辞与诗
 .horosa-lingqi-yao-text {
 	font-size: 14.5px;
@@ -389,7 +389,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	font-weight: 700;
 	color: #071015;
 	border-radius: 50%;
@@ -399,7 +399,7 @@
 }
 .horosa-lingqi-zhu-era {
 	margin-left: auto;
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
 	letter-spacing: 0.5px;
 }
@@ -408,7 +408,7 @@
 .horosa-lingqi-rite-item b { display: block; font-size: 12.5px; color: var(--horosa-gold, #d8ad63); margin-bottom: 2px; letter-spacing: 1px; }
 .horosa-lingqi-rite-item p { margin: 0; font-size: 12.5px; line-height: 1.9; }
 .horosa-lingqi-rite-item em { font-style: normal; margin-left: 4px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
-.horosa-lingqi-rite-zhu { margin-top: 6px; font-size: 12px; line-height: 1.85; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+.horosa-lingqi-rite-zhu { margin-top: 6px; font-size: var(--horosa-fs-small); line-height: 1.85; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
 
 // ── 窄窗降档(三栏 clamp 压缩时中栏 ~440-560px;棋子/字号/间距成组降,不裁切)──
 @media (max-width: 1500px) {
@@ -421,8 +421,8 @@
 	.horosa-lingqi-chips { gap: 10px; }
 	.horosa-lingqi-chip-face.is-front { font-size: 21px; }
 	.horosa-lingqi-layer-label { min-width: 52px; }
-	.horosa-lingqi-layer-label b { font-size: 20px; }
-	.horosa-lingqi-result-name { font-size: 24px; letter-spacing: 3px; }
+	.horosa-lingqi-layer-label b { font-size: var(--horosa-fs-title-lg); }
+	.horosa-lingqi-result-name { font-size: var(--horosa-fs-display); letter-spacing: 3px; }
 	.horosa-lingqi-board { padding: 14px 16px; }
 }
 

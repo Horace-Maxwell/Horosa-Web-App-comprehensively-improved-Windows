@@ -1,7 +1,8 @@
 import React from 'react';
-import { Spin, Empty } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { fetchTimeline } from '../../services/xuanshi';
 import { gregYearShort } from './xuanshiDate';   // 公元前年份写法单源
+import { pressable } from '../../utils/pressable';
 
 // 朝代时间轴 —— 照搬 参考朝代时间轴页:顶部编年横向条带(柱按公历 span 定位、柱高∝事件数、时间刻度)
 // + 朝代×术类 堆叠条 + 图例 + 右侧钻取面板。
@@ -63,9 +64,9 @@ export default class XuanShiTimeline extends React.Component {
 
 	render() {
 		const { data, loading, err, macro, drill, drillLoading } = this.state;
-		if (loading) { return <div className="xuanshi-center" style={{ minHeight: 400 }}><Spin tip="载入时间轴…" /></div>; }
-		if (err) { return <div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>; }
-		if (!data) { return <div className="xuanshi-center"><Empty /></div>; }
+		if (loading) { return <div className="xuanshi-center" style={{ minHeight: 400 }}><XQSpin tip="载入时间轴…" /></div>; }
+		if (err) { return <div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>; }
+		if (!data) { return <div className="xuanshi-center"><XQEmpty /></div>; }
 		const series = data.series || [];
 		const matrix = data.matrix || [];
 		const techs = data.top_techs || [];
@@ -83,7 +84,7 @@ export default class XuanShiTimeline extends React.Component {
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>图谱</span>
 					<span className="xuanshi-crumb-sep">/</span><span>朝代时间轴</span>
 				</div>
@@ -116,7 +117,7 @@ export default class XuanShiTimeline extends React.Component {
 								const bottom = 48 + (laneCount - 1 - lanes[si]) * laneH;
 								return (
 									<div key={s.macro} className="group" title={`${s.macro}(${gregYearShort(s.span_start)}—${gregYearShort(s.span_end)}) ${s.total} 条`}
-										onClick={() => this.selectMacro(s.macro)}
+										{...pressable(() => this.selectMacro(s.macro))}
 										style={{ position: 'absolute', bottom, left: `${left}%`, width: `calc(${width}% - 2px)`, height, cursor: 'pointer' }}>
 										<div style={{ height: '100%', borderRadius: '6px 6px 0 0', background: isActive ? 'var(--vermilion)' : 'linear-gradient(180deg, var(--vermilion-soft), var(--vermilion))', border: `1px solid ${isActive ? 'var(--vermilion)' : 'var(--vermilion-soft)'}` }}>
 											<div style={{ fontSize: 10, color: 'var(--paper-card)', textAlign: 'center', paddingTop: 2, overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.total}</div>
@@ -143,7 +144,7 @@ export default class XuanShiTimeline extends React.Component {
 							return (
 								<div key={row.macro} style={{ marginBottom: 12 }}>
 									<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-										<span className="xuanshi-link" style={{ fontFamily: 'var(--xs-serif)', fontSize: 13, color: 'var(--ink)' }} onClick={() => this.selectMacro(row.macro)}>{row.macro}</span>
+										<span className="xuanshi-link" style={{ fontFamily: 'var(--xs-serif)', fontSize: 13, color: 'var(--ink)' }} {...pressable(() => this.selectMacro(row.macro))}>{row.macro}</span>
 										<span className="xuanshi-stat-sub" style={{ fontVariantNumeric: 'tabular-nums' }}>{rowTotal} 行</span>
 									</div>
 									<div style={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--line-soft)' }}>
@@ -173,14 +174,14 @@ export default class XuanShiTimeline extends React.Component {
 								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
 									<h2 className="xuanshi-display is-h2" style={{ fontSize: 17, margin: 0 }}>钻取:{macro}</h2>
 									<div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-										{series.map((s) => <span key={s.macro} className={`xuanshi-chip ${s.macro === macro ? 'is-vermilion' : 'is-ink'}`} style={{ cursor: 'pointer' }} onClick={() => this.selectMacro(s.macro)}>{s.macro}</span>)}
+										{series.map((s) => <span key={s.macro} className={`xuanshi-chip ${s.macro === macro ? 'is-vermilion' : 'is-ink'}`} style={{ cursor: 'pointer' }} {...pressable(() => this.selectMacro(s.macro))}>{s.macro}</span>)}
 									</div>
 								</div>
-								{drillLoading ? <div className="xuanshi-center" style={{ minHeight: 120 }}><Spin tip="载入…" /></div> : (drill && drill.length) ? (
+								{drillLoading ? <div className="xuanshi-center" style={{ minHeight: 120 }}><XQSpin tip="载入…" /></div> : (drill && drill.length) ? (
 									<>
 										<div className="xuanshi-evlist">
 											{drill.map((r) => (
-												<div className="xuanshi-evrow" key={r.event_id} onClick={() => this.props.onOpenEvent && this.props.onOpenEvent(r.event_id)}>
+												<div className="xuanshi-evrow" key={r.event_id} {...pressable(() => this.props.onOpenEvent && this.props.onOpenEvent(r.event_id))}>
 													<div className="xuanshi-evrow-chips">
 														{r.tradition ? <span className="xuanshi-chip is-jade">{r.tradition}</span> : null}
 														{r.history ? <span className="xuanshi-chip is-ink">《{r.history}》{r.volume_no ? `卷${r.volume_no}` : ''}</span> : null}

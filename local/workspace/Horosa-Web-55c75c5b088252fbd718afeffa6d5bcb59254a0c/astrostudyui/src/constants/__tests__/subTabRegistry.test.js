@@ -77,7 +77,7 @@ describe('rememberSubTab 入槽纪律', () => {
 describe('宿主接线哨兵(remember 调用点在位)', () => {
 	const fs = require('fs');
 	const path = require('path');
-	const read = (rel) => fs.readFileSync(path.join(__dirname, rel), 'utf8');
+	const read = (rel) => require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, rel));   // 拆成子模块的门面按全集读,其余文件原样
 	test('导航各组回落分支全部走 recallSubTab(手写 indexOf 回落=复辟)', () => {
 		const src = read('../../pages/index.js');
 		const groups = ['cntradition', 'cnyibu', 'auxchart', 'zeri'];
@@ -121,7 +121,7 @@ describe('合盘子页签回落', () => {
 		expect(getTechniqueHelpDoc('relativechart', 'germanytech')).toBe(TECHNIQUE_HELP_DOCS.germanytech);
 	});
 	test('导航层 changeTab 对合盘走 recallSubTab;宿主挂载与切子页签 rememberSubTab(源码哨兵)', () => {
-		const idx = fs.readFileSync(path.resolve(__dirname, '../../pages/index.js'), 'utf8');
+		const idx = require('../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '../../pages/index.js'));   // 门面 + 子模块全集
 		expect(idx).toContain("recallSubTab('relativechart', RELATIVE_SUBTABS, currentSubTab, 'Comp')");
 		expect(idx).not.toContain("key === 'direction' || key === 'relativechart'");
 		const rel = fs.readFileSync(path.resolve(__dirname, '../../components/astro/AstroRelative.js'), 'utf8');

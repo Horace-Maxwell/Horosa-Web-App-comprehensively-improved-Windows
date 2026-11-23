@@ -1,6 +1,7 @@
 // 新建目标任务弹窗(P2):一句话目标 + 完成判据 + 预算四维 + 挂载源/技法;提交即建任务并开跑(经 goalRunner.createGoalTask,与工具同一入口)。
 import React from 'react';
-import { Modal, Input, InputNumber, Select, message } from 'antd';
+import { Modal, Input, Select, message } from 'antd';
+import { XQInputNumber } from '../xq-ui';
 import { createGoalTask, resolveHeadlessProfile } from '../../utils/aiAgent/goalRunner';
 import { estimateUsageCost } from '../../utils/aiAnalysisProviders';
 import { DEFAULT_TASK_BUDGET } from '../../utils/aiAgent/tasks';
@@ -56,10 +57,10 @@ export default function GoalTaskModal({ open, onClose, onCreated }){
 				<div><div>完成判据(可选)</div><Input maxLength={1000} value={criteria} onChange={(e)=>setCriteria(e.target.value)} placeholder="例:6 个人都建了命盘并各有一份八字快照" /></div>
 				<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
 					<span>预算:</span>
-					<span>轮数 <InputNumber size="small" min={1} max={20} value={budget.maxTurns} onChange={(v)=>setBudget((b)=>({ ...b, maxTurns: v || 1 }))} style={{ width: 70 }} /></span>
-					<span>调用 <InputNumber size="small" min={1} max={200} value={budget.maxCalls} onChange={(v)=>setBudget((b)=>({ ...b, maxCalls: v || 1 }))} style={{ width: 80 }} /></span>
-					<span title={unpricedModel ? `模型「${unpricedModel}」不在计价表里,费用预算不会触发停止;请用轮数 / 调用次数上限约束` : undefined}>费用$ <InputNumber size="small" min={0.1} max={50} step={0.5} value={budget.maxCostUsd} disabled={!!unpricedModel} onChange={(v)=>setBudget((b)=>({ ...b, maxCostUsd: v || 0.1 }))} style={{ width: 80 }} />{unpricedModel ? <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>(该模型无计价表,费用预算不可用)</span> : null}</span>
-					<span>分钟 <InputNumber size="small" min={1} max={120} value={budget.maxWallMinutes} onChange={(v)=>setBudget((b)=>({ ...b, maxWallMinutes: v || 1 }))} style={{ width: 70 }} /></span>
+					<span>轮数 <XQInputNumber size="small" min={1} max={20} value={budget.maxTurns} onChange={(v)=>setBudget((b)=>({ ...b, maxTurns: v || 1 }))} style={{ width: 70 }} /></span>
+					<span>调用 <XQInputNumber size="small" min={1} max={200} value={budget.maxCalls} onChange={(v)=>setBudget((b)=>({ ...b, maxCalls: v || 1 }))} style={{ width: 80 }} /></span>
+					<span title={unpricedModel ? `模型「${unpricedModel}」不在计价表里,费用预算不会触发停止;请用轮数 / 调用次数上限约束` : undefined}>费用$ <XQInputNumber size="small" min={0.1} max={50} step={0.5} value={budget.maxCostUsd} disabled={!!unpricedModel} onChange={(v)=>setBudget((b)=>({ ...b, maxCostUsd: v || 0.1 }))} style={{ width: 80 }} />{unpricedModel ? <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>(该模型无计价表,费用预算不可用)</span> : null}</span>
+					<span>分钟 <XQInputNumber size="small" min={1} max={120} value={budget.maxWallMinutes} onChange={(v)=>setBudget((b)=>({ ...b, maxWallMinutes: v || 1 }))} style={{ width: 70 }} /></span>
 				</div>
 				<div style={{ display: 'flex', gap: 8 }}>
 					<Select filterOption={scriptFilterBy('label')} size="small" allowClear placeholder="挂载命盘/事盘(可选)" value={sourceCid} onChange={setSourceCid} style={{ flex: '1 1 50%' }} showSearch optionFilterProp="label"

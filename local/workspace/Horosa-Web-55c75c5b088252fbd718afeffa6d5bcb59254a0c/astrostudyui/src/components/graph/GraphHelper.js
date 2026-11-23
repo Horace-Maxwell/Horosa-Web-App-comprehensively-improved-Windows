@@ -322,7 +322,7 @@ export function calcNormalVector(x1, y1, z1, x2, y2, z2, x3, y3, z3, vec){
 	let nvec = {
 		x: 0.0,
 		y: 0.0,
-		x: 0.0
+		z: 0.0
 	}
 	cross(pt1pt2[0], pt1pt2[1], pt1pt2[2], pt2pt3[0], pt2pt3[1], pt2pt3[2], nvec);
 	if(isZero(nvec.x) && isZero(nvec.y) && isZero(nvec.z)){

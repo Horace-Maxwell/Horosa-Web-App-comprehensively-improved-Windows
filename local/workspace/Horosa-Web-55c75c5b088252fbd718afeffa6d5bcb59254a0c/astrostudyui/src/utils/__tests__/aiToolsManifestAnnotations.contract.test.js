@@ -2,7 +2,7 @@
 //   title = 中文标签单源;interactive 类带 anthropic/requiresUserInteraction(Claude Code 每次弹确认、不提供「不再问」);
 //   负锚:运行时 toolDefs() 送上游的定义只含 name/description/inputSchema(注解只在 MCP 面,模型请求体字节零变)。
 import { registerBuiltinTools } from '../aiTools';
-import { exportToolManifest, registerTool, __resetToolsForTests } from '../aiTools/registry';
+import { exportToolManifest, registerTool, getTool, __resetToolsForTests } from '../aiTools/registry';
 import { buildToolManifest, TOOL_CATEGORIES } from '../aiTools/catalog';
 import { toolLabel } from '../aiTools/labels';
 import { createAgentTurn } from '../aiAgent/runtime';
@@ -19,22 +19,28 @@ it('🔴 openWorldHint:external 类别与外部服务器工具 true,其余 false
 	expect(by.web_fetch.annotations.openWorldHint).toBe(true);
 	expect(by.ext_demo_time.annotations.openWorldHint).toBe(true);
 	['list_records', 'create_chart_record', 'cast_technique', 'navigate_to_technique', 'ask_user'].forEach((n)=>{ expect(by[n].annotations.openWorldHint).toBe(false); });
+	const idem = new Set(registry.listTools().filter((d)=>d.idempotent === true).map((d)=>d.name));
 	man.forEach((t)=>{
 		expect(t.annotations.destructiveHint).toBe(false);
 		expect(t.annotations.readOnlyHint).toBe(t.level === 'read' && t.category !== 'ui');
-		expect(t.annotations.idempotentHint).toBe(t.level === 'read');
+		expect(t.annotations.idempotentHint).toBe(t.level === 'read' || idem.has(t.name));   // 写入类声明 idempotent:true 的也报幂等
 		expect(TOOL_CATEGORIES).toContain(t.category);
 	});
 });
 
-it('🔴 title = 标签单源且非空;interactive 类(ask_user / note_progress)带 anthropic/requiresUserInteraction,其余无 _meta', ()=>{
+it('🔴 title = 标签单源且非空;interactive 类(ask_user / note_progress)带 anthropic/requiresUserInteraction;声明得比缺省 120 s 长的带 io.horosa/timeoutMs;其余无 _meta', ()=>{
 	const man = exportToolManifest({ includeDisabled: true });
 	man.forEach((t)=>{
 		expect(t.title).toBe(toolLabel(t.name));
 		expect(`${t.title || ''}`.length).toBeGreaterThan(0);
-		if(t.category === 'interactive'){ expect(t._meta).toEqual({ 'anthropic/requiresUserInteraction': true }); }
+		const declared = Number((getTool(t.name) || {}).timeoutMs);
+		const want = { ...(t.category === 'interactive' ? { 'anthropic/requiresUserInteraction': true } : {}), ...(declared > 120000 ? { 'io.horosa/timeoutMs': declared } : {}) };
+		if(Object.keys(want).length){ expect(t._meta).toEqual(want); }
 		else{ expect(t._meta).toBeUndefined(); }
 	});
+	// 长工具确实带上了声明预算(桌面壳在客户端没给 _meta.timeoutMs 时按它等)
+	const long = man.filter((t)=>t._meta && t._meta['io.horosa/timeoutMs']).map((t)=>t.name);
+	['search_zeri', 'ask_user'].forEach((n)=>expect(long).toContain(n));
 	expect(man.filter((t)=>t.category === 'interactive').map((t)=>t.name).sort()).toEqual(['ask_user', 'note_progress']);
 	// 纯函数形状:注解四键齐全且可 JSON 无损
 	const one = buildToolManifest([{ name: 'x_tool', level: 'read', category: 'external', origin: 'builtin', description: 'd', inputSchema: { type: 'object' } }])[0];

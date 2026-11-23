@@ -4,7 +4,7 @@
 //
 // 两类来源(均读代码定):
 //   · 挂载设置表里登记了的(techniqueMountSettings 的 TAIXUAN / JINGJUE / WUZHAO / SHENYISHU 字段、皇极心易组、
-//     六壬起课组的选时支与演数、奇门阴盘报数、金口诀地分(求测者报出,定课本身)、印度盘问事的起卦时刻与问数)
+//     六壬起课组的选时支与演数、奇门阴盘报数、金口诀地分(求测者报出,定课本身)、印度盘问事的问数)
 //     —— 这些键过得了覆盖层的字段过滤,真会改到起卦结果;
 //   · 只存在存档 payload 里、挂载表故意不登的(塔罗牌面与起牌方式 / 地占图形 / 灵棋棋数 / 六爻卦 / 小六壬课 / 小成图卦 / 飞宫局 /
 //     轨策卦 / 统摄法四卦)—— 覆盖层本来就会剪掉,显式拒是为了给调用方一句明白话,而不是静默无效。
@@ -25,7 +25,8 @@ export const CAST_INPUT_KEYS = Object.freeze({
 	liureng: Object.freeze(['xuanShiZhi', 'yanShuNum']),
 	qimen: Object.freeze(['shuziReportNumber']),
 	jinkou: Object.freeze(['diFen']),
-	indiachart: Object.freeze(['indiaPrashnaTime', 'indiaPrashnaNumber']),
+	// 印占问事:问数是用户报数(照拒);问事时刻由时间确定、可复算,与卜卦盘同类放行
+	indiachart: Object.freeze(['indiaPrashnaNumber']),
 	sanshiunited: Object.freeze(SANSHI_CAST_KEYS.slice()),
 	tarot: Object.freeze(['seed', 'seedMode', 'deckId', 'spreadType', 'question']),
 	geomancy: Object.freeze(['seed', 'seedMode', 'question', 'castNumbers']),
@@ -52,7 +53,6 @@ export const CAST_INPUT_NEUTRAL = Object.freeze({
 	qimen: Object.freeze({ shuziReportNumber: '' }),
 	sanshiunited: Object.freeze({ shuziReportNumber: '' }),
 	jinkou: Object.freeze({ diFen: 'auto' }),
-	indiachart: Object.freeze({ indiaPrashnaTime: '' }),
 });
 
 // 技法页保存的设置(facet=page)按哪一个技法的起卦输入表判:页键与技法键不同名的在这里对上

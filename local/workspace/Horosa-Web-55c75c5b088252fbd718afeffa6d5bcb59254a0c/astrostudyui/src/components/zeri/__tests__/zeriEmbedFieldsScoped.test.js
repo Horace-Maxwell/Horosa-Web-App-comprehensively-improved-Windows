@@ -314,7 +314,7 @@ describe('载入存案换覆盖层 / 印度选项进覆盖层 / 三式底盘带�
 		spy.mockRestore();
 		setGlobalStore({});
 		// 三式:覆盖层带上存案时刻
-		const ss = require('fs').readFileSync(require('path').join(__dirname, '../../sanshi/SanShiUnitedMain.js'), 'utf8');
+		const ss = readSource(require('path').join(__dirname, '../../sanshi/SanShiUnitedMain.js'));
 		expect(ss).toContain('sendScopedFields(this.props, { ...casePatch, ...sharedPatch }, { replace: true })');
 	});
 	test('🔴 印度择日内嵌改岁差 / 罗计:交给宿主覆盖层(宿主重渲染不再冲回工作台值)', ()=>{
@@ -411,7 +411,7 @@ describe('太乙择日已挂着时载入存案:宿主请内嵌太乙还原', ()=
 		h.componentDidUpdate();
 		expect(h.taiyiHook.restoreCase).toHaveBeenCalledTimes(2);
 		storageutil.getStore.mockReturnValue(null);
-		const src = require('fs').readFileSync(require('path').join(__dirname, '../../taiyi/TaiYiMain.js'), 'utf8');
+		const src = readSource(require('path').join(__dirname, '../../taiyi/TaiYiMain.js'));
 		expect(src).toContain('this.props.hook.restoreCase = () => (this.unmounted ? false : this.restoreFromCurrentCase(false));');
 	});
 });

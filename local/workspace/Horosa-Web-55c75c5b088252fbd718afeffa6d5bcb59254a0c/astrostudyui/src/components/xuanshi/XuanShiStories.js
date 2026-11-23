@@ -1,9 +1,11 @@
 import React from 'react';
-import { Spin, Empty, Select, Input } from 'antd';
+import { Select, Input } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { marked } from 'marked';
 import { fetchStories, fetchStory } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
 import { matchesUserQuery } from '../../utils/scriptMode';
+import { pressable } from '../../utils/pressable';
 
 // 故事专题 —— 编辑层 story(已发布 30 篇):专题故事卡(封面字符+标题+摘要+朝代/难度/时长)
 // + 详情(body_html 走 prose 成熟 markdown 渲染 + 右栏「专题档案」:频道/朝代/时期/难度/阅读/出处/标签)。
@@ -66,8 +68,8 @@ export default class XuanShiStories extends React.Component {
 
 	renderDetail() {
 		const d = this.state.selected;
-		if (this.state.detailLoading || (!d.title && !d._err)) { return <div className="xuanshi-center"><Spin tip="载入故事…" /></div>; }
-		if (d._err) { return <div className="xuanshi-center"><Empty description={`载入失败:${d._err}`} /></div>; }
+		if (this.state.detailLoading || (!d.title && !d._err)) { return <div className="xuanshi-center"><XQSpin tip="载入故事…" /></div>; }
+		if (d._err) { return <div className="xuanshi-center"><XQEmpty description={`载入失败:${d._err}`} /></div>; }
 		const sources = d.sources || [];
 		const tags = d.tags || [];
 		const facts = (label, val) => (val && String(val).trim() ? (
@@ -80,7 +82,7 @@ export default class XuanShiStories extends React.Component {
 		const hasAside = d.channel_name || d.dynasty || d.period_label || d.difficulty || d.reading_minutes || sources.length || tags.length;
 		return (
 			<div>
-				<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回专题</span>
+				<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回专题</span>
 				<div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, margin: '14px 0 6px' }}>
 					<span className="xuanshi-seal is-lg" style={d.accent_color ? { background: d.accent_color } : undefined}>{d.cover_icon || (d.title || '·')[0]}</span>
 					<div style={{ flex: 1, minWidth: 0 }}>
@@ -94,7 +96,7 @@ export default class XuanShiStories extends React.Component {
 				{d.summary ? <div className="xuanshi-section-sub" style={{ fontSize: 14, color: 'var(--ink-soft)' }}>{d.summary}</div> : null}
 				<div style={{ display: 'flex', gap: 22, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 10 }}>
 					<div style={{ flex: '1 1 440px', minWidth: 0, maxWidth: 760 }}>
-						{html ? <div className="xuanshi-prose" dangerouslySetInnerHTML={{ __html: html }} /> : <Empty description="暂无正文" />}
+						{html ? <div className="xuanshi-prose" dangerouslySetInnerHTML={{ __html: html }} /> : <XQEmpty description="暂无正文" />}
 					</div>
 					{hasAside ? (
 						<aside className="xuanshi-card" style={{ flex: '0 0 232px', alignSelf: 'flex-start' }}>
@@ -137,12 +139,12 @@ export default class XuanShiStories extends React.Component {
 					<Input.Search placeholder="标题 / 关键词" allowClear size="small" style={{ width: 220 }} defaultValue={this.state.q} onSearch={(v) => this.setFilter({ q: v })} />
 					<span className="xuanshi-stat-sub" style={{ marginLeft: 'auto' }}>{items.length} 篇专题</span>
 				</div>
-				{loading ? <div className="xuanshi-center"><Spin tip="载入…" /></div> : err ? (
-					<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
-				) : !items.length ? <div className="xuanshi-center"><Empty description="暂无故事专题" /></div> : (
+				{loading ? <div className="xuanshi-center"><XQSpin tip="载入…" /></div> : err ? (
+					<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
+				) : !items.length ? <div className="xuanshi-center"><XQEmpty description="暂无故事专题" /></div> : (
 					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
 						{items.map((m) => (
-							<div className="xuanshi-card is-link" key={m.slug || m.id} onClick={() => this.openDetail(m.slug)}>
+							<div className="xuanshi-card is-link" key={m.slug || m.id} {...pressable(() => this.openDetail(m.slug))}>
 								<div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
 									<span className="xuanshi-seal" style={m.accent_color ? { background: m.accent_color } : undefined}>{m.cover_icon || (m.title || '·')[0]}</span>
 									<div style={{ flex: 1, minWidth: 0 }}>

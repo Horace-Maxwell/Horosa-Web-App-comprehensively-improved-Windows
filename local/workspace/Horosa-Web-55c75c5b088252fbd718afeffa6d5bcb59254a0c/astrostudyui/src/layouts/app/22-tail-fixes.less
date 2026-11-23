@@ -589,7 +589,7 @@
 		color: var(--horosa-text);
 	}
 	.horosa-workspace-shell .horosa-aux-switch-field .horosa-aux-switch-text {
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -609,6 +609,13 @@
 	.horosa-help-book.is-compact {
 		flex-direction: column;
 	}
+	/* 手册分包载入中的骨架:与成品同一副外壳(同高、同左栏宽),条块只用凹陷面色(亮暗自动跟) */
+	.horosa-help-book.is-loading { pointer-events: none; }
+	.horosa-help-skel-nav { flex: 0 0 212px; padding: 14px 0; border-right: 1px solid var(--horosa-border); }
+	.horosa-help-skel-main { flex: 1 1 auto; padding: 22px 24px; }
+	.horosa-help-skel-line { height: 10px; margin: 0 14px 14px; border-radius: 5px; background: var(--horosa-surface-sunken); }
+	.horosa-help-skel-main .horosa-help-skel-line { margin: 0 0 14px; }
+	.horosa-help-skel-line.is-title { width: 38%; height: 16px; margin-bottom: 22px; }
 	.horosa-help-book-nav {
 		overflow-y: auto;
 		padding: 12px 8px 16px;
@@ -637,7 +644,7 @@
 		border-radius: 0 7px 7px 0;
 		background: transparent;
 		color: var(--horosa-text);
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		line-height: 1.45;
 		text-align: left;
 		cursor: pointer;
@@ -647,8 +654,8 @@
 		background: var(--horosa-accent-soft);
 	}
 	.horosa-help-book-item:focus-visible {
-		outline: 2px solid var(--horosa-accent);
-		outline-offset: -2px;
+		outline: var(--horosa-focus-outline);
+		outline-offset: var(--horosa-focus-offset);
 	}
 	.horosa-help-book-item.is-active {
 		border-left-color: var(--horosa-accent);
@@ -687,7 +694,7 @@
 	.horosa-help-book-crumb {
 		display: flex;
 		gap: 6px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		color: var(--horosa-text-soft);
 		letter-spacing: 0.04em;
 	}
@@ -942,7 +949,7 @@
 		border: 1px solid var(--horosa-border-strong);
 		border-radius: 7px;
 		color: var(--horosa-text-soft);
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		font-weight: 500;
 		line-height: 1.7;
 		white-space: nowrap;
@@ -973,13 +980,13 @@
 	.horosa-workspace-shell .horosa-taiyi-section-card .horosa-taiyi-info-heading em {
 		margin-left: 8px;
 		color: var(--horosa-muted);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-style: normal;
 		font-weight: 400;
 	}
 	.horosa-workspace-shell .horosa-kv-note {
 		color: var(--horosa-muted);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 1.65;
 		overflow-wrap: break-word; overflow-wrap: anywhere;
 	}
@@ -990,7 +997,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 		gap: 5px 12px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 1.6;
 		> div {
 			display: flex;
@@ -1040,7 +1047,7 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
 		gap: 5px 10px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 1.5;
 		> div {
 			display: flex;
@@ -1150,5 +1157,16 @@
 		top: 0;
 		z-index: 2;
 		background: var(--horosa-astro-panel, var(--horosa-surface-solid));
+	}
+}
+
+/* 主限天球(AstroPDSphere)深色工具条里的复选:字色跟工具条(浅字压在 3D 深底上),不吃全站复选的主题字色;
+   工具条自己有 gap,去掉 antd 相邻复选之间的左外边距 */
+:global {
+	.horosa-pdsphere-check.ant-checkbox-wrapper {
+		color: inherit;
+		white-space: nowrap;
+		user-select: none;
+		margin-left: 0;
 	}
 }

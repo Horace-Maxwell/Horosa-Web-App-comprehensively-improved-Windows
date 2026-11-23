@@ -21,7 +21,9 @@ describe('卜·其他一组左栏主按钮高度', ()=>{
 
 	test('卜卦 / 择日 / 世俗的 40px 原规则不动(只在本组内收回)', ()=>{
 		const cards = read('layouts/app/17-divination-cards.less');
-		expect(cards).toMatch(/\.horosa-astro-input-panel \.ant-btn\.ant-btn-sm \{\s*\n\s*height: 40px !important;/);
+		// 40 = 控件尺寸档 lg(01-base 令牌)
+		expect(cards).toMatch(/\.horosa-astro-input-panel \.ant-btn\.ant-btn-sm \{\s*\n\s*height: var\(--horosa-control-height-lg\) !important;/);
+		expect(read('layouts/app/01-base.less')).toContain('--horosa-control-height-lg: 40px;');
 	});
 
 	test('本组主按钮都是 XQButton 全宽小号主按钮(规则才认得到)', ()=>{

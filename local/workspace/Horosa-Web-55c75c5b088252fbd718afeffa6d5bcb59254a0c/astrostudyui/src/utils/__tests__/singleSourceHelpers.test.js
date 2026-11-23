@@ -8,7 +8,8 @@ import fs from 'fs';
 import path from 'path';
 import { isDesktopBridgeAvailable } from '../aiAnalysisDesktop';
 
-const { importsName, definesLocal } = require('./helpers/importSpecs');   // 按 AST 读 import:同一条里多导几个名字 / 换行排版都照认
+const { importsName, definesLocal, usesLocal, fileImportsName } = require('./helpers/importSpecs');
+const { sourceSetFiles } = require('./helpers/sourceSet');   // 按 AST 读 import:同一条里多导几个名字 / 换行排版都照认
 
 const SRC = path.join(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
@@ -18,10 +19,16 @@ describe('localStorage 句柄:safeStorage 一份', () => {
 		const req = read('utils/request.js');
 		expect(definesLocal(req, 'getLocalStorageSafe')).toBe(false);
 		expect(importsName(req, { name: 'getLocalStorageSafe', from: './safeStorage' })).toBe(true);
-		const store = read('utils/localRecordStore.js');
-		expect(definesLocal(store, 'getLocalStorage')).toBe(false);
-		expect(definesLocal(store, 'getLocalStorageSafe')).toBe(false);
-		expect(importsName(store, { name: 'getLocalStorageSafe', from: './safeStorage', as: 'getLocalStorage' })).toBe(true);
+		// 记录库内核按职责拆在子目录:逐个文件问(门面 + 子文件),谁用句柄谁从 safeStorage 引,谁都不许自带一份
+		const storeFiles = sourceSetFiles(path.join(SRC, 'utils', 'localRecordStore.js'));
+		const target = path.join(SRC, 'utils', 'safeStorage.js');
+		const users = storeFiles.filter((f)=>usesLocal(fs.readFileSync(f, 'utf8'), 'getLocalStorage'));
+		expect(users.length).toBeGreaterThan(0);
+		storeFiles.forEach((f)=>{
+			const t = fs.readFileSync(f, 'utf8');
+			expect([path.basename(f), definesLocal(t, 'getLocalStorage') || definesLocal(t, 'getLocalStorageSafe')]).toEqual([path.basename(f), false]);
+		});
+		users.forEach((f)=>expect([path.basename(f), fileImportsName(f, { name: 'getLocalStorageSafe', target, as: 'getLocalStorage' })]).toEqual([path.basename(f), true]));
 	});
 	test('判别力:单独一条 / 与别的名字合一条 import 都认;本文件另定义一份 / 从别处导入 / 只写在注释里都不认', () => {
 		const ok1 = "import { getLocalStorageSafe } from './safeStorage';\n";

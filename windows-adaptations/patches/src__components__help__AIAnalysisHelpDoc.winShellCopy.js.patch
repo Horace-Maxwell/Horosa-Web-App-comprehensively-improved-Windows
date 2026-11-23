@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
-index dd54fdc2..abdf21ad 100644
+index 30f0b337..69eb2883 100644
 --- a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
 +++ b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
-@@ -415,7 +415,8 @@ export const HELP_BOOK = {
- 								{kv('外部能做什么', '读:档案、各技法快照、合盘数据、天星与各流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)、名人库(约 5.9 万位名人的出生资料与简介)、玄学史、当前页正文、技法操作手册、后台任务;写(只增、可撤销):建命盘 / 事盘、把名人存成命盘、按你报出的起卦结果存事盘、加星标 / 标签、追加断事日志、关联档案、改设置(作用范围同上「总开关」一条);改档案与归档只能提议,在任务中心等你采纳;对话记录与备注默认不给,要开「私人内容可读」;命主实况还要你对那张命盘打开了「发送」才给')}
+@@ -416,7 +416,8 @@ export const HELP_BOOK = {
+ 								{kv('外部能做什么', '读:档案(含每张档案最近 10 次修改的历史版本)、各技法快照、合盘数据、天星与各流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 三式 / 七政 / 印度;择日页里存的方案也能拿来复用)、任一时刻任一地点的天象(日月行星方位、升落、月相)、占星地图的行星线与某地落点、风水理气起局、印占校时扫描、名人库(约 5.9 万位名人的出生资料与简介)、玄学史、当前页正文、技法操作手册、后台任务;写(只增、可撤销):建命盘 / 事盘、把名人存成命盘、按你报出的起卦结果存事盘、请 AI 代摇 / 代抽起卦(每次都先问你,随机种子随事盘存下)、把档案另存副本或把某个历史版本恢复为副本(原档不动)、加星标 / 标签、追加断事日志、关联档案、改设置(作用范围同上「总开关」一条)、把技法正文或对话存成文件(md / docx / pdf / txt,排版与应用内导出相同,只写导出目录、不覆盖);改档案与归档只能提议,在任务中心等你采纳;对话记录与备注默认不给,要开「私人内容可读」;命主实况还要你对那张命盘打开了「发送」才给')}
  								{kv('界面类也要确认', '缺省关:外部程序切换技法页、合盘配对会直接执行(动作条可回退);打开后这些动作也先弹到审批台。设对话挂载按写入走上面的审批档(只读档下不可用)')}
  								{kv('REST 接口', '缺省关,要先开本机 MCP 服务:打开后同一端口多出 /api/v1,本机脚本(curl、Python、自动化工具)用同一令牌按普通 HTTP 调同一套工具,审批与上限同外部客户端策略。GET /api/v1/tools 列工具,POST /api/v1/tools/<工具名> 以 JSON 请求体传参;常用读操作有 GET 简写(/records、/tasks、/proposals、/context、/actions、/materials,查询串即参数);GET /api/v1/openapi.json 是现生成的接口文档;加 ?stream=1 可收进度。面板上「复制 curl 示例」带好了令牌')}
 -								{kv('终端命令', '在「进阶 → AI 助手行动能力 → 本机 MCP 服务」里装好「终端命令 horosa」后,终端里可用:horosa status(服务状态)· horosa tools(列工具)· horosa describe <工具>(参数说明)· horosa call <工具> k=v …(调用任意工具;k:=JSON 传数字 / 数组 / 对象,- 从标准输入读 JSON)· horosa records 张、tasks、context(常用简写)· horosa read <资源地址> · horosa prompts。加 --json 输出机器可读结果,--progress 显示进度;按 Ctrl-C 会取消星阙里正在跑的那次调用。审批与上限同外部客户端策略;要先开本机 MCP 服务。终端找不到 horosa 时把 ~/.local/bin 加进 PATH,或用「复制示例命令」给的全路径')}

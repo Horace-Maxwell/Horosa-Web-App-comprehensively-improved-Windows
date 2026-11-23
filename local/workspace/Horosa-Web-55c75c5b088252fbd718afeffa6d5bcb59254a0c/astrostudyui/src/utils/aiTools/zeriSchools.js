@@ -2,17 +2,15 @@
 // 与各择日页同一条件注册表、同一编译、同一扫描引擎;盘面口径 = 各择日宿主同一构参(工作台出厂参数;紫微读你的紫微设置、八字读八字页的南半球月令 / 命宫起法,与内嵌页同源;页面与本表共用同一函数),
 // 用事人本命(可选)用各页自己的 resolveNatal 解析;后端两家与择日页同一按月切段编排。只读、不写任何记录。
 // 奇门择日的盘面口径 = 内嵌奇门页的整套排盘设置(你在奇门页亲手设的,没存过 = 出厂值;与择日工作台首开播种同一口径)。
-// 三式择日暂不在表内:每个样本同时排三盘,单次扫描很慢(见 unsupported 说明)。
+// 三式择日:每个时刻只排条件涉及的那几家(六壬 / 奇门 / 太乙),跨度上限比单家小。
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../dayBoundary';
 import { indiaNatalPayload } from '../../divination/zeri/indiaZeriNatal';
 import { wallTextToMs, msToWallText } from '../../divination/zeri/hourlyScanEngine';
 
-export const ZERI_SCHOOLS = ['huangli', 'bazi', 'ziwei', 'liureng', 'taiyi', 'qimen', 'qizheng', 'india'];
-export const ZERI_UNSUPPORTED = {
-	sanshi: '三式择日每个样本同时排六壬 / 奇门 / 太乙三盘,外部调用暂不开放;请在择日页里搜',
-};
+export const ZERI_SCHOOLS = ['huangli', 'bazi', 'ziwei', 'liureng', 'taiyi', 'qimen', 'sanshi', 'qizheng', 'india'];
+export const ZERI_UNSUPPORTED = {};
 // AI 一次搜索的跨度上限(天):逐时扫描的本机引擎压到一年内(外部调用有时间预算),逐日的黄历与后端两家同择日页
-export const ZERI_AI_MAX_SPAN_DAYS = { huangli: 1830, bazi: 366, ziwei: 366, liureng: 366, taiyi: 366, qimen: 366, qizheng: 1830, india: 1830 };
+export const ZERI_AI_MAX_SPAN_DAYS = { huangli: 1830, bazi: 366, ziwei: 366, liureng: 366, taiyi: 366, qimen: 366, sanshi: 184, qizheng: 1830, india: 1830 };
 
 function natalFromBirth(birth, zone, gender){
 	const m = /^(-?\d{1,4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?/.exec(`${birth || ''}`.trim());
@@ -75,6 +73,14 @@ const SPECS = {
 		async load(){
 			const [ct, eng, page] = await Promise.all([import('../../divination/zeri/qimenConditionTypes'), import('../../divination/zeri/qimenScanEngine'), import('../../components/dunjia/DunJiaMain')]);
 			return { registry: ct.QIMEN_CONDITION_TYPES, compile: ct.compileQimenTree, scan: eng.scanQimen, explain: eng.explainQimenAt, defaults: page.dunjiaZeriOptions };
+		},
+	},
+	sanshi: {
+		label: '三式择日', granularity: 'hour', where: true, natal: true,
+		async load(){
+			const [ct, eng, host] = await Promise.all([import('../../divination/zeri/sanshiZeriConditionTypes'), import('../../divination/zeri/sanshiZeriScanEngine'), import('../../components/zeri/SanshiZeriMain')]);
+			// 条件可跨三家混排(lr_ / qm_ / ty_ 前缀);本命只给六壬家的本命类条件用
+			return { registry: ct.SANSHI_CONDITION_TYPES, compile: ct.compileSanshiTree, scan: eng.scanSanshi, explain: eng.explainSanshiAt, resolveNatal: host.resolveNatal, defaults: ()=>host.sanshiZeriHeadlessScanOptions(), calibreOf: ()=>'工作台出厂参数;三式页出厂口径' };
 		},
 	},
 	qizheng: {

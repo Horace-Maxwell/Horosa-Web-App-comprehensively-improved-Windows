@@ -1,4 +1,4 @@
-// F-09 占星宿度制字段改 select(单源) · F-45 印占三旗/问事随记录持久化+回填 · F-44 七政 kentang 七齿轮+无头基础键同集。
+// 占星宿度制字段改 select(单源) · 印占三旗/问事随记录持久化+回填 · 七政 kentang 七齿轮+无头基础键同集。
 var mockBodies = [];
 jest.mock('../localcharts', () => { const a = jest.requireActual('../localcharts'); return { __esModule: true, ...a, listLocalCharts: jest.fn(() => []) }; });
 jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn(), clearModuleAISnapshot: jest.fn() }));
@@ -10,7 +10,7 @@ import { regenerateChartTechniqueSnapshot } from '../aiAnalysisContext';
 
 const REC = { cid: 'bd', name: '拍板', birth: '1990-05-18 10:00:00', zone: '+08:00', lon: '118e27', lat: '31n38', gpsLon: 118.45, gpsLat: 31.63, gender: 1, ad: 1 };
 
-describe('F-09 宿占 doubingSu28 = 宿度制 select(星盘条目已撤:星盘快照零消费)', ()=>{
+describe('宿占 doubingSu28 = 宿度制 select(星盘条目已撤:星盘快照零消费)', ()=>{
 	it('🔴 类型 select、值域 ≡ SU28_MODE_LABEL 键集、缺省 0;拨 2(回归今宿)= 覆盖;astrochart 不再暴露', ()=>{
 		const f = TECHNIQUE_SETTINGS_SCHEMA.suzhan.fields.find((x)=>x.name === 'doubingSu28');
 		expect(f.type).toBe('select');
@@ -22,7 +22,7 @@ describe('F-09 宿占 doubingSu28 = 宿度制 select(星盘条目已撤:星盘�
 	});
 });
 
-describe('F-45 三旗/问事随记录', ()=>{
+describe('三旗/问事随记录', ()=>{
 	it('🔴 存盘七键落库;载入回填到 fields;未提供不落键', ()=>{
 		const rec = buildLocalChartRecord({ ...REC, indiaTripataki: 1, indiaPrashnaTime: '2026/05/15 10:12:00', indiaPrashnaNumber: 108, indiaPrashnaMatter: 'marriage', indiaPrashnaSchools: 'kp,tajika', indiaPrashnaCuspMode: 'time_placidus', indiaPrashnaPrimaryHouse: 7 });
 		expect(rec.indiaTripataki).toBe(1);
@@ -39,7 +39,7 @@ describe('F-45 三旗/问事随记录', ()=>{
 	});
 });
 
-describe('F-44 七政 kentang 七齿轮 + 无头基础键', ()=>{
+describe('七政 kentang 七齿轮 + 无头基础键', ()=>{
 	const realFetch = global.fetch;
 	afterEach(()=>{ global.fetch = realFetch; });
 	it('🔴 request 带 qizhengKin* 七键与 after23/lateZi/gps/pos;缺省不带七键(零 churn)', async ()=>{

@@ -1,7 +1,7 @@
 // 右栏「断诀」页:开局信息卡(三层环境+禄马生旺墓)+通例命中+碎金赋链+飞伏生克+应期+金锁八要素+新派打分+古法进阶组。
 // 纯展示,吃 analyzeLiuyao 产出;设置一变即随之刷新。
 import React from 'react';
-import { DIZHI, TIANGAN, ZHI_YINYANG, CHANGSHENG_START, CHANGSHENG_START_ALT, CHANGSHENG_STAGES } from '../gua/LiuYaoConst';   // 火土同宫表
+import { DIZHI, TIANGAN, ZHI_YINYANG, CHANGSHENG_START, CHANGSHENG_START_ALT } from '../gua/LiuYaoConst';   // 火土同宫表
 import { LiuYaoRiYueView, LiuYaoShenShaExView, LiuYaoYueLiuShenView } from './LiuYaoBoard';
 import { MANGPAI_SHIKAN } from '../gua/liuyaoReference';
 

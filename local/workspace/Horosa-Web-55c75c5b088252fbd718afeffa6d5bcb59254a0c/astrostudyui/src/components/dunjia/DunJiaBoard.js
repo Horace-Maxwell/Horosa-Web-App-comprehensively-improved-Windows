@@ -7,6 +7,10 @@ import { QIMEN_WU_HE, qimenGlyphScriptAttrs } from './DunJiaCalc';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import { shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import { QIMEN_HARM_COLOR, tint } from './qimenHarmColors';
+import { QimenCellOverlay, QimenJianChuRing } from './QimenCellOverlay';
+import { dunjiaCellGeometry, dunjiaCenterGeometry, dunjiaCellInsets, qimenCellHasOverlay, dunjiaRingFit, DUNJIA_RING } from './qimenCellLayout';
+import { getDeclaredZoom } from '../../utils/zoomDomain';
+import { XQToggle } from '../xq-ui';
 
 // 遁甲盘子组件(根因 E/fan-out):此前 DunJiaMain.renderBoard 把九宫×每宫约5个 Popover(共 ~45 个)+ 表头悬浮
 // 全部内联在父 render 里。父任意 setState(切盘类/开传本设置 Modal/右栏状态/起盘 loading…)→ 整个父重渲 →
@@ -235,7 +239,9 @@ class DunJiaBoard extends Component{
 		);
 	}
 
-	renderCell(cell){
+	// innerK = 九宫在盘里再缩的比例(十二建星外环开着时九宫等比缩进原边长,附加字的视觉下限要跟着折算);
+	// roomy = 盘上有附注:主字往四角让(qimenCellLayout.dunjiaCellInsets),给附注留安全距离
+	renderCell(cell, innerK = 1, roomy = false){
 		if(cell && cell.isJinhan){ return this.renderJinhanCell(cell); }
 		const titleColor = cell.hasKongWang
 			? QIMEN_HARM_COLOR.空亡
@@ -257,8 +263,7 @@ class DunJiaBoard extends Component{
 		const diGanColor = 'var(--horosa-text, #262626)';
 		const centerMinorColor = 'var(--horosa-muted, #8c8c8c)';
 		const unifiedFont = 34;
-		const insetX = 52;
-		const insetY = 40;
+		const { x: insetX, y: insetY } = dunjiaCellInsets(roomy);
 		const isGenPalace = cell.palaceNum === 7 || cell.palaceName === '艮';
 		const yiMaStyle = isGenPalace
 			? { position: 'absolute', left: 10, bottom: 8, fontSize: 20, lineHeight: '20px', color: 'var(--horosa-text, #111)' }
@@ -327,6 +332,8 @@ class DunJiaBoard extends Component{
 							</div>
 						))}
 					</div>
+					{/* 暗干排入中五宫的起法(时干加值使·飞布 / 满盘旋转飞):在两行大字下方挂一行「暗 X」,与其余八宫的暗干同一个展示件 */}
+					<QimenCellOverlay cell={cell} geometry={dunjiaCenterGeometry({ texts: centerItems.map((item)=>item.text), scale: (this.props.boardScale || 1) * innerK * getDeclaredZoom() })} />
 				</div>
 			);
 		}
@@ -361,11 +368,8 @@ class DunJiaBoard extends Component{
 					},
 					`qimen_tiangan_${cell.palaceNum}`
 				)}
-				{cell.anGan ? (
-					<div style={{ position: 'absolute', left: insetX + unifiedFont + 6, top: insetY + 6, fontSize: 16, lineHeight: '16px', color: 'var(--horosa-muted, #8c8c8c)', fontWeight: 600 }}>
-						{cell.anGan}{cell.anZhi ? cell.anZhi : ''}
-					</div>
-				) : null}
+				{/* 暗干 / 寄干 / 天禽 / 推演标记:与三式合一盘同一个展示件与空位算法(qimenCellLayout),盘整体缩放时按视觉字号定下限 */}
+				<QimenCellOverlay cell={cell} geometry={dunjiaCellGeometry({ cell, roomy, scale: (this.props.boardScale || 1) * innerK * getDeclaredZoom() })} />
 				{this.renderQimenHoverNode(
 					'stem',
 					cell.diGan || ' ',
@@ -438,6 +442,54 @@ class DunJiaBoard extends Component{
 						{this.renderQimenHoverInline('palace', cell.palaceName, <span>{cell.palaceName}</span>, `pn_${cell.palaceNum}`)}
 					</div>
 				)}
+			</div>
+		);
+	}
+
+	// 九宫 + 封局印;十二建星开着时外加一圈地支与建星,整块等比缩回原边长(盘头、图例、整盘高度都不变)
+	renderGridArea(pan, cellSize, boardGap, boardWidth){
+		const seal = pan.fengJu ? (
+			<div
+				style={{
+					position: 'absolute',
+					left: '50%',
+					top: '50%',
+					transform: 'translate(-50%, -50%)',
+					width: '62%',
+					maxWidth: 430,
+					opacity: 0.22,
+					pointerEvents: 'none',
+					zIndex: 9,
+				}}
+			>
+				<img src={sealedImage} alt="雷霆都司印章" style={{ width: '100%', height: 'auto', display: 'block' }} />
+			</div>
+		) : null;
+		const roomy = !pan.isJinhan && (pan.cells || []).some(qimenCellHasOverlay);
+		const gridStyle = { display: 'grid', gridTemplateColumns: `repeat(3, ${cellSize}px)`, gap: boardGap, ...(pan.isJinhan ? { gridAutoRows: `${cellSize}px` } : {}) };
+		if(!pan.jianChu){
+			return (
+				<div className="horosa-dunjia-grid-wrap" style={{ position: 'relative', width: boardWidth, maxWidth: '100%' }}>
+					<div style={gridStyle}>
+						{pan.cells.map((cell)=>this.renderCell(cell, 1, roomy))}
+					</div>
+					{seal}
+				</div>
+			);
+		}
+		const { outer, k } = dunjiaRingFit({ cellSize, gap: boardGap });
+		const M = DUNJIA_RING.margin;
+		return (
+			<div className="horosa-dunjia-grid-wrap has-ring" style={{ position: 'relative', width: boardWidth, height: boardWidth, maxWidth: '100%' }}>
+				<div className="horosa-qimen-ring-stage" style={{ position: 'absolute', left: 0, top: 0, width: outer, height: outer, transform: `scale(${k})`, transformOrigin: '0 0' }}>
+					<QimenJianChuRing ring={pan.jianChu} />
+					<div style={{ position: 'absolute', left: M, top: M, width: boardWidth, height: boardWidth }}>
+						<div style={gridStyle}>
+							{pan.cells.map((cell)=>this.renderCell(cell, k, roomy))}
+						</div>
+						{seal}
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -602,28 +654,7 @@ class DunJiaBoard extends Component{
 								</div>
 							) : null}
 						</div>
-						<div className="horosa-dunjia-grid-wrap" style={{ position: 'relative', width: boardWidth, maxWidth: '100%' }}>
-							<div style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${cellSize}px)`, gap: boardGap, ...(pan.isJinhan ? { gridAutoRows: `${cellSize}px` } : {}) }}>
-								{pan.cells.map((cell)=>this.renderCell(cell))}
-							</div>
-							{pan.fengJu ? (
-								<div
-									style={{
-										position: 'absolute',
-										left: '50%',
-										top: '50%',
-										transform: 'translate(-50%, -50%)',
-										width: '62%',
-										maxWidth: 430,
-										opacity: 0.22,
-										pointerEvents: 'none',
-										zIndex: 9,
-									}}
-								>
-									<img src={sealedImage} alt="雷霆都司印章" style={{ width: '100%', height: 'auto', display: 'block' }} />
-								</div>
-							) : null}
-						</div>
+						{this.renderGridArea(pan, cellSize, boardGap, boardWidth)}
 						<div className="horosa-dunjia-board-tags" style={{ marginTop: 12 }}>
 							{DUNJIA_LEGEND_ITEMS.map((item)=>(
 								<span
@@ -637,6 +668,18 @@ class DunJiaBoard extends Component{
 									{item.label}
 								</span>
 							))}
+							{/* 十二建星外环开关(只在奇门页主盘;择日概览等嵌入盘不传回调 = 不出) */}
+							{typeof this.props.onToggleJianChu === 'function' ? (
+								<XQToggle
+									size="small"
+									active={!!pan.jianChu}
+									className="horosa-qimen-ring-toggle"
+									title={pan.jianChu ? '收起盘外的十二建星外环' : '在盘外加一圈十二支与建星'}
+									onClick={this.props.onToggleJianChu}
+								>
+									十二建星
+								</XQToggle>
+							) : null}
 						</div>
 					</div>
 			</div>

@@ -26,6 +26,7 @@ from astro.shaozi import (  # noqa: E402
     ShaoziBirthData,
     ShaoziFullShenShu,
     ShaoziShenShu,
+    YuanHuiYunShi,
     calculate_ganzhi_from_datetime,
 )
 
@@ -40,6 +41,55 @@ def ke_key_for(hour_gz, ke):
     branch = (hour_gz or "")[-1:] if hour_gz else ""
     group = KE_TO_KEY_GROUP.get(ke, "初")
     return f"{branch}{group}" if branch else ke
+
+
+_GAN = "甲乙丙丁戊己庚辛壬癸"
+_ZHI = "子丑寅卯辰巳午未申酉戌亥"
+
+
+def _year_ganzhi(year):
+    return _GAN[(year - 4) % 10] + _ZHI[(year - 4) % 12]
+
+
+def _yuanhui_birth_year(dt, year_gz):
+    """元会运世用的出生年:取与年柱同干支、离出生日期最近的公历年(立春前出生的取上一年)。
+    引擎自带的推算只凭年柱干支倒推一个「近似年」(1990 年生的会推成 1996),这里有真实日期就用真实的。"""
+    try:
+        y = int(dt.year)
+    except Exception:
+        return None
+    for cand in (y, y - 1, y + 1):
+        if _year_ganzhi(cand) == year_gz:
+            return cand
+    return y   # 年柱被手动改过、对不上任何邻近年:按公历年
+
+
+def _yuanhui_of(birth_year):
+    if birth_year is None:
+        return None
+    try:
+        yhy = YuanHuiYunShi(birth_year)
+        return {
+            "birth_year": birth_year,
+            "cycles": yhy.get_cycle_info(),
+            "life_stage": yhy.get_life_stage(),
+            "era_stage": yhy.get_era_description(),
+        }
+    except Exception:
+        return None
+
+
+def _yuanhui_rows(yuanhui):
+    """元会运世段:只给读得懂的几行(不再把周期字典原样摊开、也不在没出错时印「错误：—」)。"""
+    if yuanhui.get("error") and not yuanhui.get("cycles"):
+        return [row("说明", "元会运世没算出来")]
+    cycles = yuanhui.get("cycles") or {}
+    rows = [row("出生年", yuanhui.get("birth_year"))]
+    if all(k in cycles for k in ("元", "會", "運", "世")):
+        rows.append(row("元会运世", "第%s元 · 第%s会 · 第%s运 · 第%s世" % (cycles["元"], cycles["會"], cycles["運"], cycles["世"])))
+    rows.append(row("人生阶段", yuanhui.get("life_stage")))
+    rows.append(row("时代阶段", yuanhui.get("era_stage")))
+    return rows
 
 
 def _result_attr(result, name, default=""):
@@ -126,13 +176,7 @@ def _build_sections(pan):
         },
         {
             "title": "元会运世",
-            "rows": [
-                row("推定年份", yuanhui.get("birth_year")),
-                row("周期", yuanhui.get("cycles")),
-                row("人生阶段", yuanhui.get("life_stage")),
-                row("时代阶段", yuanhui.get("era_stage")),
-                row("错误", yuanhui.get("error")),
-            ],
+            "rows": _yuanhui_rows(yuanhui),
         },
         {
             "title": "条文",
@@ -201,6 +245,10 @@ class ShaoZiSrv:
                 ke=ke_key_for(hour_gz, ke),   # 刻数→64 钥匙时辰键
                 use_key=use_key,
             ))
+            # 元会运世按真实出生年重算(引擎只凭年柱干支推「近似年」)
+            _yh = _yuanhui_of(_yuanhui_birth_year(dt, year_gz))
+            if _yh is not None and isinstance(full, dict):
+                full["yuanhui"] = json_safe(_yh)
 
             pillars = [
                 {"key": "year", "label": "年柱", "ganzhi": year_gz},

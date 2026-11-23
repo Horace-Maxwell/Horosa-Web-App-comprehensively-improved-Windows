@@ -82,11 +82,55 @@ describe('① 与桌面壳逐项对拍', ()=>{
 		});
 		expect(EL ? EL.src('mcp.test.js') : mcpSrc()).toMatch(EL ? /path\.join\(fx, 'clientIdentityCases\.tsv'\)/ : /include_str!\(\s*"[^"]*fixtures\/clientIdentityCases\.tsv"\s*\)/);
 	});
-	it('🔴 两份 OpenAPI 的 POST /tools/{name} 都写出 Idempotency-Key 请求头', ()=>{
-		const doc = rest.openApiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9');
+	it('🔴 两份 OpenAPI 的写入类 POST /tools/{name} 都写出 Idempotency-Key 请求头(读类不挂)', ()=>{
+		const doc = rest.openApiDoc([{ name: 'create_chart_record', level: 'additive', inputSchema: { type: 'object' } }, { name: 'list_records', level: 'read', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], '9.9.9');
 		const h = doc.paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key');
 		expect(h).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } });
-		if(EL){ expect(EL.rest.openapiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9').paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key')).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } }); }else{ expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/); }
+		expect(doc.paths['/tools/list_records'].post.parameters.some((x)=>x.name === 'Idempotency-Key')).toBe(false);
+		if(EL){
+			const elDoc = EL.rest.openapiDoc([{ name: 'create_chart_record', level: 'additive', inputSchema: { type: 'object' } }, { name: 'list_records', level: 'read', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], '9.9.9');
+			expect(elDoc.paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key')).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } });
+			expect(elDoc.paths['/tools/list_records'].post.parameters.some((x)=>x.name === 'Idempotency-Key')).toBe(false);
+			// 两份文档逐字同形(路径 / 参数 / 错误状态表 / 错误体结构)
+			expect(elDoc.paths).toEqual(doc.paths);
+			expect(elDoc.components).toEqual(doc.components);
+		}else{ expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/); }
+		expect(restRs).toMatch(EL ? /t\.level === 'additive'/ : /Some\("additive"\)/);
+		expect(Object.keys(doc.paths['/tools/list_records'].post.responses).sort()).toEqual(['200'].concat(rest.ERROR_RESPONSES.map(([c])=>c)).sort());
+		expect(doc.paths['/records'].get.parameters.map((x)=>x.name)).toEqual(['query', 'text', rest.TIMEOUT_HEADER]);
+		expect(doc.components.schemas.ErrorDetail.properties.code.type).toBe('string');
+	});
+	it('🔴 REST 错误码表 / 保留查询键 / 超时请求头 / OpenAPI 错误状态表 两边同一份', ()=>{
+		const names = EL ? '' : /pub const RPC_ERROR_NAMES: \[\(i64, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
+		const errConst = (n)=>Number(new RegExp(`pub const ERR_${n}: i64 = (-?\\d+);`).exec(read('mcp_server.rs'))[1]);
+		const rsPairs = EL ? EL.rest.RPC_ERROR_NAMES : Array.from(names.matchAll(/\(ERR_([A-Z_]+),\s*"([A-Z_]+)"\)/g)).map((m)=>[errConst(m[1]), m[2]]);
+		expect(rsPairs).toEqual(rest.RPC_ERROR_NAMES);
+		expect(EL ? EL.rest.RESERVED_QUERY_KEYS : strings(/pub const RESERVED_QUERY_KEYS: \[&str; \d+\] = \[([^\]]*)\]/.exec(restRs)[1])).toEqual(rest.RESERVED_QUERY_KEYS);
+		expect(EL ? EL.rest.TIMEOUT_HEADER : /pub const TIMEOUT_HEADER: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.TIMEOUT_HEADER);
+		const er = EL ? '' : /pub const ERROR_RESPONSES: \[\(&str, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
+		expect(EL ? EL.rest.ERROR_RESPONSES : Array.from(er.matchAll(/\("(\d+)",\s*"([^"]+)"\)/g)).map((m)=>[m[1], m[2]])).toEqual(rest.ERROR_RESPONSES);
+		if(EL){
+			// 行为两边同:数字码 → 字符串;text=0 只在成功且有 data 时去正文;超限 429 / 超时 504
+			expect(EL.rest.rpcErrorName(-32602)).toBe(rest.rpcErrorName(-32602));
+			expect(EL.rest.rpcErrorName(1)).toBe(rest.rpcErrorName(1));
+			const both = (r, drop)=>[EL.rest.toolResultBodyOpts(r, drop), rest.toolResultBody(r, { dropText: drop })];
+			const failWith = (o)=>({ content: [{ type: 'text', text: JSON.stringify(o) }], isError: true });
+			[
+				[{ content: [{ type: 'text', text: '正文' }], structuredContent: { a: 1 }, isError: false }, true],
+				[{ content: [{ type: 'text', text: '正文' }], structuredContent: { a: 1 }, isError: false }, false],
+				[{ content: [{ type: 'text', text: '正文' }], isError: false }, true],
+				[failWith({ code: 'E_LIMIT', retryable: true, retryAfterMs: 4200, message: '超限', hint: '等一会儿' }), false],
+				[failWith({ code: 'E_LIMIT', retryable: false, message: '本轮限额' }), false],
+				[failWith({ code: 'E_TOOL_TIMEOUT', message: '超时' }), true],
+				[failWith({ code: 'E_X', message: '坏', data: { candidates: [1] } }), false],
+			].forEach(([r, drop])=>{ const [a, b] = both(r, drop); expect(a).toEqual(b); });
+		}
+		// 行为:数字码 → 字符串;text=0 只在成功且有 data 时去正文
+		expect(rest.rpcErrorName(-32602)).toBe('INVALID_PARAMS');
+		expect(rest.rpcErrorName(1)).toBe('UPSTREAM');
+		const ok = { content: [{ type: 'text', text: '正文' }], structuredContent: { a: 1 }, isError: false };
+		expect(rest.toolResultBody(ok, { dropText: true })[1]).toEqual({ ok: true, data: { a: 1 } });
+		expect(rest.toolResultBody(ok)[1].text).toBe('正文');
 	});
 });
 const mcpSrc = ()=>fs.readFileSync(path.join(TAURI_SRC, 'mcp_server.rs'), 'utf8');
@@ -133,7 +177,7 @@ describe('② 协议层', ()=>{
 	it('🔴 握手版本协商 / 说明带无头注;通知不回包;批量拒绝;坏请求', async ()=>{
 		const a = await h({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
 		expect(a.result.protocolVersion).toBe('2025-06-18');
-		expect(a.result.serverInfo).toEqual({ name: 'horosa', version: '9.9.9' });
+		expect(a.result.serverInfo).toEqual({ name: 'horosa', title: '星阙 Horosa', version: '9.9.9' });   // 显示名
 		expect(a.result.instructions).toContain('无头模式');
 		expect((await h({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '1999-01-01' } })).result.protocolVersion).toBe(protocol.LATEST_PROTOCOL);
 		expect(await h({ jsonrpc: '2.0', method: 'notifications/initialized' })).toBe(null);
@@ -158,10 +202,16 @@ describe('② 协议层', ()=>{
 		expect(bad.error).toEqual({ code: -32004, message: 'rate', data: { retryAfterMs: 500 } });
 		expect((await h({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_records' } }, { signal: { aborted: true } })).error.code).toBe(-32800);
 	});
-	it('🔴 超时预算钳 1..600 s,缺省 120 s;投给页面的是原值(与桌面壳同口径;页面桥自己只减一次 3 s 收口余量)', async ()=>{
+	it('🔴 超时预算钳 1 s..30 分钟,缺省 120 s;投给页面的是原值(与桌面壳同口径;页面桥自己只减一次 3 s 收口余量)', async ()=>{
 		expect(protocol.timeoutOf({})).toBe(120000);
 		expect(protocol.timeoutOf({ _meta: { timeoutMs: 5 } })).toBe(1000);
-		expect(protocol.timeoutOf({ _meta: { timeoutMs: 9e9 } })).toBe(600000);
+		expect(protocol.timeoutOf({ _meta: { timeoutMs: 9e9 } })).toBe(1800000);
+		expect(protocol.explicitTimeoutOf({})).toBe(null);
+		expect(protocol.explicitTimeoutOf({ _meta: { timeoutMs: 'x' } })).toBe(null);
+		// 客户端没给预算:不替它补 120 s —— 页面桥按工具自己声明的 timeoutMs 等(长工具声明 3–30 分钟)
+		const rt0 = fakeRt();
+		await protocol.handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_records' } }, { rt: rt0 });
+		expect(rt0.calls[0].params._meta).toEqual({});
 		const rt = fakeRt();
 		await protocol.handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_records', _meta: { timeoutMs: 10000 } } }, { rt });
 		const headlessMeta = rt.calls[0].params._meta;
@@ -195,6 +245,27 @@ describe('② 协议层', ()=>{
 	});
 });
 
+describe('③a 终端里人工采纳提案前,先打出要写入的内容', ()=>{
+	it('🔴 全文都在(不截断);个人口径写明新旧字数并附现有口径;字段类逐条旧 → 新;控制字符(终端转义)换成 ?', ()=>{
+		const tail = '【末尾夹带的指令】';
+		const text = `${'口径'.repeat(400)}${tail}`;
+		const t1 = cli.proposalReviewText({ id: 'prop-1', kind: 'persona-text', title: '个人口径', client: 'ext', status: 'pending', reason: '用户要求', changes: { text }, before: { text: '旧的' } });
+		expect(t1).toContain(tail);
+		expect(t1).toContain(`新的个人口径(${Array.from(text).length} 字;采纳后整段替换现有的 2 字`);
+		expect(t1).toContain('—— 现有的个人口径 ——\n旧的');
+		expect(t1).toContain('来自 外部客户端 ext');
+		const t2 = cli.proposalReviewText({ id: 'p2', kind: 'record-edit', title: '张三', status: 'pending', changes: { name: '李四', memo: '' }, before: { name: '张三', memo: '旧备注' } });
+		expect(t2).toContain('name:张三 → 李四');
+		expect(t2).toContain('memo:旧备注 → (空)');
+		const t3 = cli.proposalReviewText({ id: 'p3', kind: 'template-new', title: 'x\u001b[2J', status: 'pending', changes: { instructionText: `a\u001b[31mb\u0007c\nd` }, before: {} });
+		expect(t3).not.toMatch(/[\u001b\u0007]/);
+		expect(t3).toContain('a?[31mb?c\nd');
+		const t4 = cli.proposalReviewText({ id: 'p4', kind: 'skill-new', title: 's', status: 'pending', changes: { skill: { triggers: ['go'], promptTemplate: 'z'.repeat(1200) } }, before: {} });
+		expect(t4).toContain('触发词:/go');
+		expect(t4).toContain('z'.repeat(1200));
+	});
+});
+
 describe('③ 终端命令参数解析', ()=>{
 	it('🔴 参数解析:全局开关任意位置 / k=v / k:=JSON / - / 用法错', ()=>{
 		const p = cli.parseArgs(['call', 'x', '--json', '--timeout', '30', 'a=1']);
@@ -202,7 +273,7 @@ describe('③ 终端命令参数解析', ()=>{
 		expect(cli.parseArgs(['--version']).cmd).toBe('version');
 		expect(cli.parseArgs(['tools', '--timeout=12']).opts.timeout).toBe(12);
 		expect(()=>cli.parseArgs(['tools', '--bogus'])).toThrow('不认识的选项');
-		expect(()=>cli.parseArgs(['tools', '--timeout', '0'])).toThrow('1..600');
+		expect(()=>cli.parseArgs(['tools', '--timeout', '0'])).toThrow('1..1800');
 		expect(cli.buildArguments(['{"a":1}', 'b=2', 'c:=[1]', 'd=x=y', '-'])).toEqual({ args: { a: 1, b: '2', c: [1], d: 'x=y' }, stdin: true });
 		expect(()=>cli.buildArguments(['oops'])).toThrow('看不懂的参数');
 		expect(cli.fmtProgress({ progress: 2, total: 3, message: '起盘' })).toBe('[2/3] 起盘');

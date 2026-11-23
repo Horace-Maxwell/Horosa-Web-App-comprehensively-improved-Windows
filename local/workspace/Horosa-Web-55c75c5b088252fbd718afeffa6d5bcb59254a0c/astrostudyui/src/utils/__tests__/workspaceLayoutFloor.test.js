@@ -14,7 +14,9 @@ const path = require('path');
 const { importsName } = require('./helpers/importSpecs');
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (r)=>fs.readFileSync(path.join(SRC, r), 'utf8');
+const { readSource, readAppSection, isSourceSetPart } = require('./helpers/sourceSet');
+// 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json);未登记的文件原样读
+const read = (r)=>readSource(path.join(SRC, r));
 const strip = (t)=>t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"])\/\/[^\n]*/g, '$1');
 
 describe('① 工作区布局下限三层同值', () => {
@@ -101,7 +103,7 @@ describe('③ 滚动安全内衬只给真挂了底坞的那一层', () => {
 });
 
 describe('④ 3D 右栏:页签区高度下限 + 右栏整列可滚', () => {
-	const t = strip(read('layouts/app/05-astro.less'));
+	const t = strip(readAppSection('05-astro.less'));
 	test('.horosa-3d-tabs-fill 有正的 min-height;.horosa-3d-side 纵向 auto', () => {
 		const fill = (t.match(/\.horosa-3d-side > \.horosa-3d-tabs-fill\s*\{([^}]*)\}/) || [])[1] || '';
 		const mh = Number((fill.match(/min-height:\s*(\d+)px/) || [])[1] || 0);
@@ -198,9 +200,10 @@ describe('⑤ 盘面最小字视觉下限', () => {
 		const walk = (d)=>{ fs.readdirSync(d).forEach((n)=>{ const p = path.join(d, n); if(fs.statSync(p).isDirectory()){ if(n !== '__tests__'){ walk(p); } }else if(n.endsWith('.js')){ out.push(p); } }); };
 		walk(path.join(SRC, 'components'));
 		const bad = [];
-		out.forEach((p)=>{
+		// 子模块折回门面:按整个组件判(类方法按职责拆在子文件里时,量尺寸与画盘常分在不同文件),登记表记门面名
+		out.filter((p)=>!isSourceSetPart(p)).forEach((p)=>{
 			const rel = path.relative(SRC, p).split(path.sep).join('/');
-			const t = strip(fs.readFileSync(p, 'utf8'));
+			const t = strip(readSource(p));
 			if(!/\b(svgdom|svgDom|svg)\.clientWidth\b/.test(t)){ return; }
 			found.add(rel);
 			if(/fitSvgDesignBox\(/.test(t)){ return; }
@@ -386,7 +389,7 @@ describe('⑦ 窄栏短标签', () => {
 		expect(t22).toMatch(/\.xq-segmented\.is-wrapped\.ant-radio-group \{\s*display:\s*grid !important;/);
 	});
 	test('右栏行星 / 希腊点两个滚动盒各有高度下限,容器整体可滚', () => {
-		const a5 = strip(read('layouts/app/05-astro.less'));
+		const a5 = strip(readAppSection('05-astro.less'));
 		expect(a5).toMatch(/\.horosa-planet-with-lots \{[^}]*overflow-y:\s*auto;/);
 		expect(a5).toMatch(/\.horosa-planet-with-lots > div:first-child \{[^}]*min-height:\s*160px;/);
 		expect(a5).toMatch(/\.horosa-lots-under-planets \{[^}]*min-height:\s*170px;/);
@@ -396,7 +399,7 @@ describe('⑦ 窄栏短标签', () => {
 		expect(t).not.toMatch(/maxHeight:\s*Math\.max\(320, height - 24\)/);
 		expect(t).not.toMatch(/minHeight:\s*Math\.max\(320, height - 24\)/);
 		expect(t).toMatch(/wrapperClassName="horosa-frames-spin"/);
-		expect(strip(read('layouts/app/05-astro.less'))).toMatch(/\.horosa-frames-table-wrap \.ant-table-tbody > tr > td \{\s*white-space:\s*nowrap;/);
+		expect(strip(readAppSection('05-astro.less'))).toMatch(/\.horosa-frames-table-wrap \.ant-table-tbody > tr > td \{\s*white-space:\s*nowrap;/);
 	});
 	test('恒星触发属性标签走短标签折行单源', () => {
 		const a = read('components/astro/AstroAnalysisLab.js');

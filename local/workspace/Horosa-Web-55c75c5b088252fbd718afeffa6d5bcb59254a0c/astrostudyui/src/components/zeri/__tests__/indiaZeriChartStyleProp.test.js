@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+const read = (rel)=>require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, rel));   // 拆成子模块的门面按全集读,其余文件原样
 function tagBlock(src, tag){
 	const m = new RegExp(`<${tag}\\s`).exec(src);   // JSX 开标签(注释里的「<Tag>」不算)
 	expect(m).not.toBeNull();

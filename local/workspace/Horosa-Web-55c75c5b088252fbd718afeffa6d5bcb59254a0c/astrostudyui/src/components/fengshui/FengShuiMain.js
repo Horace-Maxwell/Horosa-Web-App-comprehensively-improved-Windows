@@ -1,7 +1,7 @@
 import { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
-import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
+import { Row, Col, Collapse, Tooltip } from 'antd';
+import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs, XQEmpty, XQInputNumber, XQSlider } from '../xq-ui';
 import FengShuiEngine, { MARKER_TYPES, BAGUA_MARKER_TYPES, DISK_SKINS } from './fengshuiEngine';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { definePageSettings } from '../../utils/pageSettingsStore';
@@ -10,6 +10,7 @@ import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 import LiqiWorkspace, { SCHOOL_CN } from './LiqiWorkspace';
 import { watchChartScript } from '../../utils/chartDrawGuard';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { pressable } from '../../utils/pressable';
 
 const { TabPane } = XQTabs;
 
@@ -410,18 +411,18 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-field">
 					<label>矩形旋转角度</label>
 					<div className="horosa-fengshui-dual">
-						<Slider min={-45} max={45} step={0.5} value={vm.rectRotation} onChange={(v) => e.setRectRotation(v)} disabled={dis} style={{ flex: 1 }} />
-						<InputNumber size="small" step={0.5} value={vm.rectRotation} onChange={(v) => e.setRectRotation(v)} disabled={dis} />
+						<XQSlider min={-45} max={45} step={0.5} value={vm.rectRotation} onChange={(v) => e.setRectRotation(v)} disabled={dis} style={{ flex: 1 }} />
+						<XQInputNumber size="small" step={0.5} value={vm.rectRotation} onChange={(v) => e.setRectRotation(v)} disabled={dis} style={{ width: 90, flex: 'none' }} />{/* 定宽不收缩:统一件数字框缺省整行宽,同行滑块(flex: 1、基准宽 0)会被挤成零宽、只剩一个把手 */}
 					</div>
 				</div>
 				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>角度与门向</div>
 				<div className="horosa-fengshui-field">
 					<label>单元门真北角度 (0-360°)</label>
-					<InputNumber size="small" style={{ width: '100%' }} placeholder="例如 58.5" step={0.1} min={0} max={360} value={vm.unitAzimuth} onChange={(v) => e.setUnitAngle(v)} />
+					<XQInputNumber size="small" style={{ width: '100%' }} placeholder="例如 58.5" step={0.1} min={0} max={360} value={vm.unitAzimuth} onChange={(v) => e.setUnitAngle(v)} />
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>入户门方向 (0-360°)</label>
-					<InputNumber size="small" style={{ width: '100%' }} step={1} min={0} max={360} value={vm.doorImageAngle} onChange={(v) => e.setDoorAngle(v)} />
+					<XQInputNumber size="small" style={{ width: '100%' }} step={1} min={0} max={360} value={vm.doorImageAngle} onChange={(v) => e.setDoorAngle(v)} />
 					<XQButton variant="ghost" style={{ marginTop: 6 }} disabled={dis} onClick={() => e.startDrawDoor()}>在图上画入户门方向</XQButton>
 				</div>
 				<div className="horosa-fengshui-stats">
@@ -457,11 +458,11 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-card-title">纳气盘</div>
 				<div className="horosa-fengshui-field">
 					<label>透明度 <span className="horosa-fengshui-inline-val">{Math.round(vm.globalAlpha * 100)}%</span></label>
-					<Slider min={0.2} max={0.95} step={0.05} value={vm.globalAlpha} onChange={(v) => e.setOpacity(v)} />
+					<XQSlider min={0.2} max={0.95} step={0.05} value={vm.globalAlpha} onChange={(v) => e.setOpacity(v)} />
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>盘大小 <span className="horosa-fengshui-inline-val">{Math.round(vm.diskScale * 100)}%</span></label>
-					<Slider min={1} max={1.6} step={0.05} value={vm.diskScale} onChange={(v) => e.setDiskScale(v)} />
+					<XQSlider min={1} max={1.6} step={0.05} value={vm.diskScale} onChange={(v) => e.setDiskScale(v)} />
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>盘中心位置</label>
@@ -504,7 +505,7 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-field">
 					<label>正北方向 (0-360°)</label>
 					<div className="horosa-fengshui-dual">
-						<InputNumber size="small" style={{ flex: 1 }} placeholder="例如 0 / 90" step={1} min={0} max={360} value={vm.baguaOrient} onChange={(v) => e.setBaguaOrient(v)} />
+						<XQInputNumber size="small" style={{ flex: 1 }} placeholder="例如 0 / 90" step={1} min={0} max={360} value={vm.baguaOrient} onChange={(v) => e.setBaguaOrient(v)} />
 						<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.startBaguaNorth()}>图上画</XQButton>
 					</div>
 					<div className="horosa-fengshui-helper">盘旋转 <strong>{vm.diskRotationText}</strong>，盘心＝房屋正中（太极点）。盘面样式与透明度见「罗盘」页。</div>
@@ -537,11 +538,11 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-helper" style={{ marginTop: 0, marginBottom: 12 }}>绘制盘＝引擎绘制；纳气罗盘 / 二十四山阳宅图＝透明底图叠加，可作底盘对位。</div>
 				<div className="horosa-fengshui-field">
 					<label>透明度 <span className="horosa-fengshui-inline-val">{Math.round(vm.globalAlpha * 100)}%</span></label>
-					<Slider min={0.2} max={0.95} step={0.05} value={vm.globalAlpha} onChange={(v) => e.setOpacity(v)} />
+					<XQSlider min={0.2} max={0.95} step={0.05} value={vm.globalAlpha} onChange={(v) => e.setOpacity(v)} />
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>盘大小 <span className="horosa-fengshui-inline-val">{Math.round(vm.diskScale * 100)}%</span></label>
-					<Slider min={1} max={1.6} step={0.05} value={vm.diskScale} onChange={(v) => e.setDiskScale(v)} />
+					<XQSlider min={1} max={1.6} step={0.05} value={vm.diskScale} onChange={(v) => e.setDiskScale(v)} />
 				</div>
 			</div>
 		);
@@ -598,11 +599,11 @@ class FengShuiMain extends Component {
 				</div>
 				<div className="horosa-fengshui-marker-list">
 					{(na.markers || []).length === 0 ? (
-						<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无标记，请先放置。" />
+						<XQEmpty image={XQEmpty.PRESENTED_IMAGE_SIMPLE} description="暂无标记，请先放置。" />
 					) : filtered.length === 0 ? (
 						<div className="horosa-fengshui-empty-hint">当前筛选无结果</div>
 					) : filtered.map((m) => (
-						<div key={m.id} className={`horosa-fengshui-marker-row${m.id === vm.selectedMarkerId ? ' active' : ''}`} onClick={() => e.selectMarker(m.id)}>
+						<div key={m.id} className={`horosa-fengshui-marker-row${m.id === vm.selectedMarkerId ? ' active' : ''}`} {...pressable(() => e.selectMarker(m.id))}>
 							<div className="horosa-fengshui-marker-main">
 								<span className="horosa-fengshui-chip-dot" style={{ background: m.color }} />
 								<span className="horosa-fengshui-marker-name">{m.label}{m.kitchen ? '（厨房·龙虎）' : ''}</span>
@@ -651,7 +652,7 @@ class FengShuiMain extends Component {
 			return (
 				<div className="horosa-fengshui-bagua-wrap">
 					{this.renderTips(BAGUA_TIPS, '怎么用（四步）')}
-					<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传户型图 → 设正北 → 点左栏角色/格局并在图上标注" />
+					<XQEmpty image={XQEmpty.PRESENTED_IMAGE_SIMPLE} description="上传户型图 → 设正北 → 点左栏角色/格局并在图上标注" />
 				</div>
 			);
 		}

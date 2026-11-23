@@ -225,6 +225,16 @@ export function makeDefaultMoiraTransitTime(fields){
 
 export function paramsWithMoiraTransit(fields, transitTime){
 	const params = fieldsToParams(fields);
+	// 无头复算 / AI 挂载指定的流年时刻(fields.moiraTransitAt.value = { date:'YYYY/MM/DD', time:'HH:mm:ss' };七政页的 fields 不带这个键,
+	// 页面照旧用左栏「Moira流年」所选时刻或此刻)。地点与时区沿用本盘
+	const at = !transitTime && fields && fields.moiraTransitAt ? fields.moiraTransitAt.value : null;
+	if(at && at.date){
+		params.date = at.date;
+		params.time = at.time || '12:00:00';
+		params.ad = 1;
+		params.predictive = 1;
+		return params;
+	}
 	const tm = transitTime || makeDefaultMoiraTransitTime(fields);
 	if(tm){
 		params.date = tm.format('YYYY/MM/DD');

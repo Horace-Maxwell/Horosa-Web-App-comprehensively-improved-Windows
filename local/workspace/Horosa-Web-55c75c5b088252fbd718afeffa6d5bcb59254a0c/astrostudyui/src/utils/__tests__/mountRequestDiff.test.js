@@ -101,6 +101,8 @@ const NOT_IN_BODY = {
 	detailLunar: '同上',
 	detailMundo: '同上',
 	detailMidpoint: '同上',
+	// 按表取全表:不改任何请求,只决定快照正文里另出哪几张全表;生效由 chartDetailFullTables.test 锁住
+	detailFullTables: '快照正文层(盘面细节段另出全表),不进任何请求体',
 };
 
 // 「非现状值」选择器:现状 = record 无值时的 schema default;从 options 挑第一个 ≠ 现状的档。

@@ -387,7 +387,8 @@ class ShenYiShuSrv:
             date_str = data.get("date") or format_display_date(year, month, day)
             time_str = data.get("time") or f"{hour:02d}:{minute:02d}:{second:02d}"
             # lateZiHourUseNextDay 全局开关透传(默认 1=旧行为字节不变)。
-            result = shenyishu_core.Shenyishu(year, month, day, hour, _to_int(data.get("after23NewDay"), 1), _to_int(data.get("lateZiHourUseNextDay"), 1)).get_bingzhan_result()
+            result = shenyishu_core.Shenyishu(year, month, day, hour, _to_int(data.get("after23NewDay"), 1), _to_int(data.get("lateZiHourUseNextDay"), 1),
+                minute=(minute if hour_source != "manual" else 0)).get_bingzhan_result()   # 分钟只用于交节当日判年月柱;手动小时按整点
             normalized = _normalize_result(result, year, month, day, hour, minute, second, date_str, time_str, hour_source, season_source, season)
             return jsonpickle.encode({"ResultCode": 0, "Result": normalized}, unpicklable=False)
         except Exception:

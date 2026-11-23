@@ -17,9 +17,10 @@ import * as qimenXiangDoc from '../../dunjia/QimenXiangDoc';
 import * as dunjiaFaDoc from '../../dunjia/DunJiaFaDoc';
 import * as tongshuData from '../../calendar/tongshuData';
 import * as zhanlei from '../LiuYaoZhanLeiView';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const COMP = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(COMP, rel), 'utf8');
+const read = (rel)=>readSource(path.join(COMP, rel));
 
 const GONE = [
 	[duanJue, ['yuqiOf', 'changShengGuiOf', 'guaiYaoOf', 'powerCanKe']],

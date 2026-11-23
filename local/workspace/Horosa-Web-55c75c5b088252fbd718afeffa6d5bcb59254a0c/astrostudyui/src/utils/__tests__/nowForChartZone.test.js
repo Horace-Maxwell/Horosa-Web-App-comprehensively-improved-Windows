@@ -115,10 +115,9 @@ describe('各处缺省「今日 / 此刻」', ()=>{
 
 // 页面构造期的缺省(要挂真组件才跑得到)按源码锁:各推运 / 返照 / 行运页的「此刻 / 今日 / 今年」都经单源,不再裸 new DateTime() / new Date() 配本盘时区
 describe('页面与无头各处缺省都经单源(源码锁)', ()=>{
-	const fs = require('fs');
 	const path = require('path');
 	const SRC = path.resolve(__dirname, '..', '..');
-	const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+	const read = (rel)=>require('./helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读,其余文件原样读
 	const MUST = {
 		'components/astro/AstroProfection.js': ['let now = DateTime.nowForChart(qryparam.zone);'],
 		'components/astro/AstroSolarArc.js': ['datetime: DateTime.nowForChart(qryparam.zone),'],

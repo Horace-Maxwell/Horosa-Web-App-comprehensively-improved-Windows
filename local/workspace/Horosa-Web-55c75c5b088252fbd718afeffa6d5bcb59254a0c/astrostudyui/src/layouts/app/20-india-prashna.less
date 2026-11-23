@@ -5,13 +5,14 @@
 /* ── 印占 KP 补齐(问事/校时/敏感点/风险区)新类 ── */
 :global {
 .horosa-india-prashna-schools { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 4px; }
-.horosa-india-prashna-school { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); cursor: pointer; }
+.horosa-india-prashna-school { display: inline-flex; align-items: center; gap: 5px; font-size: var(--horosa-fs-small); color: var(--horosa-astro-text, #e8ecf3); cursor: pointer; }
 .horosa-india-prashna-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-.horosa-india-prashna-verdict { font-size: 20px; font-weight: 700; margin: 4px 0 8px; color: var(--horosa-astro-text, #e8ecf3); }
+.horosa-india-prashna-verdict { font-size: var(--horosa-fs-title-lg); font-weight: 700; margin: 4px 0 8px; color: var(--horosa-astro-text, #e8ecf3); }
 .horosa-india-prashna-verdict.is-ji { color: var(--horosa-jx-ji, #4caf7d); }
 .horosa-india-prashna-verdict.is-xiong { color: var(--horosa-jx-xiong, #d77b7b); }
 .horosa-india-prashna-csl .horosa-india-data-row { display: grid; grid-template-columns: 44px 76px 1fr 1fr; gap: 6px; }
-.horosa-india-risk-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; }
+.horosa-india-risk-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: var(--horosa-fs-small); color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; }
+.horosa-workspace-shell .horosa-india-risk-toggle.ant-checkbox-wrapper { color: var(--horosa-astro-muted, #8fa0b9); }   // 统一件复选:压过工作区复选通用字色,保持原来的次要字色
 /* 风险区中性灰,不作凶色渲染(伦理敏感,避免视觉恐吓) */
 .horosa-india-risk-body { margin-top: 8px; }
 .horosa-india-risk-body .horosa-india-data-row strong { color: var(--horosa-astro-muted, #8fa0b9); }
@@ -74,7 +75,7 @@
 	min-width: 0;
 }
 .horosa-india-rectify-field > span {
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	line-height: 1.2;
 	letter-spacing: 0.04em;
 	color: rgba(216, 173, 99, 0.85);
@@ -111,7 +112,7 @@
 	display: flex;
 	align-items: baseline;
 	gap: 8px;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 1.55;
 	color: var(--horosa-text-secondary);
 }
@@ -140,14 +141,14 @@
 }
 .horosa-india-rectify-section > em {
 	font-style: normal;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	font-weight: 640;
 	letter-spacing: 0.03em;
 	color: var(--horosa-gold, #d8ad63);
 }
 .horosa-india-rectify-section > i {
 	font-style: normal;
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	color: var(--horosa-text-secondary);
 }
 :root[data-horosa-appearance='light'] .horosa-india-rectify-section { border-bottom-color: rgba(154, 106, 37, 0.2); }
@@ -176,7 +177,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	font-weight: 600;
 	color: var(--horosa-text, #efe4d2);
 	white-space: nowrap;
@@ -191,7 +192,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 10px;
+	font-size: var(--horosa-fs-micro);
 	font-weight: 640;
 	color: #0c0b08;
 	background: linear-gradient(180deg, #cfa952, #a9873a);
@@ -239,7 +240,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	font-weight: 680;
 	color: #0c0b08;
 	background: linear-gradient(180deg, #cfa952, #a9873a);
@@ -247,13 +248,13 @@
 }
 .horosa-india-rectify-top > strong {
 	font-family: 'SF Mono', Menlo, monospace;
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 	font-weight: 640;
 	letter-spacing: 0.02em;
 	color: var(--horosa-text, #efe4d2);
 }
 .horosa-india-rectify-score {
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	font-weight: 640;
 	color: var(--horosa-gold, #d8ad63);
 	white-space: nowrap;

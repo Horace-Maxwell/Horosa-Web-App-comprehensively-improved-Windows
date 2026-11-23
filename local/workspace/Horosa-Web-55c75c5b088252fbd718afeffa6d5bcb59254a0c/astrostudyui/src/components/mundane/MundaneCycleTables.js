@@ -1,14 +1,14 @@
 // 世俗「行星周期」的周期表页签:大中小合、平均大合、千年轮转、世运法达、世俗小限等。算法在 /astroextra/mundanecycles。
 import React, { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSelect as Select, XQInputNumber } from '../xq-ui';
+
+import { XQSelect as Select, XQInputNumber, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { unwrapResult, chartParams, chartRequestKey, SmallTable, cardStyle, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from '../astro/AstroExtraCommon';
 import {
 	MUNDANE_CYCLE_OPTIONS, MUNDANE_CYCLE_SETTINGS, MUNDANE_CYCLE_TABLES, RELATION_NAMES, WEATHER_ANGLE_NAMES, WEATHER_CONDITION_NAMES, WEATHER_VARIANT_NOTES, THOUSANDS_COLUMN_NOTES, WORLD_YEAR_COLUMN_NOTES,
-	buildMundaneCycleText, weatherStarText, mundaneCycleFieldLabel, mundaneCycleFields, mundaneCycleRequestFields,
+	buildMundaneCycleText, weatherStarText, mundaneCycleFields, mundaneCycleRequestFields,
 	mundaneCycleTable, mundaneLon, mundanePointName, mundaneSignName,
 } from '../../utils/mundaneCycles';
 
@@ -190,7 +190,7 @@ class MundaneCycleTables extends Component{
 					{def.range || def.year ? this.renderYear('startYear', 'startDraft', def.range ? '起始年' : '年份') : null}
 					{def.range ? this.renderYear('endYear', 'endDraft', '结束年') : null}
 				</div>
-				<Spin spinning={this.state.loading} tip={stale ? '按新选项重算中' : undefined}>
+				<XQSpin spinning={this.state.loading} tip={stale ? '按新选项重算中' : undefined}>
 					<div style={{ ...cardStyle, overflowX: 'auto' }}>
 						<div className="horosa-info-card-title">{def.label}</div>
 						<div style={{ ...MUTED, marginBottom: 6 }}>{def.note}{def.year || def.chart || def.zone ? '' : '。时间为世界时,以盘面时刻为准'}</div>
@@ -210,7 +210,7 @@ class MundaneCycleTables extends Component{
 							</div>
 						) : null}
 					</div>
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

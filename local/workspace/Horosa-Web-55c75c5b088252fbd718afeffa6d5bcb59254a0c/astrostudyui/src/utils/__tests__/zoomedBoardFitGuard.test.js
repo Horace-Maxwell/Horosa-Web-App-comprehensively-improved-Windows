@@ -15,7 +15,7 @@ const path = require('path');
 const { stripComments, parseLess, lessFilesUnder, normSel, mergedDecls } = require('./helpers/lessRules');
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (r)=>fs.readFileSync(path.join(SRC, r), 'utf8');
+const read = (r)=>require('./helpers/sourceSet').readSource(path.join(SRC, r));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 const exists = (r)=>fs.existsSync(path.join(SRC, r));
 
 const ALL_RULES = (()=>{

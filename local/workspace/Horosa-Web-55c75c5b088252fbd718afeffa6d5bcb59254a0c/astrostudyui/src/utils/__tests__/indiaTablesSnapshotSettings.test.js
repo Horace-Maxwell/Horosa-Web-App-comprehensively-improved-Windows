@@ -16,7 +16,7 @@ global.React = React;
 const request = require('../request').default;
 const { normalizeAIExportSettings } = __aiExportTesting__;
 const SRC = path.resolve(__dirname, '../..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>require('./helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读,其余文件原样读
 
 const ROW = (i)=>({ jd: i, date: '2026-11-08', time: '10:20:30', planet: 'Mars', kind: 'sign', sign: 3, relation: 'enemy' });
 
@@ -319,7 +319,7 @@ describe('穿界表三项跨会话保留(此前只记在组件与宿主内存里
 		const comp = fs.readFileSync(path.resolve(__dirname, '../../components/astro/indiaMain/IndiaTransitEvents.js'), 'utf8');
 		expect(comp).toContain('INDIA_TABLE_SETTINGS.save({ [field]: value })');
 		expect(comp).toContain('...savedTransitSelection()');
-		const head = fs.readFileSync(path.resolve(__dirname, '../../components/astro/IndiaChart.js'), 'utf8');
+		const head = require('./helpers/sourceSet').readSource(path.resolve(__dirname, '../../components/astro/IndiaChart.js'));   // 门面 + 子模块全集
 		expect(head).toContain('const saved = savedTransitSelection();');
 	});
 });

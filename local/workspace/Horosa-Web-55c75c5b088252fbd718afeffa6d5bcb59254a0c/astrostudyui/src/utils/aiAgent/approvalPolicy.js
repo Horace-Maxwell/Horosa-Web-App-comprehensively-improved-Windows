@@ -50,6 +50,10 @@ export function explicitCategoryMode(categories, category){
 export function resolveApprovalDecision({ level, def, args, mode, categories, trustedRecords, toolPolicy, sessionAllow }){
 	const name = def && def.name ? `${def.name}` : '';
 	if(name && isToolDenied(name, toolPolicy)){ return 'deny'; }
+	// 始终要用户点头的写入(软件代摇):不论审批档 / 免问 / 放行名单都弹审批;只读档仍拒
+	if(level === 'additive' && def && def.alwaysConfirm === true){
+		return effectiveApprovalMode(mode, categories, def.category ? `${def.category}` : 'query') === 'read-only' ? 'deny' : 'ask';
+	}
 	const category = def && def.category ? `${def.category}` : 'query';
 	let eff;
 	if(level === 'additive'){

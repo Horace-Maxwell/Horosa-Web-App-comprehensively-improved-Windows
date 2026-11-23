@@ -12,6 +12,9 @@ module.exports = {
 	// 无头模式的服务 / 终端命令合同(headless/test/*.test.js)是 node --test 用例(要 Node 自带的 fetch / AbortController 与真端口),
 	// 不是 jest 用例:默认匹配规则会把它捡进来、在 jest 里必红。由 ./horosa selftest 与发布自检用 node --test 跑。
 	// 函数形 = 在 umi-test 缺省忽略表(/node_modules/、/fixtures/)上追加,不覆盖。
+	// WebKit 原生有、jsdom 没有的平台全局(TextEncoder / TextDecoder)统一在 setup 阶段补齐(详 test/jsdomWebPlatformShim.js 头注);
+	// 函数形 = 追加在 umi-test 缺省 setupFiles(core-js / fetch 垫片)之后。
+	setupFiles: (defaults)=>(Array.isArray(defaults) ? defaults : []).concat(['<rootDir>/test/jsdomWebPlatformShim.js']),
 	testPathIgnorePatterns: (defaults)=>(Array.isArray(defaults) ? defaults : ['/node_modules/', '/fixtures/']).concat(['<rootDir>/headless/']),
 	moduleNameMapper: {
 		'^node:(.*)$': '$1',

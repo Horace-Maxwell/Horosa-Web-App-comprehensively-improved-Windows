@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
 import {randomStr, isNumber} from '../../utils/helper';
-import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { drawTextH} from '../graph/GraphHelper';
 
 
 class GodChart {

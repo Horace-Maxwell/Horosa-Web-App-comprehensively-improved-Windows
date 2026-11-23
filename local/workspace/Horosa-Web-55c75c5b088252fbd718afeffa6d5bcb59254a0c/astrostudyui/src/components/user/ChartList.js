@@ -1,6 +1,6 @@
 import { parseDateTimeMs } from '../../utils/dateTimeParse';
 import { Component } from 'react';
-import { Popconfirm, message, Modal, Dropdown, Checkbox, } from 'antd';
+import { Popconfirm, message, Modal, Dropdown } from 'antd';
 import * as AstroText from '../../constants/AstroText';
 import {TableOddRowBgColor, } from '../../utils/constants';
 import EditableTags from '../comp/EditableTags';
@@ -9,7 +9,7 @@ import { prepareCelebrityChartsImport } from '../../utils/astrodata/celebrityDed
 import { toRecordCopy, parseGroupTags, countDeletedLogEntries, DELETED_LOG_CAP } from '../../utils/localRecordStore';
 import { withNewChartDefaults } from '../../utils/newChartCapture';
 import { toastRecordWrite, runRecordBatch, toastRecordBatch, toastRecordImport, toastTrashPurge, RECORD_BATCH_DELETE_NOT_PERSISTED_NOTE, emitRecordsChanged } from '../../utils/recordStoreNotice';
-import { XQButton, XQPagination, XQSearch, XQSelect, XQTable } from '../xq-ui';
+import { XQButton, XQPagination, XQSearch, XQSelect, XQTable, XQCheckbox } from '../xq-ui';
 import { shouldSkipDeleteConfirm, setSkipDeleteConfirm, clearSkipDeleteConfirm } from '../../utils/uiPrefs';
 import StorageHealthModal from '../common/StorageHealthModal';
 import { RecordLinkModal, DuplicateMergeModal } from '../common/RecordToolsModals';
@@ -19,13 +19,14 @@ import { batchRemoveConfirmTitle, trashPurgeFailedText, recordImportConfirmText,
 import DeletedLogPanel from './DeletedLogPanel';
 import { recordsToCsv } from '../../utils/recordExportLite';
 import { parseCsvCharts, parseQckCharts, parseAafCharts, recordsToNdjson, recordsToMarkdown } from '../../utils/interchangeFormats';
-import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/fileSave';
 import { copyDesktopClipboard } from '../../utils/aiAnalysisDesktop';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import XQIcon from '../xq-icons';
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 import { matchesUserQuery } from '../../utils/scriptMode';
+import { renderBirthPlaceCell } from '../common/BirthPlaceCell';
 const Option = XQSelect.Option;
 
 const primaryActionIconStyle = {
@@ -409,7 +410,7 @@ class ChartList extends Component{
 	async clickUnifiedBackup(){
 		try{
 			const ub = await import('../../utils/unifiedBackup');
-			const exp = await import('../../utils/aiAnalysisExport');
+			const exp = await import('../../utils/fileSave');
 			const manifest = await ub.buildFullUnifiedManifest();
 			const blob = await ub.buildUnifiedBackupBlob(manifest);
 			const now = new Date();
@@ -435,7 +436,7 @@ class ChartList extends Component{
 				if(!item){
 					return;   // 用户取消
 				}
-				const exp = await import('../../utils/aiAnalysisExport');
+				const exp = await import('../../utils/fileSave');
 				await this.runUnifiedRestore(exp.base64ToBlob(item.base64Data, item.mimeType || 'application/zip'));
 				return;
 			}
@@ -699,12 +700,12 @@ class ChartList extends Component{
 				onCancel={()=>{this.setState({ deleteRec: null, deleteLabel: null, skipNext: false });}}
 				footer={(
 					<div style={{ display: 'flex', alignItems: 'center' }}>
-						<Checkbox
+						<XQCheckbox
 							checked={!!this.state.skipNext}
 							onChange={(e)=>{this.setState({ skipNext: e.target.checked });}}
 						>
 							<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>下次不再提醒</span>
-						</Checkbox>
+						</XQCheckbox>
 						<div style={{ flex: 1 }} />
 						<XQButton onClick={()=>{this.setState({ deleteRec: null, deleteLabel: null, skipNext: false });}}>取消</XQButton>
 						<XQButton type="primary" onClick={this.confirmDelete}>确定</XQButton>
@@ -833,19 +834,7 @@ class ChartList extends Component{
 			dataIndex: 'pos',
 			key: 'pos',
 			width: '15%',
-			render: (text, record)=>{
-				let pos = `经度：${record.lon}，纬度：${record.lat}`;
-				let span = (<span>{pos}</span>);
-				if(text){
-					span = (
-						<div>
-							<span>{text}</span><br />
-							<span>{pos}</span>
-						</div>
-					);
-				}
-				return span;
-			},
+			render: renderBirthPlaceCell,   // 经纬度两段各自不折行(与星盘搜索表同一份)
 		},{
 			// [V] 通用备注列(截断+悬停全文;未填省显)
 			title: '备注',

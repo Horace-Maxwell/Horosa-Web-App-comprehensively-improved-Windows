@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/fengshui/LiqiWorkspace.js b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
-index b53a35b8..cc52cdda 100644
+index 778ec3f6..c6515aba 100644
 --- a/astrostudyui/src/components/fengshui/LiqiWorkspace.js
 +++ b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
-@@ -5,6 +5,7 @@ import { XQSelect, XQSegmented, XQInputNumber } from '../xq-ui';
+@@ -7,6 +7,7 @@ import { XQSelect, XQSegmented, XQInputNumber } from '../xq-ui';
  import { XQCurrentMark } from '../xq-icons';
  import CompactTimeField from '../comp/CompactTimeField';
  import DateTime from '../comp/DateTime';
@@ -10,7 +10,7 @@ index b53a35b8..cc52cdda 100644
  import LuoshuGrid from './charts/LuoshuGrid';
  import TwentyFourShanRing from './charts/TwentyFourShanRing';
  import EightPalaceDisk from './charts/EightPalaceDisk';
-@@ -652,9 +653,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
+@@ -547,9 +548,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
  		}
  		if (school === 'zeri') { return renderZeriChart(); }
  		if (school === 'luopan') {

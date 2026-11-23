@@ -11,6 +11,7 @@
 // 铁律：任何缺依赖/取字体失败/异常 → 抛出，由 exportPdf 包装层回退打印式→栅格（绝不因新路径失败而无产物）。
 import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
 import { RARE_CHARS, rareCharFallback } from './rareChars';
+import PDF_GLYPH_FALLBACK from '../data/pdfGlyphFallback.json';
 
 const FONT_URLS = ['./fonts/HorosaCJK-subset.ttf', '/fonts/HorosaCJK-subset.ttf'];
 // 真 Bold 字重(与 Regular 同源 Noto Sans CJK SC、同 upem、码位完全一致;
@@ -24,6 +25,14 @@ let _boldFontBytesPromise = null;
 
 async function fetchFirstFont(urls){
 	let lastErr = null;
+	// 无头运行时没有网页静态目录:由运行时挂一个按文件名从磁盘读字体的钩子(与网页同一份字体文件)
+	const diskLoader = typeof globalThis !== 'undefined' ? globalThis.__HOROSA_FONT_LOADER__ : null;
+	if(typeof diskLoader === 'function'){
+		try{
+			const buf = await diskLoader(`${urls[0] || ''}`.split('/').pop());
+			if(buf && buf.byteLength > 10000){ return buf; }
+		}catch(e){ lastErr = e; }
+	}
 	for(let i = 0; i < urls.length; i++){
 		try{
 			const res = await fetch(urls[i]);
@@ -53,11 +62,12 @@ async function loadBoldFontBytes(){
 
 // 内嵌字体没有的字符 → 字体里有的等价字符(只在 PDF 里换;TXT / Word 保持原文)。
 // 字体缺字时 PDF 画的是 .notdef(空白):导出层把度数统一写成「˚」(U+02DA),字体只有「°」→ 此前 PDF 里
-// 所有度数符号都是空白,「360⁄14」成了「360 14」。顺序:专门映射 → 兼容分解 → 去附加符号 → □。
+// 所有度数符号都是空白,「360⁄14」成了「360 14」。顺序:专门映射 → 兼容分解 → 去附加符号 → 希腊字母名 → 繁体 / 异体的通行写法 → 罕见字拆字说明 → □。
 const PDF_CHAR_FALLBACK = {
 	'˚': '°', 'º': '°', '⁄': '/', '∕': '/', '⧸': '/', '‐': '-', '‑': '-', '‒': '-', '–': '-',
 	'′': "'", '″': '"', '‘': "'", '’': "'", '“': '"', '”': '"', '…': '...', '•': '·', '∙': '·', '⋅': '·',
-	'ʾ': "'", 'ʿ': "'", '✓': '√', '✔': '√',
+	'ʾ': "'", 'ʿ': "'", '✓': '√', '✔': '√', '✗': '×', '✘': '×', '✕': '×',
+	'⟷': '↔', '⟶': '→', '⟵': '←', '⟹': '⇒', '⟸': '⇐', '⟺': '⇔', '⥮': '⇅', '⥯': '⇵',
 };
 // 希腊字母(星名 α Cas、黄赤交角 ε、差值 Δ、转写 χ)→ 字母名,不落成 □
 const GREEK_NAMES = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi', 'rho', 'sigma', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega'];
@@ -93,6 +103,9 @@ export function pdfSafeText(text, charSet){
 		if(base && base !== ch && has(base)){ out += base; continue; }
 		const greek = greekName(ch);
 		if(greek && has(greek)){ out += greek; continue; }
+		// 字体没有的繁体 / 异体汉字 → 同一个字的通行写法(对照表由 scripts/build-pdf-glyph-fallback.js 生成)
+		const common = PDF_GLYPH_FALLBACK[ch];
+		if(common && has(common)){ out += common; continue; }
 		// 罕见字(扩展 B 及以后):通行写法 → 拆字说明(与界面同一张表),都不在字体里才落成 □
 		const rare = rareCharFallback(ch);
 		if(rare !== ch && has(rare)){ out += rare; continue; }
@@ -427,7 +440,9 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			const depth = Math.max(0, Math.min(4, Number(item.depth) || 0));
 			for(let d = depth + 1; d < counters.length; d++){ counters[d] = 0; }
 			let marker = '•';
-			if(item.ordered){ counters[depth] += 1; marker = `${counters[depth]}.`; }
+			// 编号照原文写的那个数(与 Word、版式 PDF 同一取法):正文里一条编号项后面跟着说明段落时,每一条各成一个列表块,
+			// 自己从头数的话每条都是「1.」
+			if(item.ordered){ counters[depth] += 1; marker = (item.marker && /\d/.test(item.marker)) ? item.marker : `${counters[depth]}.`; }
 			const indent = M + depth * 14;
 			const markerW = font.widthOfTextAtSize(`${marker} `, size);
 			const textX = indent + markerW;

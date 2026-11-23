@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import {
-	CHART_FACET_KEYS, CHART_FACET_PLACE_KEYS, CHART_COND_KEY_VIA, APP_PREF_READONLY_KEYS, APP_PREF_EXEMPT_KEYS, APP_PREF_DERIVED_KEYS,
+	CHART_FACET_KEYS, CHART_FACET_PLACE_KEYS, CHART_COND_KEY_VIA, APP_PREF_READONLY_KEYS, APP_PREF_EXEMPT_KEYS, APP_PREF_DERIVED_KEYS, APP_PREF_LOCAL_KEYS,
 	appPrefSpec, describeFacet, SETTING_FACETS, preparePageFacet, PAGE_FACET_EXCLUDED,
 } from '../aiTools/settingsFacets';
 import { PAGE_SETTINGS_REGISTRY } from '../pageSettingsRegistry';
@@ -40,7 +40,7 @@ function missingKeys(produced, registered){
 }
 
 // ── 登记面 ①:pages/index.js changeCond 体内读到的 values.X
-const pageRaw = fs.readFileSync(PAGE_SRC, 'utf8');
+const pageRaw = require('./helpers/sourceSet').readSource(PAGE_SRC);   // 门面 + 子模块全集
 const changeCondBody = strip(bodyOf(pageRaw, 'function changeCond(values)'));
 const changeCondKeys = Array.from(new Set(
 	Array.from(changeCondBody.matchAll(/\bvalues\.([a-zA-Z_][a-zA-Z0-9_]*)/g)).map((m)=>m[1])
@@ -102,7 +102,10 @@ describe('AI set_settings 五面可写键 ⊆ 登记键(L3 第四处)', ()=>{
 	});
 
 	it('app 面:可改键 ∪ 只读键 ∪ 豁免键 ⊆ globalSetup 声明键(app/save 合并任意键,未声明键无消费方=死写)', ()=>{
-		const produced = [...appPrefSpec().map((s)=>s.key), ...APP_PREF_READONLY_KEYS, ...APP_PREF_EXEMPT_KEYS, ...APP_PREF_DERIVED_KEYS];
+		// 本机显示项(界面简繁 / 亮色配色档)各有自己的存储、不进 app/save:不算全局仓键,另核它们确实不在全局仓里
+		expect(APP_PREF_LOCAL_KEYS.slice().sort()).toEqual(['lightFlavor', 'scriptMode']);
+		expect(missingKeys(APP_PREF_LOCAL_KEYS, globalSetupKeys).sort()).toEqual(APP_PREF_LOCAL_KEYS.slice().sort());
+		const produced = [...appPrefSpec().map((s)=>s.key).filter((k)=>APP_PREF_LOCAL_KEYS.indexOf(k) < 0), ...APP_PREF_READONLY_KEYS, ...APP_PREF_EXEMPT_KEYS, ...APP_PREF_DERIVED_KEYS];
 		expect(produced.length).toBeGreaterThanOrEqual(15);
 		expect(missingKeys(produced, globalSetupKeys)).toEqual([]);
 		// 反向:globalSetup 里的每个键要么可改、要么只读、要么豁免——新增全局偏好键不表态即红
@@ -115,12 +118,15 @@ describe('AI set_settings 五面可写键 ⊆ 登记键(L3 第四处)', ()=>{
 		});
 	});
 
-	it('classical 面:describe 可改键 == spec 里 send≠never 的键,且全部在全局仓默认表内', ()=>{
+	it('classical 面:describe 可改键 == spec 全部键(不进请求的前端项也可改,带「本机全局项」提示),且全部在全局仓默认表内', ()=>{
 		const d = describeFacet('classical');
 		expect(d.ok).toBe(true);
 		const settable = d.items.filter((it)=>it.settable !== false).map((it)=>it.key).sort();
-		const expected = CLASSICAL_PARAM_SPEC.filter((s)=>s.send !== 'never').map((s)=>s.key).sort();
+		const expected = CLASSICAL_PARAM_SPEC.map((s)=>s.key).sort();
 		expect(settable).toEqual(expected);
+		CLASSICAL_PARAM_SPEC.filter((s)=>s.send === 'never').forEach((s)=>{
+			expect(`${s.key}:${/本机全局项/.test(d.items.find((it)=>it.key === s.key).hint || '')}`).toBe(`${s.key}:true`);
+		});
 		expect(missingKeys(CLASSICAL_SPEC_KEYS, Object.keys(CLASSICAL_GLOBAL_DEFAULTS))).toEqual([]);
 	});
 

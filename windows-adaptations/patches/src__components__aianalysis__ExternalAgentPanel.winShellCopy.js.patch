@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
-index 63c242e7..92e8432b 100644
+index 14bfc6e6..aa06e9b6 100644
 --- a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
 +++ b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
-@@ -29,12 +29,18 @@ export function claudeDesktopConfig(st){
+@@ -30,12 +30,18 @@ export function claudeDesktopConfig(st){
  	}
  	return JSON.stringify({ mcpServers: { horosa: { type: 'http', url: st.url, headers: { Authorization: `Bearer ${st.token}` } } } }, null, 2);
  }
@@ -23,7 +23,7 @@ index 63c242e7..92e8432b 100644
  }
  // 终端命令:装了垫片就用 horosa,没装就给二进制全路径(加引号,路径里可能有空格)
  export function cliExampleCommand(st){
-@@ -43,6 +49,9 @@ export function cliExampleCommand(st){
+@@ -44,6 +50,9 @@ export function cliExampleCommand(st){
  	return bin ? `"${bin.replace(/"/g, '\\"')}" --horosa-cli status` : '';
  }
  export function cliShimConfirmCopy(st){

@@ -1,0 +1,45 @@
+diff --git a/astrostudyui/src/components/jinkou/main/requests.js b/astrostudyui/src/components/jinkou/main/requests.js
+index b09cc8df..055aab57 100644
+--- a/astrostudyui/src/components/jinkou/main/requests.js
++++ b/astrostudyui/src/components/jinkou/main/requests.js
+@@ -16,6 +16,8 @@ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../../util
+ import { resolveAfter23NewDay } from '../../../utils/dayBoundaryResolve';
+ import { buildBirthFields, extractGanZi, resolveGuaYearGanZi, MaleRunYearList, FemaleRunYearList, calcRunYearLocal, getSolarYearFromField, getAppliedBirth } from './runYear';
+ import { clonePlain, buildCacheKey, pushCache } from './pageState';
++import { markPanelReady } from '../../../utils/perfMark';
++import { rememberBirthGanZi } from './pageState';
+ 
+ export const requestMethods = {
+ 	genRunYearParams(){
+@@ -126,7 +128,7 @@ export const requestMethods = {
+ 		}
+ 		const localHit = getBirthGanzhiLocalCache(key);
+ 		if(localHit){
+-			this.birthYearGanZiCache[key] = localHit;
++			rememberBirthGanZi(this.birthYearGanZiCache, key, localHit);
+ 			return localHit;
+ 		}
+ 		const params = {
+@@ -149,7 +151,7 @@ export const requestMethods = {
+ 				lr && lr.fourColumns && lr.fourColumns.year ? lr.fourColumns.year.ganzi : ''
+ 			) || extractGanZi(lr && lr.nongli ? (lr.nongli.yearGanZi || lr.nongli.yearJieqi || lr.nongli.year) : '');
+ 			if(ganzi){
+-				this.birthYearGanZiCache[key] = ganzi;
++				rememberBirthGanZi(this.birthYearGanZiCache, key, ganzi);
+ 				setBirthGanzhiLocalCache(key, ganzi);
+ 			}
+ 			return ganzi;
+@@ -251,7 +253,12 @@ export const requestMethods = {
+ 		}
+ 
+ 		this.setState(st, ()=>{
+-			this.requestRunYear();
++			// horosa_panel_ready_v1:金口诀「画完」= 中栏四位盘(本次 st)+ 右栏「流年」段(requestRunYear
++			// 的二段 setState)都落定。requestRunYear 有多条早退分支(缺出生/年份校验 Modal),挂在它
++			// 返回的 promise 上两态都能收口;markPanelReady 自带 generation 去重,重复调用为空操作。
++			// tabKey 用顶层页签 key 'cnyibu'(金口诀是「其他」页内的子页面),与 markInteractionStart 同名。
++			const markReady = ()=>{ markPanelReady('cnyibu'); };
++			Promise.resolve(this.requestRunYear()).then(markReady, markReady);
+ 			// 快照的五行须与页面实际所用一致（手选档下不能再写日干的 wx，否则快照与右栏两张表）。
+ 			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, diFen, jinkouPan);
+ 		});

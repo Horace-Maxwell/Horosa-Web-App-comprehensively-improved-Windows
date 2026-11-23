@@ -373,7 +373,7 @@ describe('奇门「此刻 vs 节气种子」同在民用历墙钟轴', ()=>{
 		expect(DJ.latestSeedTermAt({ year: 2026, month: 3, day: 5, hour: 21, minute: 59 }, modern).term).toBe('惊蛰');
 	});
 	test('源码锚:奇门种子 / 此刻比先后不经本机钟面 / 外推格里历解析', ()=>{
-		const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/dunjia/DunJiaCalc.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(require('path').join(__dirname, '../../components/dunjia/DunJiaCalc.js'));   // 门面 + 子模块全集
 		expect(src).not.toMatch(/parseLocalDateTimeMs|parseDateTimeMs/);
 		expect(src).toMatch(/civilWallMsOfStr/);
 	});

@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroDraconicLab.js b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-index dbfe8e78..27f6c12b 100644
+index c23dab4d..e3a74bb1 100644
 --- a/astrostudyui/src/components/auxchart/AstroDraconicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-@@ -14,6 +14,7 @@ import request from '../../utils/request';
+@@ -9,6 +9,7 @@ import AstroChart from '../astro/AstroChart';
  import * as Constants from '../../utils/constants';
- import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+ import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, requestDerived } from '../astro/AstroExtraCommon';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  import { definePageSettings } from '../../utils/pageSettingsStore';
  
- // 宫位口径(两家):whole = 按龙盘上升所在整座等分(与调波 / 十二分 / 十三分盘同法,缺省);
-@@ -72,7 +73,11 @@ class AstroDraconicLab extends Component {
+ // 宫位口径两家 / 标签 / [龙盘] 专属段:页面与 AI 无头复算同一份(utils/derivedAstroLabs)
+@@ -66,7 +67,11 @@ class AstroDraconicLab extends Component {
  			if(!this._mounted || seq !== this._loadSeq) return;
  			clearLoadFailure(this);
  			const res = unwrapResult(data) || {};
@@ -21,5 +21,5 @@ index dbfe8e78..27f6c12b 100644
 +				markPanelReady('auxchart');
 +			});
  			// 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
- 			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
- 				const out = ['[龙盘]'];
+ 			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>draconicSnapshotLines(res, houseMode, this.props.value), { derivedParams: { draconicHouses: houseMode } });
+ 		}catch(e){

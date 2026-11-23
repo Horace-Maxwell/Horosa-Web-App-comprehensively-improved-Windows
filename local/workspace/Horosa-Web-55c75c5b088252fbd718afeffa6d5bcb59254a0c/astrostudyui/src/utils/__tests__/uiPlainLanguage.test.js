@@ -45,8 +45,8 @@ describe('界面文字白话化', () => {
 	test('玄学史:不露英文字段名;空态用左栏实名', () => {
 		expect(R('components/xuanshi/XuanShiMap.js')).not.toContain('region/place');
 		const desk = R('components/xuanshi/XuanShiDesk.js');
-		expect(desk).toContain("this.nav('figures')}>人物列传</span>");
-		expect(desk).toContain("this.nav('stories')}>故事专题</span>");
+		expect(desk).toContain("{...pressable(() => this.nav('figures'))}>人物列传</span>");   // 可点文字走 pressable(键盘可达)
+		expect(desk).toContain("{...pressable(() => this.nav('stories'))}>故事专题</span>");
 	});
 	test('名人库:卡片计数中文 / 人数取库内计数 / 表单控件上方向键不翻页', () => {
 		const html = R('../public/astrodata/index.html');

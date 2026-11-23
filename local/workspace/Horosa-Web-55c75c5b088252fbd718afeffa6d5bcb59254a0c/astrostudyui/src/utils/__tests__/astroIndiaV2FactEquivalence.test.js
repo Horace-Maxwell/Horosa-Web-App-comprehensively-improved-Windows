@@ -243,7 +243,8 @@ function stripSchemeLine(out){
 }
 const curOut = stripSchemeLine(current(FIXTURE));
 const sectionKeys = Object.keys(baseOut);
-const SOURCE_CHANGED = ['Shadbala 六力', 'Ishta/Kashta 吉凶果'];
+// 行运 Gochara:凶位(无遮蔽者)此前被误标「Vedha遮」,口径已改为只认 vedhaBy(正确行为由 gocharaVedhaLabel 锁)
+const SOURCE_CHANGED = ['Shadbala 六力', 'Ishta/Kashta 吉凶果', '行运 Gochara（从月·八分点）'];
 
 describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
 	it('fixture 覆盖足够多段（≥30 段进入比对）', ()=>{

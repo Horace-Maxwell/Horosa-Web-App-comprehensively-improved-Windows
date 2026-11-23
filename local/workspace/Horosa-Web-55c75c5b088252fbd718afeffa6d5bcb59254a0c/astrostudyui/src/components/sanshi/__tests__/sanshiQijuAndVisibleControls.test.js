@@ -6,9 +6,10 @@
 import fs from 'fs';
 import path from 'path';
 import { qijuMethodOptionsFor, qijuMethodSelectValue, QIJU_METHOD_OPTIONS, QIJU_METHOD_NONSHI_OPTIONS } from '../../dunjia/DunJiaCalc';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SANSHI = fs.readFileSync(path.resolve(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
-const DUNJIA = fs.readFileSync(path.resolve(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'), 'utf8');
+const SANSHI = readSource(path.resolve(__dirname, '..', 'SanShiUnitedMain.js'));
+const DUNJIA = readSource(path.resolve(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'));
 
 describe('起局下拉单一真值源(时家/刻家 5 档,其余 2 档)', () => {
 	it('刻家(4)与时家(3)同给完整节气四法 + 阴盘', () => {

@@ -70,7 +70,7 @@ ASTROSTUDY_SILENT_EXCEPT_ALLOW = {
     ('astrostudy/perchart_parts/besiege.py', 'orientalOccidental'): (2, '逐星东出西入,缺星略过'),
     ('astrostudy/perchart_parts/besiege.py', 'orientalOccidentalHouses'): (1, '同上(按宫)'),
     ('astrostudy/perchart_parts/lots.py', '_applyLotVariants'): (5, '希腊点流派变体逐项改写,所需星缺时该点保持缺省公式'),
-    ('astrostudy/perchart_parts/planets.py', '_phasis_event'): (1, '偕日升 / 降求根失败(极区等):不附该事件'),
+    ('astrostudy/heliacal_window.py', 'compute_phasis_event'): (1, '偕日升 / 没在若干个会合周期内求不到日期(极区常见):这一种事件不附,另一种照判'),
     ('astrostudy/perchart_parts/planets.py', 'setupJoy'): (1, '逐星喜乐宫,缺星座字段的略过'),
     ('astrostudy/perchart_parts/planets.py', '_applyTopoMoon'): (2, '站心月亮可选;失败保持地心月亮与原希腊点'),
     ('astrostudy/perchart_parts/planets.py', '_diurnalWithSectBuffer'): (1, '日出日没求不到(极昼极夜)时按地平原判'),

@@ -1,6 +1,7 @@
 from flatlib import const
 from astrostudy.germany.chart_objects import ephem_object
 from astrostudy.perchart import PerChart
+from astrostudy.stable_order import TIE_EPS, tie_sorted
 
 LIST_OBJ = [
     const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN,
@@ -17,6 +18,18 @@ def takeLon(obj):
     return obj['lon']
 
 
+def near_midpoint(lon_a, lon_b):
+    """近中点(短弧上的那个)。两点正对(相距恰 180°,如南北交点)时两个中点一样近:
+    取黄经小的那个 —— 否则取哪个由黄经的浮点末位决定。前端同款:utils/uranianDial.js::midpoint。"""
+    mid = (lon_a + lon_b) / 2.0
+    gap = abs(mid - lon_a)
+    if abs(gap - 90.0) <= TIE_EPS:
+        return min(mid % 360, (mid + 180) % 360)
+    if gap > 90:
+        mid = (mid + 180) % 360
+    return mid
+
+
 # 个人点核心五点(宇宙生物学 Basic Five):Asc/MC/日/月/北交。
 # personalOrb 仅作用于「相位目标」落在这五点时的放宽(宇宙生物学个人点宽容许度)。
 BASIC_FIVE = (const.ASC, const.MC, const.SUN, const.MOON, const.NORTH_NODE)
@@ -24,6 +37,8 @@ BASIC_FIVE = (const.ASC, const.MC, const.SUN, const.MOON, const.NORTH_NODE)
 
 class MidPoint:
     # uranian=False(默认):与历史实现逐字节一致,供合盘(modern/chartcomp.py)复用,绝不改其输出。
+    #   (唯一的例外:正对的两点 —— 南北交点 —— 的中点。两个中点一样近,原先取哪个、出一条还是两条由黄经的浮点末位决定;
+    #    现固定为黄经小的那一个、一条,见 near_midpoint。)
     # uranian=True(量化盘 /germany/midpoint 专用):
     #   ① 中点对来源纳入 Asc/MC(四轴)+ 8 颗 TNP 虚星(汉堡学派核心,原实现遗漏);
     #   ② 无序对各算一个近中点(短弧),消除原 A-B/B-A 双算 + 浮点精确去重导致的近/远重复;
@@ -148,9 +163,7 @@ class MidPoint:
             for objB in objs:
                 if objA.id == objB.id:
                     continue
-                mid = (objA.lon + objB.lon) / 2.0
-                if abs(mid - objA.lon) > 90:
-                    mid = (mid + 180) % 360
+                mid = near_midpoint(objA.lon, objB.lon)
                 if mid in midsdeg:
                     continue
                 sigidx = int(mid / 30)
@@ -163,8 +176,7 @@ class MidPoint:
                 }
                 mids.append(pnt)
                 midsdeg.add(mid)
-        mids.sort(key=takeLon)
-        return mids;
+        return tie_sorted(mids, takeLon)   # 黄经相等的中点保持生成时的先后
 
     def _getMidpointsUranian(self):
         objs = [o for o in self.objects if o not in const.LIST_MIDDLE_POINTS]
@@ -174,9 +186,7 @@ class MidPoint:
             for j in range(i + 1, n):
                 objA = objs[i]
                 objB = objs[j]
-                mid = (objA.lon + objB.lon) / 2.0
-                if abs(mid - objA.lon) > 90:
-                    mid = (mid + 180) % 360
+                mid = near_midpoint(objA.lon, objB.lon)
                 sigidx = int(mid / 30) % 12
                 mids.append({
                     'lon': mid,
@@ -185,8 +195,7 @@ class MidPoint:
                     'idA': objA.id,
                     'idB': objB.id
                 })
-        mids.sort(key=takeLon)
-        return mids
+        return tie_sorted(mids, takeLon)   # 黄经相等的中点保持生成时的先后
 
 
     def calculate(self):

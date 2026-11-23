@@ -10,9 +10,10 @@
  */
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SANSHI = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
-const DUNJIA = fs.readFileSync(path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'), 'utf8');
+const SANSHI = readSource(path.join(__dirname, '..', 'SanShiUnitedMain.js'));
+const DUNJIA = readSource(path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'));
 
 describe('liveTimePropagation(时间即时传导·三式/遁甲同款语义)', () => {
 	it('① 三式:非 confirmed 且已起盘 ⇒ 走同一条重算链(liveReplot)', () => {

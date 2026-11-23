@@ -1,7 +1,7 @@
 // 设置卡「技能包」(A3):列出带技能字段的组合(触发词/前提/技法/版本),新建/编辑技能字段、导出 .horosa-skill.json、导入(同名高版本才覆盖,旧版留档)。
 // 技能包 = 组合记录 + skill 字段(零新 store);写库经 aiAnalysisStore.putStoreRecord;导入覆盖前调用方 ensureTemplateVersion 留档(此处按组合快照留一份 skillHistory)。
 import React from 'react';
-import { saveBlobSmart } from '../../../utils/aiAnalysisExport';
+import { saveBlobSmart } from '../../../utils/fileSave';
 import { Button, Input, Select, Modal, Tag, message, Upload } from 'antd';
 import { AI_ANALYSIS_STORES, putStoreRecord } from '../../../utils/aiAnalysisStore';
 import { normalizeSkillPack, skillsOf, exportSkillPack, planSkillImport, bundleFromSkillPack, SKILL_REQUIRES, SKILL_FILE_EXT, BUILTIN_SKILLS } from '../../../utils/aiChat/skills';

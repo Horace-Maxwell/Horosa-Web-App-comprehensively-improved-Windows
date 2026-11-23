@@ -1,7 +1,7 @@
 // 年度黄道吉日榜面板：按事项类别列当年 Top 吉日，点击回填老黄历选中日。
 import React, { useMemo, useState } from 'react';
-import { Modal, List, Tag, Switch } from 'antd';
-import { XQSegmented } from '../xq-ui';
+import { Modal, List, Tag } from 'antd';
+import { XQSegmented, XQSwitch } from '../xq-ui';
 import { buildYearAuspicious } from './yearAuspicious';
 import { EVENT_CATEGORIES } from './tongshuData';
 
@@ -41,7 +41,7 @@ export default function YearAuspiciousPanel({ year, visible, onPick, onClose }) 
 			<div className='horosa-year-auspicious-controls'>
 				<XQSegmented value={activeCat} options={catOptions} onChange={(e)=> setCat(e.target.value)} />
 				<span className='horosa-year-auspicious-burial'>
-					含丧葬&nbsp;<Switch size='small' checked={includeBurial} onChange={setIncludeBurial} />
+					含丧葬&nbsp;<XQSwitch size='small' checked={includeBurial} onChange={setIncludeBurial} />
 				</span>
 			</div>
 			<div className='horosa-year-auspicious-list'>

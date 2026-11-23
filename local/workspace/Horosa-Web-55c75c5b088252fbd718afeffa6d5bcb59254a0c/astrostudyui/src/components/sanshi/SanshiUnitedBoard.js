@@ -3,9 +3,7 @@
 // outerDataCache 单槽缓存 → useMemo 同语义)。主页经薄壳传实例态;择日概览浮窗自装 props
 // (fetchChart + fetchQimenPan/normalizeKinqimenData + buildLiuRengLayout/buildKeData/buildSanChuan
 // 全同源函数,零平行实现)。盘面样式/结构改这里(单源)。
-// ⚠ 与 SanShiUnitedMain 互为 import(它 import 本组件,本文件 import 它的工具函数)——
-// 全部是 function/const 声明的迟绑定引用,渲染时才取值,ESM/CJS 循环均安全;勿改成会在
-// 模块求值期就执行的引用形态。
+// 工具函数直接从三式页的子模块(./main/*)取,不再经页面门面 —— 页面 import 本组件、本组件不 import 页面,两者不成环。
 import React, { Fragment, useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 import { leapPrefix } from '../../utils/lunarText';
@@ -14,15 +12,17 @@ import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj } from '../liureng/LRSh
 import { tianJiangShortAttrs } from '../liureng/LRConst';
 import { buildQimenXiangTipObj } from '../dunjia/QimenXiangDoc';
 import { qimenGlyphScriptAttrs } from '../dunjia/DunJiaCalc';
+import { QimenCellOverlay, QimenJianChuMark } from '../dunjia/QimenCellOverlay';
+import { sanshiCellGeometry, sanshiSideGeometry, SANSHI_SIDE_UNITS } from '../dunjia/qimenCellLayout';
+import { jianChuRing } from '../../utils/jianChu';
+import { getDeclaredZoom } from '../../utils/zoomDomain';
 import { isMeaningEnabled, wrapWithMeaning } from '../astro/AstroMeaningPopover';
-import {
-	safe, fmtDirect, fmtSolar, getChartYue, getOuterChartKey, buildOuterData,
-	buildSanshiWeakSolid, computeSanshiXun, buildShenShaMap, buildPillarFromPan,
-	buildOuterBranchMeaningTip, buildOuterHouseMeaningTip, buildOuterStarMeaningTip, clamp,
-	fmtLunar, getGanzhiParts, getOuterLabelLayout, getOuterStarsLayout, padOuterStarsRow,
-	shortTianJiang, splitGanZhi, toQimenMeaningTip,
-	LIURENG_RING_LAYOUT, OUTER_RING_LAYOUT, QIMEN_CORNER_PALACES, QIMEN_RING_POSITIONS, WEAK_SOLID_POS,
-} from './SanShiUnitedMain';
+import { safe, clamp } from '../dunjia/qimenPageShared';
+import { fmtDirect, fmtSolar, fmtLunar, getChartYue, getOuterChartKey, getGanzhiParts, shortTianJiang, splitGanZhi } from './main/format';
+import { buildOuterData, buildShenShaMap, buildPillarFromPan, getOuterLabelLayout, getOuterStarsLayout, padOuterStarsRow } from './main/outerRing';
+import { buildSanshiWeakSolid, computeSanshiXun } from './main/liureng';
+import { buildOuterBranchMeaningTip, buildOuterHouseMeaningTip, buildOuterStarMeaningTip, toQimenMeaningTip } from './main/meaningTips';
+import { LIURENG_RING_LAYOUT, OUTER_RING_LAYOUT, QIMEN_CORNER_PALACES, QIMEN_RING_POSITIONS, WEAK_SOLID_POS } from './main/options';
 
 // 上下信息盒的设计宽(与样式 .topBox / .bottomBox 的 min-width 同值):栏宽放不下时整体等比缩到栏宽,不再撑出横向滚动条。
 export const SANSHI_INFO_DESIGN_W = 560;
@@ -58,13 +58,18 @@ function ScaleToWidth({ width, designWidth, children }){
 }
 
 // props: { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
-//          outerCoord?, ascRaMode?, showWeakSolid?, showAstroMeaning?, boardSize?, fitWidth? }
+//          outerCoord?, ascRaMode?, showWeakSolid?, showAstroMeaning?, showJianChu?, boardSize?, fitWidth? }
 export default function SanshiUnitedBoard(props){
 	const { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
 		showAstroMeaning } = props;
 	const outerCoord = props.outerCoord || 'ecliptic';
 	const ascRaMode = props.ascRaMode;   // 外圈赤道分宫的上升取法(不传 = 改进 / 真赤经)
 	const showWeakSolid = props.showWeakSolid !== undefined ? props.showWeakSolid : true;
+	// 十二建星(左栏「十二建星」开):外圈每个地支旁挂它这个月所值的建星,日值那一支加框;不传 = 不出(择日概览浮窗)
+	const jianChuGz = dunjia && dunjia.ganzhi;
+	const jianChuDate = dunjia && dunjia.dateStr;
+	const showJianChu = !!props.showJianChu;
+	const jianChu = useMemo(()=>(showJianChu ? jianChuRing(jianChuGz, jianChuDate) : null), [showJianChu, jianChuGz, jianChuDate]);
 	const boardSize = props.boardSize || 720;
 	// 主页传中栏可用宽(择日概览浮窗不传 = 不缩)
 	const fitWidth = Number(props.fitWidth) || 0;
@@ -235,7 +240,30 @@ export default function SanshiUnitedBoard(props){
 						showMeaning,
 						houseMeaning
 					)}
-					{wrapWithMeaning(
+					{jianChu && jianChu.byZhi[item.branch] ? (()=>{
+						// 建星挂在地支同一行、朝地支锚定角的反方向长(地支靠右锚 → 建星在左,靠左锚 → 在右)。四边一律横排:
+						// 左右两边的星体是竖着一列排在地支上 / 下方的,竖挂会挤进星体列;地支那一行只有地支,横着放不占星体的地方
+						const anchor = labelLayout.branch || {};
+						const before = anchor.right !== undefined;
+						const mark = <QimenJianChuMark item={jianChu.byZhi[item.branch]} fontSize={Math.max(9, Math.round(branchFont * 0.88))} />;
+						return (
+							<span className={`${styles.outerLabel} ${styles.outerBranchGroup}`} style={{ ...anchor }}>
+								{before ? mark : null}
+								{wrapWithMeaning(
+									<span
+										className={styles.outerBranch}
+										data-meaning-placement="top"
+										style={{ fontSize: branchFont, lineHeight: `${branchFont}px` }}
+									>
+										{item.branch}
+									</span>,
+									showMeaning,
+									branchMeaning
+								)}
+								{before ? null : mark}
+							</span>
+						);
+					})() : wrapWithMeaning(
 						<span
 							className={`${styles.outerLabel} ${styles.outerBranch}`}
 							data-meaning-placement="top"
@@ -464,7 +492,7 @@ export default function SanshiUnitedBoard(props){
 		});
 	}
 
-	function renderQimenBlock(palaceNum, qimenMap, midFont, boardSize){
+	function renderQimenBlock(palaceNum, qimenMap, midFont, boardSize, shrink = 1){
 		const cell = qimenMap[palaceNum] || {};
 		const pos = QIMEN_RING_POSITIONS[palaceNum];
 		if(!pos){
@@ -524,11 +552,33 @@ export default function SanshiUnitedBoard(props){
 					showMeaning,
 					doorTip
 				)}
-				{cell.anGan ? (
-					<div style={{ position: 'absolute', right: 4, top: 2, fontSize: Math.max(10, Math.round(qimenFont * 0.55)), lineHeight: '1.2', color: 'var(--horosa-text-soft, #8c6a3f)' }}>
-						{cell.anGan}{cell.anZhi || ''}
-					</div>
-				) : null}
+				{/* 格内只放寄干(紧跟所寄的天 / 地盘干)与天禽(九星上方):落位与字号走两盘共用的空位算法(qimenCellLayout),
+				    放不下按次序退档 / 收起(进 title,右栏卡片有全文),不按固定字号硬塞;暗干与推演标记在格旁空格(renderQimenSide) */}
+				<QimenCellOverlay
+					cell={cell}
+					geometry={sanshiCellGeometry({ cellPx: size * (isCorner ? 0.112 : 0.11), mainFont: qimenFont, doorSize, cell, scale: getDeclaredZoom() * shrink })}
+				/>
+			</div>
+		);
+	}
+
+	// 格旁空格(奇门环上每宫顺时针一侧那一格,本来空着):放这一宫的暗干(前缀小「暗」)与推演标记 —— 「上挂下注」在三式盘上的写法
+	function renderQimenSide(palaceNum, qimenMap, boardSize, shrink = 1){
+		const cell = qimenMap[palaceNum];
+		const unit = SANSHI_SIDE_UNITS[palaceNum];
+		const tags = cell && Array.isArray(cell.tuiYanTags) ? cell.tuiYanTags.filter(Boolean) : [];
+		if(!cell || !unit || (!cell.anGan && !tags.length)){
+			return null;
+		}
+		const U = (boardSize || 600) / 9;
+		return (
+			<div
+				key={`qm_side_${palaceNum}`}
+				className={styles.qmSide}
+				data-qimen-side={palaceNum}
+				style={{ left: `${(unit[0] * 100) / 9}%`, top: `${(unit[1] * 100) / 9}%`, width: `${100 / 9}%`, height: `${100 / 9}%` }}
+			>
+				<QimenCellOverlay cell={cell} geometry={sanshiSideGeometry({ unitPx: U, scale: getDeclaredZoom() * shrink, cell })} />
 			</div>
 		);
 	}
@@ -714,7 +764,8 @@ export default function SanshiUnitedBoard(props){
 				qimenMap[c.palaceNum] = c;
 			});
 		}
-		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>renderQimenBlock(num, qimenMap, midFont, boardSize));
+		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>renderQimenBlock(num, qimenMap, midFont, boardSize, shrink));
+		const qmSides = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>renderQimenSide(num, qimenMap, boardSize, shrink));
 		return (
 			<div className={styles.middleWrap} style={shrink < 1 ? { width: shownSize, height: shownSize, maxWidth: '100%', overflow: 'hidden' } : { width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.middleBoard} style={shrink < 1 ? { width: boardSize, height: boardSize, transform: `scale(${shrink})`, transformOrigin: '0 0' } : { width: boardSize, height: boardSize }}>
@@ -723,6 +774,7 @@ export default function SanshiUnitedBoard(props){
 						{renderOuterMarks(outerData, midFont, boardSize)}
 						{renderLiuRengMarks(lrLayout, midFont, boardSize)}
 						{qmBlocks}
+						{qmSides}
 						{renderCenterBlock(midFont, boardSize)}
 					</div>
 				</div>

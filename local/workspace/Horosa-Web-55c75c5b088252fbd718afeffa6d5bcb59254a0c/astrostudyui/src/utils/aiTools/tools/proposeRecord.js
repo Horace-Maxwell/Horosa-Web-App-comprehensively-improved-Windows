@@ -2,7 +2,10 @@
 // 采纳走正常更新(留一版历史)、可撤销采纳;档案在提案后被改过 = 冲突、不落库。删除永远不在其列。
 // 工具只新建与读提案(不 import 采纳 / 拒绝 / 撤销三个落库函数);时间与地点在提议时就规整成具体字段值,只留真正有变化的字段。
 import { GUIDE, RECORD_ID_PATTERN } from './_shared';
-import { findRecord } from '../recordFlags';
+import { RECORD_RODDEN_VALUES, RECORD_RELATION_VALUES, RECORD_SOURCE_NOTE_MAX } from '../../recordMetaOptions';
+import { findRecord, readFlag } from '../recordFlags';
+import { listLocalChartsTrash } from '../../localcharts';
+import { listLocalCasesTrash } from '../../localcases';
 import { parseBirthInput } from '../normalize/birthText';
 import { resolvePlaceOffline } from '../normalize/place';
 import { resolveZone } from '../normalize/zone';
@@ -59,6 +62,14 @@ export async function normalizeEditIntent(store, rec, ch, opts){
 	}
 	if(c.gender !== undefined){ const g = normalizeGender(c.gender, { forCase: store === 'case' }); if(g !== undefined){ out.gender = g; } }
 	if(c.memo !== undefined){ out.memo = `${c.memo || ''}`; }
+	// 命盘三项元数据(事盘没有这三栏:给了也不产生变更,并在 assumptions 里说明)
+	['rodden', 'relation', 'sourceNote'].forEach((k)=>{
+		if(c[k] === undefined){ return; }
+		if(store !== 'chart'){ assumptions.push(`${PROPOSAL_FIELD_LABELS[k]}只有命盘档案有,事盘不改`); return; }
+		const v = `${c[k] || ''}`.trim();
+		if(!v && (rec[k] === undefined || rec[k] === null || rec[k] === '')){ return; }   // 本来就空,清掉 = 没变化
+		out[k] = v;
+	});
 	// 只留真正有变化的字段
 	const keepPrivate = !!(opts && opts.keepPrivate);
 	Object.keys(out).forEach((k)=>{ if(keepPrivate && PROPOSAL_PRIVATE_FIELDS.indexOf(k) >= 0){ return; } if(same(out[k], rec[k])){ delete out[k]; } });
@@ -67,7 +78,8 @@ export async function normalizeEditIntent(store, rec, ch, opts){
 
 // 无变化的回包(data.changed:false = 注册表的「无变化」约定:不挂提案、不进账本、不弹审批):预检与执行同一份
 function editUnchanged(f, n){ return { ok: true, data: { proposalId: null, status: 'unchanged', fields: [], changed: false }, summary: `${f.title} 无需修改`, message: '给的内容与档案现值一致,没有产生提案', assumptions: n.assumptions }; }
-function archiveUnchanged(f){ return { ok: true, data: { proposalId: null, status: 'unchanged', changed: false }, summary: `${f.title} 已归档`, message: '这张档案已经归档,没有产生提案' }; }
+const archTarget = (args)=>args.cancel !== true;
+function archiveUnchanged(f, args){ const t = archTarget(args || {}); return { ok: true, data: { proposalId: null, status: 'unchanged', changed: false }, summary: `${f.title} ${t ? '已归档' : '本来就没归档'}`, message: t ? '这张档案已经归档,没有产生提案' : '这张档案本来就没归档,没有产生提案' }; }
 
 export const proposeRecordEditTool = {
 	name: 'propose_record_edit',
@@ -96,6 +108,9 @@ export const proposeRecordEditTool = {
 					zone: { type: 'string', pattern: '^[+-]\\d{2}:\\d{2}$' },
 					gender: { type: 'string', enum: ['male', 'female', 'unknown'] },
 					memo: { type: 'string', maxLength: 2000 },
+					rodden: { type: 'string', enum: RECORD_RODDEN_VALUES.concat(['']), description: '命盘:生辰可信度(Rodden 评级 AA / A / B / C / DD / X;空串 = 清掉)' },
+					relation: { type: 'string', enum: RECORD_RELATION_VALUES.concat(['']), description: '命盘:与用户的关系(self / family / friend / client / other;空串 = 清掉)' },
+					sourceNote: { type: 'string', maxLength: RECORD_SOURCE_NOTE_MAX, description: '命盘:出生资料出处' },
 				},
 			},
 			reason: { type: 'string', maxLength: 500, description: '为什么要改(给用户看)' },
@@ -150,27 +165,105 @@ export const proposeRecordArchiveTool = {
 		type: 'object', required: ['proposalId', 'status'],
 		properties: { proposalId: { type: ['string', 'null'] }, status: { type: 'string' } },
 	},
-	description: `提议归档一张已存命盘 / 事盘(归档 = 从默认列表收起,随时可在档案管理里取消归档;不是删除):挂到任务中心等用户采纳,采纳后可撤销。永远不能删除档案。${GUIDE}:用户说「把 X 收起来 / 归档」时调用。`,
+	description: `提议归档一张已存命盘 / 事盘,或 cancel:true 提议取消归档(归档 = 从默认列表收起;不是删除):挂到任务中心等用户采纳,采纳后可撤销。永远不能删除档案。${GUIDE}:用户说「把 X 收起来 / 归档」时调用。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['recordId'],
 		properties: {
 			recordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80, description: '记录 id' },
+			cancel: { type: 'boolean', default: false, description: 'true = 提议取消归档(缺省 false = 提议归档)' },
 			reason: { type: 'string', maxLength: 500 },
 		},
 	},
-	noChange(args){ const f = findRecord(args.recordId); return f && f.rec.archived === true ? archiveUnchanged(f) : null; },
+	noChange(args){ const f = findRecord(args.recordId); return f && !!f.rec.archived === archTarget(args) ? archiveUnchanged(f, args) : null; },
 	preview(args){
 		const f = findRecord(args.recordId);
-		return f ? { title: `提议归档:${f.title}`, before: '', after: `${args.reason ? `理由:${args.reason}\n` : ''}(只挂提案,采纳前不动档案)` } : null;
+		return f ? { title: `提议${archTarget(args) ? '' : '取消'}归档:${f.title}`, before: '', after: `${args.reason ? `理由:${args.reason}\n` : ''}(只挂提案,采纳前不动档案)` } : null;
 	},
 	async run(args, ctx){
 		const f = findRecord(args.recordId);
 		if(!f){ return { ok: false, code: 'E_RECORD_NOT_FOUND', message: `未找到记录 ${args.recordId}` }; }
-		if(f.rec.archived === true){ return archiveUnchanged(f); }
-		const r = addProposal({ kind: 'record-archive', store: f.store, recordId: args.recordId, title: f.title, before: { archived: false }, reason: args.reason || '', origin: (ctx && ctx.origin) || 'in-app', client: ctx && ctx.clientName });
+		if(!!f.rec.archived === archTarget(args)){ return archiveUnchanged(f, args); }
+		const r = addProposal({ kind: 'record-archive', archived: archTarget(args), store: f.store, recordId: args.recordId, title: f.title, before: { archived: !!f.rec.archived }, reason: args.reason || '', origin: (ctx && ctx.origin) || 'in-app', client: ctx && ctx.clientName });
 		if(!r.ok){ return { ok: false, code: r.code, message: r.message }; }
-		await notifyUser('有一条档案归档提案待你确认', `「${f.title}」${args.reason ? `:${`${args.reason}`.slice(0, 120)}` : ''}`);
-		return { ok: true, data: { proposalId: r.proposal.id, status: 'pending' }, summary: `提案 · 归档 ${f.title}`, message: `已提交归档提案,等待用户在星阙任务中心采纳(提案 ${r.proposal.id})`, undo: { kind: 'none' } };
+		await notifyUser(`有一条档案${archTarget(args) ? '' : '取消'}归档提案待你确认`, `「${f.title}」${args.reason ? `:${`${args.reason}`.slice(0, 120)}` : ''}`);
+		return { ok: true, data: { proposalId: r.proposal.id, status: 'pending' }, summary: `提案 · ${archTarget(args) ? '' : '取消'}归档 ${f.title}`, message: `已提交${archTarget(args) ? '' : '取消'}归档提案,等待用户在星阙任务中心采纳(提案 ${r.proposal.id})`, undo: { kind: 'none' } };
+	},
+};
+
+
+// 解除两张档案的关联:两边的关系边一起摘(link_records 建的那条);只挂提案,采纳才动档案,可撤销采纳
+export const proposeRecordUnlinkTool = {
+	name: 'propose_record_unlink',
+	level: 'additive',
+	category: 'records',
+	undoKind: 'none',
+	origins: ['in-app', 'mcp'],
+	outputSchema: { type: 'object', required: ['proposalId', 'status'], properties: { proposalId: { type: ['string', 'null'] }, status: { type: 'string' } } },
+	description: `提议解除两张档案之间的关联(link_records 建的关系;两边一起摘):挂到任务中心等用户采纳,采纳后可撤销。${GUIDE}:用户说「X 和 Y 没关系了 / 解除关联」时调用。`,
+	inputSchema: { type: 'object', additionalProperties: false, required: ['recordId', 'otherRecordId'], properties: {
+		recordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80 },
+		otherRecordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80 },
+		reason: { type: 'string', maxLength: 500 },
+	} },
+	noChange(args){
+		const a = findRecord(args.recordId); const b = findRecord(args.otherRecordId);
+		if(!a || !b){ return null; }
+		const linked = (readFlag(a.store, a.rec, 'relations') || []).some((e)=>e && e.cid === args.otherRecordId) || (readFlag(b.store, b.rec, 'relations') || []).some((e)=>e && e.cid === args.recordId);
+		return linked ? null : { ok: true, data: { proposalId: null, status: 'unchanged', changed: false }, summary: `${a.title} 与 ${b.title} 本来就没关联`, message: '两张档案本来就没关联,没有产生提案' };
+	},
+	preview(args){
+		const a = findRecord(args.recordId); const b = findRecord(args.otherRecordId);
+		return a && b ? { title: `提议解除关联:${a.title} ↔ ${b.title}`, before: '', after: `${args.reason ? `理由:${args.reason}\n` : ''}(只挂提案,采纳前不动档案)` } : null;
+	},
+	async run(args, ctx){
+		const a = findRecord(args.recordId); const b = findRecord(args.otherRecordId);
+		if(!a || !b){ return { ok: false, code: 'E_RECORD_NOT_FOUND', message: `未找到记录 ${!a ? args.recordId : args.otherRecordId}` }; }
+		const nc = proposeRecordUnlinkTool.noChange(args);
+		if(nc){ return nc; }
+		const r = addProposal({ kind: 'record-unlink', store: a.store, recordId: args.recordId, title: `${a.title} ↔ ${b.title}`,
+			before: { relations: readFlag(a.store, a.rec, 'relations') || [] }, other: { store: b.store, recordId: args.otherRecordId, before: readFlag(b.store, b.rec, 'relations') || [] },
+			reason: args.reason || '', origin: (ctx && ctx.origin) || 'in-app', client: ctx && ctx.clientName });
+		if(!r.ok){ return { ok: false, code: r.code, message: r.message }; }
+		await notifyUser('有一条解除关联提案待你确认', `「${a.title}」↔「${b.title}」`);
+		return { ok: true, data: { proposalId: r.proposal.id, status: 'pending' }, summary: `提案 · 解除关联 ${a.title} ↔ ${b.title}`, message: `已提交解除关联提案,等待用户在星阙任务中心采纳(提案 ${r.proposal.id})`, undo: { kind: 'none' } };
+	},
+};
+
+// 从回收站恢复一张档案:只挂提案,采纳才恢复;撤销采纳 = 重新移入回收站(回到提案前的样子)
+function recoverUnchanged(){ return { ok: true, data: { proposalId: null, status: 'unchanged', changed: false }, summary: '不在回收站', message: '这张档案不在回收站(就在档案列表里),没有产生提案' }; }
+function trashFind(cid){
+	const c = listLocalChartsTrash().find((r)=>r && r.cid === cid);
+	if(c){ return { store: 'chart', rec: c, title: c.name || cid }; }
+	const k = listLocalCasesTrash().find((r)=>r && r.cid === cid);
+	return k ? { store: 'case', rec: k, title: k.event || cid } : null;
+}
+export const proposeRecordRestoreTool = {
+	name: 'propose_record_recover',
+	level: 'additive',
+	category: 'records',
+	undoKind: 'none',
+	origins: ['in-app', 'mcp'],
+	outputSchema: { type: 'object', required: ['proposalId', 'status'], properties: { proposalId: { type: ['string', 'null'] }, status: { type: 'string' } } },
+	description: `提议把回收站里的一张档案恢复回来(回收站里的 id 用 list_records inTrash:true 查):挂到任务中心等用户采纳,采纳后可撤销。${GUIDE}:用户说「把删掉的 X 找回来」时调用。`,
+	inputSchema: { type: 'object', additionalProperties: false, required: ['recordId'], properties: {
+		recordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80 },
+		reason: { type: 'string', maxLength: 500 },
+	} },
+	preview(args){
+		const t = trashFind(args.recordId);
+		return t ? { title: `提议从回收站恢复:${t.title}`, before: '', after: `${args.reason ? `理由:${args.reason}\n` : ''}(只挂提案,采纳前不动档案)` } : null;
+	},
+	noChange(args){ return !trashFind(args.recordId) && findRecord(args.recordId) ? recoverUnchanged() : null; },
+	async run(args, ctx){
+		const t = trashFind(args.recordId);
+		if(!t){
+			if(findRecord(args.recordId)){ return recoverUnchanged(); }
+			return { ok: false, code: 'E_RECORD_NOT_FOUND', message: `回收站里没有 ${args.recordId}` };
+		}
+		const r = addProposal({ kind: 'record-restore', store: t.store, recordId: args.recordId, title: t.title, before: { inTrash: true }, reason: args.reason || '', origin: (ctx && ctx.origin) || 'in-app', client: ctx && ctx.clientName });
+		if(!r.ok){ return { ok: false, code: r.code, message: r.message }; }
+		await notifyUser('有一条回收站恢复提案待你确认', `「${t.title}」`);
+		return { ok: true, data: { proposalId: r.proposal.id, status: 'pending' }, summary: `提案 · 恢复 ${t.title}`, message: `已提交恢复提案,等待用户在星阙任务中心采纳(提案 ${r.proposal.id})`, undo: { kind: 'none' } };
 	},
 };
 

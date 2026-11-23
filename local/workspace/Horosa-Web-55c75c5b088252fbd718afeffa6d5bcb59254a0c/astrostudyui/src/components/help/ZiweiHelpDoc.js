@@ -3,7 +3,7 @@
 // 共享样式见 helpDocStyle;kv 行本组件自渲染(避免 JSX 进 .js 样式文件)。绝不写章节号或软件名;书名只写公版古籍名,不写现代来源。
 import { Component } from 'react';
 import HelpBook from './HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 
 
 export const HELP_BOOK = {

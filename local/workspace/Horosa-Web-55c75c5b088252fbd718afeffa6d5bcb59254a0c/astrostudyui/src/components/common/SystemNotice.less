@@ -1,0 +1,78 @@
+// 系统提示条统一件的样式:只用主题变量与尺度令牌(亮 / 暗 / 经典白自动跟)。
+// 宿主:页头(72px)下方一列,条与条之间留间距;外层点穿,只有提示条本身收事件。
+.horosa-notice-host {
+	position: fixed;
+	top: 80px;
+	left: 0;
+	right: 0;
+	z-index: var(--horosa-z-notice);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--horosa-space-3);
+	padding: 0 var(--horosa-space-5);
+	pointer-events: none;
+	&.is-standalone { top: 8px; }
+}
+.horosa-notice-bar {
+	position: relative;
+	box-sizing: border-box;
+	width: max-content;
+	max-width: ~"min(880px, 100%)";
+	display: flex;
+	align-items: stretch;
+	gap: var(--horosa-space-4);
+	padding: var(--horosa-space-4) 14px var(--horosa-space-4) 12px;
+	border-radius: var(--horosa-radius-md);
+	font-size: var(--horosa-fs-body);
+	line-height: 1.45;
+	color: var(--horosa-text);
+	background: var(--horosa-surface-solid);
+	border: 1px solid var(--horosa-border-strong);
+	box-shadow: var(--horosa-small-shadow);
+	pointer-events: auto;
+	cursor: default;
+	--horosa-notice-tone: var(--horosa-accent);
+	&.is-warn { --horosa-notice-tone: var(--horosa-warn); }
+}
+// 语气色条:一根直的圆头竖条(此前是 3px 左边框配圆角,弯成月牙)
+.horosa-notice-mark {
+	flex: 0 0 3px;
+	border-radius: 2px;
+	background: var(--horosa-notice-tone);
+}
+.horosa-notice-body {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--horosa-space-3);
+}
+.horosa-notice-row {
+	// 列:正文(8em ~ 自身单行宽)| 空白弹性列 | 每个按钮各一列(按内容宽)。条的自然宽 = 正文单行宽 + 按钮,先撑宽到封顶 880 再折行;
+	// 条比内容宽(多行叠放取最宽那行)时空白列吃掉余量,按钮仍靠右。正文列不用 1fr:WebKit 量 fr 列的自然宽会短两个字左右,
+	// 短句也折出一个孤字(此前弹性折行行又按最宽的一项量宽,把按钮挤到第二行)
+	display: grid;
+	grid-auto-flow: column;
+	grid-template-columns: minmax(8em, max-content) minmax(0, 1fr);
+	grid-auto-columns: max-content;
+	align-items: center;
+	column-gap: 0;
+	// 句末全角标点允许悬在行尾:WebKit 量「单行宽」时把句末的「。」按收窄算、排版时又按全宽算,短句会折出「复。」
+	> :first-child { grid-column: 1; hanging-punctuation: allow-end; }
+	> :nth-child(2) { grid-column-start: 3; }
+}
+.horosa-notice-btn {
+	margin-left: var(--horosa-space-3);
+	padding: 3px 10px;
+	font: inherit;
+	font-size: var(--horosa-fs-small);
+	line-height: 1.4;
+	border-radius: var(--horosa-radius-sm);
+	cursor: pointer;
+	border: 1px solid var(--horosa-border-strong);
+	background: transparent;
+	color: var(--horosa-text);
+	&:hover:not(:disabled) { border-color: var(--horosa-accent); color: var(--horosa-accent-strong); }
+	&:disabled { cursor: default; color: var(--horosa-text-secondary); }
+}

@@ -3,6 +3,7 @@ import traceback
 import jsonpickle
 import cherrypy
 from websrv.helper import enable_crossdomain
+from astrostudy import clock
 from astrostudy.civil_calendar import (
     CivilDateTime, astro_year, civil_ymd_valid, display_year, format_display_date, parse_civil_date, reset_ad_for_date)
 from astrostudy.india.india_chart_kernel import IndiaChartKernel
@@ -633,7 +634,7 @@ class IndiaAstroSrv:
                 y, m, d = _julian_label_to_gregorian(y, m, d)
             when = _dt.datetime(y, m, d, 12, 0, 0)
         except Exception:
-            when = _dt.datetime.now()
+            when = clock.now_local()
         vim = (jyotish.get('dasha') or {}).get('vimshottari') or {}
 
         def _span(item):
@@ -721,8 +722,7 @@ class IndiaAstroSrv:
             from flatlib import const
             transit_date = data.get('transitDate')
             if not transit_date:
-                import datetime as _dt
-                transit_date = _dt.datetime.now().strftime('%Y/%m/%d')
+                transit_date = clock.now_local(data).strftime('%Y/%m/%d')
             tdata = _derived_kernel_data(data, transit_date, '12:00:00')
             tchart = IndiaChartKernel(tdata)
             ids = [const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
@@ -826,7 +826,7 @@ class IndiaAstroSrv:
             from flatlib import const
             tajaka_year = data.get('tajakaYear')
             if not tajaka_year:
-                tajaka_year = _dt.datetime.now().year
+                tajaka_year = clock.now_local(data).year
             tajaka_year = int(tajaka_year)
             natal_sun = safe_get(natal_perchart.chart, const.SUN)
             if not natal_sun:
@@ -1294,8 +1294,7 @@ class IndiaAstroSrv:
             tajaka_year = data.get('tajakaYear')
             if not tajaka_year:
                 # 与过运盘同口径：未显式指定时默认当前公历年(服务器侧轻量补算，免依赖 Java 透传)。
-                import datetime as _dt
-                tajaka_year = _dt.datetime.now().year
+                tajaka_year = clock.now_local(data).year
             tajaka_year = int(tajaka_year)
             from astrostudy.india.tajaka import build_tajaka
             from astrostudy.india.jyotish_engine import safe_get

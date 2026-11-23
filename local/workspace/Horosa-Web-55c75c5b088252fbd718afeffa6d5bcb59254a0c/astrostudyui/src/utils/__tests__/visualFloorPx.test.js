@@ -5,6 +5,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import { visualFloorRatio, visualFloorPx, getDeclaredZoom } from '../zoomDomain';
 
 const SITES = [
@@ -67,7 +68,7 @@ describe('visualFloorRatio · 比例版同一法则(盘面缩放系数下限)', 
 	});
 
 	test('遁甲 boardScale 下限经 visualFloorRatio(1.8 档 361×440 中栏不再被 0.58 撑出)', () => {
-		const src = fs.readFileSync(path.resolve(__dirname, '../../', 'components/dunjia/DunJiaMain.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.resolve(__dirname, '../../', 'components/dunjia/DunJiaMain.js'));
 		expect(src).toContain('visualFloorRatio(DUNJIA_SCALE_MIN)');
 		expect(src).not.toMatch(/clamp\(rawScale,\s*DUNJIA_SCALE_MIN,/);
 	});
@@ -75,7 +76,7 @@ describe('visualFloorRatio · 比例版同一法则(盘面缩放系数下限)', 
 
 describe('visualFloorPx · 站点不腐烂(21 处底线全部折算)', () => {
 	test.each(SITES)('%s 至少 %d 处 visualFloorPx(', (rel, n) => {
-		const src = fs.readFileSync(path.resolve(__dirname, '../../', rel), 'utf8');
+		const src = readSource(path.resolve(__dirname, '../../', rel));   // 拆成子模块的按全集读(底线写法搬进子模块照样算)
 		const hits = (src.match(/visualFloorPx\(/g) || []).length;
 		expect(hits).toBeGreaterThanOrEqual(n);
 		expect(src).toMatch(/import \{[^}]*visualFloorPx[^}]*\} from '(\.\.\/)+utils\/zoomDomain'/);

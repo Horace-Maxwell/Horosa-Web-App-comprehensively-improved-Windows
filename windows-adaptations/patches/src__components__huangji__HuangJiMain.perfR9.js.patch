@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index 60c25d22..80f70d26 100644
+index 9f3ff6fb..474d0f2b 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
 @@ -15,6 +15,8 @@ import { postKentang } from '../../services/kentangPost';
@@ -11,7 +11,7 @@ index 60c25d22..80f70d26 100644
  
  import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
  import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
-@@ -499,6 +501,23 @@ class HuangJiMain extends Component{
+@@ -500,6 +502,23 @@ class HuangJiMain extends Component{
  		});
  	}
  
@@ -35,7 +35,7 @@ index 60c25d22..80f70d26 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -520,6 +539,8 @@ class HuangJiMain extends Component{
+@@ -521,6 +540,8 @@ class HuangJiMain extends Component{
  				return;
  			}
  			this.setState({ pan, panSig: castSig, xinyi, loading: false }, ()=>{
@@ -44,7 +44,7 @@ index 60c25d22..80f70d26 100644
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -922,23 +943,38 @@ class HuangJiMain extends Component{
+@@ -923,23 +944,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

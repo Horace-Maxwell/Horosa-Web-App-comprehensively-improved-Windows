@@ -8,10 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// 捆绑 jsdom 无 TextEncoder/TextDecoder 全局(docx Packer 编码 xml 时要用)——从 node util 补齐。
-const util = require('util');
-if (typeof globalThis.TextEncoder === 'undefined') { globalThis.TextEncoder = util.TextEncoder; }
-if (typeof globalThis.TextDecoder === 'undefined') { globalThis.TextDecoder = util.TextDecoder; }
+// docx Packer 编码 xml 要用的 TextEncoder / TextDecoder 由全局测试垫片补齐(test/jsdomWebPlatformShim.js,jest.config.js setupFiles)。
 
 const src = fs.readFileSync(
 	path.join(__dirname, '..', 'node_modules', 'docx', 'dist', 'index.umd.cjs'),

@@ -14,11 +14,12 @@ import path from 'path';
 const FS_DIR = path.resolve(__dirname, '..');
 const SRC_DIR = path.resolve(__dirname, '../../..');
 const read = (p)=>fs.readFileSync(p, 'utf8');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 理气工作区读「子模块 + 门面」全集
 
 describe('锁① 九纲档：引擎读取的字段全部有左栏控件', ()=>{
 	it('nineGang 读的 s.* 全集 ⊆ LiqiWorkspace 里 setXs 写入且 xs 读取的键集', ()=>{
 		const eng = read(path.join(FS_DIR, 'xingshi.js'));
-		const ui = read(path.join(FS_DIR, 'LiqiWorkspace.js'));
+		const ui = readSource(path.join(FS_DIR, 'LiqiWorkspace.js'));
 		const nine = eng.slice(eng.indexOf('function nineGang'));
 		// 排除数组/对象方法名等误匹配（s.push 之类不是字段）。
 		const NOT_FIELD = new Set(['push', 'length', 'filter', 'map', 'find', 'indexOf', 'forEach', 'slice']);
@@ -32,7 +33,7 @@ describe('锁① 九纲档：引擎读取的字段全部有左栏控件', ()=>{
 		expect(missing).toEqual([]);
 	});
 	it('九纲档确有切档控件（scoreMode 可被写入），否则整档进不去', ()=>{
-		const ui = read(path.join(FS_DIR, 'LiqiWorkspace.js'));
+		const ui = readSource(path.join(FS_DIR, 'LiqiWorkspace.js'));
 		expect(ui).toMatch(/setXs\(\{ \.\.\.xs, scoreMode: v \}\)/);
 		expect(ui).toMatch(/label: '九纲全参'/);
 	});

@@ -11,7 +11,8 @@
 //   variant='theme' 表格用。跟随 App 主题(它所在的右栏报表区就是跟随主题的)——
 //                   零额外 less:继承通用 popover 的 var(--horosa-text) 本来就是对的。
 // 两档的字号 / 间距 / 描边 / 标题层级完全一致,由本文件的常量单点决定。
-import { Popover, Checkbox, Button, Select } from 'antd';
+import { Popover, Button, Select } from 'antd';
+import { XQCheckbox } from '../xq-ui';
 import {
 	PD_SIGNIFICATOR_OPTIONS,
 	PD_PROMISSOR_TYPE_OPTIONS,
@@ -66,7 +67,7 @@ function Group({ title, options, selected, onChange, minWidth, headClassName, op
 				const reason = allInert ? '' : reasonOf(o.value);
 				const on = sel.indexOf(o.value) >= 0;
 				return (
-				<Checkbox
+				<XQCheckbox
 					key={o.value}
 					style={{ marginLeft: 0, ...(reason ? INERT_STYLE : null) }}
 					disabled={!!(reason || inertReason) && !on}
@@ -78,7 +79,7 @@ function Group({ title, options, selected, onChange, minWidth, headClassName, op
 						if(!e.target.checked && idx >= 0){ cur.splice(idx, 1); }
 						onChange(cur);
 					}}
-				><span title={reason ? `当前不起作用:${reason}` : undefined}>{o.label}</span></Checkbox>
+				><span title={reason ? `当前不起作用:${reason}` : undefined}>{o.label}</span></XQCheckbox>
 				);
 			})}
 		</div>
@@ -100,14 +101,14 @@ function SettingsGroup({ values, onChange, headClassName, dark, inertContext }){
 				const reason = reasonOf(spec.key);
 				const atDefault = v[spec.key] === spec.default;
 				return spec.type === 'switch' ? (
-				<Checkbox
+				<XQCheckbox
 					key={spec.key}
 					data-pd-setting={spec.key}
 					style={{ marginLeft: 0, ...(reason ? INERT_STYLE : null) }}
 					disabled={!!reason && atDefault}
 					checked={v[spec.key] === 1}
 					onChange={(e)=>onChange(spec.key, e.target.checked ? 1 : 0)}
-				><span title={titleOf(spec, reason)}>{spec.label}</span></Checkbox>
+				><span title={titleOf(spec, reason)}>{spec.label}</span></XQCheckbox>
 			) : (
 				<span key={spec.key} data-pd-setting={spec.key} title={titleOf(spec, reason)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(reason ? INERT_STYLE : null) }}>
 					<span>{spec.label}</span>

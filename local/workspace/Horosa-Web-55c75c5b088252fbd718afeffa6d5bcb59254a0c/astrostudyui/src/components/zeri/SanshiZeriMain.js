@@ -62,6 +62,11 @@ export function resolveNatal({ date, time, zone, gender }){
 export function sanshiZeriFullDefaultOptions(){
 	return buildFullDefaults(sanshiWorkbenchParamFields(), sanshiZeriDefaultOptions());
 }
+// 无头 / 外部搜索的扫描口径:没有内嵌三式页可读 → 工作台出厂参数 + 三式页出厂页面口径
+// (与「载入不带页面键的方案」同一回落;页面上搜索时页面键取内嵌页左栏现值)
+export function sanshiZeriHeadlessScanOptions(){
+	return { ...sanshiZeriFullDefaultOptions(), ...pickKeys(SANSHI_PAGE_SETTINGS.defaults(), SANSHI_HOST_PAGE_KEYS) };
+}
 export function sanshiZeriDefaultOptions(){
 	const q = SANSHI_QIMEN_OPTIONS;
 	return {

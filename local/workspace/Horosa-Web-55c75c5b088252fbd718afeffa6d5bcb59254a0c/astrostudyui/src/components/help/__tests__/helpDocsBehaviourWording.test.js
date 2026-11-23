@@ -1,15 +1,15 @@
 // 手册与界面文字要说真话:每条锁「现在的实际行为」那句在、旧的错误说法不在。
 // 读源文(确定性高,同时守住两层手册惰性构建的章节);行为本身由各自的行为测试锁住,这里只防文字漂回去。
-import fs from 'fs';
 import path from 'path';
 import { HELP_DOCS } from '../../../utils/aiAnalysisHelpDocs';
 import { classifyQuestion } from '../../../utils/aiAnalysisStarterPrompts';
 import { NANJI_XIU_OPTIONS } from '../../kinastro/kinastroOptions';
 import { TRASH_CAP, DELETED_LOG_CAP } from '../../../utils/localRecordStore';
 import { DELETED_LOG_RECENT } from '../../user/DeletedLogPanel';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = path.join(__dirname, '..', '..', '..');
-const R = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const R = (rel)=>readSource(path.join(SRC, rel));
 // 星运手册的正文分在 direction/ 两个章节文件里,读「星运手册源码」= 组装文件 + 两个章节文件
 const H = (name)=>(name === 'DirectionHelpDoc'
 	? ['DirectionHelpDoc.js', 'direction/chaptersDirectional.js', 'direction/chaptersTimelord.js'].map((f)=>R(`components/help/${f}`)).join('\n')
@@ -269,7 +269,8 @@ describe('档案管理手册(星盘手册「档案管理」页签)', ()=>{
 		const sec = ub.slice(ub.indexOf('const SECURITY_SHORT_NAMES'), ub.indexOf('};', ub.indexOf('const SECURITY_SHORT_NAMES')));
 		let m = re.exec(sec);
 		while(m){ names.push(m[1]); m = re.exec(sec); }
-		expect(names.length).toBe(16);
+		let expected = 16;
+		expect(names.length).toBe(expected);
 		names.forEach((n)=>expect([n, records.indexOf(n) >= 0]).toEqual([n, true]));
 	});
 	test('自动备份、影子副本、存储横幅、独立实例各有说明', ()=>{

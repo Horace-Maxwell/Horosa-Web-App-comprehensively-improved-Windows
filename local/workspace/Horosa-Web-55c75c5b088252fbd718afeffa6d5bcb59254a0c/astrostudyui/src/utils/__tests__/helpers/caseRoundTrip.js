@@ -30,10 +30,11 @@ function parseFile(relFromSrc){
 }
 
 /** 取类里某个方法的 AST 节点(找不到回 null) */
+// 类方法;按职责拆进子文件的类方法是方法对象里的对象方法(门面 mixinMethods 挂回原型)—— 同样认
 function findMethod(ast, name){
 	let found = null;
 	traverse(ast, {
-		ClassMethod(p){
+		'ClassMethod|ObjectMethod'(p){
 			if(!found && p.node.key && p.node.key.name === name){ found = p; }
 		},
 	});

@@ -96,7 +96,7 @@ describe('地占 · 链三:AI 分析挂载齿轮 ⇄ 复算入参', () => {
 	test('齿轮每个字段名都被复算入参真消费(否则调了没用)', () => {
 		// buildGeomancySnapshotForFields 之 payload 组装源码逐名核对
 		// eslint-disable-next-line global-require
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		const seg = src.slice(src.indexOf('export async function buildGeomancySnapshotForFields'));
 		gear.fields.forEach((f) => {
 			expect(seg.includes(f.name)).toBe(true);
@@ -107,7 +107,7 @@ describe('地占 · 链三:AI 分析挂载齿轮 ⇄ 复算入参', () => {
 describe('地占 · 链四:命盘事盘储存 ⇄ 挂载复算同源', () => {
 	test('存档 options 之键集 ⊇ 齿轮字段集(齿轮所调之轴,存档必带)', () => {
 		// eslint-disable-next-line global-require
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		const seg = src.slice(src.indexOf('clickSaveCase()'), src.indexOf('applyHistory(entry)'));
 		const clean = seg.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
 		TECHNIQUE_SETTINGS_SCHEMA.geomancy.fields.forEach((f) => {
@@ -119,7 +119,7 @@ describe('地占 · 链四:命盘事盘储存 ⇄ 挂载复算同源', () => {
 
 	test('挂载复算读取存档全键(报数与行星盘四键不可漏,否则 AI 见的盘与界面两样)', () => {
 		// eslint-disable-next-line global-require
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		const seg = src.slice(src.indexOf('export async function buildGeomancySnapshotForFields'));
 		['so.castNumbers', 'so.planetaryChart', 'so.planetaryChartZodiac',
 			'so.planetaryChartNodes', 'so.planetaryChartExtras', 'so.housePlacement',
@@ -197,7 +197,7 @@ describe('地占 · 链五:真实星历盘与时地', () => {
 	});
 
 	test('🔴 AI 复算侧必发时地 —— 不发则复算之盘与界面两样', () => {
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		const seg = src.slice(src.indexOf('export async function buildGeomancySnapshotForFields'),
 			src.indexOf('class GeomancyMain'));
 		expect(seg).toContain('paramsFromFields(fields)');
@@ -209,7 +209,7 @@ describe('地占 · 链五:真实星历盘与时地', () => {
 	});
 
 	test('两个新档位在选项表内且各带短名(闭合态不被截)', () => {
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		expect(src).toContain("key: 'real_chart'");
 		expect(src).toContain("key: 'real_ephemeris'");
 		expect(src).toContain("short: '真时地'");

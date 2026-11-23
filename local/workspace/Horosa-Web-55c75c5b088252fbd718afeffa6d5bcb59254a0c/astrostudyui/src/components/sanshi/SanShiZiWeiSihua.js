@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Empty, Spin } from 'antd';
-import { XQSelect as Select } from '../xq-ui';
+
+import { XQSelect as Select, XQEmpty, XQSpin } from '../xq-ui';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -179,10 +179,10 @@ export default class SanShiZiWeiSihua extends Component {
 	render(){
 		const { chart, loading, err } = this.state;
 		if(loading){
-			return <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>;
+			return <div style={{ padding: 24, textAlign: 'center' }}><XQSpin /></div>;
 		}
 		if(!chart){
-			return <div style={{ padding: 24 }}><Empty description={err || '请先在左侧起盘'} /></div>;
+			return <div style={{ padding: 24 }}><XQEmpty description={err || '请先在左侧起盘'} /></div>;
 		}
 		const yearGan = pickYearGan(chart);
 		const daxianItems = buildDaxianItems(chart) || [];

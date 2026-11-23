@@ -7,6 +7,8 @@ import { clampHarmonic } from '../../components/auxchart/AstroHarmonicLab';
 import { ELECTION_TOPICS, ELECTION_TOPIC_GROUPS } from '../../components/election/ElectionMain';
 import { HORARY_PARAM_SPEC } from '../../divination/horary/horarySchools';
 
+const { jsxNodes } = require('./helpers/jsxProps');
+
 const R = (f)=>fs.readFileSync(path.resolve(__dirname, '../../', f), 'utf8');
 
 describe('辅盘族确证子项', ()=>{
@@ -54,6 +56,15 @@ describe('辅盘族确证子项', ()=>{
 			expect(src).toContain('!loadParked(this, key)');
 			expect(src).not.toMatch(/catch\(e\)\{[\s\S]{0,120}requestKey: key/);
 		});
-		expect(dl).toContain('>重试</Button>');
+		// 龙盘失败有重试:走三态件 XQState(出错态 + onRetry 清停靠后重取;三态件在出错态给了 onRetry 就出「重试」钮)
+		// 按 AST 认元素与属性(不按排版写死相邻次序;同 helpers/jsxProps 头注)
+		const failState = jsxNodes(dl, 'XQState').find((n)=>/'error'/.test(`${n.attrs.status || ''}`));
+		expect(failState).toBeTruthy();
+		expect(`${failState.attrs.onRetry}`.replace(/\s+/g, '')).toBe('()=>{clearLoadFailure(this);this.load();}');
+		const xq = R('components/xq-ui/index.js');
+		expect(xq).toContain("onRetry && status !== 'loading' && status !== 'empty' ?");
+		const retryBtn = jsxNodes(xq, 'XQButton').find((n)=>n.fn === 'XQState' && n.attrs.onClick === 'onRetry');
+		expect(retryBtn).toBeTruthy();
+		expect(retryBtn.children).toBe('{retryLabel}');
 	});
 });

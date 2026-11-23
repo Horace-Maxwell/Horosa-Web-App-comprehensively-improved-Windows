@@ -18,7 +18,7 @@ const DIST = path.join(__dirname, '..', distName);
 const MAX_SHARED_MODULES = 30;
 // 与 .umirc.js 的 maxAsyncRequests 同步(env 覆写一致;2026-07-19 40→56 时此处曾漏改,
 // 42<56 被拿去比旧 40 假红拦构建 —— 两处默认值必须 lockstep 同改)
-const MAX_ASYNC_REQUESTS = Number(process.env.HOROSA_SPLIT_MAXREQ || 56);
+const MAX_ASYNC_REQUESTS = Number(process.env.HOROSA_SPLIT_MAXREQ || 96);
 
 if (!fs.existsSync(DIST)) {
 	console.error(`check-chunk-dup: 产物目录不存在 ${DIST}`);
@@ -215,6 +215,61 @@ for (const f of fs.readdirSync(DIST).filter((x) => x.endsWith('.async.js'))) {
 				if (!bad) {
 					console.log(`· [check-chunk-dup ⑤] preload↔首屏批次对拍恒等(${preloadFiles.size} 件,批次 ${ROOT_ROUTE_STEMS.length} stem+layouts 家族)`);
 				}
+			}
+		}
+	}
+}
+
+// ⑥ 首屏字节预算 + ⑦ 懒加载块不得进首屏。
+//    首屏 = 入口 umi.js / umi.css + 根路由批次(④ 解析)每个 stem 的 js / css + 布局层家族(layouts__index、vendors~layouts__index)。
+//    预算单源:scripts/first-screen-budget.json 的 maxBytes(实测值 + 5% 余量;变小了用 --write-budget 收紧,只许往下)。
+//    背景:共享源码整块(shared-technique 5.2MB)进首屏、布局层静态引任务中心 / 智能体运行时 / 手册注册表时,
+//    首屏是 14.4MB;拆开后 6.3MB。谁再把重模块静态挂回首屏,这里按字节当场红(源码层另有 firstScreenStaticGraph 合同)。
+//    ⑦ 只被懒页面 / 首帧之后才用的命名块(下表)出现在首屏集合 = 有人把它们拉回了同步路径。
+const BUDGET_FILE = path.join(__dirname, 'first-screen-budget.json');
+const LAZY_ONLY_CHUNKS = ['shared-technique', 'agent-boot', 'task-center', 'technique-help', 'vendors-echarts', 'vendors-gl'];
+let FIRST_SCREEN_BYTES = -1;
+{
+	if (!ROOT_ROUTE_STEMS) {
+		console.error('🔴 [check-chunk-dup ⑥] 首屏批次不可得(④ 解析失败)—— 首屏字节预算无法执行(拒绝虚绿)');
+		bad = 1;
+	} else {
+		const all = fs.readdirSync(DIST);
+		const stemOf = (f) => f.replace(/\.[0-9a-f]+\.(async\.js|chunk\.css|js|css)$/, '');
+		const firstScreen = new Set(all.filter((f) => /^umi\.[0-9a-f]+\.(js|css)$/.test(f) || /^(layouts__index|vendors~layouts__index)\.[0-9a-f]+\.(async\.js|chunk\.css)$/.test(f)));
+		for (const stem of ROOT_ROUTE_STEMS) {
+			all.filter((f) => stemOf(f) === stem && /\.(async\.js|chunk\.css)$/.test(f)).forEach((f) => firstScreen.add(f));
+		}
+		FIRST_SCREEN_BYTES = [...firstScreen].reduce((sum, f) => sum + fs.statSync(path.join(DIST, f)).size, 0);
+		const lazyHit = [...firstScreen].filter((f) => LAZY_ONLY_CHUNKS.includes(stemOf(f)));
+		if (lazyHit.length) {
+			console.error(`🔴 [check-chunk-dup ⑦] 只该在首帧之后加载的块进了首屏:${lazyHit.join(', ')} —— 有人把它们拉回了同步路径(看 firstScreenStaticGraph 合同指出的静态链)`);
+			bad = 1;
+		}
+		const mb = (n) => `${(n / 1048576).toFixed(2)}MB`;
+		if (process.argv.includes('--write-budget')) {
+			const maxBytes = Math.ceil(FIRST_SCREEN_BYTES * 1.05);
+			const old = fs.existsSync(BUDGET_FILE) ? JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8')) : {};
+			if (old.maxBytes && maxBytes > old.maxBytes && !process.argv.includes('--accept-increase')) {
+				console.error(`🔴 [check-chunk-dup ⑥] --write-budget 只许收紧:新预算 ${mb(maxBytes)} > 现预算 ${mb(old.maxBytes)}(确需放宽加 --accept-increase,并在提交信息写明理由)`);
+				process.exit(1);
+			}
+			fs.writeFileSync(BUDGET_FILE, `${JSON.stringify({ _doc: old._doc, maxBytes, measuredBytes: FIRST_SCREEN_BYTES, measuredFrom: distName, files: firstScreen.size }, null, '\t')}\n`);
+			console.log(`· [check-chunk-dup ⑥] 首屏预算已写:${mb(maxBytes)}(实测 ${mb(FIRST_SCREEN_BYTES)},${firstScreen.size} 件)`);
+		} else if (!fs.existsSync(BUDGET_FILE)) {
+			console.error(`🔴 [check-chunk-dup ⑥] 缺首屏预算文件 ${path.relative(path.join(__dirname, '..'), BUDGET_FILE)}(node scripts/check-chunk-dup.js dist-file --write-budget 生成)`);
+			bad = 1;
+		} else {
+			const budget = JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8'));
+			if (!(budget.maxBytes > 0)) {
+				console.error('🔴 [check-chunk-dup ⑥] 首屏预算文件缺 maxBytes(判据失效即红)');
+				bad = 1;
+			} else if (FIRST_SCREEN_BYTES > budget.maxBytes) {
+				console.error(`🔴 [check-chunk-dup ⑥] 首屏 ${mb(FIRST_SCREEN_BYTES)}(${firstScreen.size} 件)超预算 ${mb(budget.maxBytes)} —— 新加的静态依赖把首屏撑大了:改成 import() / makeLazyBoundary,或拆出轻模块;确属首屏必需才放宽预算(--write-budget --accept-increase)`);
+				bad = 1;
+			} else {
+				const slack = 1 - FIRST_SCREEN_BYTES / budget.maxBytes;
+				console.log(`· [check-chunk-dup ⑥] 首屏 ${mb(FIRST_SCREEN_BYTES)}(${firstScreen.size} 件)≤ 预算 ${mb(budget.maxBytes)}${slack > 0.15 ? `;余量 ${(slack * 100).toFixed(0)}% —— 首屏变小了,请 --write-budget 收紧预算` : ''}`);
 			}
 		}
 	}

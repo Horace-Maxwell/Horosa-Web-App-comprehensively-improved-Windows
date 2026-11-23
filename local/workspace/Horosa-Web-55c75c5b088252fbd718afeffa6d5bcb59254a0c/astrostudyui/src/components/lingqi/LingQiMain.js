@@ -5,9 +5,9 @@
 // 🔴 中栏=十二枚棋子实体(上4/中4/下4,逐枚正/覆):空态(未起卦,虚框幽灵棋)≠ 纯阴镘(实体全覆)。
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSwitch as Switch, XQSelect as Select } from '../xq-ui';
-import { Tabs, Checkbox, Tag } from 'antd';
-import { LINGQI_GUA, findLingqiGua, lingqiOrdinalCn } from './data/lingqiJing';
+import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSwitch as Switch, XQSelect as Select, XQCheckbox } from '../xq-ui';
+import { Tabs, Tag } from 'antd';
+import { findLingqiGua, lingqiOrdinalCn } from './data/lingqiJing';
 import { lingqiToSimp } from './data/lingqiT2S';
 import { rareSafeText } from '../../utils/rareChars';
 import { LINGQI_RITUAL } from './data/lingqiRitual';
@@ -26,7 +26,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import {
-	deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec,
+	resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec,
 	snapshotMetaFromFields, buildQiKeTimeLines,
 } from '../../utils/divinationTimeDraft';
 
@@ -374,15 +374,15 @@ class LingQiMain extends Component {
 						<div className="horosa-guazhan-set-subhead">注家显示</div>
 						<div className="horosa-lingqi-zhu-grid">
 							{LINGQI_ZHU_META.map((zm) => (
-								<Checkbox key={zm.key} checked={s.zhuVisible[zm.key] !== false} title={lingqiZhuChipTitle(zm)}
+								<XQCheckbox key={zm.key} checked={s.zhuVisible[zm.key] !== false} title={lingqiZhuChipTitle(zm)}
 									onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, [zm.key]: e.target.checked }, true)}>
 									{lingqiZhuChipLabel(zm)}
-								</Checkbox>
+								</XQCheckbox>
 							))}
-							<Checkbox checked={s.zhuVisible.ke !== false}
-								onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, ke: e.target.checked }, true)}>课断</Checkbox>
-							<Checkbox checked={s.zhuVisible.shi !== false}
-								onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, shi: e.target.checked }, true)}>断诗</Checkbox>
+							<XQCheckbox checked={s.zhuVisible.ke !== false}
+								onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, ke: e.target.checked }, true)}>课断</XQCheckbox>
+							<XQCheckbox checked={s.zhuVisible.shi !== false}
+								onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, shi: e.target.checked }, true)}>断诗</XQCheckbox>
 						</div>
 					</div>
 				</div>

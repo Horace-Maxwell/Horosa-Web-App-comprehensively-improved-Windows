@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import Modal from '../comp/DragModal';
 import GeoCoordSelector from './GeoCoordSelector';
 import { gpsToGcj02, gcj02ToGps } from '../../utils/helper';
+import { pressable } from '../../utils/pressable';
 
 class GeoCoordModal extends Component{
 
@@ -109,11 +110,20 @@ class GeoCoordModal extends Component{
 		gpslat = Number.isNaN(gpslat) ? null : gpslat;
 		gpslng = Number.isNaN(gpslng) ? null : gpslng;
 
+		// 触发件一律是按钮(原生 button / 统一按钮件):点击直接挂在它自己身上,不再外包一层可聚焦的 span ——
+		// 外包层是第二个 Tab 停靠点,焦点环只画在行内 span 的空片段上(看着像标题下划线)。不是单个元素时才退回外包层。
+		const single = React.isValidElement(children) && React.Children.count(children) === 1;
+		const trigger = single
+			? React.cloneElement(children, {
+				onClick: (e)=>{
+					if(typeof children.props.onClick === 'function'){ children.props.onClick(e); }
+					this.showModalHandler(e);
+				},
+			})
+			: <span className="horosa-geo-trigger" {...pressable(this.showModalHandler)}>{children}</span>;
 		return (
 			<span>
-				<span onClick={this.showModalHandler}>
-					{ children }
-				</span>
+				{trigger}
 				<Modal open={this.state.visible} 
 					onCancel={this.hideModalHandler}
 					onOk={this.clickOk}

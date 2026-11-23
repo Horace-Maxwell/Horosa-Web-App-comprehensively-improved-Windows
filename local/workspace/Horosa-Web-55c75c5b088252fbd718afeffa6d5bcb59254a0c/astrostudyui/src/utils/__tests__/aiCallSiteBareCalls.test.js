@@ -314,7 +314,7 @@ describe('调用点源码:裸调,不套外壳', ()=>{
 		expect(exp).not.toContain('store 不可用=默认口径');
 		expect(exp).toContain('const dayRuleFields = st && st.astro && st.astro.fields ? st.astro.fields : null;');
 		expect(exp).toContain("const baziCalibreOv = (st && st.astro && st.astro.currentTab === 'bazi' && st.astro.baziCalibreOverride) ? st.astro.baziCalibreOverride : {};");
-		const ex2 = read('utils/aiAnalysisExport.js');
+		const ex2 = read('utils/fileSave.js');   // 保存单源(aiAnalysisExport 原样转出)
 		expect(count(ex2, /try\s*\{\s*return isDesktopBridgeAvailable\(\)/)).toBe(0);
 		expect(ex2).toContain('\treturn isDesktopBridgeAvailable();');
 	});

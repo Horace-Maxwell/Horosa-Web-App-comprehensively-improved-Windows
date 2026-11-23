@@ -5,6 +5,7 @@
 jest.mock('d3', () => ({}));
 import { calcZiwei } from '../ZiweiCalc';
 import { ZWEngineOptions, ZW_ENGINE_FORWARD_KEYS, collectEngineOpts, ziweiNeedsLocalEngine } from '../ziweiOptions';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const BIRTH = { date: '1990-05-18', time: '10:00:00', zone: '+08:00', lon: '118e27', lat: '31n38', gpsLon: 118.45, gpsLat: 31.63, ad: 1, gender: 1 };
 // 庚年生辰(魁钺档敏感):1990=庚午
@@ -107,7 +108,7 @@ describe('转发清单哨兵(表与集合对账)', () => {
 	});
 	test('🔴 ZiWeiMain 两处 opts 与 ZiweiCalc ctx 均 spread collectEngineOpts(禁手抄回潮)', () => {
 		const fs = require('fs'); const path = require('path');
-		const main = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+		const main = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 		expect((main.match(/\.\.\.collectEngineOpts\(ZWEngineOptions\)/g) || []).length).toBe(2);
 		const calc = fs.readFileSync(path.resolve(__dirname, '..', 'ZiweiCalc.js'), 'utf8');
 		expect(calc).toContain('...collectEngineOpts(options)');

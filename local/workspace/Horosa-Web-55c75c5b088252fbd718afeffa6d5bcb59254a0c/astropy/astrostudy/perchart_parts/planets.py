@@ -4,6 +4,7 @@ from flatlib import const
 from flatlib.dignities import essential
 from flatlib.ephem import swe
 from astrostudy.perchart_parts.chart_tables import ARCUS_VISIONIS
+from astrostudy.heliacal_window import phasis_event
 
 
 def _nodes_in_dignity_table():
@@ -79,21 +80,12 @@ class PlanetsMixin:
             planet.phasisEvent = self._phasis_event(obj)
 
     def _phasis_event(self, obj):
-        """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。"""
+        """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。
+        判定与高纬度下的提速做法见 astrostudy/heliacal_window.py。"""
         try:
-            geopos = [float(self.pos.lon), float(self.pos.lat), 0.0]
-            atmo = [1013.25, 15.0, 40.0, 0.25]
-            observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-            birth_jd = self.dateTime.jd
-            flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION
-            for event, label in ((swisseph.HELIACAL_RISING, 'morningRising'), (swisseph.HELIACAL_SETTING, 'eveningSetting')):
-                tret = swisseph.heliacal_ut(birth_jd - 15.0, geopos, atmo, observer, obj, event, flag)
-                jd = tret[0] if isinstance(tret, (list, tuple)) else tret
-                if abs(jd - birth_jd) <= 7.0:
-                    return label
+            return phasis_event(self.dateTime.jd, float(self.pos.lon), float(self.pos.lat), obj)
         except Exception:
-            pass
-        return None
+            return None
 
     _FERAL_PTOL = (0, 60, 90, 120, 180)
 

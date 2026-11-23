@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const LESS = fs.readFileSync(path.resolve(__dirname, '..', 'styles.less'), 'utf8');
+const LESS = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'styles.less'));   // 样式门面:@import 原位展开读全集
 const block = (sel)=>{
 	const at = LESS.indexOf(sel);
 	expect({ sel, found: at >= 0 }).toEqual({ sel, found: true });

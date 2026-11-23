@@ -2,7 +2,7 @@
 // 与各择日页同一注册表、同一编译、同一扫描引擎;口径与各择日页同一构参(工作台出厂参数;紫微 / 八字另读技法页设置,回包 calibre 写明);本命可选(命盘档案或出生时间)。只读、不写任何记录。
 // 天星择日仍用 search_election(条件与口径不同)。条件树写法与 search_election 相同。
 import { GUIDE, RECORD_ID_PATTERN } from './_shared';
-import { splitDateTime, geoOf, compileAgentTreeWith, listConditionSpecsOf, TREE_SCHEMA } from './searchElection';
+import { splitDateTime, geoOf, compileAgentTreeWith, listConditionSpecsOf, TREE_SCHEMA, catalogView, CATALOG_FIELDS_SCHEMA, CATALOG_BRIEF_HINT, pagingHints } from './searchElection';
 import { resolveZone } from '../normalize/zone';
 import { geoPairToRecordFields } from '../normalize/geoCompass';
 import { buildZeriRowExplainLines } from '../../../divination/zeri/zeriExplainText';
@@ -13,7 +13,7 @@ import { ZERI_SCHOOLS, ZERI_UNSUPPORTED, ZERI_AI_MAX_SPAN_DAYS, zeriSchoolMeta, 
 
 export const ZERI_RESULT_MAX = 200;
 const SCHOOL_ENUM = ZERI_SCHOOLS.concat(Object.keys(ZERI_UNSUPPORTED));
-const SCHOOL_SCHEMA = { type: 'string', enum: SCHOOL_ENUM, description: `流派:${ZERI_SCHOOLS.map((k)=>`${k}=${zeriSchoolMeta(k).label}`).join(' / ')}(sanshi 暂不开放)` };
+const SCHOOL_SCHEMA = { type: 'string', enum: SCHOOL_ENUM, description: `流派:${ZERI_SCHOOLS.map((k)=>`${k}=${zeriSchoolMeta(k).label}`).join(' / ')}` };
 const WHERE = {
 	place: { type: 'string', maxLength: 80, description: '地名(离线解析);与 gpsLat/gpsLon 二选一;黄历择日不需要' },
 	gpsLat: { type: 'number', minimum: -90, maximum: 90 },
@@ -21,7 +21,7 @@ const WHERE = {
 	zone: { type: 'string', pattern: '^[+-]\\d{2}:\\d{2}$', description: '缺省按地点与日期推算' },
 };
 const NATAL = {
-	natalRecordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80, description: '用事人命盘档案 id(八字 / 紫微 / 六壬择日可选;解锁本命类条件)' },
+	natalRecordId: { type: 'string', pattern: RECORD_ID_PATTERN, maxLength: 80, description: '用事人命盘档案 id(八字 / 紫微 / 六壬 / 三式择日可选;解锁本命类条件)' },
 	natalBirth: { type: 'string', maxLength: 30, description: '或直接给用事人出生时间 YYYY-MM-DD HH:mm(与 natalRecordId 二选一)' },
 	natalGender: { type: 'string', enum: ['male', 'female'] },
 	indiaNatal: { type: 'object', additionalProperties: false, properties: { moonNak: { type: 'integer', minimum: 1, maximum: 27 }, moonSign: { type: 'integer', minimum: 1, maximum: 12 } }, description: '印度择日的本命月宿(1-27)/ 月座(1-12),塔拉力 / 月力条件要用' },
@@ -75,15 +75,17 @@ export const listZeriConditionsTool = {
 	category: 'query',
 	undoKind: 'none',
 	origins: ['in-app', 'mcp'],
-	outputSchema: { type: 'object', required: ['school', 'types'], properties: { school: { type: 'string' }, label: { type: 'string' }, granularity: { type: 'string' }, maxSpanDays: { type: 'integer' }, types: { type: 'array', items: { type: 'object', required: ['type', 'label'] } } } },
-	description: `某一流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)可用的条件类:中文名、缺省参数、各参数取值。写 search_zeri 的条件树前先查这里;只关心一类时给 type。天星择日用 list_election_conditions。${GUIDE}:用户要求按某流派择日时调用。`,
-	inputSchema: { type: 'object', additionalProperties: false, required: ['school'], properties: { school: SCHOOL_SCHEMA, type: { type: 'string', maxLength: 40 } } },
+	outputSchema: { type: 'object', required: ['school', 'types'], properties: { school: { type: 'string' }, label: { type: 'string' }, granularity: { type: 'string' }, maxSpanDays: { type: 'integer' }, types: { type: 'array', items: { type: 'object', required: ['type', 'label'] } }, view: { type: 'string' } } },
+	description: `某一流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)可用的条件类:中文名、缺省参数、各参数取值。写 search_zeri 的条件树前先查这里;缺省回简表(类键 / 中文名 / 分类 / 参数名),各参数取值范围按 type 单查或 fields:'full'。只关心一类时给 type。天星择日用 list_election_conditions。${GUIDE}:用户要求按某流派择日时调用。`,
+	inputSchema: { type: 'object', additionalProperties: false, required: ['school'], properties: { school: SCHOOL_SCHEMA, type: { type: 'string', maxLength: 40 }, fields: CATALOG_FIELDS_SCHEMA } },
 	async run(args){
 		const sch = await loadZeriSchool(args.school);
 		if(!sch){ return unsupported(args.school); }
 		const types = listConditionSpecsOf(sch.registry, args.type);
 		if(args.type && !types.length){ return { ok: false, code: 'E_ARGS_INVALID', message: `${sch.label}没有这个条件类:${`${args.type}`.slice(0, 40)}` }; }
-		return { ok: true, data: { school: args.school, label: sch.label, granularity: sch.granularity, maxSpanDays: sch.maxSpanDays, types }, summary: `${sch.label}条件 ${types.length} 类` };
+		const view = catalogView(types, args);
+		const brief = view !== types;
+		return { ok: true, data: { school: args.school, label: sch.label, granularity: sch.granularity, maxSpanDays: sch.maxSpanDays, types: view, view: brief ? 'brief' : 'full' }, summary: `${sch.label}条件 ${types.length} 类${brief ? `(${CATALOG_BRIEF_HINT})` : ''}` };
 	},
 };
 
@@ -96,9 +98,9 @@ export const searchZeriTool = {
 	timeoutMs: 180000,
 	outputSchema: {
 		type: 'object', required: ['school', 'intervals', 'total', 'truncated'],
-		properties: { school: { type: 'string' }, intervals: { type: 'array', items: { type: 'object', required: ['start', 'end'] } }, total: { type: 'integer' }, truncated: { type: 'boolean' }, engineTruncated: { type: 'boolean' }, place: { type: 'string' }, zone: { type: 'string' }, natal: { type: 'string' }, calibre: { type: 'string' } },
+		properties: { school: { type: 'string' }, intervals: { type: 'array', items: { type: 'object', required: ['start', 'end'] } }, total: { type: 'integer' }, truncated: { type: 'boolean' }, nextOffset: { type: 'integer' }, offset: { type: 'integer' }, engineTruncated: { type: 'boolean' }, place: { type: 'string' }, zone: { type: 'string' }, natal: { type: 'string' }, calibre: { type: 'string' } },
 	},
-	description: `按某一流派择日:在 [start, end] 内搜满足条件树的时间区间(黄历按日;八字 / 紫微 / 六壬 / 太乙 / 奇门按时,一次最长一年;七政 / 印度经本机服务,最长约 5 年),不写入任何记录。口径与该流派择日页同一构参:工作台出厂参数,紫微再加你的紫微设置、八字再加八字页的南半球月令 / 命宫起法(奇门 = 你在奇门页设的排盘设置),回包 calibre 写明所用口径;八字 / 紫微 / 六壬可带用事人本命。返回区间与安全取样时刻 pick;再用 explain_zeri 看某一刻每个条件为何成立。${GUIDE}:用户要求按八字 / 紫微 / 黄历等挑日子时调用;条件类先用 list_zeri_conditions 查。`,
+	description: `按某一流派择日:在 [start, end] 内搜满足条件树的时间区间(黄历按日;八字 / 紫微 / 六壬 / 太乙 / 奇门按时,一次最长一年;三式(六壬 / 奇门 / 太乙条件混排)按时,最长半年;七政 / 印度经本机服务,最长约 5 年),不写入任何记录。口径与该流派择日页同一构参:工作台出厂参数,紫微再加你的紫微设置、八字再加八字页的南半球月令 / 命宫起法(奇门 = 你在奇门页设的排盘设置;三式 = 三式页出厂口径),回包 calibre 写明所用口径;八字 / 紫微 / 六壬 / 三式可带用事人本命。返回区间与安全取样时刻 pick;再用 explain_zeri 看某一刻每个条件为何成立。${GUIDE}:用户要求按八字 / 紫微 / 黄历等挑日子时调用;条件类先用 list_zeri_conditions 查。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['school', 'start', 'end', 'conditions'],
 		properties: {
@@ -109,6 +111,7 @@ export const searchZeriTool = {
 			...WHERE,
 			...NATAL,
 			limit: { type: 'integer', minimum: 1, maximum: ZERI_RESULT_MAX, default: 50 },
+			offset: { type: 'integer', minimum: 0, maximum: 100000, default: 0, description: '从第几个区间起回(翻页用;上一次回包的 nextOffset)' },
 		},
 	},
 	async run(args, ctx){
@@ -153,10 +156,13 @@ export const searchZeriTool = {
 			if(Number.isFinite(r.durationMin)){ o.durationMin = r.durationMin; }
 			return o;
 		};
+		const offset = args.offset || 0;
+		const more = rows.length > offset + limit;
 		return {
 			ok: true,
-			data: { school: args.school, intervals: rows.slice(0, limit).map(pickRow), total: rows.length, truncated: rows.length > limit, engineTruncated, place: geo.pos || '', zone: geo.zone, calibre: p.calibre, ...(p.natalLabel ? { natal: p.natalLabel } : {}) },
+			data: { school: args.school, intervals: rows.slice(offset, offset + limit).map(pickRow), total: rows.length, truncated: more, ...(more ? { nextOffset: offset + limit } : {}), ...(offset ? { offset } : {}), engineTruncated, place: geo.pos || '', zone: geo.zone, calibre: p.calibre, ...(p.natalLabel ? { natal: p.natalLabel } : {}) },
 			summary: `${sch.label}命中 ${rows.length} 个区间${engineTruncated ? '(引擎已截断)' : ''}`,
+			...pagingHints(more, offset + limit, !!engineTruncated),
 		};
 	},
 };

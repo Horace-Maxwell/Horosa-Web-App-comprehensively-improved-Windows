@@ -113,6 +113,10 @@ function readBody(req){
 }
 
 // 事件流:每帧 flush;断开 = 取消(与桌面现代纪元同法)
+// 普通(非事件流)响应同样:客户端在回包写完之前断开 = 取消在途调用(写入类在开始执行前看到中止即零写入)
+function abortOnDisconnect(res, ac){
+	res.on('close', ()=>{ if(!res.writableFinished){ try{ ac.abort(); }catch(e){ /* noop */ } } });
+}
 function openSse(req, res, ac, extraHeaders){
 	res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', Connection: 'keep-alive', ...(extraHeaders || {}) });
 	let done = false;
@@ -157,17 +161,38 @@ async function startServer(opts){
 		while(sessionClients.size > SESSION_CLIENTS_MAX){ sessionClients.delete(sessionClients.keys().next().value); }
 	};
 	const sessionClientOf = (req)=>{ const sid = `${req.headers['mcp-session-id'] || ''}`.slice(0, 128); return sid ? (sessionClients.get(sid) || '') : ''; };
-	const rpcFail = (r)=>{
+	// 只认本服务握手发过的会话(与桌面壳 session_allowed 同义):带了 Mcp-Session-Id 就必须是这里发的、且未过 24 小时;
+	// 不认的回 404,客户端按规范重新握手。此前不校验 → 编造会话头就是一份新的限流额度。不带会话头的老客户端照常服务。
+	const SESSION_TTL_MS = 24 * 3600 * 1000;
+	const ISSUED_MAX = 256;
+	const issuedSessions = new Map();   // sid → 发出时刻
+	const issueSession = (sid)=>{
+		issuedSessions.delete(sid);
+		issuedSessions.set(sid, Date.now());
+		while(issuedSessions.size > ISSUED_MAX){ issuedSessions.delete(issuedSessions.keys().next().value); }
+	};
+	const sessionAllowed = (req)=>{
+		const sid = `${req.headers['mcp-session-id'] || ''}`.slice(0, 128);
+		if(!sid){ return true; }
+		const at = issuedSessions.get(sid);
+		if(!at){ return false; }
+		if(Date.now() - at > SESSION_TTL_MS){ issuedSessions.delete(sid); sessionClients.delete(sid); return false; }
+		return true;
+	};
+	const dropSession = (req)=>{ const sid = `${req.headers['mcp-session-id'] || ''}`.slice(0, 128); if(sid){ issuedSessions.delete(sid); sessionClients.delete(sid); } };
+	// 协议层错误 → REST:error.code 一律字符串,原数字码放 rpcCode;notFound = 该接口里「参数不对」即「没有这个东西」(资源 / 提示)→ 404
+	const rpcFail = (r, notFound)=>{
 		const code = r.error.code;
-		const body = { ok: false, error: { code, message: r.error.message } };
+		const nf = notFound && code === protocol.ERR.INVALID_PARAMS;
+		const body = { ok: false, error: { code: nf ? 'NOT_FOUND' : rest.rpcErrorName(code), message: r.error.message, rpcCode: code } };
 		if(r.error.data !== undefined){ body.error.data = r.error.data; }
-		return [rest.rpcErrorStatus(code), body];
+		return [nf ? 404 : rest.rpcErrorStatus(code), body];
 	};
 	function respondRest(res, status, body){
 		const headers = {};
 		if(status === 401){ headers['WWW-Authenticate'] = 'Bearer realm="horosa"'; }
-		if(status === 503){
-			const ms = Number(body && body.error && body.error.data && body.error.data.retryAfterMs);
+		if(status === 503 || status === 429){
+			const ms = Number(body && body.error && ((body.error.data && body.error.data.retryAfterMs) !== undefined ? body.error.data.retryAfterMs : body.error.retryAfterMs));
 			headers['Retry-After'] = `${Number.isFinite(ms) ? Math.max(1, Math.ceil(ms / 1000)) : 1}`;
 		}
 		sendJson(res, status, body, headers);
@@ -175,8 +200,11 @@ async function startServer(opts){
 
 	async function handleMcp(req, res){
 		const g = gate(req, token, true);
-		if(g){ return sendPlain(res, g[0], g[1]); }
-		if(req.method !== 'POST'){ return sendPlain(res, 405, 'method not allowed', { Allow: 'POST' }); }
+		// /mcp 的 401 同样带 WWW-Authenticate(与 REST 同;客户端据此知道要 Bearer 令牌)
+		if(g){ return sendPlain(res, g[0], g[1], g[0] === 401 ? { 'WWW-Authenticate': 'Bearer realm="horosa"' } : undefined); }
+		if(!sessionAllowed(req)){ return sendPlain(res, 404, 'unknown session'); }
+		if(req.method === 'DELETE'){ dropSession(req); res.writeHead(204); return res.end(); }
+		if(req.method !== 'POST'){ return sendPlain(res, 405, 'method not allowed', { Allow: 'POST, DELETE' }); }
 		let msg;
 		try{ msg = JSON.parse(await readBody(req)); }catch(e){
 			if(e && e.status === 413){ return sendPlain(res, 413, 'payload too large'); }
@@ -198,7 +226,7 @@ async function startServer(opts){
 		if(id !== undefined){ inflight.set(k, ac); }
 		// 握手:发会话身份(规范的 Mcp-Session-Id;不强制客户端回带 —— 不带的照常服务,只是共用空会话),并记下这个会话的客户端名
 		const newSid = msg && msg.method === 'initialize' ? crypto.randomUUID() : '';
-		if(newSid){ rememberSessionClient(newSid, protocol.initializeClientName(msg)); }
+		if(newSid){ issueSession(newSid); rememberSessionClient(newSid, protocol.initializeClientName(msg)); }
 		const extraHeaders = newSid ? { 'Mcp-Session-Id': newSid } : undefined;
 		const ident = { clientName: 'http', sessionClient: sessionClientOf(req) };
 		try{
@@ -209,6 +237,7 @@ async function startServer(opts){
 				sse.end();
 				return undefined;
 			}
+			abortOnDisconnect(res, ac);
 			const out = await protocol.handleMessage(msg, { rt, ...ident, sessionId: mcpSessionOf(req), version, signal: ac.signal });
 			return out ? sendJson(res, 200, out, extraHeaders) : (res.writeHead(202), res.end());
 		}finally{
@@ -248,8 +277,12 @@ async function startServer(opts){
 			}
 			case 'ToolCall':
 			case 'Alias': {
-				const args = r.kind === 'Alias' ? query : await readArgs();
+				const args = r.kind === 'Alias' ? Object.fromEntries(Object.entries(query).filter(([k])=>rest.RESERVED_QUERY_KEYS.indexOf(k) < 0)) : await readArgs();
 				const params = { name: r.name, arguments: args, _meta: { clientName: rest.REST_CLIENT_NAME } };
+				const resultOpts = { dropText: query.text === '0' };
+				// 超时预算请求头(与 MCP _meta.timeoutMs 同义;协议层夹到 1000..1800000,非数字 = 缺省)
+				const tmo = req.headers[rest.TIMEOUT_HEADER.toLowerCase()];
+				if(tmo !== undefined && Number.isFinite(Number(tmo))){ params._meta.timeoutMs = Number(tmo); }
 				// 幂等键(Idempotency-Key 请求头;与 MCP 的 _meta.idempotencyKey 同义):同键重试不重复写。
 				// 口径单源在协议层(去空白 / 按码点 / 超长 = 参数错 → 400):这里只原样带过去,不自己判、不静默丢
 				if(req.headers['idempotency-key'] !== undefined){ params._meta.idempotencyKey = `${req.headers['idempotency-key']}`; }
@@ -260,14 +293,16 @@ async function startServer(opts){
 					params._meta.progressToken = 'rest';
 					const out = await rpc('tools/call', params, ac.signal, (n)=>{ const p = n.params || {}; const v = { progress: p.progress }; if(p.total !== undefined){ v.total = p.total; } if(p.message !== undefined){ v.message = p.message; } sse.event('progress', v); });
 					if(!ac.signal.aborted){
-						if(out.error){ const [s, b] = rpcFail(out); sse.event('error', { ...b, status: s }); }else{ const [s, b] = rest.toolResultBody(out.result); sse.event('result', { ...b, status: s }); }
+						if(out.error){ const [s, b] = rpcFail(out); sse.event('error', { ...b, status: s }); }else{ const [s, b] = rest.toolResultBody(out.result, resultOpts); sse.event('result', { ...b, status: s }); }
 					}
 					sse.end();
 					return undefined;
 				}
-				const out = await rpc('tools/call', params);
+				const acPlain = new AbortController();
+				abortOnDisconnect(res, acPlain);
+				const out = await rpc('tools/call', params, acPlain.signal);
 				if(out.error){ return respondRest(res, ...rpcFail(out)); }
-				return respondRest(res, ...rest.toolResultBody(out.result));
+				return respondRest(res, ...rest.toolResultBody(out.result, resultOpts));
 			}
 			case 'ResourcesList':
 			case 'PromptsList': {
@@ -285,12 +320,12 @@ async function startServer(opts){
 			case 'ResourceRead': {
 				if(!query.uri){ return respondRest(res, ...rest.errorBody(400, 'BAD_REQUEST', '缺查询参数 uri(如 horosa://chart/local-…)')); }
 				const out = await rpc('resources/read', { uri: query.uri });
-				if(out.error){ return respondRest(res, ...rpcFail(out)); }
+				if(out.error){ return respondRest(res, ...rpcFail(out, true)); }
 				return respondRest(res, 200, { ok: true, contents: out.result.contents || [] });
 			}
 			case 'PromptGet': {
 				const out = await rpc('prompts/get', { name: r.name, arguments: await readArgs() });
-				if(out.error){ return respondRest(res, ...rpcFail(out)); }
+				if(out.error){ return respondRest(res, ...rpcFail(out, true)); }
 				return respondRest(res, 200, { ...out.result, ok: true });
 			}
 			case 'MethodNotAllowed':
@@ -367,7 +402,12 @@ async function startServer(opts){
 		// 进程无论怎么退出(含 stdio 会话结束直接退)都摘掉自己写的端点文件与管理令牌,别留给别人一个死地址
 		process.once('exit', dropOwnFiles);
 	}
+	// 任务调度:常驻的(serve / MCP 客户端拉起的会话)持数据锁才起;测试与嵌入方可传 scheduler:false 不起
+	if(o.scheduler !== false && rt.scheduler && typeof rt.scheduler.start === 'function'){
+		try{ await rt.scheduler.start({ role }); }catch(e){ process.stderr.write(`[horosa] 任务调度没起来:${e && e.message}\n`); }
+	}
 	const close = ()=>new Promise((resolve)=>{
+		try{ if(rt.scheduler){ rt.scheduler.stop(); } }catch(e){ /* noop */ }
 		if(o.writeEndpoint !== false){ dropOwnFiles(); }
 		inflight.forEach((ac)=>{ try{ ac.abort(); }catch(e){ /* noop */ } });
 		server.close(()=>resolve());

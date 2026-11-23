@@ -12,6 +12,19 @@ export function indiaDignityLabel(dignity){
 	return INDIA_DIGNITY_CN[dignity] || `${dignity}`;
 }
 
+// 行运 Gochara 的 Vedha 与八分点(页面与 AI 快照同读):
+//   只有「吉位被别的曜遮」才算被遮 —— 引擎对凶位的 effective 本来就是假,不能拿它判(此前凶位一律标「Vedha 遮」);
+//   罗睺 / 计都没有自己的八分点(BAV),只给 SAV。
+const GOCHARA_PLANET_CN = Object.freeze({ Sun: '太阳', Moon: '月亮', Mars: '火星', Mercury: '水星', Jupiter: '木星', Venus: '金星', Saturn: '土星', 'North Node': '罗睺', 'South Node': '计都' });
+export function gocharaVedhaBlocker(it){
+	if(!it || !it.vedhaBy){ return ''; }
+	return GOCHARA_PLANET_CN[it.vedhaBy] || `${it.vedhaBy}`;
+}
+export function gocharaAvText(av){
+	if(!av || av.savBindu === undefined || av.savBindu === null){ return ''; }
+	return (av.bavBindu === undefined || av.bavBindu === null) ? `SAV${av.savBindu}` : `SAV${av.savBindu}/BAV${av.bavBindu}`;
+}
+
 // Tajika 年主取用途径(引擎枚举 → 中文)单一来源:页面年盘「取用」行与 AI 快照「Tajika 年主」同读这一张表。
 export const TAJIKA_YEAR_LORD_VIA_CN = Object.freeze({
 	benefic_aspect: '吉相照年上升',

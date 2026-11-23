@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 
 from .figures import add, name, zodiac_of
 from .shield import Shield
+from ..truerandom import system_random
 
 # 行星 → 所主图(昼/夜两图);交点各一图。
 PLANET_FIGURES = {
@@ -90,7 +91,7 @@ def astro_place_planets_real(jd: float, cusps: List[float]) -> Optional[Dict[str
 
 def astro_place_planets_bytwelves(rng: Optional[random.Random] = None) -> Dict[str, int]:
     """乙(by-twelves):每星另起 4 行点,点数和 mod12(1..12) 定宫。"""
-    r = rng or random
+    r = rng or system_random()
     out = {}
     for p in PLANET_ORDER:
         total = sum(r.randint(1, 16) for _ in range(4))
@@ -164,7 +165,7 @@ def ascendant_from_source(house_chart: Dict[int, int], zodiac_system: str = "cla
                 "real_chart_requested": True,
                 "real_chart_unavailable": "缺所问之时地或星历不可用,已回落「取第一宫之图」"}
     if src == "fresh_points":
-        r = rng or random
+        r = rng or system_random()
         f = 0
         for k in range(4):
             f |= (1 if r.randint(1, 2) == 1 else 0) << (3 - k)

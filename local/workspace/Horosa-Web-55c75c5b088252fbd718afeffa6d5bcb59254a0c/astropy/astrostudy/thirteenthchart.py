@@ -1,5 +1,6 @@
 from flatlib import const
 from astrostudy.perchart import PerChart
+from astrostudy.stable_order import snap_integer
 
 
 # 派生盘宫位口径标记:四类变换盘一律「变换后上升整宫」,前端标注据此说真话。
@@ -210,7 +211,9 @@ class DraconicChart:
         self.houseMode = house_mode if house_mode in self.HOUSE_MODES else 'whole'
 
     def draconicObject(self, point):
-        newlon = (point.lon - self.nodeLon) % 360
+        # 恰落在整度上的吸到整度:南交点 = 北交点 + 180°,减去北交点后数学上正是 180°(0° 天秤),
+        # 浮点上却可能是 179.99999999999997 —— 不吸的话它在有的机器上显示成 29° 室女 59 分、连带落到上一座
+        newlon = snap_integer((point.lon - self.nodeLon) % 360) % 360
         point.relocate(newlon)
         return newlon
 

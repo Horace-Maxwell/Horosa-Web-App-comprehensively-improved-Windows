@@ -21,6 +21,7 @@ import fs from 'fs';
 import path from 'path';
 
 const parser = require('@babel/parser');
+const { readSource, isSourceSetPart } = require('../../utils/__tests__/helpers/sourceSet');
 const { divinationDirs, DIVINATION_ALSO_DIRS } = require('../../utils/__tests__/helpers/divinationDirs');
 
 const SRC = path.join(__dirname, '..', '..');
@@ -207,12 +208,15 @@ export { divinationDirs };
 // 择日宿主内嵌卜类整页,与卜类同等零容忍
 const ALSO_ZERO_DIRS = DIVINATION_ALSO_DIRS;
 
+// 子模块折回门面:拆成子模块的大文件(登记表 scripts/source-sets.json)按「子模块 + 门面」全集扫、记在门面名下。
+// 类方法 / 内层函数按职责拆进子文件后,「本组件的 Hook setter」与用它的异步函数常分在不同文件,逐文件扫会认不出写屏;
+// 记在门面名下也让登记表不随拆分改键。
 function scanAll(){
 	const counts = {};
 	const detail = {};
-	listJsFiles(COMPONENTS).forEach((f)=>{
+	listJsFiles(COMPONENTS).filter((f)=>!isSourceSetPart(f)).forEach((f)=>{
 		const rel = path.relative(COMPONENTS, f).split(path.sep).join('/');
-		scanAsyncFreshness(fs.readFileSync(f, 'utf8')).forEach((hit)=>{
+		scanAsyncFreshness(readSource(f)).forEach((hit)=>{
 			const id = `${rel}#${hit.owner}`;
 			counts[id] = (counts[id] || 0) + 1;
 			(detail[id] = detail[id] || []).push(`${rel}:${hit.line}→${hit.commitLine}`);

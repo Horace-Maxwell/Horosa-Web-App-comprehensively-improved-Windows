@@ -5,7 +5,9 @@ import fs from 'fs';
 import path from 'path';
 
 const DIR = path.resolve(__dirname, '..');
-const read = (f)=>fs.readFileSync(path.join(DIR, f), 'utf8');
+const { readWorkbench } = require('../../../utils/__tests__/helpers/zeriWorkbenchSource');
+// 九家工作台读「派文件 + 共用壳 ZeriWorkbenchShell」(弹窗口径在壳里);其余原样读
+const read = (f)=>(/ZeriWorkbench\.js$/.test(f) ? readWorkbench(f) : fs.readFileSync(path.join(DIR, f), 'utf8'));
 const WORKBENCHES = ['ConditionBuilderModal.js', 'BaziZeriWorkbench.js', 'ZiweiZeriWorkbench.js', 'QizhengZeriWorkbench.js', 'IndiaZeriWorkbench.js',
 	'LiurengZeriWorkbench.js', 'QimenZeriWorkbench.js', 'TaiyiZeriWorkbench.js', 'SanshiZeriWorkbench.js', 'HuangliZeriWorkbench.js'];
 

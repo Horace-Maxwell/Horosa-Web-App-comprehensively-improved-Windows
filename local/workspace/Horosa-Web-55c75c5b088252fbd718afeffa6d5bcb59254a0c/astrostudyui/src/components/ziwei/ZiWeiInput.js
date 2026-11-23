@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import { safeLocalStorageSet as rawLocalStorageSet } from '../../utils/safeStorage';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { Checkbox, Collapse, Tooltip, message } from 'antd';
+import { Collapse, Tooltip, message } from 'antd';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -19,7 +19,7 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 // 预取 4 个 /chart = 纯空烧;函数型 onStepSelect 屏蔽全局,改走武装引擎(skipChart,
 // 只预取登记的 /ziwei/birth ±depth)。
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-import { XQSelect as Select, XQSideSection } from '../xq-ui';
+import { XQSelect as Select, XQSideSection, XQCheckbox } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import XQIcon from '../xq-icons';
 import { ZWEngineOptions, DAXIAN_SPAN_OPTIONS, TIANMA_BASIS_OPTIONS, STAR_SET_OPTIONS, SANPAN_OPTIONS, SHANGSHI_OPTIONS, LEAP_MONTH_OPTIONS, LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS, HUOLING_OPTIONS, KONG_NAMING_OPTIONS, BRIGHTNESS_SOURCE_OPTIONS, LIFE_MASTER_BY_OPTIONS, LIU_YUE_BASIS_OPTIONS, LIUNIAN_SIHUA_GAN_OPTIONS, CHANGSHENG_START_OPTIONS, CHANGSHENG_DIRECTION_OPTIONS, KUIYUE_OPTIONS, KONGWANG_STYLE_OPTIONS } from './ziweiOptions';
@@ -837,33 +837,33 @@ class ZiWeiInput extends Component{
 						</label>
 					</div>
 					<div className="horosa-ziwei-option-card horosa-ziwei-display-card">
-						<Checkbox checked={this.state.showTips} onChange={this.onTipsChange}>允许提示</Checkbox>
-						<Checkbox checked={this.state.showOthers} onChange={this.onShowOthersChange}>显示杂曜</Checkbox>
-						<Checkbox checked={this.state.showSmall} onChange={this.onShowSmallChange}>显示十二神</Checkbox>
+						<XQCheckbox checked={this.state.showTips} onChange={this.onTipsChange}>允许提示</XQCheckbox>
+						<XQCheckbox checked={this.state.showOthers} onChange={this.onShowOthersChange}>显示杂曜</XQCheckbox>
+						<XQCheckbox checked={this.state.showSmall} onChange={this.onShowSmallChange}>显示十二神</XQCheckbox>
 						{/* 庙旺标注只在三合盘(及演禽借宫盘)生效,四化盘不画星名下庙旺(ZWHouse.shouldShowStarLight);
 						    四化盘时置灰,勾选值保留(切回三合盘即生效)。说明放悬停提示,不写进标签(格子窄,括注会折成两行)。
 						    Tooltip 直接包勾选框:Checkbox 把 onMouseEnter/Leave 挂在外层 label 上,置灰时悬停照样出提示 */}
 						<Tooltip title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不标庙旺;「盘式」切到三合盘后生效' : ''}>
-							<Checkbox checked={this.state.showStarLight} onChange={this.onShowStarLightChange}
-								disabled={zwchart === ZWCont.ZWChart_SiHua}>庙旺标注</Checkbox>
+							<XQCheckbox checked={this.state.showStarLight} onChange={this.onShowStarLightChange}
+								disabled={zwchart === ZWCont.ZWChart_SiHua}>庙旺标注</XQCheckbox>
 						</Tooltip>
-						<Checkbox checked={this.state.showLaiyin} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowLaiyin', 'showLaiyin', e.target.checked)}>来因标记</Checkbox>
-						<Checkbox checked={this.state.showBodyPalace} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowBodyPalace', 'showBodyPalace', e.target.checked)}>身宫标记</Checkbox>
+						<XQCheckbox checked={this.state.showLaiyin} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowLaiyin', 'showLaiyin', e.target.checked)}>来因标记</XQCheckbox>
+						<XQCheckbox checked={this.state.showBodyPalace} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowBodyPalace', 'showBodyPalace', e.target.checked)}>身宫标记</XQCheckbox>
 						{/* 对宫指示线同属三合盘专属(ZWCenterHouse.drawSanFanSiZeng 只在三合盘画),四化盘照庙旺标注置灰 */}
 						<Tooltip title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不画对宫指示线;「盘式」切到三合盘后点宫生效' : ''}>
-							<Checkbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}
-								disabled={zwchart === ZWCont.ZWChart_SiHua}>对宫指示线</Checkbox>
+							<XQCheckbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}
+								disabled={zwchart === ZWCont.ZWChart_SiHua}>对宫指示线</XQCheckbox>
 						</Tooltip>
-						<Checkbox checked={this.state.zihuaAlways} onChange={(e)=>this.onDisplayFlagToggle('ziweiZihuaAlways', 'zihuaAlways', e.target.checked)}>自化常显</Checkbox>
-						<Checkbox checked={this.state.sixEvilBlack} onChange={(e)=>this.onDisplayFlagToggle('ziweiSixEvilBlack', 'sixEvilBlack', e.target.checked)}>六煞黑字</Checkbox>
-						<Checkbox checked={this.state.showShaHuagai} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaHuagai', 'showShaHuagai', e.target.checked)}>盖劫咸池</Checkbox>
-						<Checkbox checked={this.state.showShaSande} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaSande', 'showShaSande', e.target.checked)}>天月二德</Checkbox>
-						<Checkbox checked={this.state.showShaTaizuo} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaTaizuo', 'showShaTaizuo', e.target.checked)}>台座光贵</Checkbox>
-						<Checkbox checked={this.state.showMingSihua} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowMingSihua', 'showMingSihua', e.target.checked)}>命宫四化徽</Checkbox>
-						<Checkbox checked={this.state.showDaySihua} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowDaySihua', 'showDaySihua', e.target.checked)}>日干四化徽</Checkbox>
-						<Checkbox checked={this.state.showYearAges} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowYearAges', 'showYearAges', e.target.checked)}>流年岁数条</Checkbox>
-						<Checkbox checked={this.state.showXiaoxianAges} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowXiaoxianAges', 'showXiaoxianAges', e.target.checked)}>小限岁数条</Checkbox>
-						<Checkbox checked={this.state.showXiaoxianLayer} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowXiaoxianLayer', 'showXiaoxianLayer', e.target.checked)}>小限叠宫层</Checkbox>
+						<XQCheckbox checked={this.state.zihuaAlways} onChange={(e)=>this.onDisplayFlagToggle('ziweiZihuaAlways', 'zihuaAlways', e.target.checked)}>自化常显</XQCheckbox>
+						<XQCheckbox checked={this.state.sixEvilBlack} onChange={(e)=>this.onDisplayFlagToggle('ziweiSixEvilBlack', 'sixEvilBlack', e.target.checked)}>六煞黑字</XQCheckbox>
+						<XQCheckbox checked={this.state.showShaHuagai} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaHuagai', 'showShaHuagai', e.target.checked)}>盖劫咸池</XQCheckbox>
+						<XQCheckbox checked={this.state.showShaSande} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaSande', 'showShaSande', e.target.checked)}>天月二德</XQCheckbox>
+						<XQCheckbox checked={this.state.showShaTaizuo} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaTaizuo', 'showShaTaizuo', e.target.checked)}>台座光贵</XQCheckbox>
+						<XQCheckbox checked={this.state.showMingSihua} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowMingSihua', 'showMingSihua', e.target.checked)}>命宫四化徽</XQCheckbox>
+						<XQCheckbox checked={this.state.showDaySihua} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowDaySihua', 'showDaySihua', e.target.checked)}>日干四化徽</XQCheckbox>
+						<XQCheckbox checked={this.state.showYearAges} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowYearAges', 'showYearAges', e.target.checked)}>流年岁数条</XQCheckbox>
+						<XQCheckbox checked={this.state.showXiaoxianAges} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowXiaoxianAges', 'showXiaoxianAges', e.target.checked)}>小限岁数条</XQCheckbox>
+						<XQCheckbox checked={this.state.showXiaoxianLayer} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowXiaoxianLayer', 'showXiaoxianLayer', e.target.checked)}>小限叠宫层</XQCheckbox>
 						<label className="horosa-ziwei-select-field horosa-ziwei-select-field-wide horosa-ziwei-center-select">
 							<span>中宫内容</span>
 							<Select value={this.state.centerContent} onChange={(v)=>this.onCenterContentChange(v)} size='small'>
@@ -1005,15 +1005,15 @@ class ZiWeiInput extends Component{
 						</Collapse.Panel>
 						<Collapse.Panel header="流派叠层·显示" key="overlay">
 							<div className="horosa-ziwei-overlay-card">
-								<Checkbox checked={this.state.childLimit} onChange={(e)=>this.onOverlayToggle('childLimit', 'childLimit', 'ziweiChildLimit', e.target.checked)}>童限(上大限前逐岁本命宫)</Checkbox>
-								<Checkbox checked={this.state.zhongxian} onChange={(e)=>this.onOverlayToggle('zhongxian', 'zhongxian', 'ziweiZhongxian', e.target.checked)}>沈氏三限(大限细分2.5年中限)</Checkbox>
-								<Checkbox checked={this.state.qishuWei} onChange={(e)=>this.onOverlayToggle('qishuWei', 'qishuWei', 'ziweiQishuWei', e.target.checked)}>河洛气数位(官禄宫干四化回照)</Checkbox>
-								<Checkbox checked={this.state.borrowPalace} onChange={(e)=>this.onOverlayToggle('borrowPalace', 'borrowPalace', 'ziweiBorrowPalace', e.target.checked)}>中州借宫(空宫借对宫正曜)</Checkbox>
-								<Checkbox checked={this.state.huoPan} onChange={(e)=>this.onOverlayToggle('huoPan', 'huoPan', 'ziweiHuoPan', e.target.checked)}>活盘(点宫为太极点重排宫名)</Checkbox>
-								<Checkbox checked={this.state.flowLuanXi} onChange={(e)=>this.onOverlayToggle('flowLuanXi', 'flowLuanXi', 'ziweiFlowLuanXi', e.target.checked)}>流鸾流喜(运限流曜)</Checkbox>
-								<Checkbox checked={this.state.flowHuoLing} onChange={(e)=>this.onOverlayToggle('flowHuoLing', 'flowHuoLing', 'ziweiFlowHuoLing', e.target.checked)}>流火流铃(运限流曜)</Checkbox>
-								<Checkbox checked={this.state.flowShenshaOnChart} onChange={(e)=>this.onOverlayToggle('flowShenshaOnChart', 'flowShenshaOnChart', 'ziweiFlowShenshaOnChart', e.target.checked)}>流年神煞上盘(将前/岁前随流年)</Checkbox>
-								<Checkbox checked={this.state.taiSuiRuGua} onChange={(e)=>this.onOverlayToggle('taiSuiRuGua', 'taiSuiRuGua', 'ziweiTaiSuiRuGua', e.target.checked)}>紫云太岁入卦(关系人生肖落宫)</Checkbox>
+								<XQCheckbox checked={this.state.childLimit} onChange={(e)=>this.onOverlayToggle('childLimit', 'childLimit', 'ziweiChildLimit', e.target.checked)}>童限(上大限前逐岁本命宫)</XQCheckbox>
+								<XQCheckbox checked={this.state.zhongxian} onChange={(e)=>this.onOverlayToggle('zhongxian', 'zhongxian', 'ziweiZhongxian', e.target.checked)}>沈氏三限(大限细分2.5年中限)</XQCheckbox>
+								<XQCheckbox checked={this.state.qishuWei} onChange={(e)=>this.onOverlayToggle('qishuWei', 'qishuWei', 'ziweiQishuWei', e.target.checked)}>河洛气数位(官禄宫干四化回照)</XQCheckbox>
+								<XQCheckbox checked={this.state.borrowPalace} onChange={(e)=>this.onOverlayToggle('borrowPalace', 'borrowPalace', 'ziweiBorrowPalace', e.target.checked)}>中州借宫(空宫借对宫正曜)</XQCheckbox>
+								<XQCheckbox checked={this.state.huoPan} onChange={(e)=>this.onOverlayToggle('huoPan', 'huoPan', 'ziweiHuoPan', e.target.checked)}>活盘(点宫为太极点重排宫名)</XQCheckbox>
+								<XQCheckbox checked={this.state.flowLuanXi} onChange={(e)=>this.onOverlayToggle('flowLuanXi', 'flowLuanXi', 'ziweiFlowLuanXi', e.target.checked)}>流鸾流喜(运限流曜)</XQCheckbox>
+								<XQCheckbox checked={this.state.flowHuoLing} onChange={(e)=>this.onOverlayToggle('flowHuoLing', 'flowHuoLing', 'ziweiFlowHuoLing', e.target.checked)}>流火流铃(运限流曜)</XQCheckbox>
+								<XQCheckbox checked={this.state.flowShenshaOnChart} onChange={(e)=>this.onOverlayToggle('flowShenshaOnChart', 'flowShenshaOnChart', 'ziweiFlowShenshaOnChart', e.target.checked)}>流年神煞上盘(将前/岁前随流年)</XQCheckbox>
+								<XQCheckbox checked={this.state.taiSuiRuGua} onChange={(e)=>this.onOverlayToggle('taiSuiRuGua', 'taiSuiRuGua', 'ziweiTaiSuiRuGua', e.target.checked)}>紫云太岁入卦(关系人生肖落宫)</XQCheckbox>
 								{this.state.taiSuiRuGua && (
 									<div style={{ marginTop: 4 }}>
 										{/* 多关系人列表编辑器:引擎/快照本就支持 [{branch,role,sex}] 多人+南北斗判性

@@ -5,7 +5,7 @@ import { MUNDANE_PAGE_SETTINGS, buildMundaneCardSections } from '../MundaneMain'
 import { buildMockResult } from '../../../divination/election/__tests__/electionFixture';
 import { buildFacts } from '../../../divination/engine/chartFacts';
 
-const src = fs.readFileSync(path.resolve(__dirname, '../MundaneMain.js'), 'utf8');
+const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '../MundaneMain.js'));   // 门面 + 子模块全集
 
 describe('Barbault 两项口径进本页设置', ()=>{
 	test('schema 有 bbSet / bbHarm,缺省 = 五慢星 / 原指数', ()=>{

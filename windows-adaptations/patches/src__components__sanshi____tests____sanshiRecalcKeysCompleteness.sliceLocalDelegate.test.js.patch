@@ -1,0 +1,17 @@
+diff --git a/astrostudyui/src/components/sanshi/__tests__/sanshiRecalcKeysCompleteness.test.js b/astrostudyui/src/components/sanshi/__tests__/sanshiRecalcKeysCompleteness.test.js
+index cbeb07c9..23f2f19e 100644
+--- a/astrostudyui/src/components/sanshi/__tests__/sanshiRecalcKeysCompleteness.test.js
++++ b/astrostudyui/src/components/sanshi/__tests__/sanshiRecalcKeysCompleteness.test.js
+@@ -18,7 +18,11 @@ const code = strip(raw);
+ // —— 产生面:onOptionChange('key', ...) 全部字面量键 ——
+ // 页面把 onOptionChange={this.onOptionChange} 原样传给的子组件(如奇门 / 三式共用的附加层控件 QimenOverlayControls)
+ // 在自己文件里写 onOptionChange('key', …):那些键同样由本页产生 —— 按 import 找到子组件文件一并读。
+-const delegates = Array.from(new Set(Array.from(code.matchAll(/<([A-Z][A-Za-z0-9]*)\b[^>]*onOptionChange=\{this\.onOptionChange\}/g)).map((m) => m[1])));
++// horosa_slice_local_delegate_v1:本全集里自己定义的子组件(左栏拆出来的 SanShiInputPanel)不是「别的文件里的委托组件」——
++// 它的代码已在 code 里,键照常被下面的提取读到;只有从别处 import 进来的才按 import 找文件。
++const delegates = Array.from(new Set(Array.from(code.matchAll(/<([A-Z][A-Za-z0-9]*)\b[^>]*onOptionChange=\{this\.onOptionChange\}/g)).map((m) => m[1])))
++	.filter((name) => !new RegExp(`class\\s+${name}\\s+extends\\b`).test(code));
++expect(delegates.length).toBeGreaterThanOrEqual(2);   // 判据自证:附加层控件与十二建星两件委托组件都认得出
+ // 引入路径按写着它的那个文件解析(类方法拆在 main/ 下时,引入跟着用它的方法走)
+ const delegateFiles = delegates.map((name) => {
+ 	const re = new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*'([^']+)'`);

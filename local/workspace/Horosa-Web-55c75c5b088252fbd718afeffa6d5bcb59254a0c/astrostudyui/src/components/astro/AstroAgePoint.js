@@ -4,13 +4,13 @@
 // 报每岁落座 / 落宫与事件精确岁数。后端 /predict/agepoint。
 import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
 import { Component } from 'react';
-import { Spin, Row, Col } from 'antd';
+import { Row, Col } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
-import { XQSelect as Select } from '../xq-ui';
+import { XQSelect as Select, XQSpin } from '../xq-ui';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { AP_METHODS, AP_EVENTS, AP_YEARS, AP_SPANS, normalizeApSettings, apRequestParams, apSettingsLine, apAspectText } from '../../utils/agePointOptions';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
@@ -232,7 +232,7 @@ class AstroAgePoint extends Component {
 			</span>
 		);
 		return (
-			<Spin spinning={this.state.loading && !this.shownResult()}>
+			<XQSpin spinning={this.state.loading && !this.shownResult()}>
 				<div className="horosa-balbillus-shell" style={{ height, overflow: 'auto', paddingRight: 8 }}>
 					<div className="horosa-balbillus-head">
 						<div className="horosa-balbillus-title">
@@ -294,7 +294,7 @@ class AstroAgePoint extends Component {
 						</div>
 					</div>
 				</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

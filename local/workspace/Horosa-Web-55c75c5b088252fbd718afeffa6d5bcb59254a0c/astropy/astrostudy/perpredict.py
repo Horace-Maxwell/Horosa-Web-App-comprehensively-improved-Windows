@@ -23,6 +23,7 @@ from astrostudy import solararc
 from astrostudy import firdaria
 from astrostudy import zreleasing
 from astrostudy.termdirection import TermDirection
+from astrostudy.pd_engine import sort_pd_rows
 
 MAX_ERROR = 0.0003
 # 行星对显示窗半宽:作用于「弧自身归一化前的原值」(见 _passesCoreDisplayWindow)。
@@ -969,7 +970,7 @@ class PerPredict:
             if arc is None or abs(arc) < 1e-9 or abs(arc) > max_arc:
                 continue
             pdlist.append([arc, prom['id'], sig_id, cat])
-        pdlist.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
+        sort_pd_rows(pdlist)
         self.appendDateStr(pdlist)
         return pdlist
 
@@ -992,7 +993,7 @@ class PerPredict:
             rname = pd_engine.TERM_RULER_FULL.get(ruler, ruler)
             sname = pd_engine.TERM_SIGN_NAMES[int(sgn_idx) % 12]
             pdlist.append([arc, 'T_%s_%s' % (rname, sname), 'N_Asc_0', 'Z'])
-        pdlist.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
+        sort_pd_rows(pdlist)
         self.appendDateStr(pdlist)
         return pdlist
 
@@ -1145,7 +1146,7 @@ class PerPredict:
                     if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
         # 顺逆同开时,direct(正弧)与 converse(负弧)两批要按「年龄」交错显示,而非先全顺再全逆。
         # 年龄 ∝ |arc|(同一时间钥匙下 |弧|越大日期越晚),故按 |arc| 升序统一排序。
-        rows.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
+        sort_pd_rows(rows)
         return rows
 
     def _pdLunarParallaxShift(self):
@@ -1374,7 +1375,7 @@ class PerPredict:
         if not (pdtype == 0 and proj == 'in_zodiaco_abs'):
             # Edmund Jones 的弧不分方向,顺 / 逆勾选对它不起作用
             out = [it for it in out if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        out.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(out)
         return self._pdFilterAspectSide(out)
 
     def _pdFilterAspectSide(self, pdlist):
@@ -1566,7 +1567,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     def getPrimaryDirectionByZTopocentric(self):
@@ -2232,7 +2233,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     def getPrimaryDirectionByZAlongEcliptic(self):
@@ -2329,7 +2330,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     def getPrimaryDirectionByZEdmundJones(self):
@@ -2423,7 +2424,7 @@ class PerPredict:
                 pdlist.append([arc, row_id, sig_id, 'Z'])
         pdlist = self._extendCorePdRecurrences(pdlist, max_arc) + angle_rows
         # 弧取绝对值、不分方向:顺 / 逆勾选对本法不起作用
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     @staticmethod
@@ -2655,7 +2656,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     def getPrimaryDirectionByMAlcabitius(self):
@@ -2876,7 +2877,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         return pdlist
 
     def getPrimaryDirectionByF(self):
@@ -3023,7 +3024,7 @@ class PerPredict:
         if not (want_direct and want_converse):
             pdlist = [it for it in pdlist
                       if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
-        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        sort_pd_rows(pdlist)
         self.appendDateStr(pdlist)
         return pdlist
 

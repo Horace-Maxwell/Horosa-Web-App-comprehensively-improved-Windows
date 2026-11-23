@@ -9,7 +9,7 @@ const { importsName } = require('../../../utils/__tests__/helpers/importSpecs');
 const { jsxElements, jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
 
 describe('搜索框(带清除钮)与搜索钮同高、暗色不发灰', ()=>{
-	const less = read('components/xq-ui/styles.less');
+	const less = readSource(path.join(SRC, 'components/xq-ui/styles.less'));   // 样式门面:@import 原位展开读全集
 	it('外框取统一控件高、不再叠加上下内边距;里面的 input 不各自撑高', ()=>{
 		const at = less.indexOf('.xq-search.ant-input-search .ant-input-affix-wrapper {');
 		expect(at).toBeGreaterThan(0);
@@ -41,14 +41,15 @@ describe('AI 分析页四个列表页的空态都居中', ()=>{
 });
 
 describe('风水理气工作台的数字框与同栏下拉同高', ()=>{
-	const src = read('components/fengshui/LiqiWorkspace.js');
+	// 门面 + 子模块逐个文件解析(拼起来的全集是文本,不能当一个模块解析)
+	const files = sourceSetFiles(path.join(SRC, 'components/fengshui/LiqiWorkspace.js')).map((f)=>fs.readFileSync(f, 'utf8'));
 	it('走全站数字输入组件(统一控件高),不用小号的组件库原件', ()=>{
-		expect(importsName(src, { name: 'XQInputNumber', from: '../xq-ui' })).toBe(true);
-		expect(importsName(src, { name: 'InputNumber', from: 'antd' })).toBe(false);
-		const fields = jsxElements(src, 'XQInputNumber');
+		expect(files.some((src)=>importsName(src, { name: 'XQInputNumber', from: '../xq-ui' }))).toBe(true);
+		expect(files.some((src)=>importsName(src, { name: 'InputNumber', from: 'antd' }))).toBe(false);
+		const fields = files.flatMap((src)=>jsxElements(src, 'XQInputNumber'));
 		expect(fields.length).toBeGreaterThanOrEqual(1);
 		fields.forEach((f)=>{ expect(f.size).toBeUndefined(); });
-		expect(jsxElements(src, 'InputNumber')).toEqual([]);
+		expect(files.flatMap((src)=>jsxElements(src, 'InputNumber'))).toEqual([]);
 	});
 });
 

@@ -6,6 +6,7 @@ import jsonpickle
 # 策天飞星已重写为自有引擎(astrostudy.cetian_ziwei),通用序列化辅助走自有 horosa_engine_common,
 # 不再依赖 kentang/kinastro 框架(引擎已从 vendor/kinastro 摘出)。
 from websrv.helper import enable_crossdomain
+from astrostudy import clock
 from websrv.horosa_engine_common import (
     build_snapshot,
     clean_text,
@@ -499,7 +500,7 @@ class CeTianSrv:
                 except (TypeError, ValueError):
                     liunian_year = 0
                 if liunian_year < 1 or liunian_year > 9999:  # 负数/零/荒谬值一律回落当年(int('-5')非0会穿透 or 短路)
-                    liunian_year = datetime.now().year
+                    liunian_year = clock.now_local(data).year
                 qisha_mode = "suishu" if str(data.get("liunianQishaMode") or "shengshi").lower() == "suishu" else "shengshi"
                 tianluo_mode = "zhongtian" if str(data.get("tianluoMode") or "benshu").lower() == "zhongtian" else "benshu"
                 show_yiyu = {

@@ -5,7 +5,7 @@ import { listLocalCases } from '../localcases';
 import { AI_ANALYSIS_STORES, listStoreRecords } from '../aiAnalysisStore';
 import { ANALYSIS_CASE_TECHNIQUES, ANALYSIS_CHART_TECHNIQUES } from '../aiAnalysisContext';
 import { RESOURCE_SCHEME } from './resources';
-import { PROMPT_TECHNIQUE_PREFIX, PROMPT_TEMPLATE_PREFIX, PROMPT_SKILL_PREFIX, PROMPT_GUIDE_NAME } from './prompts';
+import { PROMPT_TECHNIQUE_PREFIX, PROMPT_TECHNIQUE_NAME, PROMPT_TEMPLATE_PREFIX, PROMPT_SKILL_PREFIX, PROMPT_GUIDE_NAME, promptTechniqueKeys, labelOfTechnique } from './prompts';
 import { ensureNeutralMatcher, indexNeutral } from '../scriptNeutralMatch';
 
 export const COMPLETION_MAX = 100;
@@ -54,9 +54,17 @@ async function helpRows(){
 	try{ const help = await import('./helpText'); return help.listHelpTabs().map((tab)=>({ id: tab, label: help.helpTitleOf(tab) })); }catch(e){ return []; }
 }
 
-// ref:{ type:'ref/resource', uri } | { type:'ref/prompt', name };argument:{ name, value };context.arguments 本服务暂不需要
+// 命盘技法给命盘、事盘技法给事盘;两边都有的技法(或未登记 / 没填)两类都给
+function cidRowsForTechnique(key){
+	const chartish = ANALYSIS_CHART_TECHNIQUES.indexOf(key) >= 0;
+	const caseish = ANALYSIS_CASE_TECHNIQUES.indexOf(key) >= 0;
+	return (chartish && !caseish) ? chartRows() : ((caseish && !chartish) ? caseRows() : chartRows().concat(caseRows()));
+}
+
+// ref:{ type:'ref/resource', uri } | { type:'ref/prompt', name };argument:{ name, value };context = MCP 请求的 context({ arguments:已填的其它参数 })
 // 回 { values, total, hasMore };认不出的引用 → null(桥回 -32602);认得出但该参数无可补(自由文本)→ 空表
-export async function completeArgument(ref, argument){
+export async function completeArgument(ref, argument, context){
+	const contextArgs = context && context.arguments && typeof context.arguments === 'object' ? context.arguments : {};
 	await ensureNeutralMatcher();   // 繁简比对的转换器先载入(没载入 = 按原文比)
 	const type = ref && ref.type;
 	const argName = `${(argument && argument.name) || ''}`;
@@ -74,14 +82,16 @@ export async function completeArgument(ref, argument){
 	}
 	if(type === 'ref/prompt'){
 		const name = `${(ref && ref.name) || ''}`;
+		// 合成的技法提示卡:technique 补技法键(按中文名 / 键匹配);cid 按已填的技法(context.arguments.technique)分命盘 / 事盘,没填两类都给
+		if(name === PROMPT_TECHNIQUE_NAME){
+			if(argName === 'technique'){ return rankCandidates(promptTechniqueKeys().map((k)=>({ id: k, label: labelOfTechnique(k) })), value); }
+			if(argName !== 'cid'){ return { values: [], total: 0, hasMore: false }; }
+			return rankCandidates(cidRowsForTechnique(`${contextArgs.technique || ''}`), value);
+		}
 		if(name.indexOf(PROMPT_TECHNIQUE_PREFIX) === 0){
 			const key = name.slice(PROMPT_TECHNIQUE_PREFIX.length);
 			if(argName !== 'cid'){ return { values: [], total: 0, hasMore: false }; }
-			// 命盘技法给命盘、事盘技法给事盘;两边都有的技法(或未登记)两类都给
-			const chartish = ANALYSIS_CHART_TECHNIQUES.indexOf(key) >= 0;
-			const caseish = ANALYSIS_CASE_TECHNIQUES.indexOf(key) >= 0;
-			const rows = (chartish && !caseish) ? chartRows() : ((caseish && !chartish) ? caseRows() : chartRows().concat(caseRows()));
-			return rankCandidates(rows, value);
+			return rankCandidates(cidRowsForTechnique(key), value);
 		}
 		if(name.indexOf(PROMPT_TEMPLATE_PREFIX) === 0){ return { values: [], total: 0, hasMore: false }; }
 		// 技能包提示:cid / otherCid 补命盘(技能都以命盘为主角);其余参数是自由文本

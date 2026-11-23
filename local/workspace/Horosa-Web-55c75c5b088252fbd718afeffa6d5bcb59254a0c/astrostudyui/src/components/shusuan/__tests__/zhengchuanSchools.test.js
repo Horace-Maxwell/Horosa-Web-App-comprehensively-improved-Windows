@@ -12,6 +12,7 @@ import { SCHOOL_LABEL, SCHOOL_KEYS } from '../zhengchuanSchools';
 
 const SRC = (...p) => path.join(__dirname, '..', '..', ...p);
 const { jsxNodes, jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
+const { readSource, importedFrom } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 describe('神数正传 · 流派名单一源', () => {
 	test('五流派齐备', () => {
@@ -29,16 +30,18 @@ describe('神数正传 · 流派名单一源', () => {
 	});
 
 	test('🔴 宿主不得静态 import 那个 lazy 组件（成环 → 整页崩）', () => {
-		const host = fs.readFileSync(SRC('kinastro', 'KinAstroMain.js'), 'utf8');
+		const host = readSource(SRC('kinastro', 'KinAstroMain.js'));
 		// lazy 那行是应有的；除它之外不得再有指向 ZhengChuanMain 的静态 import
 		expect(host).toMatch(/React\.lazy\([\s\S]{0,120}?ZhengChuanMain'\)\)/);   // 真代码带 webpackChunkName 注释，正则须容之
-		expect(host).not.toMatch(/^import .*from '\.\.\/shusuan\/ZhengChuanMain'/m);
+		// 按组件全集、解析后的模块路径判(类方法拆在 main/ 下时引入跟着方法走,相对路径随之变;写死一种路径会漏掉子文件里的静态引入)
+		const facade = SRC('kinastro', 'KinAstroMain.js');
+		expect(importedFrom(facade, SRC('shusuan', 'ZhengChuanMain')).size).toBe(0);
 		// 流派名须自独立常量文件引
-		expect(host).toMatch(/from '\.\.\/shusuan\/zhengchuanSchools'/);
+		expect(importedFrom(facade, SRC('shusuan', 'zhengchuanSchools')).size).toBeGreaterThan(0);
 	});
 
 	test('🔴 左栏下拉由单一源派生，不再手抄五行 Option（抄则必与盘题漂）', () => {
-		const host = fs.readFileSync(SRC('kinastro', 'KinAstroMain.js'), 'utf8');
+		const host = readSource(SRC('kinastro', 'KinAstroMain.js'));
 		expect(host).toMatch(/Object\.keys\(ZHENGCHUAN_SCHOOL_LABEL\)/);
 		const hostOptions = jsxNodesInFile(SRC('kinastro', 'KinAstroMain.js'), 'Option');
 		SCHOOL_KEYS.forEach((k) => {

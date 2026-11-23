@@ -14,7 +14,7 @@ import { resolvePlaceOffline } from '../aiTools/normalize/place';
 import { describeFacet } from '../aiTools/settingsFacets';
 import { listLocalCharts, listLocalChartsTrash } from '../localcharts';
 import { listLocalCases, CASE_TYPE_OPTIONS } from '../localcases';
-import { TIME_CASTABLE_MIRROR } from '../aiTools/normalize/caseType';
+import { TIME_CASTABLE_MIRROR, TIME_CASTABLE_CASE_EXTRA } from '../aiTools/normalize/caseType';
 import { TECHNIQUE_SETTINGS_SCHEMA, hasMountSettingsFields } from '../techniqueMountSettings';
 import { setGlobalStore } from '../storageutil';
 
@@ -125,10 +125,14 @@ describe('批量与账本', ()=>{
 	it('事盘全类型:可凭时间起的全部落库(payload JSON 串含 fieldSnapshot),其余全部拒建零写入', async ()=>{
 		let created = 0;
 		let refused = 0;
+		const extraSnap = [];
 		for(const o of CASE_TYPE_OPTIONS){
 			const r = await runTool('create_case_record', { caseType: o.value, event: `压测 ${o.value}`, divTime: '2026-05-01 10:00' }, ctx());
 			if(TIME_CASTABLE_MIRROR.indexOf(o.value) >= 0){
 				expect(r.ok).toBe(true); created += 1;
+			}else if(TIME_CASTABLE_CASE_EXTRA.indexOf(o.value) >= 0){
+				// 后加十类建档当场起盘:起出来即落库(正文冻结进 payload.snapshot);要计算服务的离线时回可重试失败、零写入
+				if(r.ok){ created += 1; extraSnap.push(r.data.cid); }else{ expect(r.code).toBe('E_CAST_BACKEND_FAILED'); expect(r.retryable).toBe(true); }
 			}else{
 				expect(r.ok).toBe(false); expect(r.code).toBe('E_NEEDS_MANUAL_CAST'); refused += 1;
 			}
@@ -136,7 +140,47 @@ describe('批量与账本', ()=>{
 		const rows = listLocalCases({});
 		expect(rows.length).toBe(created);
 		rows.forEach((row)=>{ expect(typeof row.payload).toBe('string'); const p = JSON.parse(row.payload); expect(p.fieldSnapshot).toBeTruthy(); expect(p.createdBy).toBe('ai-assistant'); });
-		expect(refused).toBe(CASE_TYPE_OPTIONS.length - TIME_CASTABLE_MIRROR.length);
+		rows.filter((row)=>extraSnap.indexOf(row.cid) >= 0).forEach((row)=>{ expect(`${JSON.parse(row.payload).snapshot || ''}`.trim()).not.toBe(''); });
+		expect(extraSnap.length).toBeGreaterThan(0);
+		expect(refused).toBe(CASE_TYPE_OPTIONS.length - TIME_CASTABLE_MIRROR.length - TIME_CASTABLE_CASE_EXTRA.length);
+	});
+});
+
+describe('建事盘带口径', ()=>{
+	it('options 分拣后与同类默认 / 本机现值一并冻结进 payload;不认的项回 ignoredOptions、不落库', async ()=>{
+		const r = await runTool('create_case_record', { caseType: 'liureng', event: '口径冻结', divTime: '2026-05-01 10:00', options: { castMethod: 'zheng', guireng: 'no-such', nope: 1 } }, ctx());
+		expect(r.ok).toBe(true);
+		expect(r.data.ignoredOptions.map((x)=>x.key).sort()).toEqual(['guireng', 'nope']);
+		const row = listLocalCases({}).find((x)=>x.cid === r.data.cid);
+		const p = JSON.parse(row.payload);
+		expect(p.castMethod).toBe('zheng');
+		expect(p.nope).toBeUndefined();
+		expect(p.guireng).not.toBe('no-such');
+		// 没给的项也冻结(之后改全局设置,这条事盘口径不变)
+		const schema = TECHNIQUE_SETTINGS_SCHEMA.liureng;
+		expect(schema.fields.filter((f)=>f.default !== undefined).every((f)=>Object.prototype.hasOwnProperty.call(p, f.name))).toBe(true);
+	});
+});
+
+describe('起卦输入键只走按结果建事盘', ()=>{
+	it('create_case_record 带起卦输入键(演数 / 报数 / 种子)整次拒、零写入;cast_divination_case 收', async ()=>{
+		const bad = await runTool('create_case_record', { caseType: 'liureng', event: '演数', divTime: '2026-05-01 10:00', options: { castMethod: 'yanshu', yanShuNum: '27' } }, ctx());
+		expect(bad.ok).toBe(false);
+		expect(bad.code).toBe('E_ARGS_INVALID');
+		expect(bad.data.castInputKeys).toEqual(['yanShuNum']);
+		expect(listLocalCases({}).length).toBe(0);
+		const ok = await runTool('cast_divination_case', { caseType: 'taixuan', event: '种子', divTime: '2026-05-01 10:00', inputs: { seed: '12345' }, selectAsAnalysisSource: false }, ctx());
+		expect(ok.ok).toBe(true);
+		const p = JSON.parse(listLocalCases({}).find((x)=>x.cid === ok.data.cid).payload);
+		expect(`${p.snapshot || ''}`.trim()).not.toBe('');
+	});
+	it('报出的输入:一个起卦输入键都没有 → 指去 create_case_record;不认的键整次拒', async ()=>{
+		const none = await runTool('cast_divination_case', { caseType: 'shenyishu', divTime: '2026-05-01 10:00', inputs: { hourSource: 'auto' } }, ctx());
+		expect(none.ok).toBe(false);
+		expect(none.message).toMatch(/create_case_record/);
+		const unk = await runTool('cast_divination_case', { caseType: 'taixuan', divTime: '2026-05-01 10:00', inputs: { seed: '1', nope: 2 } }, ctx());
+		expect(unk.ok).toBe(false);
+		expect(unk.message).toMatch(/nope/);
 	});
 });
 

@@ -3,13 +3,22 @@
 // 运行层双重拒绝(带 cid 走 upsert 即「覆盖更新」,永远不许从工具面进入)。
 import { toolLabel } from './labels';   // MCP 导出面 title(标签单源;labels.js 零 import,无环)
 export const AGENT_TOOL_LEVELS = ['read', 'additive'];
-export const AGENT_UNDO_KINDS = ['none', 'trash-record', 'restore-settings', 'cancel-task', 'restore-record-flag', 'restore-chat-mount'];
+export const AGENT_UNDO_KINDS = ['none', 'trash-record', 'restore-settings', 'cancel-task', 'restore-record-flag', 'restore-chat-mount', 'discard-material-note'];
 // 「所有写入可一键撤销」的显式豁免登记:additive 工具 undoKind 为 none 必须在此登记理由,否则合同测试(aiToolsUndoContract)红;
 // 面板/手册文案从这里生成「除 … 外」句,不再手写。
 export const UNDO_EXEMPT = Object.freeze({
 	load_record_into_workspace: '只切换当前工作区、不改档案;要回到原来那张,再载入它即可(载入命盘时紫微左栏按该盘记下的设置显示,点「新命盘」用回你自己的)',
 	propose_record_edit: '只挂提案、不改档案;用户拒绝即作废,采纳后在任务中心可撤销采纳',
 	propose_record_archive: '只挂提案、不改档案;用户拒绝即作废,采纳后在任务中心可撤销采纳',
+	propose_record_unlink: '只挂提案、不改档案;用户拒绝即作废,采纳后在任务中心可撤销采纳',
+	propose_record_recover: '只挂提案、不改档案;用户拒绝即作废,采纳后在任务中心可撤销采纳(重新移入回收站)',
+	control_task: '只做收紧(暂停 / 取消);暂停后继续要用户在任务中心手点,取消是终态',
+	propose_memory: '只投记忆候选;用户在进阶页「记忆」里确认才生效,丢弃即作废',
+	propose_template: '只挂提案、不写入;用户拒绝即作废,采纳后在任务中心可撤销采纳',
+	propose_skill_pack: '只挂提案、不写入;用户拒绝即作废,采纳后在任务中心可撤销采纳',
+	propose_persona_text: '只挂提案、不写入;用户拒绝即作废,采纳后在任务中心可撤销采纳',
+	save_document: '只新增文件、不覆盖;文件在固定导出目录,不再需要时用户自己删',
+	chat_in_conversation: '只往对话里新增一问一答(标明来自外部 AI),不改已有消息;不要的那两条用户在对话页删',
 });
 // 工具类别(审批档可按类别单独收紧;信任档案只对 workspace/query 放行):缺省 query
 // ui=界面动作(导航/合盘配对):read 级、不落盘、自动执行、可见可回退;外部客户端看到的 readOnlyHint 为 false(它改的是页面状态)
@@ -43,10 +52,12 @@ export function buildToolManifest(defs){
 			annotations: {
 				readOnlyHint: d.level === 'read' && category !== 'ui',
 				destructiveHint: false,
-				idempotentHint: d.level === 'read',
+				// 写入类声明 idempotent:true(同参重复调用状态不再变:星标 / 置顶 / 加标签 / 关联,各有 noChange)也报幂等
+				idempotentHint: d.level === 'read' || d.idempotent === true,
 				openWorldHint: category === 'external' || origin === 'external',
 			},
-			...(category === 'interactive' ? { _meta: { 'anthropic/requiresUserInteraction': true } } : {}),
+			// 声明得比缺省 120 s 长的同步工具:把声明预算(毫秒)写进目录条目 —— 桌面壳据此在客户端没给 _meta.timeoutMs 时按它等(键名 = 壳 TOOL_TIMEOUT_META_KEY)
+			...((category === 'interactive' || Number(d.timeoutMs) > 120000) ? { _meta: { ...(category === 'interactive' ? { 'anthropic/requiresUserInteraction': true } : {}), ...(Number(d.timeoutMs) > 120000 ? { 'io.horosa/timeoutMs': Number(d.timeoutMs) } : {}) } } : {}),
 			// 声明了输出结构的工具:MCP 面透传 outputSchema(桥据此对成功结果恒带 structuredContent);运行时 toolDefs 不取这个键
 			...(d.outputSchema ? { outputSchema: JSON.parse(JSON.stringify(d.outputSchema)) } : {}),
 		};

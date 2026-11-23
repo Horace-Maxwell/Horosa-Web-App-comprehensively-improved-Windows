@@ -6,10 +6,7 @@ import {
 	MOIRA_BACKGROUND as MOIRA_BG,
 	MOIRA_BLACK as BLACK,
 	MOIRA_GREEN as GREEN,
-	MOIRA_BLUE as BLUE,
 	MOIRA_RED as RED,
-	MOIRA_MAGENTA as MAGENTA,
-	MOIRA_PALE as PALE,
 	moiraAnnularSectorPath as annularSectorPath,
 	moiraBuildFixedStars as buildFixedStars,
 	moiraObliquityDeg,
@@ -24,7 +21,6 @@ import {
 	moiraPlanetPlacements as planetPlacements,
 	moiraPairedRadialText as pairedRadialText,
 	moiraPoint as point,
-	moiraRadialColumns as radialColumns,
 	moiraRadialStackText as radialStackText,
 	moiraRadialLine as radialLine,
 	moiraVerticalText as verticalText,
@@ -34,7 +30,7 @@ import {
 } from './GuoLaoMoiraWheel';
 import * as AstroConst from '../../constants/AstroConst';
 import { guolaoShenShaTip } from './GuoLaoShenShaDoc';
-import { moiraGodsFromRuleHits, moiraLongLifeCharFor, moiraWeakSolidRowForZi, moiraWeakSolidMarkers, moiraZhiDegText, moiraIsEclipticDisplayChart, moiraMapCuspsToDisplay } from './GuoLaoMoiraWheel';
+import { moiraGodsFromRuleHits, moiraLongLifeCharFor, moiraWeakSolidRowForZi, moiraZhiDegText, moiraIsEclipticDisplayChart, moiraMapCuspsToDisplay } from './GuoLaoMoiraWheel';
 import { azTheta, applyDeclination, mountainPosition, quickWheelAz, shanColor, PLATE_OFFSET, resolveRingShifts, PICK_LAYOUTS, pickLayoutMode, COMPASS_STELLAR } from './electionCore';
 import { SHAN_ORDER, SHAN_CENTER_DEG } from '../fengshui/fengshuiData';
 import { hsysDisplayName } from './guolaoData';

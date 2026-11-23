@@ -25,6 +25,7 @@ from flatlib.datetime import Datetime  # noqa: E402
 from flatlib.predictives import profections  # noqa: E402
 
 from astrostudy import perchart, perpredict, solararc  # noqa: E402
+from source_sets import read_ui_source  # noqa: E402  前端拆成子模块的大文件按「门面 + 子模块」全集读
 
 UI_SRC = os.path.abspath(os.path.join(_ASTRO, '..', 'astrostudyui', 'src'))
 ASPORB_JS = os.path.join(UI_SRC, 'constants', 'directionAspOrb.js')
@@ -112,7 +113,7 @@ def _with_angles(chart):
 
 def _mount_list_for(name):
     """齿轮各推运技法的容许度档位用的是哪张表:True = 弧类表(不含相加除以2),False = 全表。"""
-    text = _read(MOUNT_SETTINGS)
+    text = read_ui_source(MOUNT_SETTINGS)
     if name in ('profection', 'solarreturn', 'lunarreturn', 'givenyear'):
         block = re.search(r'const PREDICTIVE_PERIOD_BASE_FIELDS = \[(.*?)\n\];', text, re.S).group(1)
     elif name == 'planetaryarc':

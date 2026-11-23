@@ -4,9 +4,9 @@ import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/di
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { Empty } from 'antd';
+
 import { Solar } from 'lunar-javascript';
-import { XQTabs as Tabs } from '../xq-ui';
+import { XQTabs as Tabs, XQEmpty } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import calc, {
 	daYun, liuNian, liuYue, liuRi, judge, periodLiShu, guaRelations, chartExtras, duiGua, heluoSolarTermOfDate,
@@ -19,6 +19,7 @@ import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
+import { pressable } from '../../utils/pressable';
 
 // 纳甲天干（内卦/外卦）：仅乾坤内外异，余卦内外同
 const NAJIA_GAN = { 乾: ['甲', '壬'], 坤: ['乙', '癸'], 震: ['庚', '庚'], 巽: ['辛', '辛'], 坎: ['戊', '戊'], 離: ['己', '己'], 艮: ['丙', '丙'], 兌: ['丁', '丁'] };
@@ -340,7 +341,7 @@ class HeLuoMain extends Component {
 	// 下钻箭头单元格（点击=展开下级；阻止冒泡以免触发本行爻辞）
 	arrowCell(onDrill, active) {
 		return (
-			<td className="horosa-heluo-arrowcell" onClick={(e) => { e.stopPropagation(); onDrill(); }}>
+			<td className="horosa-heluo-arrowcell" {...pressable((e) => { e.stopPropagation(); onDrill(); }, { role: false })}>
 				<span className={`horosa-heluo-arrow${active ? ' is-open' : ''}`}>▾</span>
 			</td>
 		);
@@ -361,7 +362,7 @@ class HeLuoMain extends Component {
 							const open = this.state.openYao === `dx:${key}`;
 							const drilled = this.state.daxianKey === key;
 							return [
-								<tr key={key} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `dx:${key}` })}>
+								<tr key={key} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} {...pressable(() => this.setState({ openYao: open ? '' : `dx:${key}` }), { role: false })}>
 									<td>{s.ageStart}-{s.ageEnd}</td>
 									<td>{s.gua}</td>
 									<td>{yaoName(s.lines, s.pos)}</td>
@@ -396,7 +397,7 @@ class HeLuoMain extends Component {
 							const drilled = this.state.liunianKey === lkey;
 							const lichun = this.jieQiLabel(y.year, '立春');
 							return [
-								<tr key={y.age} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `ln:${lkey}` })}>
+								<tr key={y.age} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} {...pressable(() => this.setState({ openYao: open ? '' : `ln:${lkey}` }), { role: false })}>
 									<td>{y.age}</td>
 									{/* 干支＝干支年;并列公历年便于对年份(该干支年自当年立春起算,故非整公历年) */}
 									<td>{y.ganzhi}{y.year ? <div style={{ fontSize: '11px', color: 'var(--horosa-text-secondary)', fontWeight: 'normal' }}>{y.year}年{lichun ? ` · 立春 ${lichun}` : ''}</div> : null}</td>
@@ -438,7 +439,7 @@ class HeLuoMain extends Component {
 							const jieTs = this.jieQiLabel(mo.zhi === '丑' ? (y.year + 1) : y.year, jieName);
 							const mws = YUE_SEASON[mo.zhi] ? wangShuai(mo.gua, YUE_SEASON[mo.zhi]) : null;
 							return [
-								<tr key={mo.month} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `ly:${mkey}` })}>
+								<tr key={mo.month} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} {...pressable(() => this.setState({ openYao: open ? '' : `ly:${mkey}` }), { role: false })}>
 									<td>{mo.label}月{jieTs ? <div style={{ fontSize: '11px', color: 'var(--horosa-text-secondary)', fontWeight: 'normal' }}>{jieName} {jieTs}</div> : null}</td>
 									<td>{mo.gua}</td>
 									<td>{yaoName(mo.lines, mo.pos)}</td>
@@ -472,7 +473,7 @@ class HeLuoMain extends Component {
 							const dkey = `lr:${mo.month}:${d.dayInMonth}`;
 							const open = this.state.openYao === dkey;
 							return [
-								<tr key={d.dayInMonth} className={open ? 'is-open' : ''} onClick={() => this.setState({ openYao: open ? '' : dkey })}>
+								<tr key={d.dayInMonth} className={open ? 'is-open' : ''} {...pressable(() => this.setState({ openYao: open ? '' : dkey }), { role: false })}>
 									<td>第{d.dayInMonth}日</td>
 									<td>{d.gua}</td>
 									<td>{yaoName(d.lines, d.pos)}</td>
@@ -596,7 +597,7 @@ class HeLuoMain extends Component {
 		const m = this.getModel();
 		if (!m) {
 			if (this.props.slot === 'aux') return null;
-			return <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
+			return <div style={{ padding: 24 }}><XQEmpty description="请先在左侧输入出生时间" /></div>;
 		}
 		return this.props.slot === 'aux' ? this.renderAux(m) : this.renderCenter(m);
 	}

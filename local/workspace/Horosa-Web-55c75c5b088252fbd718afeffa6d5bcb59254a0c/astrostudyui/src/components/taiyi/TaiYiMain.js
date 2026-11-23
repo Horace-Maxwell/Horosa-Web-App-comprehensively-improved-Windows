@@ -1,8 +1,8 @@
 import { lockDayBoundary, dayBoundaryLockHeld } from '../../utils/dayBoundaryLock';
 import { Component, createRef } from 'react';
 import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
-import { message, Spin } from 'antd';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { message } from 'antd';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQSpin } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { loadFreshModuleAISnapshot } from '../../utils/moduleSnapshotRefresh';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
@@ -21,7 +21,7 @@ import XQIcon from '../xq-icons';
 import { computeTaiyiShuli, shuliTone } from './core/taiyiShuli';
 import { computeGeju } from './core/taiyiGeju';
 import TaiyiBoardSvg, { TAIYI_FONT } from './TaiyiBoardSvg';
-import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, TAIYI_GONG_INFO, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan, computeLimitYun, computeShiJing, computeWuziyuan, computeHeShen } from './core/taiyiDuanfa';
+import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, activeDoorJixiong, computeEhui, computeSanyuan, computeLimitYun, computeShiJing, computeWuziyuan, computeHeShen } from './core/taiyiDuanfa';
 import { computeTaiyiNayin } from './core/taiyiNayin';
 import { applyTaiyiSchool, DEFAULT_TAIYI_SCHOOL, TAIYI_SCHOOL_OPTIONS, normalizeTaiyiSchool, dunOfKook } from './core/taiyiSchool';
 import {
@@ -1423,7 +1423,7 @@ class TaiYiMain extends Component {
 		return (
 			<div className="horosa-taiyi-page horosa-astro-redesign horosa-taiyi-redesign" style={{ height: pageHeight, minHeight: 0, overflow: 'hidden' }}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-taiyi-redesign-layout">
-					<Spin spinning={this.state.loading}>
+					<XQSpin spinning={this.state.loading}>
 						<div className="horosa-astro-redesign-grid horosa-taiyi-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-taiyi-input-panel">
 								{this.renderInputPanel()}
@@ -1443,7 +1443,7 @@ class TaiYiMain extends Component {
 								{this.renderRightPanel()}
 							</div>
 						</div>
-					</Spin>
+					</XQSpin>
 					{this.renderBottomQuickDock()}
 				</div>
 			</div>

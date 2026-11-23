@@ -131,3 +131,34 @@ print('SLIM_OK')
         cwd=ROOT, timeout=300)
     assert proc.returncode == 0 and 'SLIM_OK' in proc.stdout, (
         'stdout=%s\nstderr=%s' % (proc.stdout[-2000:], proc.stderr[-4000:]))
+
+
+def _requirement_names(path):
+    names = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('-r'):
+                continue
+            names.append((re.split(r'[<>=!~ \[;]', line, 1)[0].lower(), line))
+    return names
+
+
+def test_linux_requirements_are_the_mac_list_minus_the_ui_frameworks():
+    """Linux 上跑批量 / 命题验证的依赖清单 = mac 清单去掉界面框架(与桌面安装包同一张排除表)。
+    两份清单各写各的会漂:这里钉住「只差禁包」;mac 清单加了依赖、Linux 清单没跟上即红。"""
+    req = os.path.abspath(os.path.join(ROOT, '..', '..', 'scripts', 'requirements'))
+    # horosa_mac_only_test_guard_v1(Windows 适配,跨平台安全,建议上游化):两份清单是 macOS / Linux 的依赖清单
+    # (仓库根 scripts/requirements/),Windows 树没有该目录(内嵌解释器的依赖集由打包侧的载荷锁钉住)——
+    # 与其 FileNotFoundError 红,不如按「本树没有被测资产」跳过;清单在的树上原样跑。
+    if not os.path.isdir(req):
+        import pytest
+        pytest.skip('scripts/requirements (macOS / Linux dependency lists) is not part of this tree')
+    mac = _requirement_names(os.path.join(req, 'mac-python.txt'))
+    linux = _requirement_names(os.path.join(req, 'linux-python.txt'))
+    expected = [(n, line) for n, line in mac if n not in FORBIDDEN_RUNTIME_MODULES]
+    assert linux == expected, 'linux-python.txt 应当恰是 mac-python.txt 去掉 %s' % FORBIDDEN_RUNTIME_MODULES
+    dropped = sorted(n for n, _line in mac if n in FORBIDDEN_RUNTIME_MODULES)
+    assert dropped == ['plotly', 'streamlit']          # mac 清单里直接点名的界面框架就这两个(其余禁包是它们带进来的)
+    with open(os.path.join(req, 'linux-python.txt'), encoding='utf-8') as f:
+        assert '-r mac-python.txt' not in f.read()     # 不再整份引用 mac 清单(那样界面框架又装回来)

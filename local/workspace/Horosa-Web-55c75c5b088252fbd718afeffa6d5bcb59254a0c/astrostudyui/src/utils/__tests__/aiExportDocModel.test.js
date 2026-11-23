@@ -135,7 +135,7 @@ describe('紧挨着的两张表分开解析', ()=>{
 		expect(tables[0].rows.slice(0, 2)).toEqual([['1', '2'], ['x', 'y']]);
 	});
 	it('印占段落拼装保留表与表之间的空行(TXT / 喂 AI 的正文也分得开)', ()=>{
-		const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/astro/IndiaChart.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(require('path').join(__dirname, '../../components/astro/IndiaChart.js'));   // 门面 + 子模块全集
 		expect(src).toContain("const starInfo = [houseCusps, starsAndPoints, info].filter((part)=>part.length)");
 		expect(src).toContain('.filter((line, i, arr)=>line.trim() || (i > 0 && arr[i - 1].trim()));');
 	});

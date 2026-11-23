@@ -3,9 +3,10 @@
 // 「大限」「流年小限」「神煞·待校」后页签映射没跟上 → 只进 AI 快照,屏上不见。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const ROOT = path.resolve(__dirname, '../../../../..');
-const SRC = fs.readFileSync(path.join(ROOT, 'astrostudyui/src/components/kinastro/KinAstroMain.js'), 'utf8');
+const SRC = readSource(path.join(ROOT, 'astrostudyui/src/components/kinastro/KinAstroMain.js'));
 const start = SRC.indexOf('getTabSections(tabKey){');
 const TAB_BLOCK = SRC.slice(start, SRC.indexOf('\n\t}\n', start))
 	+ SRC.slice(SRC.indexOf('const CETIAN_TAB_SECTIONS'), SRC.indexOf('function normalizeGanzhiInput'));

@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Spin } from 'antd';
+import { XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
@@ -202,7 +202,7 @@ class AstroJaynesProgressions extends Component{
 			/>
 		);
 		return (
-			<Spin spinning={this.state.loading && !methods.length}>
+			<XQSpin spinning={this.state.loading && !methods.length}>
 				<ProgPageShell height={height} updating={this.state.loading && methods.length > 0}>
 					<ProgMethodPanel
 						value={this.props.value}
@@ -218,7 +218,7 @@ class AstroJaynesProgressions extends Component{
 						showAstroMeaning={this.props.showAstroMeaning}
 					/>
 				</ProgPageShell>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

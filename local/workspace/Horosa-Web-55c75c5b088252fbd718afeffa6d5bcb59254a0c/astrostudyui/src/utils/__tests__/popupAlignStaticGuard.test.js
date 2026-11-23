@@ -11,9 +11,11 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, facadeOf } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
+// 子模块折回门面:豁免与「用没用换域件」按整个组件判(类方法按职责拆在子文件里时,读数 / 写回与换算常分在不同文件),豁免表记门面名
+const unitOf = (rel)=>{ const f = facadeOf(path.join(SRC, rel)); return f ? path.relative(SRC, f).split(path.sep).join('/') : rel; };
 
 // 豁免清单:每条都必须有可自证的同域理由。
 const EXEMPT = [
@@ -114,7 +116,7 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 	it('🔴 每个坐标写回点要么已换算,要么在带理由的豁免清单里', () => {
 		const bad = [];
 		hits.forEach((h) => {
-			if(EXEMPT.some((e) => e.file === h.file)){ return; }
+			if(EXEMPT.some((e) => e.file === unitOf(h.file))){ return; }
 			writePoints(h.text).forEach((wp) => {
 				if(isCompensated(wp.win) || isBenign(wp.win)){ return; }
 				bad.push(`  ${h.file}:${h.line}  ${wp.tag}  →  ${wp.win.trim().slice(0, 60)}`);
@@ -132,7 +134,7 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 			expect(e.reason.length).toBeGreaterThan(20);       // 必须写理由,不许空豁免
 			if(!fs.existsSync(path.join(SRC, e.file))){ return; }   // 对应文件不在则跳过
 			live += 1;
-			expect(`${e.file} 有写回点=${hits.some((h) => h.file === e.file)}`)
+			expect(`${e.file} 有写回点=${hits.some((h) => unitOf(h.file) === e.file)}`)
 				.toBe(`${e.file} 有写回点=true`);              // 无写回点=豁免已过期,应删
 		});
 		expect(live).toBeGreaterThan(0);
@@ -213,9 +215,10 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 	it('🔴 每个读指针 / 物理视口的文件:要么用到换域件,要么在带理由的豁免表里', () => {
 		const bad = [];
 		Object.keys(files).forEach((f) => {
-			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			const u = unitOf(f);
+			const src = readSource(path.join(SRC, u));
 			if(DOMAIN_HELPERS.test(src)){ return; }
-			if(Object.prototype.hasOwnProperty.call(POINTER_EXEMPT, f) && POINTER_EXEMPT[f].length > 12){ return; }
+			if(Object.prototype.hasOwnProperty.call(POINTER_EXEMPT, u) && POINTER_EXEMPT[u].length > 12){ return; }
 			bad.push(`  ${f}:${files[f][0].line}  ${files[f][0].text.trim().slice(0, 80)}`);
 		});
 		expect(bad.join('\n')).toBe('');
@@ -224,8 +227,8 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 	it('豁免表不腐烂:在场的豁免文件仍真有读数点;已改用换域件的必须从表里摘除', () => {
 		Object.keys(POINTER_EXEMPT).forEach((f) => {
 			if(!fs.existsSync(path.join(SRC, f))){ return; }   // 文件不在则跳过
-			expect(`${f} 有读数点=${!!files[f]}`).toBe(`${f} 有读数点=true`);
-			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			expect(`${f} 有读数点=${Object.keys(files).some((x) => unitOf(x) === f)}`).toBe(`${f} 有读数点=true`);
+			const src = readSource(path.join(SRC, f));
 			// 已改用换域件的文件不该再留在豁免表里(留着 = 以后有人删掉换域调用也不会红)
 			expect(`${f} 仍需豁免(未用换域件)=${!DOMAIN_HELPERS.test(src)}`).toBe(`${f} 仍需豁免(未用换域件)=true`);
 		});

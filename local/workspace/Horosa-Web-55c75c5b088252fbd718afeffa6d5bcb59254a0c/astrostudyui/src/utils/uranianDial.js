@@ -1,6 +1,8 @@
 // 汉堡学派（Uranian）中点盘核心引擎 —— 纯函数、可单测。
 // 盘基: 90/45/22.5/11.25 = 谐波 4/8/16/32。投影/中点/同轴读数/中点树。
 
+import { tieSort, TIE_EPS } from './stableOrder';
+
 const norm360 = (x) => ((x % 360) + 360) % 360;
 
 // 黄经 → 盘面视觉角(0..360)，在一个 base 周期内压缩一圈。
@@ -9,9 +11,12 @@ export function projectToDial(lon, base){
 }
 
 // 近轴中点（与后端 midpoint.py 同口径）。
+// 两点正对(相距恰 180°,如南北交点)时两个中点一样近:取黄经小的那个 —— 否则取哪个由黄经的浮点末位决定(后端 near_midpoint 同一条)。
 export function midpoint(a, b){
 	let m = norm360((a + b) / 2);
-	if (Math.abs(m - norm360(a)) > 90) m = norm360(m + 180);
+	const gap = Math.abs(m - norm360(a));
+	if (Math.abs(gap - 90) <= TIE_EPS || Math.abs(gap - 270) <= TIE_EPS) return Math.min(m, norm360(m + 180));
+	if (gap > 90) m = norm360(m + 180);
 	return m;
 }
 
@@ -72,7 +77,7 @@ export function cursorReadout(points, cursorLon, base, orb, opts){
 			}
 		}
 	}
-	return hits.sort((x, y) => x.sep - y.sep);
+	return tieSort(hits, (x) => x.sep);   // 误差相等的保持生成时的先后(见 stableOrder)
 }
 
 // 中点树：给定点 P 列其完成的所有半和 A/B。行星图(A+B=C+D)由多个半和同轴自然涌现。
@@ -92,7 +97,7 @@ export function midpointTree(points, base, orb, opts){
 				if (sep <= pOrb) rows.push({ a: points[i].id, b: points[j].id, sep });
 			}
 		}
-		if (rows.length) tree[p.id] = rows.sort((x, y) => x.sep - y.sep);
+		if (rows.length) tree[p.id] = tieSort(rows, (x) => x.sep);
 	}
 	return tree;
 }
@@ -131,7 +136,11 @@ export function planetHouse(lon, cusps){
 	const L = norm360(lon);
 	for (let i = 0; i < 12; i++){
 		const a = cusps[i], b = cusps[(i + 1) % 12];
-		if (norm360(L - a) < norm360(b - a)) return i + 1;
+		// 点恰在宫头上(该框就是拿它定的宫头)算进这一宫:差值被浮点末位带到 359.99…时按 0 计;恰在下一宫头上的不算本宫
+		let d = norm360(L - a);
+		if (360 - d <= TIE_EPS) d = 0;
+		const width = norm360(b - a);
+		if (d < width && width - d > TIE_EPS) return i + 1;
 	}
 	return 12;
 }
@@ -180,7 +189,8 @@ export function planetaryPictures(points, base, orb, opts){
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
-	return out.sort((x, y) => rank(x) - rank(y) || x.sep - y.sep).slice(0, limit);
+	// 误差相等的(A+B−C=D 与 A+B−D=C、南北交点成对的图)保持生成时的先后,不由浮点末位定
+	return tieSort(out, rank, (p) => p.sep).slice(0, limit);
 }
 
 // ── 中点扁平表:所有无序对的近中点,按 含个人点 > 含 TNP > 其他 再按盘位排序 ──
@@ -203,7 +213,7 @@ export function midpointList(points, base, opts){
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
-	return out.sort((x, y) => rank(x) - rank(y) || x.lon - y.lon);
+	return tieSort(out, rank, (p) => p.lon);
 }
 
 // ── 映点接触 Spiegelpunkt:B 落在 A 的回照(180−lonA)折叠盘位 orb 内即一对接触 ──
@@ -235,7 +245,7 @@ export function spiegelContacts(points, base, orb, opts){
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
-	return out.sort((x, y) => rank(x) - rank(y) || x.sep - y.sep);
+	return tieSort(out, rank, (p) => p.sep);
 }
 
 // ── 和点 Summe / 差距 Distanz(汉堡补充读数,WP-5)─────────────────────
@@ -260,7 +270,7 @@ export function sumList(points, base, opts){
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
-	return out.sort((x, y) => rank(x) - rank(y) || x.lon - y.lon);
+	return tieSort(out, rank, (p) => p.lon);
 }
 
 // 差距扁平表:所有无序对的最短角距(0..180),按角距升序(同距再按含个人点优先)。
@@ -278,7 +288,7 @@ export function differenceList(points, base, opts){
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
-	return out.sort((x, y) => x.arc - y.arc || rank(x) - rank(y));
+	return tieSort(out, (p) => p.arc, rank);
 }
 
 // ── 太阳弧到期 差值表(Solar Arc directions,WP-3)─────────────────────
@@ -296,6 +306,9 @@ export const SA_RATE = { naibod: 0.9856473, oneDeg: 1.0, cardan: 0.9866667 };
 // opts.maxAge:截断(只留 age<=maxAge);结果按 age 升序。
 // 返回 [{a,b,arc,age,type:'full'|'half'|'double'|'aries',due,fold?}]
 //   (成对 b=对方 id、arc=该对原始差距 0..180;aries 档 b=null、arc=该点黄经折叠 0..90;fold='90-a' 标对侧折叠项)。
+// 折到 0..90;恰落在 0 / 90 上(差不到 TIE_EPS)的算 0 —— 否则 89.99999999999994 与 0 分属两头,到期年龄差出一整圈
+const fold90 = (x) => { const v = ((x % 90) + 90) % 90; return (v <= TIE_EPS || 90 - v <= TIE_EPS) ? 0 : v; };
+
 export function solarArcDirections(points, base, opts){
 	const o = opts || {};
 	// 三选一查表(naibod/oneDeg/cardan);未知键回退 naibod —— 对既有两键输入逐位等价。
@@ -314,7 +327,7 @@ export function solarArcDirections(points, base, opts){
 		out.push(row);
 	};
 	const emitPair = (aId, bId, arc, type, m) => {
-		const a90 = (((arc * m) % 90) + 90) % 90;   // 主接触角 0..90
+		const a90 = fold90(arc * m);                // 主接触角 0..90(恰在 0 / 90 上的按 0:正对的南北交点差距恰 180°)
 		push(aId, bId, arc, a90, type);             // {a90}
 		const back = (90 - a90) % 90;               // 对侧折叠 {90−a90}
 		if (back > 1e-9) push(aId, bId, arc, back, type, '90-a');
@@ -330,12 +343,12 @@ export function solarArcDirections(points, base, opts){
 	// 单因子 aries 档:a=lon%90(0..90),{a,90−a} 两侧。
 	for (let i = 0; i < points.length; i++){
 		const P = points[i];
-		const a = ((P.lon % 90) + 90) % 90;
+		const a = fold90(P.lon);
 		push(P.id, null, a, a, 'aries');
 		const back = (90 - a) % 90;
 		if (back > 1e-9) push(P.id, null, a, back, 'aries', '90-a');
 	}
-	return out.sort((x, y) => x.age - y.age);
+	return tieSort(out, (x) => x.age);
 }
 
 // ── 合盘接触法 Synastrie(汉堡多人叠盘,WP-9)──────────────────────────
@@ -371,7 +384,7 @@ export function crossContacts(pointsA, pointsB, base, orb){
 			}
 		}
 	}
-	return out.sort((x, y) => x.sep - y.sep);
+	return tieSort(out, (x) => x.sep);
 }
 
 // ── 校时命中 Rektifikation(只读预览,WP-10)─────────────────────────
@@ -410,8 +423,7 @@ export function rectificationHits(events, angles, natalPts, base, orb, rate){
 				if (sep <= orb) hits.push({ factor: pts[i].id, angle: angName, sep });
 			}
 		}
-		hits.sort((x, y) => x.sep - y.sep);
-		out.push({ event: label, arc, hits });
+		out.push({ event: label, arc, hits: tieSort(hits, (x) => x.sep) });
 	}
 	return out;
 }

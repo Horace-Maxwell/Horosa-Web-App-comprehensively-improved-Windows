@@ -129,6 +129,27 @@ def _build_palace_cards(chart):
     return cards
 
 
+def _fmt_ge_entries(items):
+    """贵格 / 贱格 / 福禄上格 / 贫贱下命:查表条目是 {name, ganzhi} 或 {name, stars, condition},
+    写成「名(干支)」「名〔禽星〕:条件」,不把字段名漏进正文。"""
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            text = clean_text(it)
+            if text:
+                out.append(text)
+            continue
+        name = clean_text(it.get("name"))
+        if not name:
+            continue
+        ganzhi = clean_text(it.get("ganzhi"))
+        stars = clean_text(it.get("stars"))
+        cond = clean_text(it.get("condition"))
+        text = name + (f"({ganzhi})" if ganzhi else "") + (f"〔{stars}〕" if stars else "") + (f":{cond}" if cond else "")
+        out.append(text)
+    return "、".join(out)
+
+
 def _build_sections(pan):
     chart = pan.get("xianqin", {})
     basic = chart.get("basic_info", {}) or {}
@@ -223,10 +244,10 @@ def _build_sections(pan):
                 row("格局", pattern.get("grade")),
                 row("判语", pattern.get("reason")),
                 row("相胎赋", literature.get("xiangtai")),
-                row("贵格", literature.get("gui")),
-                row("贱格", literature.get("jian")),
-                row("福禄上格", literature.get("fulu")),
-                row("贫贱下命", literature.get("pinjian")),
+                row("贵格", _fmt_ge_entries(literature.get("gui"))),
+                row("贱格", _fmt_ge_entries(literature.get("jian"))),
+                row("福禄上格", _fmt_ge_entries(literature.get("fulu"))),
+                row("贫贱下命", _fmt_ge_entries(literature.get("pinjian"))),
             ],
         },
         {

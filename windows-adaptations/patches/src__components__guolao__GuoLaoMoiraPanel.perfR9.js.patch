@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js b/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
-index 04d17d83..bb0756e7 100644
+index 4c1b0b2f..f829edcb 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
 @@ -1,4 +1,7 @@

@@ -1,0 +1,71 @@
+diff --git a/astrostudyui/src/components/jinkou/main/rightPanel.js b/astrostudyui/src/components/jinkou/main/rightPanel.js
+index f87e34a1..bce08aa4 100644
+--- a/astrostudyui/src/components/jinkou/main/rightPanel.js
++++ b/astrostudyui/src/components/jinkou/main/rightPanel.js
+@@ -8,6 +8,7 @@ import { XQTabs as Tabs } from '../../xq-ui';
+ import XQIcon from '../../xq-icons';
+ import { deriveBenMingFromRunYear, deriveXuSuiFromRunYear } from './runYear';
+ import { fmtValue } from './snapshot';
++import { FreezeSubTab } from '../../comp/FreezeInactive';
+ const TabPane = Tabs.TabPane;
+ 
+ export const rightPanelMethods = {
+@@ -735,10 +736,16 @@ export const rightPanelMethods = {
+ 		return (
+ 			<div className="horosa-jinkou-rightpanel-wrap">
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-jinkou-tabs">
++				{/* horosa_freeze_subtabs_v1:右栏 5 面板 keep-alive,原先每次父重渲都把
++				    概览/神煞/分析/用神/参考 全跑一遍。函数式:非激活不求值、不 reconcile;
++				    切回拿本轮最新 children 立刻渲一帧(不卸载、不重取、不闪烁)。 */}
+ 				<TabPane tab="概览" key="overview">
+-					{this.renderOverviewAll(jinkouData, displayRunYear, appliedBirth, chartFields)}
++					<FreezeSubTab active={activeKey === 'overview'}>{()=>(
++						this.renderOverviewAll(jinkouData, displayRunYear, appliedBirth, chartFields)
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="神煞" key="gods">
++					<FreezeSubTab active={activeKey === 'gods'}>{()=>(
+ 					<div className="horosa-jinkou-overview-stack">
+ 						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
+ 							<div className="horosa-jinkou-section-card__title">四位神煞</div>
+@@ -749,8 +756,10 @@ export const rightPanelMethods = {
+ 						{this.renderFangWei(jinkouData)}
+ 						{this.renderShenshaGrid(`${this.state.wuxing}十二长生`, zsRows)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="分析" key="analysis">
++					<FreezeSubTab active={activeKey === 'analysis'}>{()=>(
+ 					<div className="horosa-jinkou-overview-stack">
+ 						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
+ 							<div className="horosa-jinkou-section-card__title">四位关系图</div>
+@@ -764,8 +773,10 @@ export const rightPanelMethods = {
+ 						{this.renderNianYueRi(jinkouData)}
+ 						{this.renderTaixuan(jinkouData)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="用神" key="aux">
++					<FreezeSubTab active={activeKey === 'aux'}>{()=>(
+ 					<div className="horosa-jinkou-overview-stack">
+ 						{this.renderHezhan(jinkouData)}
+ 						{this.renderSixiangShu(jinkouData)}
+@@ -773,15 +784,18 @@ export const rightPanelMethods = {
+ 						{this.renderInfoTable('四位类象', roleRefRows)}
+ 						{this.renderCategory(jinkouData)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="专题" key="topic">
+ 					{this.renderTopicPanel(jinkouData)}
+ 				</TabPane>
+ 				<TabPane tab="参考" key="ref">
++					<FreezeSubTab active={activeKey === 'ref'}>{()=>(
+ 					<div className="horosa-jinkou-overview-stack">
+ 						{this.renderBaShe()}
+ 						{this.renderFuwen()}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 			</div>

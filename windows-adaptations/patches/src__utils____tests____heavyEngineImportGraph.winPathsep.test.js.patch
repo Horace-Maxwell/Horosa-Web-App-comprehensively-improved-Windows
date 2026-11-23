@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js b/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
-index f1c11080..8ef9af96 100644
+index 15646f8f..73c4e8f3 100644
 --- a/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
 +++ b/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
 @@ -51,6 +51,13 @@ function isHeavy(spec){ return HEAVY_ENGINES.some((re) => re.test(spec)); }
@@ -50,7 +50,7 @@ index f1c11080..8ef9af96 100644
  			},
  		});
  	}
-@@ -139,7 +146,7 @@ describe('重引擎不得进入页面的静态 import 图', () => {
+@@ -144,7 +151,7 @@ describe('重引擎不得进入页面的静态 import 图', () => {
  	test('🔴 每个 lazy 页面的静态依赖图里不得出现重引擎', () => {
  		const offenders = [];
  		targets.forEach((entry) => {

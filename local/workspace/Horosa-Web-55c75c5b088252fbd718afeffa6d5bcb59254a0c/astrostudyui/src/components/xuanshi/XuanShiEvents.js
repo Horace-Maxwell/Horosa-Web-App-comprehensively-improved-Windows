@@ -1,11 +1,13 @@
 import React from 'react';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
-import { Spin, Empty, Input } from 'antd';
+import { Input } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { fetchEvents, fetchEvent, fetchEventsMeta } from '../../services/xuanshi';
 import { marked } from 'marked';
 import { resolveChartDate, collapseSoftBreaks, chartDateExactLabel, splitList, nearSame } from './xuanshiDate';
 import { dynClass } from './xuanshiDynClass';
 import XuanShiStar from './XuanShiStar';
+import { pressable } from '../../utils/pressable';
 
 // 玄学万象 —— 正史 / 野载 玄学事件浏览。对齐标准版:传统切换 + 朝代游历(图标+计数)
 // + 史书细分 + 密/中/摘 密度 + list-rows 富行 + 富翻页 + 点击详情(original_text 原样含出处)。
@@ -100,9 +102,9 @@ export default class XuanShiEvents extends React.Component {
 	renderDetail() {
 		const d = this.state.selected;
 		if (this.state.detailLoading || !d.title) {
-			if (!d._err) { return <div className="xuanshi-center"><Spin tip="载入事件…" /></div>; }
+			if (!d._err) { return <div className="xuanshi-center"><XQSpin tip="载入事件…" /></div>; }
 		}
-		if (d._err) { return <div className="xuanshi-center"><Empty description={`载入失败:${d._err}`} /></div>; }
+		if (d._err) { return <div className="xuanshi-center"><XQEmpty description={`载入失败:${d._err}`} /></div>; }
 		const md = (val) => marked.parse(collapseSoftBreaks(String(val)), { gfm: true, breaks: false });
 		// 段落框:原文(ink·纯文本)/白话(gold·md)/解读(vermilion·md)
 		const fieldBox = (label, val, variant, isMd) => (val ? (
@@ -123,7 +125,7 @@ export default class XuanShiEvents extends React.Component {
 				<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
 					{arr.map((r) => (
 						<li key={r.event_id} style={{ marginBottom: 6 }}>
-							<span className="xuanshi-link" style={{ fontSize: 13, lineHeight: 1.45 }} onClick={() => this.openDetail(r.event_id)}>{r.title || r.event_id}</span>
+							<span className="xuanshi-link" style={{ fontSize: 13, lineHeight: 1.45 }} {...pressable(() => this.openDetail(r.event_id))}>{r.title || r.event_id}</span>
 							{r.history ? <div className="xuanshi-stat-sub" style={{ fontSize: 11 }}>《{r.history}》{r.volume_no ? `卷${r.volume_no}` : ''}</div> : null}
 						</li>
 					))}
@@ -134,10 +136,10 @@ export default class XuanShiEvents extends React.Component {
 			<div>
 				{/* 面包屑 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.backToList()}>玄学万象</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.backToList())}>玄学万象</span>
 					<span className="xuanshi-crumb-sep">/</span>
-					<span className="xuanshi-crumb" onClick={() => this.backToList({ tradition: d.tradition || '' })}>{d.tradition || '正史'}</span>
-					{d.dynasty ? <><span className="xuanshi-crumb-sep">/</span><span className="xuanshi-crumb" onClick={() => this.backToList({ tradition: d.tradition || '', dynasty: d.dynasty })}>{d.dynasty}</span></> : null}
+					<span className="xuanshi-crumb" {...pressable(() => this.backToList({ tradition: d.tradition || '' }))}>{d.tradition || '正史'}</span>
+					{d.dynasty ? <><span className="xuanshi-crumb-sep">/</span><span className="xuanshi-crumb" {...pressable(() => this.backToList({ tradition: d.tradition || '', dynasty: d.dynasty }))}>{d.dynasty}</span></> : null}
 					{d.history ? <><span className="xuanshi-crumb-sep">/</span><span style={{ color: 'var(--ink-soft)' }}>《{d.history}》</span></> : null}
 				</div>
 
@@ -203,9 +205,9 @@ export default class XuanShiEvents extends React.Component {
 								<div style={{ marginTop: 6, marginBottom: 16 }}>
 									<div className="xuanshi-hint" style={{ marginTop: 0, marginBottom: 8 }}>{rd.exact ? chartDateExactLabel(rd) : `此事${d.period ? `「${d.period}」` : ''}——按 ${rd.disp} 正午起盘`} · 地点按朝代都城近似</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此时 · 占星盘</span>
-										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此时 · 七政四余</span>
-										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'planetarium')}>此时此地 · 天文馆</span>
+										<span className="xuanshi-btn is-primary" {...pressable(() => this.props.onChartLink(d, 'astrochart'))}>排此时 · 占星盘</span>
+										<span className="xuanshi-btn" {...pressable(() => this.props.onChartLink(d, 'guolao'))}>排此时 · 七政四余</span>
+										<span className="xuanshi-btn" {...pressable(() => this.props.onChartLink(d, 'planetarium'))}>此时此地 · 天文馆</span>
 									</div>
 								</div>
 							);
@@ -221,7 +223,7 @@ export default class XuanShiEvents extends React.Component {
 
 					{/* 右栏 meta */}
 					<aside style={{ minWidth: 0 }}>
-						<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回列表</span>
+						<span className="xuanshi-link" {...pressable(() => this.setState({ selected: null }))}>← 返回列表</span>
 						{(d.operators || d.targets) ? (
 							<div className="xuanshi-meta-card" style={{ marginTop: 12 }}>
 								{d.operators ? <div style={{ marginBottom: d.targets ? 10 : 0 }}><div className="xuanshi-meta-label">施术者</div><div style={{ fontSize: 13.5, color: 'var(--ink)', fontFamily: 'var(--xs-serif)' }}>{d.operators}</div></div> : null}
@@ -260,13 +262,13 @@ export default class XuanShiEvents extends React.Component {
 		for (let p = from; p <= to; p++) { nums.push(p); }
 		return (
 			<div className="xuanshi-evpager">
-				{page > 1 ? <span className="xuanshi-chip is-ink" onClick={() => go(1)}>« 首页</span> : null}
-				{page > 1 ? <span className="xuanshi-chip is-ink" onClick={() => go(page - 1)}>‹ 上一页</span> : null}
+				{page > 1 ? <span className="xuanshi-chip is-ink" {...pressable(() => go(1))}>« 首页</span> : null}
+				{page > 1 ? <span className="xuanshi-chip is-ink" {...pressable(() => go(page - 1))}>‹ 上一页</span> : null}
 				{nums.map((p) => (
-					<span key={p} className={`xuanshi-chip ${p === page ? 'is-vermilion' : 'is-ink'}`} onClick={() => go(p)}>{p}</span>
+					<span key={p} className={`xuanshi-chip ${p === page ? 'is-vermilion' : 'is-ink'}`} {...pressable(() => go(p))}>{p}</span>
 				))}
-				{page < pages ? <span className="xuanshi-chip is-ink" onClick={() => go(page + 1)}>下一页 ›</span> : null}
-				{page < pages ? <span className="xuanshi-chip is-ink" onClick={() => go(pages)}>末页 »</span> : null}
+				{page < pages ? <span className="xuanshi-chip is-ink" {...pressable(() => go(page + 1))}>下一页 ›</span> : null}
+				{page < pages ? <span className="xuanshi-chip is-ink" {...pressable(() => go(pages))}>末页 »</span> : null}
 			</div>
 		);
 	}
@@ -284,7 +286,7 @@ export default class XuanShiEvents extends React.Component {
 			<div>
 				{/* 面包屑 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span>
 					<span>玄学万象</span>
 				</div>
@@ -305,7 +307,7 @@ export default class XuanShiEvents extends React.Component {
 				{/* 传统切换 + 旁注 */}
 				<div className="xuanshi-trad-tabs">
 					{tabs.map((t) => (
-						<span key={t.key} className={`xuanshi-trad-tab${tradition === t.key ? ' is-active' : ''}`} onClick={() => this.setFilter({ tradition: t.key })}>
+						<span key={t.key} className={`xuanshi-trad-tab${tradition === t.key ? ' is-active' : ''}`} {...pressable(() => this.setFilter({ tradition: t.key }))}>
 							{t.label} <span className="xuanshi-trad-n">{(t.count || 0).toLocaleString()}</span>
 						</span>
 					))}
@@ -316,9 +318,9 @@ export default class XuanShiEvents extends React.Component {
 				<div className="xuanshi-facet-row" style={{ gridTemplateColumns: 'auto 1fr', marginBottom: 12 }}>
 					<span className="xuanshi-facet-key" style={{ textAlign: 'left', paddingTop: 5 }}>{isYezai ? '语料分类' : '朝代游历'}</span>
 					<div className="xuanshi-facet-chips">
-						<span className={`chip${!dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: '', history: '' })}>全部 · {(stats.total || 0).toLocaleString()}</span>
+						<span className={`chip${!dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ dynasty: '', history: '' }))}>全部 · {(stats.total || 0).toLocaleString()}</span>
 						{allDyn.map((d) => (
-							<span key={d.name} className={dynasty === d.name ? 'chip chip-vermilion' : `chip chip-dyn chip-dyn-${dynClass(d.name)}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: d.name, history: '' })}>
+							<span key={d.name} className={dynasty === d.name ? 'chip chip-vermilion' : `chip chip-dyn chip-dyn-${dynClass(d.name)}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ dynasty: d.name, history: '' }))}>
 								{d.icon ? d.icon + ' ' : ''}{d.name} · {d.count}
 							</span>
 						))}
@@ -330,9 +332,9 @@ export default class XuanShiEvents extends React.Component {
 					<div className="xuanshi-facet-row" style={{ gridTemplateColumns: 'auto 1fr', marginBottom: 14, paddingLeft: 10, borderLeft: '2px solid var(--line-soft)' }}>
 						<span className="xuanshi-facet-key" style={{ textAlign: 'left', paddingTop: 5 }}>{isYezai ? '典籍' : '史书'}</span>
 						<div className="xuanshi-facet-chips">
-							<span className={`chip${!history ? ' chip-jade' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ history: '' })}>全部 · {selDynObj.count}</span>
+							<span className={`chip${!history ? ' chip-jade' : ''}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ history: '' }))}>全部 · {selDynObj.count}</span>
 							{selDynObj.histories.slice(0, subCap).map((h) => (
-								<span key={h.name} className={`chip${history === h.name ? ' chip-jade' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ history: h.name })}>《{h.name}》· {h.count}</span>
+								<span key={h.name} className={`chip${history === h.name ? ' chip-jade' : ''}`} style={{ cursor: 'pointer' }} {...pressable(() => this.setFilter({ history: h.name }))}>《{h.name}》· {h.count}</span>
 							))}
 							{selDynObj.histories.length > subCap ? <span className="xuanshi-stat-sub">…等 {selDynObj.histories.length} 部(用搜索框检索其余)</span> : null}
 						</div>
@@ -356,21 +358,21 @@ export default class XuanShiEvents extends React.Component {
 					</span>
 					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 						<div className="xuanshi-density">
-							<span className={`xuanshi-density-btn${density === 'compact' ? ' is-active' : ''}`} title="密:仅标题与朝代" onClick={() => this.setDensity('compact')}>密</span>
-							<span className={`xuanshi-density-btn${density === 'medium' ? ' is-active' : ''}`} title="中:含两行白话摘要" onClick={() => this.setDensity('medium')}>中</span>
-							<span className={`xuanshi-density-btn${density === 'spacious' ? ' is-active' : ''}`} title="摘:白话译文完整展开" onClick={() => this.setDensity('spacious')}>摘</span>
+							<span className={`xuanshi-density-btn${density === 'compact' ? ' is-active' : ''}`} title="密:仅标题与朝代" {...pressable(() => this.setDensity('compact'))}>密</span>
+							<span className={`xuanshi-density-btn${density === 'medium' ? ' is-active' : ''}`} title="中:含两行白话摘要" {...pressable(() => this.setDensity('medium'))}>中</span>
+							<span className={`xuanshi-density-btn${density === 'spacious' ? ' is-active' : ''}`} title="摘:白话译文完整展开" {...pressable(() => this.setDensity('spacious'))}>摘</span>
 						</div>
 						{pages > 1 ? <span className="xuanshi-stat-sub" style={{ fontSize: 12 }}>第 <b style={{ color: 'var(--ink)' }}>{page}</b> / {pages} 页</span> : null}
 					</div>
 				</div>
 
 				{/* 事件列表(密度感知) */}
-				{loading ? <div className="xuanshi-center"><Spin tip="检索…" /></div> : err ? (
-					<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
-				) : !items.length ? <div className="xuanshi-center"><Empty description="未找到符合条件的事件" /></div> : (
+				{loading ? <div className="xuanshi-center"><XQSpin tip="检索…" /></div> : err ? (
+					<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
+				) : !items.length ? <div className="xuanshi-center"><XQEmpty description="未找到符合条件的事件" /></div> : (
 					<div className={`xuanshi-evlist is-${density}`}>
 						{items.map((e) => (
-							<div className="xuanshi-evrow" key={e.event_id} onClick={() => this.openDetail(e.event_id)}>
+							<div className="xuanshi-evrow" key={e.event_id} {...pressable(() => this.openDetail(e.event_id))}>
 								<div className="xuanshi-evrow-chips">
 									{e.dynasty ? <span className={`chip chip-dyn chip-dyn-${dynClass(e.dynasty)}`}>{e.dynasty}</span> : null}
 									{e.history ? <span className="xuanshi-chip is-ink">《{e.history}》{e.volume_no ? `卷${e.volume_no}` : ''}</span> : null}

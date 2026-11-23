@@ -14,6 +14,8 @@ import re
 
 import pytest
 
+from source_sets import read_ui_source  # 前端拆成子模块的大文件按「门面 + 子模块」全集读
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASTROPY = os.path.dirname(HERE)
 UI_SRC = os.path.join(os.path.dirname(ASTROPY), 'astrostudyui', 'src')
@@ -159,7 +161,7 @@ _CONTRACTS = [
 
 
 def _snapshot_section():
-    src = open(SNAP_JS, encoding='utf-8').read()
+    src = read_ui_source(SNAP_JS)
     a = src.index('const pr = j.prashna;')
     b = src.index("out['问事 Praśna'] = pl2;", a)
     return src[a:b]
@@ -191,7 +193,7 @@ def test_consumer_keys_exist_in_producer_samples(samples):
     total = 0
     missing = []
     for path, fn, aliases in _CONTRACTS:
-        body = _js_func_body(open(path, encoding='utf-8').read(), fn)
+        body = _js_func_body(read_ui_source(path), fn)
         n, miss = _check(body, aliases, samples, fn)
         total += n
         missing += miss

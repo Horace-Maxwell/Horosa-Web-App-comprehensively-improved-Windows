@@ -1,7 +1,8 @@
 // 设置卡「个人口径」+「记忆」(A6):口径文本框(≤4000,分节模板)+ 启用注入 / 记忆注入 / 自动沉淀候选 三开关(缺省全关)+ /init 生成草稿;
 // 记忆:候选区(确认/改文/丢弃)与已入库(按主体分组,停用/删除)+「从本会话提炼」(点一次调一次模型)。打开设置页不写键;只在用户改动时写。
 import React from 'react';
-import { Input, Switch, Button, message, Select, Tabs, Modal, Tag } from 'antd';
+import { Input, Button, message, Select, Tabs, Modal, Tag } from 'antd';
+import { XQSwitch } from '../../xq-ui';
 import { readPersona, writePersona, clearPersona, subscribePersona, PERSONA_TEMPLATE, PERSONA_TEXT_MAX } from '../../../utils/aiChat/persona';
 import { readPersonaLayers, writePersonaLayer, clearPersonaLayers, subscribePersonaLayers, composePersonaText, PERSONA_LAYER_TEXT_MAX, PERSONA_SESSION_TEXT_MAX } from '../../../utils/aiChat/personaLayers';
 import { listAnalysisTechniqueOptions } from '../../../utils/aiAnalysisContext';
@@ -149,9 +150,9 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 				</div>
 			) : null}
 			<div className={styles.setGrid}>
-				<span className={styles.setTile}><span>启用注入</span><Switch size="small" checked={persona.enabled} data-persona-enabled="1" onChange={(v)=>writePersona({ enabled: !!v })} /></span>
-				<span className={styles.setTile}><span>记忆注入</span><Switch size="small" checked={persona.memoryInject} data-persona-memory-inject="1" onChange={(v)=>writePersona({ memoryInject: !!v })} /></span>
-				<span className={styles.setTile}><span>自动沉淀候选(不用 AI)</span><Switch size="small" checked={persona.memoryCapture} data-persona-memory-capture="1" onChange={(v)=>writePersona({ memoryCapture: !!v })} /></span>
+				<span className={styles.setTile}><span>启用注入</span><XQSwitch size="small" checked={persona.enabled} data-persona-enabled="1" onChange={(v)=>writePersona({ enabled: !!v })} /></span>
+				<span className={styles.setTile}><span>记忆注入</span><XQSwitch size="small" checked={persona.memoryInject} data-persona-memory-inject="1" onChange={(v)=>writePersona({ memoryInject: !!v })} /></span>
+				<span className={styles.setTile}><span>自动沉淀候选(不用 AI)</span><XQSwitch size="small" checked={persona.memoryCapture} data-persona-memory-capture="1" onChange={(v)=>writePersona({ memoryCapture: !!v })} /></span>
 			</div>
 			<div className={styles.end}>
 				<Button size="small" type="primary" disabled={!dirty} data-persona-save="1" onClick={()=>{ writePersona({ text }); message.success('口径已保存'); }}>保存口径</Button>
@@ -197,7 +198,7 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 					<div className={styles.groupLabel}>{SUBJECT_LABELS[g.type]}</div>
 					{g.items.map((m)=>(
 						<div key={m.id} data-memory-item={m.id} className={[styles.memoryItem, m.enabled ? '' : styles.memoryItemOff].filter(Boolean).join(' ')}>
-							<Switch size="small" checked={m.enabled} data-memory-toggle={m.id} onChange={(v)=>toggleMemory(m.id, !!v)} />
+							<XQSwitch size="small" checked={m.enabled} data-memory-toggle={m.id} onChange={(v)=>toggleMemory(m.id, !!v)} />
 							<span className={styles.spacer}>{m.subject.title ? `[${m.subject.title}] ` : ''}{(m.subject.type === 'chart' || m.subject.type === 'case') && !m.subject.cid ? <Tag color="orange" style={{ marginRight: 4 }}>未绑定命主,不会注入</Tag> : null}{m.text}</span>
 							<Button size="small" type="link" danger data-memory-delete={m.id} onClick={()=>deleteMemory(m.id)}>删除</Button>
 						</div>

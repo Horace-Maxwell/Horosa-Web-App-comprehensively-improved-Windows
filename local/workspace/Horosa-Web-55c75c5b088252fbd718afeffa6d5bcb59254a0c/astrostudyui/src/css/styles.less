@@ -62,7 +62,7 @@
 		border-radius: 8px;
 		background: var(--horosa-panel-soft, rgba(242, 247, 254, 0.78));
 		color: var(--horosa-muted, #8794a8);
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 	}
 
 	.horosa-india-square-meta {
@@ -78,20 +78,20 @@
 		display: block;
 		margin-bottom: 3px;
 		color: var(--horosa-muted, #8794a8);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 16px;
 	}
 
 	.horosa-india-square-title {
 		color: var(--horosa-text, #162033);
-		font-size: 20px;
+		font-size: var(--horosa-fs-title-lg);
 		line-height: 26px;
 		font-weight: 700;
 	}
 
 	.horosa-india-square-subtitle {
 		color: var(--horosa-text-soft, #52627a);
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		line-height: 18px;
 		text-align: right;
 	}
@@ -168,7 +168,7 @@
 		border-radius: 0;
 		background: transparent;
 		color: var(--horosa-accent-strong, #2167d4);
-		font-size: 16px;
+		font-size: var(--horosa-fs-title-sm);
 		line-height: 22px;
 		font-weight: 800;
 		z-index: 4;
@@ -180,7 +180,7 @@
 		height: 24px;
 		padding: 0;
 		border-radius: 0;
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 		line-height: 22px;
 	}
 
@@ -245,7 +245,7 @@
 	}
 
 	.horosa-india-diagram-center .horosa-india-square-center-note {
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		line-height: 14px;
 	}
 
@@ -257,7 +257,7 @@
 	.horosa-india-diagram-center-compact .horosa-india-square-center-d {
 		min-width: 44px;
 		height: 44px;
-		font-size: 20px;
+		font-size: var(--horosa-fs-title-lg);
 	}
 
 	.horosa-india-north-board {
@@ -275,7 +275,7 @@
 	}
 
 	.horosa-india-north-board .horosa-india-square-object-name {
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 	}
 
 	.horosa-india-north-board .horosa-india-square-object,
@@ -290,14 +290,14 @@
 	}
 
 	.horosa-india-east-board .horosa-india-square-object-name {
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 	}
 
 	.horosa-india-north-board .horosa-india-square-object-degree,
 	.horosa-india-north-board .horosa-india-square-retro,
 	.horosa-india-east-board .horosa-india-square-object-degree,
 	.horosa-india-east-board .horosa-india-square-retro {
-		font-size: 10px;
+		font-size: var(--horosa-fs-micro);
 	}
 
 	.horosa-india-east-board {
@@ -393,7 +393,7 @@
 
 	.horosa-india-square-roman {
 		color: var(--horosa-gold, #b8893f);
-		font-size: 18px;
+		font-size: var(--horosa-fs-title);
 		line-height: 18px;
 		font-weight: 700;
 		letter-spacing: 0;
@@ -402,7 +402,7 @@
 	.horosa-india-square-cusp {
 		margin-top: 2px;
 		color: var(--horosa-text-soft, #52627a);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 13px;
 		font-weight: 600;
 	}
@@ -424,7 +424,7 @@
 		align-items: baseline;
 		gap: 3px;
 		color: var(--india-object-color, var(--horosa-accent-strong, #2167d4));
-		font-size: 16px;
+		font-size: var(--horosa-fs-title-sm);
 		line-height: 18px;
 		white-space: nowrap;
 		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.38);
@@ -438,7 +438,7 @@
 
 	.horosa-india-square-object-degree,
 	.horosa-india-square-retro {
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-weight: 700;
 	}
 
@@ -461,7 +461,7 @@
 		border-radius: 0;
 		background: transparent;
 		color: var(--horosa-accent-strong, #2167d4);
-		font-size: 16px;
+		font-size: var(--horosa-fs-title-sm);
 		line-height: 22px;
 		font-weight: 800;
 	}
@@ -469,14 +469,14 @@
 	.horosa-india-square-sign-symbol {
 		display: block;
 		font-family: 'ywastro';
-		font-size: 20px;
+		font-size: var(--horosa-fs-title-lg);
 		line-height: 1;
 		font-weight: 400;
 		letter-spacing: 0;
 	}
 
 	.horosa-india-diagram-sign-corner .horosa-india-square-sign-symbol {
-		font-size: 18px;
+		font-size: var(--horosa-fs-title);
 	}
 
 	.horosa-india-square-center {
@@ -502,7 +502,7 @@
 		border-radius: 8px;
 		background: var(--horosa-accent, #2f7df1);
 		color: var(--horosa-on-accent, #ffffff);   /* 暗色 accent = 浅金,白字仅 1.8:1 */
-		font-size: 24px;
+		font-size: var(--horosa-fs-display);
 		line-height: 1;
 		font-weight: 800;
 		box-shadow: 0 12px 28px var(--horosa-accent-soft, rgba(47, 125, 241, 0.12));
@@ -510,14 +510,14 @@
 
 	.horosa-india-square-center-label {
 		color: var(--horosa-text, #162033);
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 		line-height: 20px;
 		font-weight: 700;
 	}
 
 	.horosa-india-square-center-note {
 		color: var(--horosa-muted, #8794a8);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 16px;
 	}
 
@@ -525,8 +525,8 @@
 	   不再让说明文字顶出中宫被盘边裁掉。常规尺寸(盘 ≥ 361)不进查询,一字不变;不支持容器查询的旧引擎维持原样。 */
 	/* 盘边是否 ≤ 360 由盘组件直接量(布局域,utils/boxSizeVars 挂 data-isq-tiny);不用容器查询 —— 内核在文档缩放下它不按 CSS px 评估(真内核实测)。 */
 	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center { gap: 2px; }
-	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-d { min-width: 40px; height: 40px; font-size: 16px; }
-	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-label { font-size: 12px; line-height: 15px; }
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-d { min-width: 40px; height: 40px; font-size: var(--horosa-fs-title-sm); }
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-label { font-size: var(--horosa-fs-small); line-height: 15px; }
 	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-note { display: none; }
 
 	:root[data-horosa-appearance='dark'] .horosa-india-square-board {
@@ -592,12 +592,12 @@
 	}
 
 	.horosa-wheelart-board .horosa-india-square-object-name {
-		font-size: 15px;
+		font-size: var(--horosa-fs-subtitle);
 	}
 
 	.horosa-wheelart-board .horosa-india-square-object-degree,
 	.horosa-wheelart-board .horosa-india-square-retro {
-		font-size: 10px;
+		font-size: var(--horosa-fs-micro);
 	}
 
 	.horosa-wheelart-angle .horosa-india-square-object-name,
@@ -623,7 +623,7 @@
 
 	.horosa-wheelart-cusp-deg {
 		color: var(--horosa-text-soft, #52627a);
-		font-size: 10px;
+		font-size: var(--horosa-fs-micro);
 		line-height: 12px;
 		font-weight: 600;
 	}

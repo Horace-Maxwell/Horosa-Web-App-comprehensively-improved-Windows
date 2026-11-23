@@ -9,7 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { sourceSetFiles } = require('./helpers/sourceSet');
+const { sourceSetFiles, readAppSection, readSource } = require('./helpers/sourceSet');
 // 文件级标记(带它的文件不进共享基线);拼出来写,避免本文件自身被当成带标记的文件
 const FILE_ONLY_MARK = new RegExp('^\\s*(//|/\\*)\\s*@horosa-' + 'private' + '-only');
 
@@ -135,7 +135,7 @@ describe('窄栏文字 / 内容可达 · 源码闸', ()=>{
 	});
 
 	test('③ 神易数神煞 / 季令卡窄栏退列;神煞 / 角色卡的名与值不许 nowrap + overflow:hidden 硬裁', ()=>{
-		const t = read('layouts/app/10-huangji-wuzhao.less');
+		const t = readAppSection('10-huangji-wuzhao.less');
 		const rules = parseLess(t);
 		const last = (re, prop)=>{ let v = null; rules.forEach((r)=>{ if(!r.media && r.decls[prop] && r.sel.some((s)=>re.test(s))){ v = r.decls[prop].v; } }); return v; };
 		expect(last(/\.horosa-shenyishu-shensha-grid$/, 'grid-template-columns')).toMatch(/repeat\(auto-fill, minmax\(~?"?max\(96px, calc\(\(100% - 30px\) \/ 4 - 1px\)\)"?, 1fr\)\)/);
@@ -170,8 +170,12 @@ describe('窄栏文字 / 内容可达 · 源码闸', ()=>{
 			'components/election/ElectionJudgment.js',
 			'components/tongshefa/TongSheFaMain.js',
 		];
-		USERS.filter(exists).forEach((f)=>{ expect([f, /from '\.\.\/\.\.\/utils\/labelCell'/.test(read(f))]).toEqual([f, true]); });
-		expect(read('components/tarot/TarotMain.js')).toMatch(/style=\{labelCellStyle\(this\.orientLabel\(d\)\)\}/);
+		// 按组件全集判(类方法拆在子文件里时,引入跟着用到它的方法走)
+		USERS.filter(exists).forEach((f)=>{
+			const files = sourceSetFiles(path.join(SRC, f));
+			expect([f, files.some((x)=>/from '(\.\.\/)+utils\/labelCell'/.test(fs.readFileSync(x, 'utf8')))]).toEqual([f, true]);
+		});
+		expect(readSource(path.join(SRC, 'components/tarot/TarotMain.js'))).toMatch(/style=\{labelCellStyle\(this\.orientLabel\(d\)\)\}/);
 	});
 
 	test('⑥ 三式合一盘的盘摞子盒不许被纵向压扁(定高盘框被压矮 = 盘底一整排宫位被裁)', ()=>{
@@ -208,7 +212,7 @@ describe('窄栏文字 / 内容可达 · 源码闸', ()=>{
 		expect(over(curExtra, loadExtraBase('labelMinmax'))).toEqual([]);
 		expect(Object.keys(cur).length).toBeGreaterThan(2);   // 防遍历静默失效
 		// 信息行(十一个技法共用)已改成随行宽收的下限
-		expect(read('layouts/app/10-huangji-wuzhao.less')).toMatch(/\.horosa-huangji-info-row \{\s*display: grid;\s*grid-template-columns: minmax\(~"min\(90px, 40%\)", 32%\)/);
+		expect(readAppSection('10-huangji-wuzhao.less')).toMatch(/\.horosa-huangji-info-row \{\s*display: grid;\s*grid-template-columns: minmax\(~"min\(90px, 40%\)", 32%\)/);
 	});
 
 

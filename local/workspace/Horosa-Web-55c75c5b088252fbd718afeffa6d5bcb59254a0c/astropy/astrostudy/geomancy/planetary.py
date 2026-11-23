@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 
 from .figures import name, zodiac_of
 from .house import SIGN_ORDER, SIGN_ZH
+from ..truerandom import system_random
 
 # 报数取数域:传本示例以单位数报数(如 6+5+7+1=19 → 七宫),故每星取四个 1..9 之数。
 PCHART_DRAW_LO, PCHART_DRAW_HI, PCHART_DRAW_COUNT = 1, 9, 4
@@ -51,7 +52,7 @@ def planetary_chart(first_figure: int, rng: Optional[random.Random] = None,
                     include_extras: bool = False) -> dict:
     """行星地占盘。first_figure = 所起首图(定上升);zodiac_table 二式:
     classical 古典行星地占对应表(缺省)/ planetary_alt 另一传本对应表。"""
-    r = rng or random
+    r = rng or system_random()
     table = zodiac_table if zodiac_table in PCHART_ZODIAC_TABLES else "classical"
     asc_sign = zodiac_of(first_figure, table)
     try:

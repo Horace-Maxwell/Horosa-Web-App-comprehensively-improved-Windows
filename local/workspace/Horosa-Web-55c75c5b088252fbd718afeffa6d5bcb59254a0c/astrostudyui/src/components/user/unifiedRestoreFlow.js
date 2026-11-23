@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, message, Checkbox } from 'antd';
+import { Modal, message } from 'antd';
+import { XQCheckbox } from '../xq-ui';
 import { runAutoBackupOnce } from '../../utils/autoBackup';
 import { freezeGlobalSetupWrites, thawGlobalSetupWrites } from '../../utils/globalSetupStore';
 import { stashRestoreResult, takeRestoreResult } from '../../utils/restoreResultCarry';
@@ -31,10 +32,10 @@ export function RestorePreview({ ub, manifest, check, onChange }){
 				{rows.map((r)=><li key={r.key} title={r.title || undefined}>{r.label}：{r.detail}</li>)}
 			</ul>
 			<p>{restoreNoteText(manifest, opts)}</p>
-			<Checkbox
+			<XQCheckbox
 				checked={useBackup}
 				onChange={(e)=>{ const on = !!(e && e.target && e.target.checked); setUseBackup(on); if(typeof onChange === 'function'){ onChange(on ? { sameCid: 'backup' } : {}); } }}
-			>同一 ID 的命盘 / 事盘一律用备份里的（回到这份备份时的样子；本机较新的版本会被替换，仍可从版本历史找回）</Checkbox>
+			>同一 ID 的命盘 / 事盘一律用备份里的（回到这份备份时的样子；本机较新的版本会被替换，仍可从版本历史找回）</XQCheckbox>
 		</div>
 	);
 }

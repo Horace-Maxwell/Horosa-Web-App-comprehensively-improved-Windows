@@ -6,7 +6,9 @@ export function readOnlyRegistryView(registry, opts){
 	const o = opts || {};
 	const exclude = Array.isArray(o.exclude) ? o.exclude : [];
 	// 无头 / 只读视图额外排除 category 'ui'(切换技法页、合盘配对等界面动作):外部发起的无人值守分析不得动界面;o.allowUi=true 才保留
-	const okDef = (d)=>!!(d && d.level === 'read' && exclude.indexOf(d.name) < 0 && (o.allowUi === true || d.category !== 'ui'));
+	// opts.allowAlso(def)=true 的非只读件也放行(无人值守:只挂提案、不改档案的 propose_* 件);界面件照样剔
+	const extra = typeof o.allowAlso === 'function' ? o.allowAlso : ()=>false;
+	const okDef = (d)=>!!(d && (d.level === 'read' || extra(d)) && exclude.indexOf(d.name) < 0 && (o.allowUi === true || d.category !== 'ui'));
 	const readDef = (name)=>{ const d = typeof reg.getTool === 'function' ? reg.getTool(name) : null; return okDef(d) ? d : null; };
 	const deny = (name)=>(typeof o.denyMessage === 'function' ? o.denyMessage(name) : (o.denyMessage || `只读视图:拒绝执行 ${name}`));
 	return {

@@ -42,7 +42,7 @@ export default function TaskCenterBell(){
 	const badge = counts.unread + counts.active + counts.todo;
 	return (
 		<>
-			<div data-task-center-bell="1" data-badge={badge} style={{ position: 'fixed', right: 18, bottom: 64, zIndex: 900 }}>
+			<div data-task-center-bell="1" data-badge={badge} style={{ position: 'fixed', right: 18, bottom: 64, zIndex: 'var(--horosa-z-widget)' }}>
 				<Tooltip title={`任务中心:进行中 ${counts.active} · 待办 ${counts.todo} · 未读 ${counts.unread}`} placement="left">
 					<Badge count={badge} size="small" overflowCount={99}>
 						<Button shape="circle" size="large" onClick={()=>setOpen(true)} aria-label="任务中心">🔔</Button>

@@ -101,17 +101,17 @@ describe('[防回潮] 工作台 draftType 初值∈本注册表', ()=>{
 	];
 	it('九工作台初值全部在各自注册表(外来键=首开即坏)', ()=>{
 		CASES.forEach(([file, registry])=>{
+			// 初值写在各家派描述 defaultDraftType;共用壳用同一个键起草稿叶(draftParams 与 draftType 同源,见下)
 			const src = fs.readFileSync(path.join(__dirname, '../../../components/zeri', file), 'utf8');
-			const m = /const \[draftType, setDraftType\] = useState\('([a-z_0-9]+)'\)/.exec(src);
+			const m = /defaultDraftType: '([a-z_0-9]+)'/.exec(src);
 			expect(m ? 'found' : `${file}: 未找到 draftType 初值`).toBe('found');
 			expect(registry[m[1]] ? 'ok' : `${file}: 初值 ${m[1]} 不在本注册表`).toBe('ok');
-			// draftParams 初值叶必须与 draftType 同键:曾修了 type 漏了 params
-			// (newXxxLeaf(外来键).params={} → 首开 validate 红错+添加禁用,四台同病)
-			const mp = /useState\(\(\) => new\w+Leaf\('([a-z_0-9]+)'\)\.params\)/.exec(src);
-			if(mp){
-				expect(mp[1] === m[1] ? 'ok' : `${file}: draftParams 初值键 ${mp[1]} ≠ draftType ${m[1]}`).toBe('ok');
-			}
 		});
+		// draftParams 初值叶必须与 draftType 同键:曾修了 type 漏了 params
+		// (newXxxLeaf(外来键).params={} → 首开 validate 红错 + 添加禁用,四台同病)。共用壳用同一个键起两者
+		const shell = fs.readFileSync(path.join(__dirname, '../../../components/zeri', 'ZeriWorkbenchShell.js'), 'utf8');
+		expect(shell).toContain('useState(school.defaultDraftType)');
+		expect(shell).toContain('useState(() => school.newLeaf(school.defaultDraftType).params)');
 	});
 });
 
@@ -126,7 +126,7 @@ describe('[防回潮] 工作台 X 可见性+印度盘对象兜底', ()=>{
 		const files = ['Qimen', 'Huangli', 'Bazi', 'Taiyi', 'Ziwei', 'Liureng', 'Sanshi', 'Qizheng', 'India'];
 		const bad = [];
 		files.forEach((f)=>{
-			const src = fs.readFileSync(path.join(__dirname, '../../../components/zeri', `${f}ZeriWorkbench.js`), 'utf8');
+			const src = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench(`${f}ZeriWorkbench.js`);   // 派文件 + 共用壳
 			if(!src.includes('wrapClassName="horosa-zeri-workbench-modal"')){
 				bad.push(`${f}: 缺 wrapClassName(暗色下关闭钮回黑=用户困死回潮)`);
 			}
@@ -201,8 +201,9 @@ describe('[防回潮] 函数组件 this.props 全仓零命中+八技法概览接
 		const nine = ['Bazi', 'Taiyi', 'Ziwei', 'Liureng', 'Sanshi', 'Qizheng', 'India', 'Qimen'];
 		const bad = [];
 		nine.forEach((f2)=>{
-			const src = fs.readFileSync(path.join(__dirname, '../../../components/zeri', `${f2}ZeriWorkbench.js`), 'utf8');
-			if(!(/textAlign: 'center' \}\}>详情<\/span>\s*\n\s*<span style=\{\{ width: \d+ \}\}>盘<\/span>/.test(src))){
+			const src = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench(`${f2}ZeriWorkbench.js`);   // 派文件 + 共用壳(表头在壳里,占位列措辞随家)
+			// 占位列 = 紧跟「详情」表头的定宽 span(样式里还可以有 nowrap / 居中等别的键,只认「定宽 + 内容是该家的列名」)
+			if(!(/>详情<\/span>\s*\n\s*<span style=\{\{ width: \d+(?:, [a-zA-Z]+: '[^']*')*\s*\}\}>\{vocab\.previewHeader\}<\/span>/.test(src))){
 				bad.push(`${f2}: 表头缺「盘」等宽占位列`);
 			}
 		});
@@ -216,12 +217,14 @@ describe('[防回潮] 函数组件 this.props 全仓零命中+八技法概览接
 		const files = ['Bazi', 'Taiyi', 'Ziwei', 'Liureng', 'Sanshi', 'Qizheng', 'India'];
 		const bad = [];
 		files.forEach((f)=>{
-			const src = fs.readFileSync(path.join(__dirname, '../../../components/zeri', `${f}ZeriWorkbench.js`), 'utf8');
+			const own = fs.readFileSync(path.join(__dirname, '../../../components/zeri', `${f}ZeriWorkbench.js`), 'utf8');
+			const src = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench(`${f}ZeriWorkbench.js`);   // 派文件 + 共用壳(缺省概览浮窗在壳里)
+			if(/\bpreview:/.test(own)){ bad.push(`${f}: 派描述自带 preview,不走缺省迷你盘`); }
 			if(!src.includes("import ZeriMiniPanPopup")){ bad.push(`${f}: 缺 import`); }
 			if(!src.includes('setPreviewRow(row)')){ bad.push(`${f}: 缺概览按钮`); }
 			if(!src.includes('<ZeriMiniPanPopup')){ bad.push(`${f}: 缺浮窗渲染`); }
 			// 概览地理冻结:浮窗 geo 必须优先吃扫描时地理(previewGeo),否则扫后改地点概览错盘
-			if(!src.includes('geo={previewGeo || geo}')){ bad.push(`${f}: 浮窗未吃 previewGeo 冻结地理`); }
+			if(!src.includes('geo={props.previewGeo || geo}')){ bad.push(`${f}: 浮窗未吃 previewGeo 冻结地理`); }
 		});
 		['Bazi', 'Taiyi', 'Ziwei', 'Liureng', 'Sanshi'].forEach((f)=>{
 			const src = fs.readFileSync(path.join(__dirname, '../../../components/zeri', `${f}ZeriMain.js`), 'utf8');

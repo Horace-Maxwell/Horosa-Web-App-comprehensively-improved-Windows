@@ -7,7 +7,7 @@
 
 .yanqin-branch-panel {
 	color: @yq-text;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	line-height: 1.7;
 
 	// —— 子页签(盘/起禽/择日/占卜/投胎/定局/拆字/宿曜)——
@@ -24,7 +24,7 @@
 		> .ant-tabs-nav .ant-tabs-tab {
 			margin: 0 0 0 12px !important;
 			padding: 6px 0;
-			font-size: 13px;
+			font-size: var(--horosa-fs-body);
 			.ant-tabs-tab-btn { color: @yq-muted; font-weight: 600; letter-spacing: 0.02em; }
 			&:first-child { margin-left: 0 !important; }
 			&:hover .ant-tabs-tab-btn,
@@ -39,7 +39,7 @@
 		justify-content: space-between;
 		align-items: center;
 		gap: 8px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		color: @yq-muted;
 		padding: 0 2px 8px;
 		border-bottom: 1px dashed @yq-border;
@@ -61,14 +61,14 @@
 		background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.02));
 		.yq-tool-label {
 			color: @yq-muted;
-			font-size: 12px;
+			font-size: var(--horosa-fs-small);
 			white-space: nowrap;
 		}
 		.yq-tool-grow { flex: 1; min-width: 110px; }
 		.yq-school-note {
 			flex-basis: 100%;
 			color: @yq-muted;
-			font-size: 11px;
+			font-size: var(--horosa-fs-caption);
 			line-height: 1.5;
 			margin-top: 2px;
 		}
@@ -77,7 +77,7 @@
 			border: none;
 			cursor: pointer;
 			color: @yq-accent;
-			font-size: 12px;
+			font-size: var(--horosa-fs-small);
 			padding: 0 2px;
 			&:hover { text-decoration: underline; }
 		}
@@ -102,7 +102,7 @@
 		padding: 12px 14px;
 		margin-bottom: 10px;
 	}
-	.yq-meta { text-align: center; color: @yq-muted; font-size: 12px; letter-spacing: 0.02em; }
+	.yq-meta { text-align: center; color: @yq-muted; font-size: var(--horosa-fs-small); letter-spacing: 0.02em; }
 
 	// —— 值日宿 / 投胎 主禽 Hero ——
 	.yq-hero {
@@ -155,7 +155,7 @@
 		align-items: center;
 		gap: 8px;
 		font-weight: 700;
-		font-size: 13px;
+		font-size: var(--horosa-fs-body);
 		color: @yq-text;
 		margin: 2px 0 6px;
 		&::before { content: ""; width: 3px; height: 13px; border-radius: 2px; background: @yq-accent; }
@@ -173,7 +173,7 @@
 	// —— 值日吉凶歌 ——
 	.yq-verse {
 		font-family: "Songti SC", "STSong", "SimSun", serif;
-		font-size: 14px;
+		font-size: var(--horosa-fs-body-lg);
 		line-height: 1.95;
 		padding: 6px 4px;
 		text-indent: 0;
@@ -193,7 +193,7 @@
 		border-radius: 0 6px 6px 0;
 		background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.02));
 		.yq-chuan-label { color: @yq-muted; font-size: 11.5px; min-width: 92px; }
-		.yq-chuan-val { font-weight: 700; font-size: 14px; }
+		.yq-chuan-val { font-weight: 700; font-size: var(--horosa-fs-body-lg); }
 	}
 	.yq-chuan.is-me { border-left-color: var(--horosa-jade, #4c9a6a); }
 	.yq-chuan.is-they { border-left-color: var(--horosa-cinnabar, #c0392b); }
@@ -210,16 +210,16 @@
 		padding: 8px 10px;
 		background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.02));
 		.yq-cailu-head { display: flex; align-items: center; gap: 8px; }
-		.yq-cailu-name { font-weight: 700; font-size: 14px; color: @yq-accent; }
+		.yq-cailu-name { font-weight: 700; font-size: var(--horosa-fs-body-lg); color: @yq-accent; }
 		.yq-cailu-level {
 			font-size: 10.5px; color: @yq-muted;
 			border: 1px solid @yq-border; border-radius: 999px; padding: 0 7px;
 		}
-		.yq-cailu-desc { font-size: 12px; color: @yq-text; margin-top: 3px; line-height: 1.6; }
+		.yq-cailu-desc { font-size: var(--horosa-fs-small); color: @yq-text; margin-top: 3px; line-height: 1.6; }
 	}
 
 	// 表格瘦身
-	.ant-table { font-size: 12px; }
+	.ant-table { font-size: var(--horosa-fs-small); }
 	.ant-table-cell { padding: 5px 8px !important; }
 }
 
@@ -227,7 +227,7 @@
 .horosa-kinastro-xianqin-yanfa-controls {
 	margin-top: 4px;
 	.horosa-kinastro-yanfa-school-note {
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		line-height: 1.5;
 		margin: 2px 0 6px;
 		color: var(--horosa-muted, var(--horosa-text-secondary, #9a8f7d));
@@ -238,7 +238,7 @@
 		cursor: pointer;
 		padding: 2px 0;
 		color: var(--horosa-accent, #b8860b);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		&:hover { text-decoration: underline; }
 	}
 	.horosa-kinastro-yanfa-adv { margin-top: 4px; }
@@ -262,7 +262,7 @@
 	}
 	.yq-nianqin-cell {
 		flex: 0 0 auto;
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		line-height: 1.5;
 		padding: 1px 5px;
 		border-radius: 4px;
@@ -296,8 +296,8 @@
 		padding: 3px 10px;
 		border-radius: 6px;
 		background: var(--horosa-surface-sunken, rgba(120,120,120,0.08));
-		font-size: 12px;
-		b { font-size: 14px; color: var(--horosa-accent, #b8860b); }
+		font-size: var(--horosa-fs-small);
+		b { font-size: var(--horosa-fs-body-lg); color: var(--horosa-accent, #b8860b); }
 	}
 }
 
@@ -307,7 +307,7 @@
 		display: flex; align-items: center; justify-content: center; gap: 8px;
 		padding: 8px 0; flex-wrap: wrap;
 	}
-	.yq-arc-node { font-size: 15px; font-weight: 700; padding: 3px 10px; border-radius: 14px;
+	.yq-arc-node { font-size: var(--horosa-fs-subtitle); font-weight: 700; padding: 3px 10px; border-radius: 14px;
 		background: var(--horosa-surface-sunken, rgba(120,120,120,0.08)); }
-	.yq-arc-sep { color: var(--horosa-muted, #9a8f7d); font-size: 16px; }
+	.yq-arc-sep { color: var(--horosa-muted, #9a8f7d); font-size: var(--horosa-fs-title-sm); }
 }

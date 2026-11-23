@@ -11,12 +11,12 @@ import React, { Component } from 'react';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { signElementInk } from '../../utils/signElementInk';
-import { Row, Col, Switch, Spin, Empty } from 'antd';
+import { Row, Col } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { XQSelect, XQTable } from '../xq-ui';
+import { XQSelect, XQTable, XQEmpty, XQSpin, XQSwitch } from '../xq-ui';
 import AstroChart from '../astro/AstroChart';
 import UranianFrameWheel from './UranianFrameWheel';
 
@@ -44,7 +44,7 @@ function framesPropsEqual(a, b){
 }
 
 import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
-import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
+import { getStoredUranianDisplay } from './UranianDialStyle';
 import { schoolToBackendParams } from './UranianSchools';
 import { tnpGlyph } from './UranianGlyphs';
 import { classicalBackendOverridesFromFields, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
@@ -336,7 +336,7 @@ export default class UranianHouseFrames extends Component {
 				</div>
 				<div className="horosa-frames-desc" style={{ marginTop: 8, opacity: 0.75, fontSize: 12, lineHeight: 1.5 }}>{FRAME_DESC[frame]}</div>
 				<div className="horosa-frames-overview-row" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-					<Switch size="small" checked={overview} onChange={(v) => this.setState({ overview: v })} />
+					<XQSwitch size="small" checked={overview} onChange={(v) => this.setState({ overview: v })} />
 					<span style={{ fontSize: 13 }}>缩略全览(六框小轮)</span>
 				</div>
 				{degraded ? <div style={{ marginTop: 10, fontSize: 12, color: 'var(--horosa-text-secondary, #999)' }}>当前服务未返回宫框数据,已用等宫在前端合成;子午局为近似。</div> : null}
@@ -355,7 +355,7 @@ export default class UranianHouseFrames extends Component {
 					return (
 						<div key={o.value} style={{ textAlign: 'center' }}>
 							<div style={{ fontSize: 12, opacity: 0.8, marginBottom: 2 }}>{o.label}{f && f.degraded ? '(近似)' : ''}</div>
-							{f ? <UranianFrameWheel cusps={f.cusps} points={this.state.points} size={small} frameKey={o.value} label="" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />}
+							{f ? <UranianFrameWheel cusps={f.cusps} points={this.state.points} size={small} frameKey={o.value} label="" /> : <XQEmpty image={XQEmpty.PRESENTED_IMAGE_SIMPLE} description={false} />}
 						</div>
 					);
 				})}
@@ -368,7 +368,7 @@ export default class UranianHouseFrames extends Component {
 				</div>
 			) : (
 				curFrame ? <UranianFrameWheel cusps={curFrame.cusps} points={this.state.points} size={wheelSize} frameKey={frame} label={FRAME_LABEL[frame]} />
-					: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={note || '无数据'} />
+					: <XQEmpty image={XQEmpty.PRESENTED_IMAGE_SIMPLE} description={note || '无数据'} />
 			)
 		);
 
@@ -397,13 +397,13 @@ export default class UranianHouseFrames extends Component {
 		const sideScroll = { ...fill, overflowY: 'auto' };
 		return (
 			<div className="horosa-frames-host" ref={(el) => { this._host = el; }} style={{ height, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-				<Spin spinning={loading} wrapperClassName="horosa-frames-spin">
+				<XQSpin spinning={loading} wrapperClassName="horosa-frames-spin">
 					<Row className="horosa-frames-layout" gutter={10} wrap={false} style={fill}>
 						<Col span={5} className="horosa-frames-side-col" style={fill}><div style={sideScroll}>{left}</div></Col>
 						<Col span={13} className="horosa-frames-chart-col" style={{ ...fill, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{chart}</Col>
 						<Col span={6} className="horosa-frames-side-col" style={fill}><div style={sideScroll}>{right}</div></Col>
 					</Row>
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

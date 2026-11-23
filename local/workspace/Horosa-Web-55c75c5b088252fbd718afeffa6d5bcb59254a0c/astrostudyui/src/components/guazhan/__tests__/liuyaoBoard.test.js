@@ -145,7 +145,7 @@ describe('六新键默认+接线守卫', ()=>{
 		expect(/sel\.indexOf\(c\.key\) >= 0/.test(src)).toBe(true);
 	});
 	test('G10/G11/G9:快捷键守卫(输入框豁免+1-6域)/对齐档/恢复默认按钮(源码守卫)', ()=>{
-		const main = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		const main = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
 		expect(/handleYaoHotkey[\s\S]{0,400}tag === 'input' \|\| tag === 'textarea' \|\| tag === 'select'/.test(main)).toBe(true);
 		expect(/n >= 1 && n <= 6/.test(main)).toBe(true);
 		expect(main.includes("window.addEventListener('keydown', this.handleYaoHotkey)")).toBe(true);

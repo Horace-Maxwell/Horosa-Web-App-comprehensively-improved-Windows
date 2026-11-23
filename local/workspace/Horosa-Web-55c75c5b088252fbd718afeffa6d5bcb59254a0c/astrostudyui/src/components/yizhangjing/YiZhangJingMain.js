@@ -8,7 +8,7 @@ import { Select } from 'antd';
 import { XQTabs as Tabs, XQDesignScaleBox, XQStageEmpty } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { buildYizhangjingModel, buildYizhangjingSnapshotText } from '../../utils/yizhangjingReport';
-import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAt, xiaoxianStarAtDir, xunShenAt, starLabel, daoLabel } from '../../utils/yizhangjingLocal';
+import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAtDir, xunShenAt, starLabel, daoLabel } from '../../utils/yizhangjingLocal';
 
 const { Option } = Select;
 

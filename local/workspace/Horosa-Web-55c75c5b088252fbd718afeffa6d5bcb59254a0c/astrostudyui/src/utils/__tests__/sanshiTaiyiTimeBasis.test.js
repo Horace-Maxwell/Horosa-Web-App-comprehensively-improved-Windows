@@ -16,7 +16,7 @@ describe('Q-107 A 三式太乙时间基准', ()=>{
 		expect(fields.some((x)=>x.name === 'timeBasis')).toBe(false);   // 三式子组只用改名后的键
 	});
 	it('源码哨兵:页面控件 / 请求透传 / 存案还原 / 挂载重算映射 四处齐', ()=>{
-		const main = fs.readFileSync(path.join(__dirname, '../../components/sanshi/SanShiUnitedMain.js'), 'utf8');
+		const main = readSource(path.join(__dirname, '../../components/sanshi/SanShiUnitedMain.js'));
 		expect(main).toMatch(/onOptionChange\('taiyiTimeBasis', v\)/);
 		expect(main).toMatch(/timeBasis: options && options\.taiyiTimeBasis === 'trueSolar' \? 'trueSolar' : 'direct'/);
 		expect(main).toMatch(/options\.taiyiTimeBasis = payload\.options\.taiyiTimeBasis/);

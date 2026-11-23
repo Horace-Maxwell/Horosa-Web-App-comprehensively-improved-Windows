@@ -1,4 +1,4 @@
-// 印占页 · 选项表与 state 映射:大运体系 / 起运 / 分盘网格选项、fields ↔ state 映射与播种。
+// 印占页 · 选项表与 state 映射:大运体系 / 起运 / 分盘网格选项、fields ↔ state 映射与播种、择日内嵌实例的快照槽名。
 // 只被 components/astro/IndiaChartMain.js 与同目录 indiaMain/ 下的兄弟模块引用。
 import * as AstroConst from '../../../constants/AstroConst';
 
@@ -141,3 +141,8 @@ export const VARGA_GRID_LABEL = VARGA_GRID_OPTIONS.reduce((acc, o)=>{ acc[o.valu
 export const VARGA_GRID_MAX = 4;
 // 默认四盘:命盘 D1 / 合作 D9(婚配核心) / 事业 D10 / 父辈 D12——印度盘最常对照组。
 export const VARGA_GRID_DEFAULT = [1, 9, 10, 12];
+
+// 择日内嵌实例(techniqueScope ≠ india)的快照槽 = 宿主槽名;主印占页 = 无(写印占三槽)
+export function indiaSnapshotScope(techniqueScope){
+	return techniqueScope && techniqueScope !== 'india' ? techniqueScope : undefined;
+}

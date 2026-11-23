@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Row, Col, Popover, } from 'antd';
+import { Row, Col, } from 'antd';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDirectionForm from './AstroDirectionForm';
 import { pointName } from '../../utils/directedFigures';

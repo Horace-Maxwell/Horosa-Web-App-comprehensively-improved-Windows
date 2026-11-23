@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
-import {randomStr, randomNum, littleEndian,} from '../../utils/helper';
+import {randomStr,} from '../../utils/helper';
 import YangYao from './YangYao';
 import YinYao from './YinYao';
 import {getGua64, randYao} from './GuaConst';

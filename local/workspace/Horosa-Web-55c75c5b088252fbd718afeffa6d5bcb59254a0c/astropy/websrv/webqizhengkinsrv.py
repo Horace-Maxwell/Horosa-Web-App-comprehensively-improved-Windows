@@ -5,6 +5,7 @@ import cherrypy
 import jsonpickle
 
 from websrv.helper import enable_crossdomain
+from astrostudy import clock
 from websrv.kentang.kinastro_common import (
     annotate_day_boundary,
     day_boundary_of,
@@ -44,6 +45,28 @@ from astro.qizheng.qizheng_dasha import compute_dasha  # noqa: E402
 from astro.qizheng.qizheng_transit import compute_transit, compute_transit_now  # noqa: E402
 from astro.qizheng.shensha import compute_shensha, get_bazi_stems_branches  # noqa: E402
 from astro.qizheng.zhangguo import compute_zhangguo  # noqa: E402
+
+
+def _fmt_current_daxian(cur):
+    """当前大限写成一行人话:「财帛宫(未)· 限主太阴 · 20–44 岁(2010–2034)」;
+    此前整个字典原样进快照,盘面与 AI 读到的是 palace_index / branch 之类的字段名。"""
+    if not isinstance(cur, dict):
+        return cur
+    g = lambda *ks: next((cur.get(k) for k in ks if cur.get(k) not in (None, "")), None)
+    palace = g("palace_name", "palaceName")
+    branch = g("branch_name", "branchName")
+    lord = g("lord")
+    sa, ea = g("start_age", "startAge"), g("end_age", "endAge")
+    sy, ey = g("start_year", "startYear"), g("end_year", "endYear")
+    parts = []
+    if palace:
+        parts.append(f"{palace}({branch})" if branch else f"{palace}")
+    if lord:
+        parts.append(f"限主{lord}")
+    if sa is not None and ea is not None:
+        years = f"({sy}–{ey})" if sy is not None and ey is not None else ""
+        parts.append(f"{sa}–{ea} 岁{years}")
+    return " · ".join(parts) if parts else "—"
 
 
 def _fmt_degree(value, digits=2):
@@ -393,7 +416,7 @@ def _build_sections(pan):
             "title": "年限",
             "rows": [
                 row("当前年龄", dasha.get("currentAge")),
-                row("当前大限", dasha.get("current")),
+                row("当前大限", _fmt_current_daxian(dasha.get("current"))),
                 row("流年", f"{dasha.get('flowYearBranchName')}｜{dasha.get('flowYearPalace')}"),
                 *[
                     row(item.get("palace_name") or item.get("palaceName"), f"{item.get('start_age', item.get('startAge'))}-{item.get('end_age', item.get('endAge'))}岁｜{item.get('lord')}｜{item.get('branch_name', item.get('branchName'))}")
@@ -572,7 +595,7 @@ def compute_qizheng_kin_pan(data):
     bazi_day_part["hour_stem"] = bazi_hour_part["hour_stem"]
     bazi_day_part["hour_pillar"] = bazi_hour_part["hour_pillar"]
     bazi = display_safe(bazi_day_part)
-    current_year = max(1, to_int(data.get("qizhengKinCurrentYear") or data.get("currentYear"), datetime.now().year))
+    current_year = max(1, to_int(data.get("qizhengKinCurrentYear") or data.get("currentYear"), clock.now_local(data).year))
     dasha = compute_dasha(dt.year, chart.ming_gong_branch, gender_value, chart.houses, current_year=current_year)
     zhangguo = compute_zhangguo(chart.planets, chart.houses, gender=gender_value)
     electional_days = max(1, min(60, to_int(data.get("qizhengKinElectionalDays") or data.get("electionalDays"), 30)))
@@ -596,7 +619,13 @@ def compute_qizheng_kin_pan(data):
     transit_mode = clean_text(data.get("qizhengKinTransitMode") or data.get("transitMode"), "none")
     transit = None
     if transit_mode == "now":
-        transit = compute_transit_now(timezone_value)
+        # 「此刻」经唯一入口取(批量验证钉住时钟时用带来的那一刻);算法与内置引擎的 compute_transit_now 相同:按盘的时区取钟面的年月日时分
+        from datetime import timedelta as _td
+        _local_now = clock.now_utc(data) + _td(hours=timezone_value)
+        # 年月日照旧经民用历 → 格里历的同一个换算口交给引擎(此刻的钟面是外推格里历;钉在 1582 年以前的时刻也不会差日)
+        now_cy, now_cm, now_cd = vendor_civil_ymd(_local_now.year, _local_now.month, _local_now.day)
+        now_gy, now_gm, now_gd = vendor_greg_ymd(now_cy, now_cm, now_cd)
+        transit = compute_transit(now_gy, now_gm, now_gd, _local_now.hour, _local_now.minute, timezone_value)
     elif transit_mode == "same":
         transit = compute_transit(birth_gy, birth_gm, birth_gd, dt.hour, dt.minute, timezone_value)
     elif transit_mode == "custom":

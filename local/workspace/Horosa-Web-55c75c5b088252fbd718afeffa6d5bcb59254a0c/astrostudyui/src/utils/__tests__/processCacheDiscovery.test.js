@@ -131,9 +131,11 @@ function scanText(text){
 
 describe('进程内结果缓存:发请求的函数写入的模块级缓存必须登记或豁免', ()=>{
 	const all = [];
-	listJs(SRC, []).forEach((file)=>{
+	// 拆成子模块的大文件按一个单位查(门面读「子模块 + 门面」全集、子模块跳过):缓存、写它的请求函数、登记语句可能分在几个子模块
+	const { readSource, isSourceSetPart } = require('./helpers/sourceSet');
+	listJs(SRC, []).filter((file)=>!isSourceSetPart(file)).forEach((file)=>{
 		const rel = path.relative(SRC, file).split(path.sep).join('/');
-		const text = fs.readFileSync(file, 'utf8');
+		const text = readSource(file);
 		if(!/\b(request|fetch|cachedKentangFetch|postKentang)\s*\(/.test(text)){ return; }
 		scanText(text).forEach((c)=>all.push({ key: `${rel}|${c.name}`, registered: c.registered }));
 	});
@@ -152,7 +154,7 @@ describe('进程内结果缓存:发请求的函数写入的模块级缓存必须
 		expect(stale).toEqual([]);
 	});
 	test('判别力:已登记的结果缓存认得出;撤掉登记就红', ()=>{
-		const india = fs.readFileSync(path.join(SRC, 'components/astro/IndiaChart.js'), 'utf8');
+		const india = fs.readFileSync(path.join(SRC, 'components/astro/indiaChart/request.js'), 'utf8');   // 印占取盘缓存与登记它的语句同住取盘子模块
 		const got = scanText(india);
 		expect(got.filter((c)=>c.registered).map((c)=>c.name)).toEqual(expect.arrayContaining(['indiaChartCache']));
 		const unregistered = scanText(india.replace(/registerProcessCache\('india\.chart'[^\n]*\n/, '\n'));

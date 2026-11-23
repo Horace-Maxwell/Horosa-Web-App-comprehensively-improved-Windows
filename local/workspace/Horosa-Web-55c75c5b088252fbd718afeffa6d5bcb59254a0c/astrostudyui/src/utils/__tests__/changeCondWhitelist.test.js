@@ -25,7 +25,7 @@ function bodyOf(code, marker){
 
 // 🔴 先在原文定位切体、再对体剥注释:整文件先剥会被字符串里的 `//` 剥断行殃及后文 marker
 //    (八字侧 genParams 实测踩过)。体内配对大括号以原文为准。
-const pageRaw = fs.readFileSync(SRC, 'utf8');
+const pageRaw = require('./helpers/sourceSet').readSource(SRC);   // 门面 + 子模块全集
 const changeCondBody = strip(bodyOf(pageRaw, 'function changeCond(values)'));
 
 // ① 登记面:changeCond 体内读到的 values.X 顶层键

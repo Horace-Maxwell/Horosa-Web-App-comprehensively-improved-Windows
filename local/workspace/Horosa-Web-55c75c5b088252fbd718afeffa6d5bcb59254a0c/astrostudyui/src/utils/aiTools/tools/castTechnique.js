@@ -1,5 +1,6 @@
 import { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES, listAnalysisTechniqueOptions, getAnalysisTechniqueContexts, clipContentToBudget, analysisTechniqueLabelMap } from '../../aiAnalysisContext';
-import { resolveEffectiveTechniqueOptions, getTechniqueSettingsSchema, effectiveMountBaseline, adjustedMountBaseline, fieldBlankFollowsBaseline, fieldCurrentDefault, isMountFieldVisible, mountContextOf, mountContextLabel } from '../../techniqueMountSettings';   // 与对话页挂载卡同一「生效设置」解析
+import { resolveEffectiveTechniqueOptions, getTechniqueSettingsSchema, effectiveMountBaseline, isMountFieldVisible, mountContextLabel } from '../../techniqueMountSettings';
+import { hasOwnKey, visibilityContext, visibilityControllers } from '../mountVisibility';   // 与对话页挂载卡同一「生效设置」解析
 import { splitContentSections } from '../../aiExport';
 import { findAnalysisSourceById } from '../../aiAnalysisSources';
 import { withNewChartDefaults } from '../../newChartCapture';
@@ -12,9 +13,12 @@ import { geoPairToRecordFields } from '../normalize/geoCompass';
 import { getErrorMeta, sanitizeErrorCause } from '../errorCodes';
 import { lastFor, pathOfUrl } from '../../requestTelemetry';
 import { nowStr, GUIDE, SOURCE_SCHEMA } from './_shared';
+import { containsNeutral } from '../../scriptNeutralMatch';
 import { castInputKeysIn, castInputRejectMessage } from '../castInputKeys';
 import { datePartOf } from '../../dateStrSafe';
+import { pageOnlyTechniqueNote } from './listTechniques';
 import DateTime from '../../../components/comp/DateTime';
+import { isEntropySeed } from '../../trueRandom';
 
 function techniqueEnum(){
 	const set = new Set(ANALYSIS_CHART_TECHNIQUES.concat(ANALYSIS_CASE_TECHNIQUES));
@@ -90,30 +94,6 @@ export async function buildSourceFromArgs(src){
 // 不下发(同类默认里这一项照旧生效);hidden = 这一项此刻不显示(由别的项决定),重算前的剪枝会把它去掉 —— controlledBy 列出决定它显隐的项。
 // 显隐判据与重算入口的剪枝(pruneOptionsToNonDefault)同一份上下文:覆盖 > 盘现状基线 > 全局现值 / 缺省,基线 = effectiveMountBaseline(与
 // getAnalysisTechniqueContextWithOptions 同锚)。写的就是现值(剪枝剪掉的「等于现状」)不算不生效:起出来的盘本来就是这个值
-const hasOwnKey = (o, k)=>!!o && Object.prototype.hasOwnProperty.call(o, k);
-function visibilityContext(schema, key, options, baseline){
-	const base = adjustedMountBaseline(key, options, baseline);
-	const ctx = { ...mountContextOf(base) };   // 基线带的只读上下文键(塔罗进阶对应门控),与抽屉 / 剪枝同一份
-	schema.fields.forEach((f)=>{
-		const own = hasOwnKey(options, f.name) ? options[f.name] : undefined;
-		const blankToBase = fieldBlankFollowsBaseline(f, { ...(base || {}), ...options }) && (own === '' || own === null) && base && base[f.name] !== undefined && base[f.name] !== null && base[f.name] !== '';
-		if(own !== undefined && !blankToBase){ ctx[f.name] = own; return; }
-		if(base && base[f.name] !== undefined && base[f.name] !== null){ ctx[f.name] = base[f.name]; return; }
-		ctx[f.name] = fieldCurrentDefault(f);
-	});
-	return ctx;
-}
-// 决定一项显隐的那几项:showWhen 读了哪些键(按真实调用记下,不手写)+ when 对象的键
-function visibilityControllers(field, ctx, names){
-	const seen = new Set();
-	if(field.when && typeof field.when === 'object'){ Object.keys(field.when).forEach((k)=>seen.add(k)); }
-	if(typeof field.showWhen === 'function' && typeof Proxy === 'function'){
-		const probe = new Proxy(ctx, { get(t, k){ if(typeof k === 'string'){ seen.add(k); } return t[k]; } });
-		try{ field.showWhen(probe); }catch(_e){ /* 判据抛错:只记已读到的键 */ }
-	}
-	// 基线带的只读上下文键(以 __ 开头,齿轮改不了的本盘事实)也算决定项
-	return names.filter((n)=>n !== field.name && seen.has(n)).concat([...seen].filter((k)=>k.indexOf('__') === 0 && names.indexOf(k) < 0 && ctx[k] !== undefined && ctx[k] !== null));
-}
 // 取值在不在这一项的档位里:没有档位的项(数字 / 文本 / 多选)、空值(随存档 / 随流派)一律不判;档值与给的值都按这一项的归一比(开关 1 / true 同一档)
 function optionValueKnown(field, v, ctx){
 	if(v === '' || v === null || v === undefined || Array.isArray(v) || typeof v === 'object'){ return true; }
@@ -147,6 +127,15 @@ export function classifyCastOptions(technique, explicit, record){
 		if(typeof f.normalize === 'function'){ try{ nv = f.normalize(opts[k]); }catch(_e){ nv = undefined; } }
 		// 空值(留空 / null)= 不覆盖、随存档或缺省,不算坏值;非空却归一不出 = 坏值
 		if(nv === undefined && opts[k] !== undefined && opts[k] !== null && opts[k] !== ''){ ignored.push({ key: k, reason: 'invalid', message: IGNORED_REASON_TEXT.invalid }); return; }
+		// 数字项:非数字 / 超出范围 = 坏值(此前照下发,后端取不到数就悄悄换成缺省 —— 太玄换成按时间派生的种子、荆诀换成随机种子)
+		// 种子项另认「真随机记录」(随机起的那一次带的不是数字)
+		if(f.type === 'number' && !(f.allowEntropySeed && isEntropySeed(nv)) && nv !== undefined && nv !== null && nv !== '' && typeof nv !== 'object'){
+			const n = typeof nv === 'number' ? nv : (/^\s*-?\d+(\.\d+)?\s*$/.test(`${nv}`) ? Number(nv) : NaN);
+			const lo = typeof f.min === 'number' ? f.min : -Infinity;
+			const hi = typeof f.max === 'number' ? f.max : Infinity;
+			if(!Number.isFinite(n)){ ignored.push({ key: k, reason: 'invalid', message: `这一项要数字,给的是 ${JSON.stringify(opts[k]).slice(0, 40)},没有下发` }); return; }
+			if(n < lo || n > hi){ ignored.push({ key: k, reason: 'invalid', message: `超出这一项的范围 ${Number.isFinite(lo) ? lo : '…'}–${Number.isFinite(hi) ? hi : '…'}(给的是 ${n}),没有下发` }); return; }
+		}
 		kept[k] = opts[k];
 	});
 	if(!fields.length){ return { options: kept, ignored }; }
@@ -177,7 +166,19 @@ function ignoredOptionsNote(list){
 	return `options 里有 ${list.length} 项没有生效(起盘照常,未用这几项):${list.map((x)=>`${x.key} —— ${x.message}`).join(';')}`;
 }
 
+export const CAST_MAX_CHARS_EXTERNAL = 20000;
+
 export default {
+	// 技法写成中文名 / 近义写法:按中文名对照给「是不是要 key(中文名)」(registry 的枚举报错调用)
+	suggestEnum(path, value){
+		if(path !== '/technique'){ return []; }
+		const v = `${value == null ? '' : value}`.trim();
+		if(!v){ return []; }
+		const keys = techniqueEnum();
+		const labels = analysisTechniqueLabelMap(keys) || {};
+		const hit = keys.filter((k)=>labels[k] && (containsNeutral(labels[k], v) || containsNeutral(v, labels[k])));   // 简繁中性:「紫微斗數」同样命中
+		return hit.slice(0, 4).map((k)=>`${k}(${labels[k]})`);
+	},
 	name: 'cast_technique',
 	level: 'read',
 	category: 'query',
@@ -198,11 +199,11 @@ export default {
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['technique', 'source'],
 		properties: {
-			technique: { type: 'string', enum: techniqueEnum() },
+			technique: { type: 'string', enum: techniqueEnum(), description: '技法键(technique key)。每个键的中文名、适用哪种来源、现算或读已存结果,用 list_techniques 查;如 astrochart=西洋星盘 / bazi=八字 / ziwei=紫微斗数 / liureng=大六壬 / qimen=奇门遁甲' },
 			source: SOURCE_SCHEMA,
 			options: { type: 'object', additionalProperties: true, description: '该技法挂载设置覆盖,键/值域以 describe_settings(facet=mount) 为准;没生效的键(齿轮里没有 / 取值不在档内 / 此刻不显示)回包 ignoredOptions 逐项列出;起卦输入(种子 / 报数 / 起例模式 / 卦象等)写具体值一律拒;写回「自动」那一档(如金口诀地分 auto)= 不覆盖,照常放行' },
-			maxChars: { type: 'integer', minimum: 500, maximum: 60000, default: 7000, description: '缺省 7000(< 运行时回喂预算 8000,避免二次截断)' },
-			sections: { type: 'array', items: { type: 'string' }, maxItems: 12, description: '只取这些段(按段名子串匹配,如「行星」「宫位总览」);不传=全文按 maxChars 段对齐截断。分析只需要某几段时先按段取,省一大截上下文' },
+			maxChars: { type: 'integer', minimum: 500, maximum: 60000, description: '缺省:外部客户端 20000、应用内 7000(< 运行时回喂预算 8000,避免二次截断)' },
+			sections: { type: 'array', items: { type: 'string' }, maxItems: 12, description: '只取这些段(按段名子串匹配,如「行星」「宫位总览」);缺省不纳入的大段(如六壬「取象」、奇门「八宫克应」、太玄「太玄经全文」)点名即可取;不传=全文按 maxChars 段对齐截断。分析只需要某几段时先按段取,省一大截上下文' },
 		},
 	},
 	// 起盘串行化:部分技法(如七政)的挂载覆盖是「快照全局→改写→重算→还原」,并行两次会把用户全局设置留在中间态。
@@ -232,7 +233,7 @@ export default {
 			if(signal){ waits.push(castAbortPromise(signal).then(()=>{ throw Object.assign(new Error('本轮已被停止'), { code: 'E_ABORTED' }); })); }
 			try{ await Promise.race(waits); }
 			catch(e){ return { ok: false, code: 'E_ABORTED', message: '本轮已被停止,起盘未执行' }; }
-			const runP = runCast(args, report);
+			const runP = runCast(args, report, ctx && ctx.origin);
 			if(!signal){ return await runP; }
 			return await Promise.race([runP, castAbortPromise(signal).then(()=>({ ok: false, code: 'E_ABORTED', message: '本轮已被停止,起盘结果已丢弃' }))]);
 		}finally{ release(); }
@@ -269,20 +270,31 @@ function freshChartFailureCause(before){
 // 失败三路各有各的下一步,不能糊成一句:异常/status=error=算了但算不出;后端标记=请求根本没拿到结果
 // (可重试);其余=真的没内容(缺料或该技法本就无输出)。此前三路共用一句「需…在线」的文案,
 // 把请求层故障说成计算服务离线,纯本地技法的用户照着去查服务=白查。
+// 话术里写中文名、括注技法键(调用方据键重发);没有中文名只写键
+function techniqueNameText(technique){
+	const label = (analysisTechniqueLabelMap([technique]) || {})[technique] || '';
+	return label && label !== technique ? `「${label}」(${technique})` : `「${technique}」`;
+}
 function castFailure(code, technique, extra){
 	const meta = getErrorMeta(code);
-	return { ok: false, code, message: `「${technique}」${meta.userText};${meta.act}`, ...(extra || {}) };
+	return { ok: false, code, message: `${techniqueNameText(technique)}${meta.userText};${meta.act}`, ...(extra || {}) };
 }
 
-async function runCast(args, report){
+async function runCast(args, report, origin){
 	{
 		if(report){ report(1, 4, '解析时间与地点'); }
 		const built = await buildSourceFromArgs(args.source);
 		if(built.error){ return built.error; }
 		const source = built.source;
 		const allowed = listAnalysisTechniqueOptions(source).map((o)=>o.value);
+		const tName = techniqueNameText(args.technique);
 		if(allowed.indexOf(args.technique) < 0){
-			return { ok: false, code: 'E_TECHNIQUE_NOT_ALLOWED', message: `该源不可起「${args.technique}」;可用: ${allowed.join(', ')}`, data: { allowed } };
+			return { ok: false, code: 'E_TECHNIQUE_NOT_ALLOWED', message: `该源不可起${tName};可用: ${allowed.join(', ')}`, data: { allowed } };
+		}
+		// 只读已存结果的技法(合盘等):临时出生资料没有可读的那一份,直说该用哪件工具,不空跑一趟再报「没内容」
+		const pageOnly = pageOnlyTechniqueNote(args.technique);
+		if(pageOnly && args.source && args.source.kind === 'natal'){
+			return { ok: false, code: 'E_TECHNIQUE_NOT_ALLOWED', message: `${tName}不能用临时出生资料起:${pageOnly}`, hint: pageOnly, data: { allowedSources: ['record'] } };
 		}
 		// 先取「同类默认」(与对话页挂载卡、无头入口同一解析),显式 options 覆盖其上。
 		// 此前工具只认显式 options:用户在挂载卡里设过同类默认,AI 用 cast_technique 起出来的快照口径与页面不同。
@@ -295,6 +307,8 @@ async function runCast(args, report){
 			: null;
 		const ignoredOptions = sorted.ignored.concat(hiddenCastOptions(args.technique, Object.keys(explicitOptions), mergedOptions, source.record || null));
 		const opts = mergedOptions && Object.keys(mergedOptions).length ? { techniqueOptions: { [args.technique]: mergedOptions } } : {};
+		// 点名要段(sections)时取未按「纳入内容」筛过的全文再挑:缺省不纳入的段点名即可取(不点名 = 照旧只给缺省纳入的)
+		if(Array.isArray(args.sections) && args.sections.some((x)=>`${x || ''}`.trim())){ opts.skipSectionFilter = true; }
 		const chartFailureBefore = chartFailureFingerprint(lastFor(CHART_FAIL_PATH));
 		let contexts;
 		if(report){ report(2, 4, `起盘计算:${args.technique}`); }
@@ -316,10 +330,14 @@ async function runCast(args, report){
 				const cause = freshChartFailureCause(chartFailureBefore);
 				return castFailure('E_CAST_BACKEND_FAILED', args.technique, { retryable: true, ...(cause ? { cause } : {}), data: { status } });
 			}
+			if(pageOnly){
+				return { ...castFailure('E_SNAPSHOT_MISSING', args.technique, { data: { status } }), message: `${tName}这张档案上还没有做过:${pageOnly}`, hint: pageOnly };
+			}
 			return castFailure('E_SNAPSHOT_MISSING', args.technique, { data: { status } });
 		}
 		if(report){ report(3, 4, '整理快照'); }
-		const max = args.maxChars || 7000;
+		// 外部客户端缺省 20000(应用内回喂预算只有 8000,才压到 7000;外部没有这个预算,7000 会把星盘的行星 / 相位段截掉)
+		const max = args.maxChars || (origin === 'mcp' ? CAST_MAX_CHARS_EXTERNAL : 7000);
 		// 按段取:段名子串匹配(大小写与空白不敏感);一段都没匹上直接报错并附可用段名,
 		// 免得模型拿到一份空文本还以为技法没内容。
 		const wanted = Array.isArray(args.sections) ? args.sections.map((x)=>`${x || ''}`.trim()).filter(Boolean) : [];

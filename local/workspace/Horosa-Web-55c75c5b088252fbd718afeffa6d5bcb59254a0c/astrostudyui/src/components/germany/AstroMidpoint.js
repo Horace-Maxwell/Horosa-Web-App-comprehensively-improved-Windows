@@ -5,12 +5,15 @@ import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { signDegMin, astroMsgText as msg } from '../astro/AstroHelper';
-import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, chartOrbOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart, SA_RATE, planetHouse, rectificationHits } from '../../utils/uranianDial';
+import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart, SA_RATE, planetHouse, rectificationHits, crossContacts } from '../../utils/uranianDial';
+import { parseDateParts, datePartOf, toSlashDate, civilJdnOfDateStr, civilDateStrOfJdn } from '../../utils/dateStrSafe';
+import { DEFAULT_PLANETS as GEPHEM_DEFAULT_PLANETS, natalLines as gephemNatalLines, storedGephemDisp, graphicEphemerisCrossings } from './UranianGraphicEphemeris';
 import moment from 'moment';
 import { momentOfCivilDateTimeStr } from '../../utils/civilMoment';
+import { tieSort } from '../../utils/stableOrder';
 // 太阳弧速率三档人话(与 90°盘工具条同名;naibod 为缺省不成行)。
 const SA_KEY_LABEL = { naibod: '均日弧(0°59′08″/年)', oneDeg: '1°/年', cardan: '59′12″(0°59′12″/年)' };   // 与左栏「太阳弧换算」同名
 import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT, dialBaseDegText, dialBaseLabel } from './UranianDialStyle';
@@ -162,10 +165,13 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 		const diffs = solarArcDirections(pts, dialBase, { saKey, targetAge, win: 1, maxAge: 90 });
 		if(diffs && diffs.length){
 			out.push(`差值表(太阳弧到期${saKey !== 'naibod' ? `·${SA_KEY_LABEL[saKey]}` : ''}${dialBase !== 90 ? `·${dialBaseDegText(dialBase)}盘` : ''}，目标年龄${targetAge}岁)：`);
-			diffs.slice(0, 8).forEach((d)=>{
-				const due = d.due ? ' ★到期' : '';
-				out.push(`  ${factorLabel(d.a)}∠${factorLabel(d.b)} 弧${Number(d.arc).toFixed(2)}° → ${Number(d.age).toFixed(1)}岁${due}`);
-			});
+			// 目标年龄到期(★)的排前面,同一行文字只列一次(三档八度在 0 岁常重合成同一行;南北交恒对冲,不是到期信息)
+			const seen = new Set();
+			const rows = diffs.filter((d)=>d.due).concat(diffs.filter((d)=>!d.due))
+				.filter((d)=>!((d.a === AstroConst.NORTH_NODE && d.b === AstroConst.SOUTH_NODE) || (d.a === AstroConst.SOUTH_NODE && d.b === AstroConst.NORTH_NODE)))
+				.map((d)=>`  ${factorLabel(d.a)}∠${factorLabel(d.b)} 弧${Number(d.arc).toFixed(2)}° → ${Number(d.age).toFixed(1)}岁${d.due ? ' ★到期' : ''}`)
+				.filter((line)=>{ if(seen.has(line)){ return false; } seen.add(line); return true; });
+			rows.slice(0, 8).forEach((line)=>out.push(line));
 		}
 	}
 
@@ -344,7 +350,103 @@ export async function buildGermanySnapshotForFields(fields, dispOverride){
 	}
 	// 合并后的显示口径一并传入正文:此前正文 [行星图][映点][中点列表][汉堡学派要素] 重新读全局显示仓,
 	// 与后端段(随 dispReq)成「一份快照两套口径」;页面路径不传 = 读全局 = 现状字节不变。
-	return buildGermanySnapshotText(params, chartObj, result, fields, extras, dispReq);
+	let text = buildGermanySnapshotText(params, chartObj, result, fields, extras, dispReq);
+	// 时间层·行运接触:挂载给了目标时刻(transitAt)才出(缺省逐字节同旧)
+	if(dispReq.transitAt && parseDateParts(`${dispReq.transitAt}`.trim())){
+		try{
+			const natalPts = chartToPoints(chartObj);
+			if(Array.isArray(result.tnp)) result.tnp.forEach((t)=>natalPts.push({ id: t.id, lon: t.lon }));
+			const tSec = await uranianTransitSection(params, dispReq, natalPts);
+			if(tSec){ text = `${text}\n\n${tSec}`; }
+		}catch(e){ /* 行运盘取不到 → 不出时间层 */ }
+	}
+	// 时间层·图形星历:挂载给了区间(ephemStart / ephemEnd)才出(缺省逐字节同旧)
+	if(gephemRangeOf(dispReq)){
+		try{
+			const gSec = await uranianGraphicEphemerisSection(params, dispReq, chartObj);
+			if(gSec){ text = `${text}\n\n${gSec}`; }
+		}catch(e){ /* 星历取不到 → 不出该段 */ }
+	}
+	return text;
+}
+
+// 图形星历区间:起止都给且是合法日期才算;超过 366 天按页面同口径截到起点后 366 天(后端逐日星历上限)
+export function gephemRangeOf(disp){
+	const s = disp && `${disp.ephemStart || ''}`.trim();
+	const e = disp && `${disp.ephemEnd || ''}`.trim();
+	if(!s || !e || !parseDateParts(s) || !parseDateParts(e)){ return null; }
+	const js = civilJdnOfDateStr(datePartOf(s));
+	let je = civilJdnOfDateStr(datePartOf(e));
+	if(!Number.isFinite(js) || !Number.isFinite(je) || je < js){ return null; }
+	const truncated = je - js > 366;
+	if(truncated){ je = js + 366; }
+	return { start: civilDateStrOfJdn(js), end: civilDateStrOfJdn(je), truncated };
+}
+
+// 图形星历段:与页面「图形星历」同一取数(/astroextra/ephemeris 逐日黄经、同一组行运行星、页面保存的盘基 / 含月亮)
+//   与同一组本命参考线(行星 / 交点 / 上升中天 / 白羊点),交点按日内插(graphicEphemerisCrossings,页面图上两线相交处)。
+//   盘基:挂载给了 90 / 45 / 22.5 用它,否则随页面保存值。
+export async function uranianGraphicEphemerisSection(params, disp, chartObj){
+	const rg = gephemRangeOf(disp);
+	if(!rg){ return ''; }
+	const st = storedGephemDisp();
+	const base = [90, 45, 22.5].indexOf(Number(disp.dialBase)) >= 0 ? Number(disp.dialBase) : st.base;
+	const planets = st.includeMoon ? [AstroConst.MOON, ...GEPHEM_DEFAULT_PLANETS] : GEPHEM_DEFAULT_PLANETS;
+	const body = {
+		date: params.date, time: params.time, zone: params.zone, lat: params.lat, lon: params.lon, gpsLat: params.gpsLat, gpsLon: params.gpsLon,
+		hsys: params.hsys, zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa,
+		startDate: toSlashDate(rg.start), endDate: toSlashDate(rg.end), startTime: '00:00:00', endTime: '00:00:00', planets, includeTransits: false,
+	};
+	const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, { body: JSON.stringify(body), silent: true });
+	const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+	const rows = res && Array.isArray(res.dailyPositions) ? res.dailyPositions : [];
+	if(!rows.length){ return ''; }
+	return graphicEphemerisText(rows, planets, gephemNatalLines(chartObj), base, rg);
+}
+// 纯函数(jest 直测):回段文本;区间内无接触也出段并说明
+export function graphicEphemerisText(rows, planets, natal, base, rg){
+	const hits = graphicEphemerisCrossings(rows, planets, natal, base);
+	const pl = planets.map((p)=>factorLabel(p)).join(' ');
+	const out = ['[图形星历]', `(${rg.start} 至 ${rg.end}${rg.truncated ? '(超过 366 天,已截到起点后 366 天)' : ''};盘基 ${dialBaseDegText(base)};行运 ${pl} 对本命行星 / 交点 / 上升中天 / 白羊点;按日内插,误差约 1 日)`];
+	if(!hits.length){ out.push('区间内行运折叠线与本命参考线无交点'); return out.join('\n'); }
+	const MAX = 80;
+	hits.slice(0, MAX).forEach((h)=>{
+		const j = civilJdnOfDateStr(datePartOf(`${h.fromDate}`)) + Math.round(h.frac);
+		const day = Number.isFinite(j) ? civilDateStrOfJdn(j) : `${h.fromDate}`;
+		out.push(`  ${day} 行运 ${factorLabel(h.planet)} ${h.aspect}° 本命 ${factorLabel(h.natal)}${h.retro ? '(逆行)' : ''}`);
+	});
+	if(hits.length > MAX){ out.push(`  …另有 ${hits.length - MAX} 条(按日期截前 ${MAX};缩短区间可看全)`); }
+	return out.join('\n');
+}
+
+// 行运接触段:与 90° 盘「行运」环同一取数(同地点在目标时刻起盘 + 中点服务带流派参数取 TNP),
+// 行运因子落本命单点或中点轴容许度内即一条(crossContacts,与叠盘接触同一函数);盘基 / 容许度随显示口径(挂载可覆盖)。
+export async function uranianTransitSection(params, disp, natalPts){
+	const at = `${disp.transitAt}`.trim();
+	const time = (at.split(/[ T]/)[1] || '12:00').slice(0, 8);
+	const tParams = { ...params, date: toSlashDate(datePartOf(at)), time: time.length === 5 ? `${time}:00` : time };
+	const [cData, mData] = await Promise.all([
+		request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify({ ...tParams, cid: null }), silent: true }),
+		request(`${Constants.ServerRoot}/germany/midpoint`, { body: JSON.stringify({ ...tParams, ...schoolToBackendParams(disp.school) }), silent: true }),
+	]);
+	const tChart = cData && cData[Constants.ResultKey] ? cData[Constants.ResultKey] : null;
+	if(!tChart){ return ''; }
+	const tPts = chartToPoints(tChart);
+	const tMp = mData && mData[Constants.ResultKey] ? mData[Constants.ResultKey] : null;
+	if(tMp && Array.isArray(tMp.tnp)) tMp.tnp.forEach((t)=>tPts.push({ id: t.id, lon: t.lon }));
+	return uranianTransitContactText(natalPts, tPts, { base: Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90, orb: Number(disp.orb) > 0 ? Number(disp.orb) : 1, at });
+}
+// 纯函数(jest 直测):回段文本;无接触也出段并说明(AI 知道查过了)
+export function uranianTransitContactText(natalPts, transitPts, { base, orb, at }){
+	const hits = crossContacts(natalPts, transitPts, base, orb);
+	const out = ['[行运接触]', `(${at} 的行运因子落本命单点 / 中点轴;盘基 ${dialBaseDegText(base)}·容许 ${orb}°)`];
+	if(!hits.length){ out.push('容许度内无行运接触'); return out.join('\n'); }
+	hits.slice(0, 30).forEach((h)=>{
+		const target = h.a2 ? `本命 ${factorLabel(h.a1)}/${factorLabel(h.a2)} 中点` : `本命 ${factorLabel(h.a1)}`;
+		out.push(`  行运 ${factorLabel(h.b)} → ${target}(差 ${Number(h.sep).toFixed(2)}°)`);
+	});
+	if(hits.length > 30){ out.push(`  …另有 ${hits.length - 30} 条(按差距由小到大截前 30)`); }
+	return out.join('\n');
 }
 
 // 六宫框全框×全点落宫表:页签「六宫框」开着(disp.showHouseFrames≠false)即进快照,不受汉堡门控;
@@ -548,7 +650,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		// 折叠位逐行改 GFM 表(单元格值表达式逐字同源:msg(f.id)/f.fold.toFixed(2))。
 		lines.push('| 因子 | 折叠位 |');
 		lines.push('| --- | --- |');
-		dialFactors.sort((a, b)=>a.fold - b.fold).forEach((f)=>{
+		tieSort(dialFactors, (f)=>f.fold).forEach((f)=>{   // 折叠位相等的(南北交点)保持收集时的先后
 			lines.push(`| ${msg(f.id)} | ${f.fold.toFixed(2)}° |`);
 		});
 	}

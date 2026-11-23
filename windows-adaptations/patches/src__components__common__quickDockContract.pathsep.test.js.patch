@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/common/__tests__/quickDockContract.test.js b/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
-index 6458362e..352fbcb5 100644
+index 05ae66f8..64c991a1 100644
 --- a/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
 +++ b/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
 @@ -98,12 +98,16 @@ describe('QuickDockBar 组件契约', () => {
@@ -14,7 +14,7 @@ index 6458362e..352fbcb5 100644
  	test('裸 dock 标记只允许出现在保形白名单(其余页必须走 QuickDockBar)', () => {
  		// kinastro/astro 为用户认可的保形页(动态数据门控)
  		const WHITELIST = ['common/QuickDockBar.js', 'astro/AstroChartMain.js', 'kinastro/KinAstroMain.js'];
- 		const offenders = files.filter((f)=>read(f).includes('horosa-bottom-quick-title'))
+ 		const offenders = files.filter((f)=>!isSourceSetPart(f) && read(f).includes('horosa-bottom-quick-title'))   // 子模块折回门面:门面按全集读
 -			.map((f)=>path.relative(COMPONENTS_DIR, f))
 +			.map((f)=>relPosix(f))
  			.filter((rel)=>!WHITELIST.includes(rel));

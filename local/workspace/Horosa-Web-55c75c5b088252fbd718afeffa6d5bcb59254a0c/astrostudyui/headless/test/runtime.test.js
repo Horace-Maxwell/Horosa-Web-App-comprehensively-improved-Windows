@@ -170,6 +170,7 @@ describe('④ 限流桶不随自报名分', ()=>{
 function mcpSession(home, extraEnv){
 	const child = track(spawn(process.execPath, [CLI, 'mcp'], { env: { ...baseEnv(home), ...(extraEnv || {}) }, stdio: ['pipe', 'pipe', 'pipe'] }));
 	const replies = new Map();
+	const notes = [];   // 服务器主动发的通知(list_changed / message)
 	let buf = '';
 	let stdoutJunk = 0;
 	child.stdout.on('data', (d)=>{
@@ -178,7 +179,7 @@ function mcpSession(home, extraEnv){
 		while((i = buf.indexOf('\n')) >= 0){
 			const l = buf.slice(0, i); buf = buf.slice(i + 1);
 			if(!l.trim()){ continue; }
-			try{ const m = JSON.parse(l); if(m.id !== undefined){ replies.set(JSON.stringify(m.id), m); } }catch(e){ stdoutJunk += 1; }
+			try{ const m = JSON.parse(l); if(m.id !== undefined){ replies.set(JSON.stringify(m.id), m); }else if(m.method){ notes.push(m); } }catch(e){ stdoutJunk += 1; }
 		}
 	});
 	let err = '';
@@ -189,6 +190,7 @@ function mcpSession(home, extraEnv){
 		async reply(id, ms){ const k = JSON.stringify(id); await until(()=>replies.has(k), ms || 60000); return replies.get(k); },
 		junk: ()=>stdoutJunk,
 		err: ()=>err,
+		notes: ()=>notes,
 	};
 }
 function runCli(home, args){
@@ -461,5 +463,32 @@ describe('⑨ 后端地址显式给定:连不上也不换到别的地址(不悄�
 		assert.equal(r.before, r.want); assert.equal(r.after, r.want); assert.equal(r.mode, 'manual');
 		assert.equal(r.castOk, false, '后端都关着,要 Java 的技法应如实失败');
 		assert.equal(r.offOnDisk, null, '旁路开关只在本进程里读作开,不写进数据目录');
+	});
+});
+
+describe('⑥ stdio 能力位如实 + 主动通知', ()=>{
+	it('🔴 握手报 listChanged:true 与 logging;建档后推 resources/list_changed;非法日志级别 -32602', { timeout: 180000 }, async ()=>{
+		const home = tmpHome();
+		const a = mcpSession(home);
+		a.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'notify', version: '1' } } });
+		const init = await a.reply(1, 90000);
+		assert.ok(init && init.result, `握手没回:${a.err().slice(-400)}`);
+		const caps = init.result.capabilities;
+		assert.equal(caps.tools.listChanged, true);
+		assert.equal(caps.resources.listChanged, true);
+		assert.equal(caps.prompts.listChanged, true);
+		assert.deepEqual(caps.logging, {});
+		a.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+		a.send({ jsonrpc: '2.0', id: 2, method: 'logging/setLevel', params: { level: 'warning' } });
+		a.send({ jsonrpc: '2.0', id: 3, method: 'logging/setLevel', params: { level: 'loud' } });
+		assert.deepEqual((await a.reply(2)).result, {});
+		assert.equal((await a.reply(3)).error.code, -32602);
+		a.send({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'create_chart_record', arguments: { name: '通知测试', birth: '1991-02-03 04:05', place: '上海', gender: 'female' } } });
+		const r4 = await a.reply(4, 90000);
+		assert.ok(r4 && r4.result && !r4.result.isError, JSON.stringify(r4).slice(0, 300));
+		assert.ok(await until(()=>a.notes().some((n)=>n.method === 'notifications/resources/list_changed'), 10000), `没推 resources/list_changed:${JSON.stringify(a.notes())}`);
+		assert.equal(a.junk(), 0);
+		a.child.stdin.end();
+		await exited(a.child);
 	});
 });

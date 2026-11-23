@@ -1,5 +1,6 @@
 import React from 'react';
 import { isBookmarked, toggleBookmark, subscribeBookmarks } from './xuanshiBookmarks';
+import { pressable } from '../../utils/pressable';
 
 // 收藏星 ☆/★ —— 详情页右上角;点击切换 localStorage 私藏,跨案头实时同步。
 export default class XuanShiStar extends React.Component {
@@ -16,7 +17,7 @@ export default class XuanShiStar extends React.Component {
 		if (!this.props.item || !this.props.item.ref) { return null; }
 		return (
 			<span className={`xuanshi-star${this.state.on ? ' is-on' : ''}`} role="button"
-				title={this.state.on ? '已收藏 · 点击取消' : '收藏到案头'} onClick={(e) => this.toggle(e)}>{this.state.on ? '★' : '☆'}</span>
+				title={this.state.on ? '已收藏 · 点击取消' : '收藏到案头'} {...pressable((e) => this.toggle(e), { role: false })}>{this.state.on ? '★' : '☆'}</span>
 		);
 	}
 }

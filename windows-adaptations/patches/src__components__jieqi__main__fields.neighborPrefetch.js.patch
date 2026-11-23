@@ -1,0 +1,52 @@
+diff --git a/astrostudyui/src/components/jieqi/main/fields.js b/astrostudyui/src/components/jieqi/main/fields.js
+index 587bfe22..e50309d9 100644
+--- a/astrostudyui/src/components/jieqi/main/fields.js
++++ b/astrostudyui/src/components/jieqi/main/fields.js
+@@ -4,6 +4,8 @@ import DateTime from '../../comp/DateTime';
+ import * as SZConst from '../../suzhan/SZConst';
+ import { CLASSICAL_PARAM_SPEC, CLASSICAL_SPEC_KEYS } from '../../../utils/classicalParamSpec';   // 古典口径全键单源
+ import { CHART_ORB_KEYS, classicalBackendOverridesFromPlain, chartOrbOverridesFromPlain } from '../../../utils/classicalChartGlobals';
++import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../../utils/dayBoundary';
++import { fetchPreciseJieqiYear } from '../../../utils/preciseCalcBridge';
+ 
+ export function paramsToFields(params, flds){
+ 	let tm = new DateTime();
+@@ -219,3 +221,38 @@ export function classicalCalibreSig(params){
+ 	}
+ 	return JSON.stringify(Object.keys(ov).sort().reduce((acc, k)=>{ acc[k] = ov[k]; return acc; }, {}));
+ }
++
++// PERF-R9 Ship 7(数据层空闲预热):分至图的 /jieqi/year 年表。
++// 构参与组件 genSeedParams(=genParams(false))【逐字段同序同值】—— 经 fieldsToState 拿到
++// 与组件挂载后完全相同的取数口径,再走 fetchPreciseJieqiYear(技法自己的 L1/localStorage/
++// inflight 三层入口)⇒ 用户首点分至页即命中。
++// ⚠️ 本条是【重端点】,故在预热组里排最后一位(前面的轻端点先付,交互随时让路)。
++// silent(fetchPreciseJieqiYear 内置)、丢结果、绝不 dispatch/setState;失败静默。
++export async function warmJieqiYear(fields){
++	try{
++		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
++			return null;
++		}
++		const st = fieldsToState(fields);
++		if(!st || !st.time || typeof st.time.format !== 'function'){
++			return null;
++		}
++		return await fetchPreciseJieqiYear({
++			year: st.time.format('YYYY'),
++			ad: st.ad,
++			zone: st.zone,
++			lon: st.lon,
++			lat: st.lat,
++			hsys: st.hsys,
++			zodiacal: st.zodiacal,
++			siderealAyanamsa: st.siderealAyanamsa,
++			gpsLat: st.gpsLat,
++			gpsLon: st.gpsLon,
++			doubingSu28: st.doubingSu28,
++			after23NewDay: defaultAfter23NewDay(),
++			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
++		});
++	}catch(e){
++		return null;   // 预热失败静默:首点回到冷即付的现状
++	}
++}

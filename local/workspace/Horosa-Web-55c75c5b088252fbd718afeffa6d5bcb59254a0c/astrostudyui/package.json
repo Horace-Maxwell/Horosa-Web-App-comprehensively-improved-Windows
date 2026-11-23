@@ -16,11 +16,15 @@
     "build:file": "node scripts/patch-dom-align-zoom.js && node scripts/umi-runner.js build --for-file && node scripts/scrub-build-paths.js dist-file && node scripts/write-build-info.js dist-file && node scripts/inject-preload.js dist-file && node scripts/check-chunk-dup.js dist-file && node scripts/legacy-engine-floor.js --dist dist-file",
     "build:cities": "node scripts/build-cities.js",
     "build:technique-pinyin": "node scripts/build-technique-pinyin.js",
+    "build:pdf-glyph-fallback": "node scripts/build-pdf-glyph-fallback.js",
     "postinstall": "node scripts/patch_quill_domnodeinserted.js && node scripts/patch-dom-align-zoom.js && umi generate tmp",
     "prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
     "test": "umi-test",
     "test:coverage": "umi-test --coverage",
-    "planetarium:perf": "node scripts/planetariumPerfSmoke.js"
+    "planetarium:perf": "node scripts/planetariumPerfSmoke.js",
+    "ratchet:ui": "node scripts/ui-ratchet.js",
+    "lint:ratchet": "node scripts/lint-ratchet.js",
+    "lint:changed": "node scripts/lint-ratchet.js --changed"
   },
   "lint-staged": {
     "*.{js,jsx,less,md,json}": [
@@ -63,11 +67,16 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@babel/eslint-parser": "7.29.13",
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
     "@umijs/preset-react": "1.x",
     "@umijs/test": "^3.5.41",
     "esbuild": "0.12.15",
+    "eslint": "8.57.1",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "4.6.2",
     "fake-indexeddb": "^4.0.2",
     "jsdom": "^16.7.0",
     "lint-staged": "^10.0.7",

@@ -1,4 +1,5 @@
 import React from 'react';
+import { SystemNotice, SystemNoticeButton } from './SystemNotice';
 import { isDesktopBridgeAvailable } from '../../utils/aiAnalysisDesktop';
 
 // 多实例数据独立提示。
@@ -58,42 +59,10 @@ export default function MultiInstanceNotice(props){
 	if(dismissed || !independent){
 		return null;
 	}
-	const wrapStyle = {
-		position: 'fixed', top: 0, left: 0, right: 0,
-		zIndex: 1999,
-		display: 'flex', justifyContent: 'center',
-		pointerEvents: 'none',
-	};
-	const barStyle = {
-		marginTop: 80,
-		maxWidth: '96%',
-		padding: '8px 14px',
-		borderRadius: 8,
-		fontSize: 13,
-		lineHeight: 1.4,
-		color: '#1d4e78',
-		background: 'rgba(230, 242, 252, 0.97)',
-		border: '1px solid rgba(84, 141, 191, 0.55)',
-		boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)',
-		pointerEvents: 'auto',
-		display: 'flex',
-		gap: 12,
-		alignItems: 'center',
-		flexWrap: 'wrap',
-		cursor: 'default',
-	};
-	const btnStyle = {
-		padding: '3px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
-		border: '1px solid rgba(84, 141, 191, 0.7)',
-		background: 'rgba(255, 255, 255, 0.7)',
-		color: '#1d4e78',
-	};
 	return (
-		<div style={wrapStyle} aria-live="polite">
-			<div style={barStyle}>
-				<span>ℹ️ 当前窗口运行在独立实例上：本窗口的命盘/事盘等本地数据与主窗口<b>相互独立、互不可见</b>。如需共用数据，请在主窗口操作，或用「全量备份/恢复」搬运。本窗口不做自动备份，也不写影子副本，在这里存的数据请记得手动导出。</span>
-				<button type="button" onClick={()=>setDismissed(true)} style={btnStyle}>知道了</button>
-			</div>
-		</div>
+		<SystemNotice tone="info" layer="under">
+			<span>当前窗口运行在独立实例上：本窗口的命盘/事盘等本地数据与主窗口<b>相互独立、互不可见</b>。如需共用数据，请在主窗口操作，或用「全量备份/恢复」搬运。本窗口不做自动备份，也不写影子副本，在这里存的数据请记得手动导出。</span>
+			<SystemNoticeButton onClick={()=>setDismissed(true)}>知道了</SystemNoticeButton>
+		</SystemNotice>
 	);
 }

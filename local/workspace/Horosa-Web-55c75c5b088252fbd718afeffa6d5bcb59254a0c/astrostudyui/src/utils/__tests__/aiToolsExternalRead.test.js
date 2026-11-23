@@ -116,11 +116,18 @@ describe('无头合盘取数', ()=>{
 
 describe('天星择日', ()=>{
 	it('条件类目录 = 注册表全集(参数值域取 options 的 value);单类查询;未知类拒', async ()=>{
+		// 缺省简表:类键 / 中文名 / 分类 / 参数名(不回取值表);fields:'full' 或给 type 回全量
 		const r = await runTool('list_election_conditions', {}, ctx());
 		okShaped('list_election_conditions', r);
+		expect(r.data.view).toBe('brief');
 		expect(r.data.types.map((t)=>t.type).sort()).toEqual(Object.keys(CONDITION_TYPES).sort());
-		const aspect = r.data.types.find((t)=>t.type === 'aspect');
+		expect(r.data.types.find((t)=>t.type === 'aspect').fields).toBeUndefined();
+		expect(r.data.types.find((t)=>t.type === 'aspect').params).toContain('angle');
+		const full = await runTool('list_election_conditions', { fields: 'full' }, ctx());
+		okShaped('list_election_conditions', full);
+		const aspect = full.data.types.find((t)=>t.type === 'aspect');
 		expect(aspect.fields.find((f)=>f.key === 'angle').values).toContain(90);
+		expect(JSON.stringify(r.data).length * 3).toBeLessThan(JSON.stringify(full.data).length);
 		expect((await runTool('list_election_conditions', { type: 'aspect' }, ctx())).data.types.length).toBe(1);
 		expect((await runTool('list_election_conditions', { type: 'nope' }, ctx())).code).toBe('E_ARGS_INVALID');
 	});
@@ -144,6 +151,11 @@ describe('天星择日', ()=>{
 		expect(r.data.intervals.length).toBe(2);
 		expect(r.data.total).toBe(3);
 		expect(r.data.truncated).toBe(true);
+		expect(r.data.nextOffset).toBe(2);   // 翻页:带 offset=nextOffset 取下一页
+		expect((r.assumptions || []).join(' ')).toContain('offset=2');
+		const page2 = await runTool('search_election', { start: '2026-11-01', end: '2026-12-31 18:00', place: '北京', conditions: { type: 'aspect' }, limit: 2, offset: 2 }, ctx({ progress: jest.fn() }));
+		expect(page2.data.intervals.map((x)=>x.start)).toEqual(['2026-11-03 10:00']);
+		expect(page2.data.nextOffset).toBeUndefined();
 		const { base } = runScan.mock.calls[0][0];
 		expect(base).toEqual(expect.objectContaining({ startDate: '2026/11/01', startTime: '00:00:00', endDate: '2026/12/31', endTime: '18:00:00', zone: '+08:00', hsys: 0, ad: 1, precision: 'minute' }));
 		expect(Number.isFinite(base.gpsLat) && Number.isFinite(base.gpsLon)).toBe(true);
@@ -152,6 +164,15 @@ describe('天星择日', ()=>{
 		expect((await runTool('search_election', { start: '2026-11-01', end: '2026-11-02', place: '北京', conditions: { type: 'aspect' } }, ctx())).code).toBe('E_ABORTED');
 		expect((await runTool('search_election', { start: 'x', end: '2026-11-02', place: '北京', conditions: { type: 'aspect' } }, ctx())).code).toBe('E_ARGS_INVALID');
 		expect((await runTool('search_election', { start: '2026-11-01', end: '2026-11-02', conditions: { type: 'aspect' } }, ctx())).code).toBe('E_ARGS_INVALID');
+	});
+	it('search_election 恒星黄道可指定岁差制:进扫描请求体(与天星择日页同);不给 = 请求体没有这一键;不认的值 schema 拒', async ()=>{
+		runScan.mockReset();
+		runScan.mockImplementation(async ()=>({ intervals: [], truncated: false }));
+		await runTool('search_election', { start: '2026-11-01', end: '2026-11-02', place: '北京', conditions: { type: 'aspect' }, zodiacal: 1, siderealAyanamsa: 'fagan_bradley' }, ctx());
+		expect(runScan.mock.calls[0][0].base).toEqual(expect.objectContaining({ zodiacal: 1, siderealAyanamsa: 'fagan_bradley' }));
+		await runTool('search_election', { start: '2026-11-01', end: '2026-11-02', place: '北京', conditions: { type: 'aspect' } }, ctx());
+		expect(Object.prototype.hasOwnProperty.call(runScan.mock.calls[1][0].base, 'siderealAyanamsa')).toBe(false);
+		expect((await runTool('search_election', { start: '2026-11-01', end: '2026-11-02', place: '北京', conditions: { type: 'aspect' }, siderealAyanamsa: 'nope' }, ctx())).ok).toBe(false);
 	});
 	it('explain_election:逐条判读行 + 总成立位;时刻按斜杠格式投后端', async ()=>{
 		fetchElectionExplain.mockResolvedValue({ tree: { kind: 'group', op: 'all', pass: true, children: [{ kind: 'leaf', type: 'aspect', actual: '月日 89.6°', pass: true }] } });

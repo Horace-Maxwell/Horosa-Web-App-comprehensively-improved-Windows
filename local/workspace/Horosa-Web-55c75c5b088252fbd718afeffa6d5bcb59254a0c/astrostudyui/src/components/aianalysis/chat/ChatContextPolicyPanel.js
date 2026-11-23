@@ -1,7 +1,8 @@
 // 设置卡「对话上下文策略」(A1a):三预设 + 十档细项 + 当前模型历史预算估算。
 // 纪律:打开进阶页不写键(只读 readContextPolicy 渲染);任何写入只发生在用户改动时,且一律经 writeContextPolicy/clearContextPolicy。
 import React from 'react';
-import { Radio, Select, InputNumber, Switch, Button, Collapse } from 'antd';
+import { Select, Button, Collapse } from 'antd';
+import { XQInputNumber, XQRadio, XQSwitch } from '../../xq-ui';
 import { readCompactAutoTokens, writeCompactAutoTokens, COMPACT_AUTO_TOKENS_MIN, COMPACT_AUTO_TOKENS_MAX } from '../../../utils/aiChat/compactPrefs';
 import { readContextPolicy, writeContextPolicy, clearContextPolicy, subscribeContextPolicy, contextPolicyPresetName, hasStoredContextPolicy } from '../../../utils/aiChatHistory';
 import { PRESET_OPTIONS, FIELD_SPECS, fieldValue, patchForField, presetPatch, budgetText, mountBudgetText } from '../../../utils/aiChat/policyPanel';
@@ -17,19 +18,19 @@ function FieldRow({ spec, policy }){
 	if(spec.kind === 'select'){
 		control = <Select size="small" value={v} options={spec.options} style={{ width: 150 }} onChange={write} data-policy-field={spec.key} />;
 	}else if(spec.kind === 'bool'){
-		control = <Switch size="small" checked={!!v} onChange={write} data-policy-field={spec.key} />;
+		control = <XQSwitch size="small" checked={!!v} onChange={write} data-policy-field={spec.key} />;
 	}else if(spec.kind === 'intOrInfinity'){
 		const unlimited = v === Infinity || v === null || v === undefined;
 		control = (
 			<span className={styles.inline}>
-				<Switch size="small" checked={unlimited} checkedChildren="不限" unCheckedChildren="限" onChange={(on)=>write(on ? Infinity : Math.min(spec.max, 4))} data-policy-field={`${spec.key}.unlimited`} />
-				{unlimited ? null : <InputNumber size="small" min={spec.min} max={spec.max} value={v} onChange={(n)=>{ if(Number.isFinite(n)){ write(n); } }} style={{ width: 90 }} data-policy-field={spec.key} />}
+				<XQSwitch size="small" checked={unlimited} checkedChildren="不限" unCheckedChildren="限" onChange={(on)=>write(on ? Infinity : Math.min(spec.max, 4))} data-policy-field={`${spec.key}.unlimited`} />
+				{unlimited ? null : <XQInputNumber size="small" min={spec.min} max={spec.max} value={v} onChange={(n)=>{ if(Number.isFinite(n)){ write(n); } }} style={{ width: 90 }} data-policy-field={spec.key} />}
 			</span>
 		);
 	}else if(spec.kind === 'intOrNull'){
-		control = <InputNumber size="small" min={spec.min} max={spec.max} value={v === null || v === undefined ? undefined : v} placeholder="自动" onChange={(n)=>write(Number.isFinite(n) ? n : null)} style={{ width: 120 }} data-policy-field={spec.key} />;
+		control = <XQInputNumber size="small" min={spec.min} max={spec.max} value={v === null || v === undefined ? undefined : v} placeholder="自动" onChange={(n)=>write(Number.isFinite(n) ? n : null)} style={{ width: 120 }} data-policy-field={spec.key} />;
 	}else{
-		control = <InputNumber size="small" min={spec.min} max={spec.max} value={v} onChange={(n)=>{ if(Number.isFinite(n)){ write(n); } }} style={{ width: 90 }} data-policy-field={spec.key} />;
+		control = <XQInputNumber size="small" min={spec.min} max={spec.max} value={v} onChange={(n)=>{ if(Number.isFinite(n)){ write(n); } }} style={{ width: 90 }} data-policy-field={spec.key} />;
 	}
 	return <AdvRow label={spec.label} help={spec.help}>{control}</AdvRow>;
 }
@@ -50,15 +51,15 @@ export default function ChatContextPolicyPanel({ model, numCtx }){
 			desc="每轮把多少历史与工具动作发给模型。缺省=窗口(按模型窗口裁历史,治历史双发);「不裁」为旧版行为;「经济」再省 token、更吃上游缓存;随时可恢复。"
 			actions={<Button size="small" data-policy-restore="1" onClick={()=>clearContextPolicy()} disabled={!stored}>恢复现状</Button>}
 			data-chat-context-policy-panel="1" data-preset={preset}>
-			<Radio.Group className={styles.segment} size="small" value={preset === 'custom' ? undefined : preset} data-policy-preset="1" onChange={(e)=>{ const patch = presetPatch(e.target.value); if(patch){ writeContextPolicy(patch); } }}>
-				{PRESET_OPTIONS.map((o)=>(<Radio.Button key={o.value} value={o.value} title={o.help}>{o.label}</Radio.Button>))}
-			</Radio.Group>
+			<XQRadio.Group className={styles.segment} size="small" value={preset === 'custom' ? undefined : preset} data-policy-preset="1" onChange={(e)=>{ const patch = presetPatch(e.target.value); if(patch){ writeContextPolicy(patch); } }}>
+				{PRESET_OPTIONS.map((o)=>(<XQRadio.Button key={o.value} value={o.value} title={o.help}>{o.label}</XQRadio.Button>))}
+			</XQRadio.Group>
 			<div className={styles.infoStrip} data-policy-budget="1">{budgetText(policy, model, numCtx)}</div>
 			{/* [Windows #80] 挂载预算与历史预算是两套(前者按字数管命盘/技法快照,后者按 token 管真消息),各自显示实算值 */}
 			<div className={styles.infoStrip} data-policy-mount-budget="1">{mountBudgetText(policy, model, numCtx)}</div>
 			<div className={[styles.infoStrip, styles.inline].join(' ')} data-compact-suggest-row="1">
 				<span>压缩提醒阈值</span>
-				<InputNumber size="small" min={COMPACT_AUTO_TOKENS_MIN} max={COMPACT_AUTO_TOKENS_MAX} step={1000} value={autoTokens === null ? undefined : autoTokens} placeholder="不提醒" onChange={(n)=>{ const v = writeCompactAutoTokens(n); setAutoTokens(v); }} style={{ width: 120 }} data-policy-field="compactAutoTokens" />
+				<XQInputNumber size="small" min={COMPACT_AUTO_TOKENS_MIN} max={COMPACT_AUTO_TOKENS_MAX} step={1000} value={autoTokens === null ? undefined : autoTokens} placeholder="不提醒" onChange={(n)=>{ const v = writeCompactAutoTokens(n); setAutoTokens(v); }} style={{ width: 120 }} data-policy-field="compactAutoTokens" />
 				<span>保留历史 ≥ 这么多 token 时,状态栏提示你 /compact(每会话一次);空=不提醒;绝不自动压缩</span>
 			</div>
 			<Collapse ghost className={styles.collapse}>

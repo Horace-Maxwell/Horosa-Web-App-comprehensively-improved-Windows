@@ -29,7 +29,7 @@ import addRecordTag from './tools/addRecordTag';
 import { listTasksTool, getTaskTool } from './tools/listTasks';
 import castRelative from './tools/castRelative';
 import { listElectionConditionsTool, searchElectionTool, explainElectionTool } from './tools/searchElection';
-import { searchXuanshiTool, getXuanshiItemTool } from './tools/searchXuanshi';
+import { searchXuanshiTool, getXuanshiItemTool, browseXuanshiTool } from './tools/searchXuanshi';
 import readCurrentPage from './tools/readCurrentPage';
 import { listConversationsTool, getConversationTool, getRecordDetailTool } from './tools/privateRead';
 // 只增写入:断事日志追加 / 档案关系边;界面动作:对话挂载
@@ -38,11 +38,44 @@ import setChatMount from './tools/setChatMount';
 // 按用户起卦结果建事盘 + 输入格式目录
 import { listDivinationCastsTool, castDivinationCaseTool } from './tools/castDivinationCase';
 // 档案提案:提议修改 / 提议归档 / 查提案(采纳与否只由用户在任务中心决定)
-import { proposeRecordEditTool, proposeRecordArchiveTool, listProposalsTool } from './tools/proposeRecord';
+import { proposeRecordEditTool, proposeRecordArchiveTool, proposeRecordUnlinkTool, proposeRecordRestoreTool, listProposalsTool } from './tools/proposeRecord';
 // 各流派择日搜索(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)
 import { listZeriConditionsTool, searchZeriTool, explainZeriTool } from './tools/searchZeri';
 // 名人库(离线 Astro-Databank 出生资料 + 维基简介):检索 / 分类 / 详情 / 存成命盘
 import { searchCelebritiesTool, listCelebrityCategoriesTool, getCelebrityTool, createCelebrityChartTool } from './tools/celebrities';
+// 技法清单(键 / 中文名 / 适用来源 / 现算还是只读已存):cast_technique 的 technique 只有键,外部模型靠它发现
+import listTechniques from './tools/listTechniques';
+// 日子馆个性化择日(通书 × 当事人八字)
+import searchRizi from './tools/searchRizi';
+// 风水理气起局(18 派;与风水页理气工作台同一份计算与正文)
+import castFengshui from './tools/castFengshui';
+// 运行诊断(与 /doctor 同一份自检 + 存储体检;只回状态与计数)
+import getDiagnostics from './tools/getDiagnostics';
+// 辅助页参考表(八卦类象 / 十二串宫 / 八字规则)
+import getReference from './tools/getReference';
+// 天文馆取数(任一时刻任一地的地平坐标 / 升中落 / 月相)
+import skyAt from './tools/skyAt';
+// 占星地图(行星线 / 交叉点 / 落点分析;与占星地图页同一份请求与正文)
+import castAcg from './tools/castAcg';
+// 印占校时扫描(只读参考,不回写档案)
+import rectifyIndia from './tools/rectifyIndia';
+// 后台任务收紧动作(暂停 / 取消;放行仍人工)
+import controlTask from './tools/controlTask';
+// 资料笔记直写 / 记忆只投候选 / 读记忆(私人内容门控)
+import { addMaterialNoteTool, proposeMemoryTool, listMemoriesTool } from './tools/materialsAndMemory';
+// 模版 / 技能包 / 个人口径只能提议(采纳才写入)
+import { proposeTemplateTool, proposeSkillPackTool, proposePersonaTextTool } from './tools/proposeContent';
+// 存成文件(固定导出目录、软件定名、不覆盖)
+import saveDocument from './tools/saveDocument';
+// 让软件代摇 / 代抽(始终要审批,一问一次)
+import castRandomCase from './tools/castRandomCase';
+import checkNewVersion from './tools/checkNewVersion';
+import scanElectionMoments from './tools/scanElectionMoments';
+import getLunarMonth from './tools/getLunarMonth';
+import { listRecordRevisionsTool, copyRecordTool, findDuplicateRecordsTool } from './tools/recordCopies';
+import listZeriSchemes from './tools/listZeriSchemes';
+// 模型清单 / 在已有对话里续问(落库带来源标记,私人内容门控)
+import { listModelsTool, chatInConversationTool } from './tools/chatTools';
 
 export const BUILTIN_TOOL_DEFS = [
 	resolvePlace, listRecords, getCurrentContext, describeSettings, getSettingsTool,
@@ -53,9 +86,10 @@ export const BUILTIN_TOOL_DEFS = [
 	searchXuanshiTool, getXuanshiItemTool, readCurrentPage, listConversationsTool, getConversationTool, getRecordDetailTool,
 	appendRecordJournalTool, linkRecordsTool, setChatMount,
 	listDivinationCastsTool, castDivinationCaseTool,
-	proposeRecordEditTool, proposeRecordArchiveTool, listProposalsTool,
+	proposeRecordEditTool, proposeRecordArchiveTool, proposeRecordUnlinkTool, proposeRecordRestoreTool, listProposalsTool,
 	listZeriConditionsTool, searchZeriTool, explainZeriTool,
 	searchCelebritiesTool, listCelebrityCategoriesTool, getCelebrityTool, createCelebrityChartTool,
+	listTechniques, browseXuanshiTool, searchRizi, castFengshui, getDiagnostics, getReference, skyAt, castAcg, rectifyIndia, controlTask, addMaterialNoteTool, proposeMemoryTool, listMemoriesTool, proposeTemplateTool, proposeSkillPackTool, proposePersonaTextTool, saveDocument, castRandomCase, listModelsTool, chatInConversationTool, checkNewVersion, scanElectionMoments, getLunarMonth, listRecordRevisionsTool, copyRecordTool, findDuplicateRecordsTool, listZeriSchemes,
 ];
 
 export function registerBuiltinTools(){

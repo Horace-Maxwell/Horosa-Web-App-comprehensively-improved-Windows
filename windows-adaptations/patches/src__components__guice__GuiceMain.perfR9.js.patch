@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/guice/GuiceMain.js b/astrostudyui/src/components/guice/GuiceMain.js
-index 92db5e0d..5de37cd0 100644
+index b02383bc..642bb8a6 100644
 --- a/astrostudyui/src/components/guice/GuiceMain.js
 +++ b/astrostudyui/src/components/guice/GuiceMain.js
 @@ -20,6 +20,7 @@ import { XQSideSection } from '../xq-ui';
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
- import { deriveLocalNongli, deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
  import { leadingYearOf } from '../../utils/dateStrSafe';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const STORE_KEY = 'horosa.guice.settings.v1';
  // 八卦 → 其三爻（自下而上）。取仓内既有之 Gua8.value，不另造一份（两份必漂）。
-@@ -259,7 +260,9 @@ class GuiceMain extends Component {
+@@ -244,7 +245,9 @@ class GuiceMain extends Component {
  		// 起卦不成 → 盘面清空,AI 快照槽同清(此前留着上一卦:屏上「不可起卦」,交给 AI 的却是旧卦)
  		if (!r) { clearModuleAISnapshot('guice'); return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null }); }
  		if (r.error) { clearModuleAISnapshot('guice'); return this.setState({ error: r.error, gua: null, frozenCtx: null }); }

@@ -390,7 +390,12 @@ def Ganzhiwuxing(gangorzhi):
     return multi_key_dict_get(ganzhiwuxing, gangorzhi)
 
 def calculateAge(birthDate):
-    today = datetime.date.today()
+    # horosa_taiyi_age_clock_v1:「今天」經星闕的唯一入口取(批量驗證釘住時鐘時用帶來的那一刻);入口不可用時照舊讀系統日期。
+    try:
+        from astrostudy import clock as _horosa_clock
+        today = _horosa_clock.now_local().date()
+    except Exception:
+        today = datetime.date.today()
     age = today.year - birthDate.year -((today.month, today.day) <(birthDate.month, birthDate.day))
     return age
 
@@ -565,6 +570,14 @@ def gangzhi(year, month, day, hour, minute):
                 mTG1 = tian_gan[_prev.getMonthGZ().tg] + di_zhi[_prev.getMonthGZ().dz]
                 if jieqi.jqmc[_sd.getJieQi() - 1] == '立春':
                     yTG = tian_gan[_prev.getYearGZ().tg] + di_zhi[_prev.getYearGZ().dz]
+        # 23 时日柱进位次日时,上面取年月柱用的也是次日:次日交节(含立春)则提前算进新月 / 新年。
+        # 年月柱按钟面那一刻取(共享件单源);其余时刻上面原路径不变
+        if hour == 23 and _after23:
+            try:
+                from kin_year_domain import jie_exact_year_month as _jie_exact
+                yTG, mTG1 = _jie_exact(year, month, day, hour, minute, yTG, mTG1)
+            except ImportError:
+                pass
     if _has_late_override:
         hTG1 = hTG  # v2.2.1: lateZi 直接生效
     else:

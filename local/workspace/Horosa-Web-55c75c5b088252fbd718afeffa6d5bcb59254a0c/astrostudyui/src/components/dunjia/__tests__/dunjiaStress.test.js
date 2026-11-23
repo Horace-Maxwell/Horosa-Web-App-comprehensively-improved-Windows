@@ -50,7 +50,7 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 		expect(PAIPAN_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2, 3, 4, 6]);   // 刻家复活;古籍金函系日家
 		expect(SCHOOL_OPTIONS.map((o)=>o.value)).toEqual(['转盘', '飞盘', '混合']);
 		expect(QIJU_METHOD_OPTIONS.map((o)=>o.value)).toEqual(['zhirun', 'chaibu', 'maoshan', 'wurun', 'shuzi']);
-		expect(ZHISHI_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2]);
+		expect(ZHISHI_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2, 3]);   // 3 = 阳遁死门·阴遁生门(与寄宫「阳遁寄坤·阴遁寄艮」配套)
 		expect(YUEJIA_QIJU_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2]);   // 逐月换局档
 		expect(KONG_MODE_OPTIONS.map((o)=>o.value)).toEqual(['day', 'time']);
 		expect(MA_MODE_OPTIONS.map((o)=>o.value)).toEqual(['day', 'time']);
@@ -108,7 +108,7 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 	});
 
 	// 月家奇门:年符头(0)/年支(1) × 值使 3 法 × 4 时刻:月家走本地全盘,结构必齐。
-	test('月家奇门 年符头/年支 × 值使3法 × 4时刻:结构完整', ()=>{
+	test('月家奇门 年符头/年支 × 值使四法 × 4时刻:结构完整', ()=>{
 		let n = 0;
 		SAMPLES.forEach((s)=>{
 			const fields = makeFields(s.d, s.t);
@@ -122,7 +122,7 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 				});
 			});
 		});
-		expect(n).toBe(SAMPLES.length * 3 * 3); // 36(逐月档入域)
+		expect(n).toBe(SAMPLES.length * 3 * 4); // 48(逐月档入域;值使四法)
 	});
 
 	test('单选确实改盘(中右栏据此变):排盘体例改 juText、盘式改神宫、数字起局产 shuziInfo', ()=>{
@@ -250,8 +250,8 @@ describe('applyGodsPreset/panAnGan/anZhiOf', ()=>{
 describe('resolveJiGong/寄宫接线', ()=>{
 	const { resolveJiGong, panAnGan, JIGONG_MODE_OPTIONS } = require('../DunJiaCalc');
 
-	test('五档枚举钉死', ()=>{
-		expect(JIGONG_MODE_OPTIONS.map((o)=>o.value)).toEqual(['kun', 'yang_gen_yin_kun', 'gen', 'siwei', 'bajie']);
+	test('六档枚举钉死', ()=>{
+		expect(JIGONG_MODE_OPTIONS.map((o)=>o.value)).toEqual(['kun', 'yang_gen_yin_kun', 'yang_kun_yin_gen', 'gen', 'siwei', 'bajie']);
 	});
 
 	test('kun/缺省/未知 → 恒坤(历史默认兜底)', ()=>{
@@ -268,6 +268,13 @@ describe('resolveJiGong/寄宫接线', ()=>{
 		expect(resolveJiGong('yang_gen_yin_kun', '阳遁', '')).toBe('艮');
 		expect(resolveJiGong('yang_gen_yin_kun', '阴', '')).toBe('坤');
 		expect(resolveJiGong('yang_gen_yin_kun', '阴遁', '')).toBe('坤');
+	});
+
+	test('yang_kun_yin_gen 与上一档方向相反:阳遁寄坤、阴遁寄艮(古籍两说并存)', ()=>{
+		expect(resolveJiGong('yang_kun_yin_gen', '阳', '')).toBe('坤');
+		expect(resolveJiGong('yang_kun_yin_gen', '阳遁', '')).toBe('坤');
+		expect(resolveJiGong('yang_kun_yin_gen', '阴', '')).toBe('艮');
+		expect(resolveJiGong('yang_kun_yin_gen', '阴遁', '')).toBe('艮');
 	});
 
 	test('siwei 四立分界各领六气;bajie 一节三气全表', ()=>{

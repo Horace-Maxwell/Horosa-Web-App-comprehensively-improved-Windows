@@ -16,6 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { readSource, readAppSection } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const UI_ROOT = path.resolve(__dirname, '..', '..', '..');
 const SRC = path.join(UI_ROOT, 'src');
@@ -34,7 +35,7 @@ function walk(dir, out, re){
 	return out;
 }
 const rel = (p)=>path.relative(SRC, p).split(path.sep).join('/');
-const read = (r)=>fs.readFileSync(path.join(SRC, r), 'utf8');
+const read = (r)=>readSource(path.join(SRC, r));
 // 去注释(块注释与行尾 // 注释;url 里的 // 前有冒号,保留)
 const stripComments = (t)=>t.replace(/\/\*[\s\S]*?\*\//g, (m)=>m.replace(/[^\n]/g, ' ')).replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
 
@@ -128,7 +129,7 @@ describe('放大档 / 窄栏自适应 · 源码闸', () => {
 		for(const [f, n] of Object.entries(boards)){
 			expect([f, (read(f).match(/ref=\{ownedBoxSizeRef\(this, '[\w-]+', narrowBoardVars\)\}/g) || []).length]).toEqual([f, n]);
 		}
-		const less = read('layouts/app/10-huangji-wuzhao.less');
+		const less = readAppSection('10-huangji-wuzhao.less');
 		expect(less).toMatch(/\.horosa-taixuan-board\[data-board-narrow\] \.horosa-taixuan-main-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/);
 		expect(less).toMatch(/\.horosa-cnx-board\[data-board-narrow\] \.horosa-cnx-grid\.is-cols-3/);
 	});
@@ -175,7 +176,7 @@ describe('放大档 / 窄栏自适应 · 源码闸', () => {
 		const st = read('css/styles.less');
 		expect((st.match(/- min\(44px, 7%\)\)/g) || []).length).toBe(4);   // 方盘 width 两项 + max-width + max-height
 		expect(st).toMatch(/padding: ~"min\(18px, 3%\)";/);
-		const gl = read('layouts/app/06-guolao-modules.less');
+		const gl = readAppSection('06-guolao-modules.less');
 		expect((gl.match(/repeat\(auto-fill, minmax\(~"max\(84px, calc\(\(100% - 8px\) \/ 2\)\)", 1fr\)\)/g) || []).length).toBe(2);
 		expect(gl).toMatch(/\.horosa-bazi-shensha-groups \.ant-checkbox-wrapper > span:last-child,[\s\S]{0,120}white-space: nowrap;/);
 		// 黄道星释基点两列 22 项单选(三栏版式,星释期整列不被设置挤占):窄栏折行修复与锁一并恢复

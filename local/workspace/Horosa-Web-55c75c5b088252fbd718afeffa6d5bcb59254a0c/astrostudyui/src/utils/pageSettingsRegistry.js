@@ -49,7 +49,7 @@ export const PAGE_SETTINGS_REGISTRY = [
 	},
 	{
 		page: 'dunjia', storageKey: 'horosa.dunjia.settings.v1', file: 'components/dunjia/DunJiaMain.js', exportName: 'DUNJIA_PAGE_SETTINGS', changeVia: ['optionKey', 'stateKey'],
-		fields: ['paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'timeAlg', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'fullNameTips'],
+		fields: ['paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'timeAlg', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'showJiGan', 'showTianQin', 'tuiYanView', 'tuiYanGong', 'showJianChu', 'fullNameTips'],
 		exempt: {
 			sex: '性别随命主',
 			shuziReportNumber: '报数是每一课的输入',
@@ -73,7 +73,7 @@ export const PAGE_SETTINGS_REGISTRY = [
 	},
 	{
 		page: 'sanshiunited', storageKey: 'horosa.sanshi.settings.v1', file: 'components/sanshi/SanShiUnitedMain.js', exportName: 'SANSHI_PAGE_SETTINGS', changeVia: ['optionKey', 'stateKey'],
-		fields: ['timeAlg', 'guireng', 'paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'taiyiStyle', 'taiyiAccum', 'taiyiTimeBasis', 'gameTheory', 'taiyiSchool', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'outerCoord', 'showWeakSolid', 'ascRaMode'],
+		fields: ['timeAlg', 'guireng', 'paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'school', 'kongMode', 'yimaMode', 'zhirunLeapDays', 'godsPreset', 'jiGongMode', 'anGanMode', 'shiftZhiFuMode', 'yearJiaJu', 'dayJiaJu', 'keJiaFenDun', 'jinhanMenPai', 'mixTian', 'mixXing', 'mixMen', 'mixShen', 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow', 'kongMarkBoth', 'showAllKong', 'keZiZhengHuanShi', 'showAnZhi', 'showJiGan', 'showTianQin', 'tuiYanView', 'tuiYanGong', 'showJianChu', 'taiyiStyle', 'taiyiAccum', 'taiyiTimeBasis', 'gameTheory', 'taiyiSchool', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'outerCoord', 'showWeakSolid', 'ascRaMode'],
 		exempt: {
 			mode: '命局 / 事局是「这一盘存去哪」的逐盘属性',
 			chartCategory: '盘类是逐盘属性',

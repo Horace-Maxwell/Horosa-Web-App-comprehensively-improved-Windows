@@ -8,3 +8,10 @@ export function normalizeGender(value, { forCase = false } = {}){
 	if(v === 'female' || v === '女' || v === '0'){ return 0; }
 	return forCase ? undefined : -1;
 }
+
+// 回包口径:存档整数 1/0/-1 → 与入参同一套英文枚举;没有性别键(事盘可缺)= undefined(回包不带键)。只加键、不改原 gender 键
+export function genderLabelOf(v){
+	if(v === undefined || v === null || v === ''){ return undefined; }
+	const n = Number(v);
+	return n === 1 ? 'male' : n === 0 ? 'female' : 'unknown';
+}

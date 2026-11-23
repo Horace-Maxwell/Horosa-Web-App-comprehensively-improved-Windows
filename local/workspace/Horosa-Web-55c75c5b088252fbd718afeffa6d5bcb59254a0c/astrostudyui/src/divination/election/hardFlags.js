@@ -5,7 +5,7 @@ import { aspectsOf } from '../engine/aspectsEngine';
 import { resolveMoonVoc } from '../engine/moon';   // 月空单源(六口径)
 import { viaCombustaRange, inViaCombusta, ascRulerKey as lord1Of } from '../engine/radicality';   // 1 宫主单一来源
 import { PLANETS } from '../data/planets';
-import { angularDist, norm360 } from '../engine/utils';
+import { angularDist } from '../engine/utils';
 import { isEgyptianDay } from '../data/egyptianDays';
 import { filterAspects } from './orbPolicy';
 

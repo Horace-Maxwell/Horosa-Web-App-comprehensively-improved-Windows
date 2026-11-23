@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
-index e8da7779..eb5adf23 100644
+index 4df65b44..89841d21 100644
 --- a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 +++ b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 @@ -19,6 +19,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
- import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
  import { ownedBoxSizeRef, narrowBoardVars, squareGridFitVars } from '../../utils/boxSizeVars';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';

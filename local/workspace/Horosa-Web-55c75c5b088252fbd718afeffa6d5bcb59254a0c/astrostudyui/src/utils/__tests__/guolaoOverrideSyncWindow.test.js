@@ -24,8 +24,10 @@ it('等后端期间:同窗口读者读本机真值;重算结果(请求体 + 快�
 	window.localStorage.setItem('horosaGuolaoTrueSolarTime', 'true');
 	let release;
 	const bodies = [];
+	// 只扣住第一个请求(本命盘)看窗口;之后的(流年盘)照常回
 	request.mockImplementation((url, opt)=>{
 		bodies.push(JSON.parse(opt.body));
+		if(bodies.length > 1){ return Promise.resolve({ Result: JSON.parse(JSON.stringify(GL_DIGNITY_RESULT)) }); }
 		return new Promise((r)=>{ release = ()=>r({ Result: JSON.parse(JSON.stringify(GL_DIGNITY_RESULT)) }); });
 	});
 	const p = withGuolaoStoredOverrides({ horosaGuolaoNodeMode: GUOLAO_NODE_MODE_NORTH_RAHU, horosaGuolaoTrueSolarTime: 'mean' },

@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Spin, Row, Col } from 'antd';
-import { XQInputNumber } from '../xq-ui';
+import { Row, Col } from 'antd';
+import { XQInputNumber, XQSpin } from '../xq-ui';
 import UpdatingBadge from '../common/UpdatingBadge';
 import styles from '../../css/styles.less';
 import request from '../../utils/request';
@@ -134,7 +134,7 @@ class AstroReturnTimeline extends Component{
 		// 与界推运等表页同一套头卡;改起始年 / 年数即重算(componentDidUpdate 按请求键),不再要「生成」按钮;
 		// keep-stale:首次加载才转圈,重取期间旧表留着,右上角「更新中…」
 		return (
-			<Spin spinning={this.state.loading && !shown}>
+			<XQSpin spinning={this.state.loading && !shown}>
 				<div style={{ position: 'relative' }}>
 				{this.state.loading && shown ? <UpdatingBadge /> : null}
 				<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height, overflow: 'auto', paddingRight: 8 }}>
@@ -171,7 +171,7 @@ class AstroReturnTimeline extends Component{
 					</div>
 				</div>
 				</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

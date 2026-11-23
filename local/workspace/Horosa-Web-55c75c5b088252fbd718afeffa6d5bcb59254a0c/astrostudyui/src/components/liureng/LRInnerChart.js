@@ -1,6 +1,6 @@
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
-import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { drawPath, drawTextH} from '../graph/GraphHelper';
 import {randomStr,} from '../../utils/helper';
 
 

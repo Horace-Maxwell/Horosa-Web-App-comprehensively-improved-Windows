@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQButton as Button } from '../xq-ui';
+
+import { XQButton as Button, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtNum, paramsRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
@@ -100,7 +100,7 @@ class AstroRelativeScore extends Component{
 			// 局部 Spin 只留首载(无旧结果)占位,重取走角标不压暗
 			<div style={{position: 'relative'}}>
 				{this.state.updating && this.state.result ? <UpdatingBadge /> : null}
-			<Spin spinning={this.state.loading && !this.state.result}>
+			<XQSpin spinning={this.state.loading && !this.state.result}>
 				<div style={{height: this.props.height || 640, overflow: 'auto', paddingRight: 8}}>
 					<div style={cardStyle}>
 						<div className="horosa-info-card-title">关系量化</div>
@@ -111,7 +111,7 @@ class AstroRelativeScore extends Component{
 					{this.renderAspects('张力连接', result.challenges)}
 					{this.renderAspects('全部权重相位', result.aspects)}
 				</div>
-			</Spin>
+			</XQSpin>
 			</div>
 		);
 	}

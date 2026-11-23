@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
-index a1ca8cda..79af5cd2 100644
+index db5697e4..ae9b1211 100644
 --- a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
-@@ -7,6 +7,7 @@ import request from '../../utils/request';
+@@ -6,6 +6,7 @@ import { XQButton as Button, XQInputNumber, XQState } from '../xq-ui';
  import * as Constants from '../../utils/constants';
- import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+ import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, requestDerived } from '../astro/AstroExtraCommon';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
- // 调波数夹取整数 1-360:此前空串/小数原样下发,后端 int('') / int('2.5') 抛错回 {'err':'param error'}。
- export function clampHarmonic(raw, fallback = 9){
-@@ -71,7 +72,11 @@ class AstroHarmonicLab extends Component{
+ import { clampHarmonic, harmonicSnapshotLines } from '../../utils/derivedAstroLabs';   // 夹取与 [调波盘] 专属段:页面与 AI 无头复算同一份
+ export { clampHarmonic };
+@@ -66,7 +67,11 @@ class AstroHarmonicLab extends Component{
  			if(!this._mounted || seq !== this._loadSeq) return;
  			clearLoadFailure(this);
  			const res = unwrapResult(data) || {};
@@ -21,5 +21,5 @@ index a1ca8cda..79af5cd2 100644
 +				markPanelReady('auxchart');
 +			});
  			// 出盘即存:整张调波盘 + [调波盘] 专属段(H数/位置表/同频)。
- 			saveDerivedAstroSnapshot('harmonic', res.chart, this.props.fields, ()=>{
- 				const out = ['[调波盘]'];
+ 			saveDerivedAstroSnapshot('harmonic', res.chart, this.props.fields, ()=>harmonicSnapshotLines(res, this.state.harmonic), { derivedParams: { harmonic } });
+ 		}catch(e){

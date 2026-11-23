@@ -3,7 +3,6 @@ import * as AstroText from '../../constants/AstroText';
 import {
 	HOUSE_LABELS,
 	SIGN_NAMES,
-	getAscSignNumber,
 	getAspectedSignNumbers,
 	getHouseCuspDegree,
 	getHouseLabel,
@@ -24,6 +23,7 @@ import {
 } from './IndiaSouthChart';
 import { indiaDiagramBoardRef } from '../../utils/boxSizeVars';
 import '../../css/styles.less';
+import { pressable } from '../../utils/pressable';
 
 const NORTH_HOUSE_LABEL_POSITIONS = {
 	1: [50, 5],
@@ -139,7 +139,7 @@ class IndiaNorthChart extends Component{
 							key={`${houseNumber}_${obj.id}_${idx}_${obj.lon}`}
 							title={`${AstroText.AstroMsgCN[obj.id] || obj.name || obj.id} ${degree}${clickable ? (caster ? ' · 点击高亮相映宫' : ' · 点击选中') : ''}`}
 							style={{ '--india-object-color': getObjectColor(obj) }}
-							onClick={handleClick}
+							{...pressable(handleClick)}
 						>
 							{glyph
 								? <span className="horosa-india-square-object-name horosa-india-square-object-glyph">{glyph}</span>

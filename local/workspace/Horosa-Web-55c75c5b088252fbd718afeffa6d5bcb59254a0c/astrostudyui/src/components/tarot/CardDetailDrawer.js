@@ -3,7 +3,7 @@
 import React, { Component } from 'react';
 import { Drawer, Input, message } from 'antd';
 import { XQButton as Button } from '../xq-ui';
-import { displayName, displayNameCn, astroLine, correspondenceSuffix, cardMeaning, isTrumpArcana } from './engine/cardSchema';
+import { displayName, astroLine, correspondenceSuffix, cardMeaning, isTrumpArcana } from './engine/cardSchema';
 import { scaleColor, minorScaleColor, SCALE_META, SCALE_ORDER } from './engine/colorScales';
 import {
 	ESOTERIC_TITLE_MAJOR, COURT_TITLE, LETTER_META, MAJOR_ALIAS, decanMajors, pipDignity,

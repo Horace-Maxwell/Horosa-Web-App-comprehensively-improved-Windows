@@ -14,7 +14,7 @@ const path = require('path');
 const UI_ROOT = path.resolve(__dirname, '..');
 const BUNDLE = path.join(__dirname, 'dist', 'horosa-runtime.cjs');
 // 无头下没有界面可弹 / 可载入:读当前页、载入工作区、反问用户(反问会弹到本机界面等人作答)
-const HEADLESS_UNAVAILABLE_NAMES = ['read_current_page', 'load_record_into_workspace', 'ask_user', 'set_chat_mount'];   // 对话挂载归 AI 分析页管(只增级,但无头没有那一页)
+const HEADLESS_UNAVAILABLE_NAMES = ['read_current_page', 'load_record_into_workspace', 'ask_user', 'set_chat_mount', 'cast_random_case'];   // 软件代摇每次要审批,无头没有审批台   // 对话挂载归 AI 分析页管(只增级,但无头没有那一页)
 const UI_UNAVAILABLE_MESSAGE = '这件工具要操作星阙界面,无头模式下不可用(请在桌面 App 里用)';
 const ENV_PROFILE_ID = 'headless-env';   // 环境变量档案:只在内存,落盘钩子与导出都把它剔掉
 const PROVIDER_STORE = 'provider_profiles';
@@ -253,6 +253,18 @@ async function openAstrodataDb(){
 function installAstrodataLoader(){
 	globalThis.__HOROSA_ASTRODATA_LOADER__ = async ()=>{ return openAstrodataDb(); };
 }
+// PDF 导出用的中文字体:网页从静态目录取,无头没有静态服务 → 按文件名从磁盘读同一份(public/fonts 或已构建产物里的 fonts)
+const FONT_DIRS = [path.join(UI_ROOT, 'public', 'fonts'), path.join(UI_ROOT, 'dist-file', 'fonts'), path.join(UI_ROOT, 'dist', 'fonts')];
+function installFontLoader(){
+	globalThis.__HOROSA_FONT_LOADER__ = async (name)=>{
+		const n = `${name || ''}`;
+		if(!/^[A-Za-z0-9._-]{1,80}\.ttf$/.test(n)){ return null; }
+		const dir = FONT_DIRS.find((d)=>fs.existsSync(path.join(d, n)));
+		if(!dir){ return null; }
+		const b = fs.readFileSync(path.join(dir, n));
+		return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+	};
+}
 
 // 主密钥(给存储层加密接口档案的密钥用):headless/master.key,32 字节 base64,0600;与数据目录分开放(拷走 data/ 不带它)。
 // 首次真要加密时才生成;读不到 / 写不了就报错(存储层据此当「没有主密钥」,终端命令据此拒收密钥,绝不明文落盘)。
@@ -329,7 +341,12 @@ function bundleStale(){
 async function ensureBundle(opts){
 	const o = opts || {};
 	if(!o.forceRebuild && fs.existsSync(BUNDLE) && (o.skipStaleCheck || !bundleStale())){ return BUNDLE; }
-	await require('./build').build({ quiet: !!o.quiet });
+	// 拿到锁之后再看一眼:等锁的工夫里别的进程可能已经打好了(那就直接用,不重复打)
+	const b = require('./build');
+	await b.withBuildLock(async ()=>{
+		if(!o.forceRebuild && fs.existsSync(BUNDLE) && !bundleStale()){ return; }
+		await b.build({ quiet: !!o.quiet });
+	});
 	return BUNDLE;
 }
 
@@ -367,10 +384,64 @@ function makeAdminHandler(ops){
 			if(route === 'POST export'){ return ok({ export: await ops.exportTo(b) }); }
 			if(route === 'POST import'){ return ok({ import: await ops.importFrom(b) }); }
 			if(method === 'POST' && segs[0] === 'actions' && segs.length === 3 && segs[2] === 'undo'){ return ok({ result: await ops.undo(segs[1]) }); }
+			if(route === 'GET scheduler'){ return ok({ scheduler: ops.schedulerStatus() }); }
+			if(method === 'POST' && segs[0] === 'tasks' && segs.length === 3){ return ok({ result: await ops.taskOp(segs[1], segs[2]) }); }
 			return { status: 404, body: { ok: false, error: { code: 'NOT_FOUND', message: '没有这个管理口' } } };
 		}catch(e){
 			return { status: 400, body: { ok: false, error: { code: 'BAD_REQUEST', message: e && e.message ? e.message : `${e}` } } };
 		}
+	};
+}
+
+// 常驻进程的任务调度:启动时对账(上次没跑完的周期任务重排、一次性的标中断)→ 几秒后第一跳(处理停机期间错过的)→ 之后每分钟一跳。
+// 一跳 = runSchedulerTick(与桌面心跳同一函数:开关都开才动、错过按任务策略跳过或补跑一次、每跳只跑一个),执行体换成无人值守版。
+// 持数据锁(数据目录 .lock 写的是本进程)才起:同一数据目录同时只有一个调度者。定时器都 unref,不拖住进程退出。
+function dataLockHolder(){
+	try{ return Number(`${fs.readFileSync(path.join(dataDir(), '.lock'), 'utf8')}`.split('\n')[0].trim()) || 0; }catch(e){ return 0; }
+}
+function makeTaskScheduler(lib, flush, opts){
+	const o = opts || {};
+	const intervalMs = Number(o.intervalMs) > 0 ? Number(o.intervalMs) : (lib.SCHEDULER_TICK_INTERVAL_MS || 60000);
+	let timer = null; let first = null; let busy = false; let running = false; let reason = 'not-started';
+	let last = null; let role = '';
+	async function tick(){
+		if(!running || busy){ return last; }
+		busy = true;
+		try{
+			const r = await lib.runSchedulerTick({ runner: lib.runUnattendedScheduledTask });
+			last = { at: new Date().toISOString(), ...r };
+		}catch(e){
+			last = { at: new Date().toISOString(), error: e && e.message ? e.message : `${e}` };
+		}finally{
+			busy = false;
+			try{ flush(); }catch(e){ /* noop */ }
+		}
+		return last;
+	}
+	return {
+		async start(so){
+			const s2 = so || {};
+			if(running){ return true; }
+			if(s2.requireLock !== false && dataLockHolder() !== process.pid){ reason = 'no-data-lock'; return false; }
+			running = true; reason = ''; role = s2.role || '';
+			try{ await lib.reconcileTasksOnBoot(); flush(); }catch(e){ process.stderr.write(`[horosa] 任务对账失败:${e && e.message}\n`); }
+			first = setTimeout(()=>{ first = null; tick(); }, Number(s2.firstDelayMs) >= 0 ? Number(s2.firstDelayMs) : 3000);
+			timer = setInterval(tick, intervalMs);
+			if(first.unref){ first.unref(); }
+			if(timer.unref){ timer.unref(); }
+			return true;
+		},
+		stop(){
+			if(first){ clearTimeout(first); first = null; }
+			if(timer){ clearInterval(timer); timer = null; }
+			if(running){ reason = 'stopped'; }
+			running = false;
+		},
+		tick,
+		status(){
+			return { running, reason: running ? '' : reason, role, intervalMs, enabled: !!(lib.isAgentEnabled() && lib.isSchedulerEnabled()), goalTasks: !!lib.isGoalEnabled(),
+				headlessAnalysis: !!lib.isHeadlessEnabled(), lastTickAt: lib.readLastTickAt() ? new Date(lib.readLastTickAt()).toISOString() : null, last };
+		},
 	};
 }
 
@@ -413,6 +484,7 @@ async function createRuntime(opts){
 	storage.__setOverlay('horosaBackendIdentityOff', { read: ()=>'1', write: (v)=>v });
 	const flushStores = installStoreHook(path.join(dataDir(), 'stores'));
 	installAstrodataLoader();
+	installFontLoader();
 	installMasterKey();
 	const lib = require(BUNDLE);
 	// 卜类 / 玄史等直连排盘服务的模块:根按 HOROSA_CHART_PORT 显式注入(与桌面壳注入 kentangSrv 同一入口);
@@ -421,6 +493,23 @@ async function createRuntime(opts){
 	// 不登记工作区桥:无头没有界面里的当前盘 / dva 状态。此前登记两个什么也不做的空函数 → 改「当前盘口径」「全局显示偏好」
 	//   与建档时「载入工作区」一律回成功(账本记一笔、实际什么都没改);不登记时这些路径各自如实回 E_BRIDGE_UNAVAILABLE / loaded:false
 	lib.registerBuiltinTools();
+	// 存成文件(save_document)的无头落盘口:只挂这一个函数(不登记界面桥的其余部分)。只写数据目录下 headless/exports(0700),
+	// 文件名只认软件生成的 ASCII 名(工具侧带时间戳 + 随机后缀),已存在即拒(绝不覆盖),先写临时文件再改名
+	const bridge = {};
+	bridge.exportWrite = (fileName, b64)=>{
+		const name = `${fileName || ''}`;
+		if(!/^[A-Za-z0-9._ -]{1,120}$/.test(name) || name.indexOf('..') >= 0 || !/\.(md|docx|pdf|txt)$/i.test(name)){ return { ok: false, message: '文件名不合规' }; }
+		const dir = path.join(headlessDir(), 'exports');
+		fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+		try{ fs.chmodSync(dir, 0o700); }catch(e){ /* noop */ }
+		const dst = path.join(dir, name);
+		if(fs.existsSync(dst)){ return { ok: false, message: '同名文件已存在,不覆盖' }; }
+		const tmp = `${dst}.tmp`;
+		fs.writeFileSync(tmp, Buffer.from(`${b64 || ''}`, 'base64'), { mode: 0o600 });
+		fs.renameSync(tmp, dst);
+		return { ok: true, path: dst };
+	};
+	lib.registerWorkspaceBridge(bridge);
 	lib.setAgentEnabled(true);
 	// 环境变量档案:只进内存(落盘钩子剔掉它),并在读「当前模型」时顶到最前(写回时还原落盘原值)
 	const envAi = envAiSpec(lib);
@@ -527,7 +616,18 @@ async function createRuntime(opts){
 		'headless-analysis': { get: ()=>(lib.isHeadlessEnabled() ? 'on' : 'off'), set: (v)=>lib.setHeadlessEnabled(onOff(v)) },
 		'private-read': { get: ()=>(lib.isPrivateReadEnabled() ? 'on' : 'off'), set: (v)=>lib.setPrivateReadEnabled(onOff(v)) },
 		'web-fetch': { get: ()=>(lib.isWebFetchEnabled() ? 'on' : 'off'), set: (v)=>lib.setWebFetchEnabled(onOff(v)) },
+		// 外部客户端限流额度(与外部智能体面板同一份策略;每次调用现读,改完即生效)。调高 = 放宽,终端侧按人工操作处理
+		'calls-per-minute': { get: ()=>`${lib.getExternalPolicy().maxCallsPerMinute}`, set: (v)=>{ const n = intIn(v, 1, 600, 'calls-per-minute'); lib.setExternalPolicy({ maxCallsPerMinute: n }); } },
+		'writes-per-hour': { get: ()=>`${lib.getExternalPolicy().maxAdditivePerHour}`, set: (v)=>{ const n = intIn(v, 0, 10000, 'writes-per-hour'); lib.setExternalPolicy({ maxAdditivePerHour: n }); } },
+		// 定时任务 / 目标任务(与桌面「AI 助手行动能力」两个子开关同键):只在常驻服务(./horosa start / serve,或 MCP 客户端拉起的会话)里到点 / 开跑
+		scheduler: { get: ()=>(lib.isSchedulerEnabled() ? 'on' : 'off'), set: (v)=>lib.setSchedulerEnabled(onOff(v)) },
+		'goal-tasks': { get: ()=>(lib.isGoalEnabled() ? 'on' : 'off'), set: (v)=>lib.setGoalEnabled(onOff(v)) },
 	};
+	function intIn(v, min, max, key){
+		const t = `${v}`.trim();
+		if(!/^\d+$/.test(t) || Number(t) < min || Number(t) > max){ throw new Error(`${key} 只能是 ${min}-${max} 的整数`); }
+		return Number(t);
+	}
 	function onOff(v){
 		const t = `${v}`.trim().toLowerCase();
 		if(['on', '1', 'true', 'yes', '开'].indexOf(t) >= 0){ return true; }
@@ -725,8 +825,54 @@ async function createRuntime(opts){
 		return { corruptFiles: listCorruptDataFiles(), unreadableStores: hook && typeof hook.unreadable === 'function' ? hook.unreadable() : [] };
 	}
 
+	// ── 任务调度(常驻服务):与桌面任务中心同一套任务库 / 排期 / 错过策略 / 启动对账;执行体是无人值守版 ──
+	// 只在持数据锁的进程里跑(同一数据目录同时只有一个进程持锁 = 只有一个调度者);单次命令(./horosa call)不起调度。
+	const scheduler = makeTaskScheduler(lib, flushAll);
+	const TASK_OPS = ['resume', 'start', 'run', 'pause', 'cancel'];
+	// 人工放行 / 收紧:resume(定时:继续排期)· start(目标:开跑,须常驻)· run(定时:立即跑一次)· pause · cancel
+	async function taskOp(id, op){
+		if(TASK_OPS.indexOf(op) < 0){ throw new Error(`操作只能是 ${TASK_OPS.join(' / ')}`); }
+		const t = await lib.getTask(id);
+		if(!t){ throw new Error(`没有这个任务 ${id}(./horosa tasks 列出)`); }
+		if(op === 'cancel'){ return exclusive(async ()=>{ const r = await lib.cancelTask(id, '终端'); flushAll(); return r.ok ? { ok: true, status: 'cancelled' } : { ok: false, code: r.code, message: `任务已结束(${r.status || r.code}),不用取消` }; }); }
+		if(op === 'pause'){
+			return exclusive(async ()=>{
+				if(t.kind === 'scheduled' && t.status === 'scheduled'){ const r = await lib.pauseScheduledTask(id); flushAll(); return r ? { ok: true, status: 'paused' } : { ok: false, message: '此刻不能暂停' }; }
+				const ctl = lib.controllerOf(id);
+				if(t.status === 'running' && ctl && typeof ctl.pause === 'function'){ ctl.pause(); return { ok: true, status: 'pausing' }; }
+				return { ok: false, message: `任务此刻(${t.status})不能暂停;要停下可 cancel` };
+			});
+		}
+		const isGoal = t.kind === 'goal';
+		if(op === 'resume' && !isGoal){
+			if(!lib.isSchedulerEnabled()){ throw new Error('定时任务开关没开:./horosa config scheduler on'); }
+			return exclusive(async ()=>{ const r = await lib.resumeScheduledTask(id); flushAll(); return r ? { ok: true, status: r.status, nextRunAt: r.nextRunAt || null, resident: scheduler.status().running } : { ok: false, message: `任务此刻(${t.status})不用继续` }; });
+		}
+		if(op === 'run'){
+			if(isGoal){ throw new Error('目标任务用 start 开跑'); }
+			if(!lib.isSchedulerEnabled()){ throw new Error('定时任务开关没开:./horosa config scheduler on'); }
+			const gate = lib.unattendedModelGate(t);
+			if(gate){ throw new Error(gate); }
+			const p = lib.runScheduledTaskNow(id, { runner: lib.runUnattendedScheduledTask }).then((r)=>{ flushAll(); return r; });
+			if(scheduler.status().running){ p.catch((e)=>process.stderr.write(`[horosa] 立即运行失败:${e && e.message}\n`)); return { ok: true, started: true }; }
+			const r = await p;
+			return r && r.ok ? { ok: true, status: r.task && r.task.status, result: r.task && r.task.result } : { ok: false, code: r && r.code, message: r && r.busy ? '另一处正在跑' : `没跑成(${r && (r.code || r.status)})` };
+		}
+		// start(或对目标任务 resume):目标任务一轮轮跑很久,只能交给常驻进程
+		if(!isGoal){ throw new Error('定时任务用 resume 继续排期,或 run 立即跑一次'); }
+		if(!scheduler.status().running){ throw new Error('目标任务要在常驻服务里跑:先 ./horosa start,再执行本命令'); }
+		if(!lib.isGoalEnabled()){ throw new Error('目标任务开关没开:./horosa config goal-tasks on'); }
+		const gate = lib.unattendedModelGate(t);
+		if(gate){ throw new Error(gate); }
+		const deps = await lib.unattendedGoalDeps();
+		lib.startGoalTask(id, deps).then(()=>flushAll()).catch((e)=>process.stderr.write(`[horosa] 目标任务起跑失败:${e && e.message}\n`));
+		return { ok: true, started: true };
+	}
+
 	const admin = {
 		dataHealth,
+		taskOp,
+		schedulerStatus: ()=>scheduler.status(),
 		getConfig(){ const out = { serverRoot }; Object.keys(CONFIG_KEYS).forEach((k)=>{ out[k] = CONFIG_KEYS[k].get(); }); return out; },
 		setConfig(key, value){
 			const c = CONFIG_KEYS[key];
@@ -738,7 +884,7 @@ async function createRuntime(opts){
 		proposal(op, id, note){
 			if(['accept', 'reject', 'revert'].indexOf(op) < 0){ throw new Error('操作只能是 accept / reject / revert'); }
 			return exclusive(async ()=>{
-				const r = op === 'accept' ? lib.acceptProposal(id) : (op === 'reject' ? lib.rejectProposal(id, note) : lib.revertProposal(id));
+				const r = await (op === 'accept' ? lib.acceptProposal(id) : (op === 'reject' ? lib.rejectProposal(id, note) : lib.revertProposal(id)));   // 内容类提案回承诺
 				flushAll();
 				return r;
 			});
@@ -752,6 +898,7 @@ async function createRuntime(opts){
 	admin.handle = makeAdminHandler(admin);
 
 	function close(){
+		try{ scheduler.stop(); }catch(e){ /* noop */ }
 		try{ storage.__flush(); }catch(e){ /* noop */ }
 		try{ flushStores(); }catch(e){ /* noop */ }
 		try{ w.close(); }catch(e){ /* noop */ }
@@ -764,8 +911,10 @@ async function createRuntime(opts){
 		[['SIGTERM', 143], ['SIGHUP', 129]].forEach(([sig, code])=>{ process.once(sig, ()=>process.exit(code)); });
 	}
 
-	singleton = { dispatch, close, admin, lib, storage, serverRoot, chartRoot, home: horosaHome() };
+	// 目录变化订阅(stdio 推 notifications/*/list_changed 用;与桌面发射器同一套信号源与去抖)
+	const watchCatalog = (fn, wo)=>lib.watchAgentCatalog(fn, wo);
+	singleton = { dispatch, close, admin, lib, storage, serverRoot, chartRoot, home: horosaHome(), watchCatalog, scheduler };
 	return singleton;
 }
 
-module.exports = { createRuntime, makeAdminHandler, ensureBundle, openAstrodataDb, horosaHome, headlessDir, dataDir, masterKeyFile, resolveServerRoot, resolveBackendRoots, createFileStorage, installStoreHook, installMasterKey, writeAtomic, quarantineDataFile, listCorruptDataFiles, listCorruptArchiveKeys, corruptArchiveKeysOf, UI_UNAVAILABLE_MESSAGE, ENV_PROFILE_ID, SECURITY_KEYS };
+module.exports = { createRuntime, makeAdminHandler, makeTaskScheduler, ensureBundle, openAstrodataDb, horosaHome, headlessDir, dataDir, masterKeyFile, resolveServerRoot, resolveBackendRoots, createFileStorage, installStoreHook, installMasterKey, writeAtomic, quarantineDataFile, listCorruptDataFiles, listCorruptArchiveKeys, corruptArchiveKeysOf, UI_UNAVAILABLE_MESSAGE, ENV_PROFILE_ID, SECURITY_KEYS };

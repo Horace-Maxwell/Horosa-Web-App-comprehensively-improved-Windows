@@ -94,6 +94,25 @@ describe('空白牌/切牌/大牌加盖/双指示牌', () => {
 		expect(a.cutCard && a.cutCard.card).toBeTruthy();
 		expect(a.cutCard.card.id).toBe(b.cutCard.card.id);
 		expect(buildReading('rws', 'three', seed, {}).cutCard).toBeNull();
+		// 真随机记录 + 选了指示牌(池子少一张):切位直接在当前池的张数里等概率取,不是「整副里取一位再取模」(那样第 0 位的机会是别处两倍)
+		const { newTarotRandomSeed, shuffle: sh } = require('../engine/shuffle');
+		const sig = { sig: { mode: 'manual', manualId: 'cups_queen' }, showCutCard: true };
+		let zero = 0; const N = 3000;
+		for(let i = 0; i < N; i++){
+			const rs = newTarotRandomSeed();
+			const r = buildReading('rws', 'three', rs, sig);
+			expect(r.significator).toBeTruthy();
+			const idx = sh(`${rs}|cut`, { size: 77, usesReversals: false, take: 1 }).order[0];
+			expect(idx).toBeLessThan(77);
+			if(idx === 0){ zero += 1; }
+			if(i < 20){ expect(buildReading('rws', 'three', rs, sig).cutCard.card.id).toBe(r.cutCard.card.id); }
+		}
+		expect(zero / N).toBeLessThan(0.024);   // 等概率 = 1/77 ≈ 0.013;取模写法是 2/78 ≈ 0.026(3000 次下两者差 3σ 以上)
+		// 确定性种子沿用原算法(旧卦例重开切牌不变):整副里取一位再对当前池取模
+		const det = buildReading('rws', 'three', 20260101, sig);
+		const pool = sh('20260101|cut', { size: 78, usesReversals: false, take: 1 }).order[0] % 77;
+		expect(pool).toBeGreaterThanOrEqual(0);
+		expect(det.cutCard && det.cutCard.card).toBeTruthy();
 		expect(buildReadingText(a)).toContain('切牌(心态)');
 	});
 	test('大牌加盖:寻一个 ≥4 大牌的 celtic 种子→每张大牌得盖一张小牌;快照出加盖行', () => {

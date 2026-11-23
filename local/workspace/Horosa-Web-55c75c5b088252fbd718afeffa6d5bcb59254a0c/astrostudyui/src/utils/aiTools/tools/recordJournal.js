@@ -78,6 +78,7 @@ function linkUnchanged(args, ctx, a, b){
 export const linkRecordsTool = {
 	name: 'link_records',
 	level: 'additive',
+	idempotent: true,   // 同参重复调用状态不再变(noChange 判过即回 changed:false)
 	category: 'records',
 	undoKind: 'restore-record-flag',
 	origins: ['in-app', 'mcp'],

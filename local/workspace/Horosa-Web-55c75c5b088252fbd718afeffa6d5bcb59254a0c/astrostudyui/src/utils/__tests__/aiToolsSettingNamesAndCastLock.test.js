@@ -24,7 +24,7 @@ import { getAnalysisTechniqueContexts, ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_
 import { TECHNIQUE_SETTINGS_SCHEMA, hasMountSettingsFields, getTechniqueSettingsSchema, getMountTechniqueDefault, saveMountTechniqueDefaults } from '../techniqueMountSettings';
 import { describeFacet, validateFacetValues, sameSettingValue, preparePageFacet, PAGE_FACET_LOADERS, PAGE_FACET_TITLES, __resetPageFacetCacheForTests } from '../aiTools/settingsFacets';
 import { settingTechniqueTitle, settingFacetTitle } from '../aiTools/settingNames';
-import { CAST_INPUT_KEYS, CAST_INPUT_NEUTRAL, CAST_INPUT_CHART_TECHNIQUES, castInputKeysIn, castInputRejectMessage, pageCastTechnique } from '../aiTools/castInputKeys';
+import { CAST_INPUT_KEYS, CAST_INPUT_NEUTRAL, CAST_INPUT_CHART_TECHNIQUES, castInputKeysIn, castInputRejectMessage, pageCastTechnique, isCastInputKey } from '../aiTools/castInputKeys';
 import { PAGE_SETTINGS_REGISTRY } from '../pageSettingsRegistry';
 import { upsertLocalChart } from '../localcharts';
 
@@ -34,7 +34,7 @@ const timepoint = { kind: 'timepoint', divTime: '2026-03-01 10:00', place: '北�
 const optsPassed = ()=>{ const calls = getAnalysisTechniqueContexts.mock.calls; const last = calls[calls.length - 1]; return last && last[2] ? last[2].techniqueOptions : undefined; };
 // 主导航页表(与页面同一份源码)
 const ROUTES = (()=>{
-	const src = fs.readFileSync(path.join(__dirname, '../../pages/index.js'), 'utf8');
+	const src = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../pages/index.js'));   // 门面 + 子模块全集
 	const out = [];
 	src.replace(/\{ label: '([^']+)', key: '([^']+)', icon:[^}]*group: '([^']+)'/g, (m, label, key)=>{ out.push({ key, label }); return m; });
 	return out;
@@ -234,22 +234,21 @@ describe('④ 起卦输入锁只拦写具体值', ()=>{
 		});
 		expect(CAST_INPUT_CHART_TECHNIQUES.slice().sort()).toEqual(Object.keys(CAST_INPUT_KEYS).filter((t)=>ANALYSIS_CHART_TECHNIQUES.indexOf(t) >= 0 && ANALYSIS_CASE_TECHNIQUES.indexOf(t) < 0).sort());
 	});
-	it('🔴 印占:用户自己设的问事起卦时刻,助手传 null 删得掉(此前一律拒);写具体时刻照拒;describe 提示写明可传 null', async ()=>{
+	it('🔴 印占问事时刻由时间确定、可复算,与卜卦盘同类放行(起卦输入锁只剩问数);传 null 删掉同类默认照旧', async ()=>{
 		saveMountTechniqueDefaults('indiachart', { indiaPrashnaTime: '2026/03/01 10:00:00', indiaSthiraStart: 'lagna' });
 		const d = describeFacet('mount', 'indiachart').items.find((x)=>x.key === 'indiaPrashnaTime');
-		expect([d.settable, /起卦输入/.test(d.hint), /传 null/.test(d.hint)]).toEqual([false, true, true]);
-		const bad = await runTool('set_settings', { facet: 'mount', technique: 'indiachart', values: { indiaPrashnaTime: '2026/05/01 10:00:00' } }, ctx());
-		expect(bad.code).toBe('E_SETTING_KEY_NOT_ALLOWED');
-		expect(bad.message).not.toContain('cast_divination_case');   // 印占不能按结果建事盘:不指错路
-		expect(bad.message).toContain('挂载设置');
+		expect(/起卦输入/.test(d.hint || '')).toBe(false);
+		// 不再按起卦输入拒(cast_technique 的 options 可带问事时刻);set_settings 对日期 / 时刻类字段一律只读(类型规则)
+		expect(isCastInputKey('indiachart', 'indiaPrashnaTime')).toBe(false);
+		expect(isCastInputKey('indiachart', 'indiaPrashnaNumber')).toBe(true);
 		const r = await runTool('set_settings', { facet: 'mount', technique: 'indiachart', values: { indiaPrashnaTime: null } }, ctx());
 		expect(r.ok).toBe(true);
 		expect(getMountTechniqueDefault('indiachart')).toEqual({ indiaSthiraStart: 'lagna' });
 	});
-	it('🔴 金口诀地分:写回「自动」/ 删掉放行,写具体地支照拒;拒绝话术不指 cast_divination_case', async ()=>{
+	it('🔴 金口诀地分:写回「自动」/ 删掉放行,写具体地支照拒;拒绝话术指向按结果建事盘(cast_divination_case 已收金口诀地分)', async ()=>{
 		saveMountTechniqueDefaults('jinkou', { diFen: '午' });
 		const bad = await runTool('set_settings', { facet: 'mount', technique: 'jinkou', values: { diFen: '子' } }, ctx());
-		expect([bad.code, /起卦输入/.test(bad.message), /cast_divination_case/.test(bad.message), /传 null/.test(bad.message), /diFen 写 "auto"/.test(bad.message)]).toEqual(['E_SETTING_KEY_NOT_ALLOWED', true, false, true, true]);
+		expect([bad.code, /起卦输入/.test(bad.message), /cast_divination_case/.test(bad.message), /传 null/.test(bad.message), /diFen 写 "auto"/.test(bad.message)]).toEqual(['E_SETTING_KEY_NOT_ALLOWED', true, true, true, true]);
 		expect(getMountTechniqueDefault('jinkou')).toEqual({ diFen: '午' });
 		const auto = await runTool('set_settings', { facet: 'mount', technique: 'jinkou', values: { diFen: 'auto' } }, ctx());
 		expect(auto.ok).toBe(true);
@@ -273,7 +272,7 @@ describe('④ 起卦输入锁只拦写具体值', ()=>{
 		const bad = await runTool('cast_technique', { technique: 'jinkou', source: timepoint, options: { diFen: '子' } }, ctx());
 		expect([bad.code, bad.data.castInputKeys]).toEqual(['E_ARGS_INVALID', ['diFen']]);
 		expect(bad.message).toMatch(/^「金口诀\(jinkou\)」的 diFen 属起卦输入/);
-		expect(bad.message).not.toContain('cast_divination_case');
+		expect(bad.message).toContain('cast_divination_case');   // 金口诀地分可按用户报的结果建事盘
 		expect(getAnalysisTechniqueContexts).not.toHaveBeenCalled();
 		expect(castInputKeysIn('wuzhao', { mode: 'ganzhi', number: 0, manual: 0, qianAuto: 1 })).toEqual([]);
 		expect(castInputKeysIn('wuzhao', { mode: 'qian', number: 3 })).toEqual(['mode', 'number']);
@@ -281,7 +280,12 @@ describe('④ 起卦输入锁只拦写具体值', ()=>{
 	it('拒绝话术按技法给出路:能按结果建事盘的(六爻等)才指 cast_divination_case;其余指向亲手起课 / 挂载设置', ()=>{
 		expect(castInputRejectMessage('sixyao', ['gua'])).toContain('cast_divination_case');
 		expect(castInputRejectMessage('lingqi', ['counts'])).toContain('cast_divination_case');
-		['jinkou', 'liureng', 'qimen', 'taixuan', 'wuzhao', 'tarot', 'geomancy', 'indiachart'].forEach((t)=>{
+		expect(castInputRejectMessage('jinkou', ['diFen'])).toContain('cast_divination_case');
+		// 报出的起课输入(六壬 / 奇门 / 太玄 / 五兆)与地占报数也能按结果建事盘 → 同样指过去;塔罗(随机抽牌)与印度问事(只挂命盘)不能
+		['liureng', 'qimen', 'taixuan', 'wuzhao', 'geomancy'].forEach((t)=>{
+			expect(`${t}:${castInputRejectMessage(t, [CAST_INPUT_KEYS[t][0]]).indexOf('cast_divination_case') >= 0}`).toBe(`${t}:true`);
+		});
+		['tarot', 'indiachart'].forEach((t)=>{
 			expect(`${t}:${castInputRejectMessage(t, [CAST_INPUT_KEYS[t][0]]).indexOf('cast_divination_case') >= 0}`).toBe(`${t}:false`);
 		});
 		expect(castInputRejectMessage('wuzhao', ['mode'], { facet: 'page', label: '五兆' })).toMatch(/^「五兆\(wuzhao\)」.*技法页亲手选.*mode 写 "ganzhi"/);

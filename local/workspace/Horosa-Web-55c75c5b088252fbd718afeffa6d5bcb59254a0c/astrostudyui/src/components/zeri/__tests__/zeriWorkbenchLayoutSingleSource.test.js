@@ -8,7 +8,9 @@ const path = require('path');
 const { ZERI_WB_TOP_STYLE, ZERI_WB_COND_BODY_STYLE } = require('../zeriWorkbenchLayout');
 
 const ZERI_DIR = path.join(__dirname, '..');
-const read = (name)=>fs.readFileSync(path.join(ZERI_DIR, name), 'utf8');
+const { readWorkbench } = require('../../../utils/__tests__/helpers/zeriWorkbenchSource');
+// 九家工作台读「派文件 + 共用壳 ZeriWorkbenchShell」(左列版式在壳里);其余原样读
+const read = (name)=>(/ZeriWorkbench\.js$/.test(name) ? readWorkbench(name) : fs.readFileSync(path.join(ZERI_DIR, name), 'utf8'));
 
 const WORKBENCHES = [
 	'BaziZeriWorkbench.js',
@@ -25,7 +27,7 @@ const WORKBENCHES = [
 
 describe('择日工作台左列版式单一源头', ()=>{
 	test('清单覆盖目录里全部工作台', ()=>{
-		const onDisk = fs.readdirSync(ZERI_DIR).filter((n)=>/ZeriWorkbench\.js$/.test(n)).sort();
+		const onDisk = fs.readdirSync(ZERI_DIR).filter((n)=>/ZeriWorkbench\.js$/.test(n) && n !== 'ZeriWorkbenchShell.js').sort();
 		expect(onDisk).toEqual(WORKBENCHES.filter((n)=>/ZeriWorkbench\.js$/.test(n)).sort());
 	});
 

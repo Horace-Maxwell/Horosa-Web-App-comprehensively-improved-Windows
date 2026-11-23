@@ -1,10 +1,11 @@
 import { upsertLocalChart, listLocalCharts } from '../../localcharts';
+import { RECORD_RODDEN_VALUES, RECORD_RELATION_VALUES, RECORD_SOURCE_NOTE_MAX } from '../../recordMetaOptions';
 import { withNewChartDefaults } from '../../newChartCapture';
 import { recordStorePersisted, STORE_SESSION_ONLY_ASSUMPTION } from '../../recordStoreNotice';
 import { parseBirthInput } from '../normalize/birthText';
 import { resolvePlaceOffline } from '../normalize/place';
 import { resolveZone } from '../normalize/zone';
-import { normalizeGender } from '../normalize/gender';
+import { normalizeGender, genderLabelOf } from '../normalize/gender';
 import { geoPairToRecordFields } from '../normalize/geoCompass';
 import { guardAdditive } from '../guardAdditive';
 import { ctxDispatch, ctxUi, GUIDE, aiOriginOf } from './_shared';
@@ -46,6 +47,9 @@ export default {
 			zone: { type: 'string', pattern: '^[+-]\\d{2}:\\d{2}$', description: '仅用户明说时区时填' },
 			tags: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 20 } },
 			memo: { type: 'string', maxLength: 2000 },
+			rodden: { type: 'string', enum: RECORD_RODDEN_VALUES.slice(), description: '生辰可信度(Rodden 评级):AA 出生记录 / A 本人口述 / B 传记资料 / C 来源不明 / DD 相互矛盾 / X 无出生时间;用户说了出生时间从哪来才填' },
+			relation: { type: 'string', enum: RECORD_RELATION_VALUES.slice(), description: '与用户的关系:self 自己 / family 家人 / friend 朋友 / client 客户 / other 其他;用户说了才填' },
+			sourceNote: { type: 'string', maxLength: RECORD_SOURCE_NOTE_MAX, description: '出生资料出处(如 出生证 / 家谱 / 口述)' },
 			allowDuplicate: { type: 'boolean', default: false, description: '用户明确要求再建一条同名同生辰时才为 true' },
 			selectAsAnalysisSource: { type: 'boolean', default: true },
 			loadIntoWorkspace: { type: 'boolean', default: false },
@@ -96,6 +100,9 @@ export default {
 			gender: normalizeGender(args.gender),
 			group: Array.isArray(args.tags) && args.tags.length ? args.tags : undefined,
 			memo: memo || undefined,
+			...(args.rodden ? { rodden: args.rodden } : {}),
+			...(args.relation ? { relation: args.relation } : {}),
+			...(`${args.sourceNote || ''}`.trim() ? { sourceNote: `${args.sourceNote}`.trim() } : {}),
 			aiOrigin: aiOriginOf(ctx, 'create_chart_record'),
 		};
 		const g = guardAdditive('create_chart_record', values);
@@ -130,7 +137,7 @@ export default {
 		}
 		return {
 			ok: true,
-			data: { cid: saved.cid, created: true, duplicate: false, persisted, record: { name: saved.name, birth: saved.birth, zone: saved.zone, lat: saved.lat, lon: saved.lon, gpsLat: saved.gpsLat, gpsLon: saved.gpsLon, pos: saved.pos, gender: saved.gender }, selected, loaded, ...(selectionDeferred ? { selectionDeferred: true } : {}) },
+			data: { cid: saved.cid, created: true, duplicate: false, persisted, record: { name: saved.name, birth: saved.birth, zone: saved.zone, lat: saved.lat, lon: saved.lon, gpsLat: saved.gpsLat, gpsLon: saved.gpsLon, pos: saved.pos, gender: saved.gender, ...(genderLabelOf(saved.gender) ? { genderLabel: genderLabelOf(saved.gender) } : {}) }, selected, loaded, ...(selectionDeferred ? { selectionDeferred: true } : {}) },
 			message: `已新建命盘档案「${saved.name}」${saved.birth} ${pos || ''}`,
 			summary: `新建命盘 ${saved.name}`,
 			assumptions,

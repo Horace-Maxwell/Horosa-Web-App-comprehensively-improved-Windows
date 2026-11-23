@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/astro/AstroTriplicityRulers.js b/astrostudyui/src/components/astro/AstroTriplicityRulers.js
-index b314f2e8..9d4a8dad 100644
+index cfb9f433..91883fb2 100644
 --- a/astrostudyui/src/components/astro/AstroTriplicityRulers.js
 +++ b/astrostudyui/src/components/astro/AstroTriplicityRulers.js
 @@ -7,6 +7,7 @@ import { symbolWithMeaning } from './AstroExtraCommon';
- import { XQSelect as Select, XQSegmented } from '../xq-ui';
+ import { XQSelect as Select, XQSegmented, XQInputNumber } from '../xq-ui';
  import styles from '../../css/styles.less';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';

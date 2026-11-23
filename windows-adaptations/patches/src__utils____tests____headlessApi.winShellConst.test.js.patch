@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/headlessApi.test.js b/astrostudyui/src/utils/__tests__/headlessApi.test.js
-index cee827de..9d59f3ba 100644
+index 27182356..1ccbc4d3 100644
 --- a/astrostudyui/src/utils/__tests__/headlessApi.test.js
 +++ b/astrostudyui/src/utils/__tests__/headlessApi.test.js
 @@ -16,33 +16,45 @@ const protocol = require(path.join(HEADLESS, 'protocol'));
@@ -72,23 +72,68 @@ index cee827de..9d59f3ba 100644
  	});
  	it('🔴 客户端身份两边同一份用例表(_meta.clientName → clientInfo.name → 会话名 → 传输层缺省);桌面壳的用例读同一文件', ()=>{
  		const rows = fs.readFileSync(path.join(__dirname, 'fixtures/clientIdentityCases.tsv'), 'utf8').split('\n').filter((l)=>l && !l.startsWith('#')).map((l)=>l.split('\t'));
-@@ -68,13 +80,13 @@ describe('① 与桌面壳逐项对拍', ()=>{
+@@ -68,28 +80,51 @@ describe('① 与桌面壳逐项对拍', ()=>{
  		rows.forEach(([metaJson, sessJson, transJson, expJson, note])=>{
  			expect([note, protocol.clientIdentityOf({ _meta: JSON.parse(metaJson) }, JSON.parse(sessJson), JSON.parse(transJson))]).toEqual([note, JSON.parse(expJson)]);
  		});
 -		expect(mcpSrc()).toMatch(/include_str!\(\s*"[^"]*fixtures\/clientIdentityCases\.tsv"\s*\)/);
 +		expect(EL ? EL.src('mcp.test.js') : mcpSrc()).toMatch(EL ? /path\.join\(fx, 'clientIdentityCases\.tsv'\)/ : /include_str!\(\s*"[^"]*fixtures\/clientIdentityCases\.tsv"\s*\)/);
  	});
- 	it('🔴 两份 OpenAPI 的 POST /tools/{name} 都写出 Idempotency-Key 请求头', ()=>{
- 		const doc = rest.openApiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9');
+ 	it('🔴 两份 OpenAPI 的写入类 POST /tools/{name} 都写出 Idempotency-Key 请求头(读类不挂)', ()=>{
+ 		const doc = rest.openApiDoc([{ name: 'create_chart_record', level: 'additive', inputSchema: { type: 'object' } }, { name: 'list_records', level: 'read', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], '9.9.9');
  		const h = doc.paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key');
  		expect(h).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } });
+ 		expect(doc.paths['/tools/list_records'].post.parameters.some((x)=>x.name === 'Idempotency-Key')).toBe(false);
 -		expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/);
-+		if(EL){ expect(EL.rest.openapiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9').paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key')).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } }); }else{ expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/); }
+-		expect(restRs).toMatch(/Some\("additive"\)/);
++		if(EL){
++			const elDoc = EL.rest.openapiDoc([{ name: 'create_chart_record', level: 'additive', inputSchema: { type: 'object' } }, { name: 'list_records', level: 'read', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], '9.9.9');
++			expect(elDoc.paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key')).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } });
++			expect(elDoc.paths['/tools/list_records'].post.parameters.some((x)=>x.name === 'Idempotency-Key')).toBe(false);
++			// 两份文档逐字同形(路径 / 参数 / 错误状态表 / 错误体结构)
++			expect(elDoc.paths).toEqual(doc.paths);
++			expect(elDoc.components).toEqual(doc.components);
++		}else{ expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/); }
++		expect(restRs).toMatch(EL ? /t\.level === 'additive'/ : /Some\("additive"\)/);
+ 		expect(Object.keys(doc.paths['/tools/list_records'].post.responses).sort()).toEqual(['200'].concat(rest.ERROR_RESPONSES.map(([c])=>c)).sort());
+ 		expect(doc.paths['/records'].get.parameters.map((x)=>x.name)).toEqual(['query', 'text', rest.TIMEOUT_HEADER]);
+ 		expect(doc.components.schemas.ErrorDetail.properties.code.type).toBe('string');
  	});
- });
- const mcpSrc = ()=>fs.readFileSync(path.join(TAURI_SRC, 'mcp_server.rs'), 'utf8');
-@@ -155,7 +167,7 @@ describe('② 协议层', ()=>{
+ 	it('🔴 REST 错误码表 / 保留查询键 / 超时请求头 / OpenAPI 错误状态表 两边同一份', ()=>{
+-		const names = /pub const RPC_ERROR_NAMES: \[\(i64, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
++		const names = EL ? '' : /pub const RPC_ERROR_NAMES: \[\(i64, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
+ 		const errConst = (n)=>Number(new RegExp(`pub const ERR_${n}: i64 = (-?\\d+);`).exec(read('mcp_server.rs'))[1]);
+-		const rsPairs = Array.from(names.matchAll(/\(ERR_([A-Z_]+),\s*"([A-Z_]+)"\)/g)).map((m)=>[errConst(m[1]), m[2]]);
++		const rsPairs = EL ? EL.rest.RPC_ERROR_NAMES : Array.from(names.matchAll(/\(ERR_([A-Z_]+),\s*"([A-Z_]+)"\)/g)).map((m)=>[errConst(m[1]), m[2]]);
+ 		expect(rsPairs).toEqual(rest.RPC_ERROR_NAMES);
+-		expect(strings(/pub const RESERVED_QUERY_KEYS: \[&str; \d+\] = \[([^\]]*)\]/.exec(restRs)[1])).toEqual(rest.RESERVED_QUERY_KEYS);
+-		expect(/pub const TIMEOUT_HEADER: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.TIMEOUT_HEADER);
+-		const er = /pub const ERROR_RESPONSES: \[\(&str, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
+-		expect(Array.from(er.matchAll(/\("(\d+)",\s*"([^"]+)"\)/g)).map((m)=>[m[1], m[2]])).toEqual(rest.ERROR_RESPONSES);
++		expect(EL ? EL.rest.RESERVED_QUERY_KEYS : strings(/pub const RESERVED_QUERY_KEYS: \[&str; \d+\] = \[([^\]]*)\]/.exec(restRs)[1])).toEqual(rest.RESERVED_QUERY_KEYS);
++		expect(EL ? EL.rest.TIMEOUT_HEADER : /pub const TIMEOUT_HEADER: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.TIMEOUT_HEADER);
++		const er = EL ? '' : /pub const ERROR_RESPONSES: \[\(&str, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
++		expect(EL ? EL.rest.ERROR_RESPONSES : Array.from(er.matchAll(/\("(\d+)",\s*"([^"]+)"\)/g)).map((m)=>[m[1], m[2]])).toEqual(rest.ERROR_RESPONSES);
++		if(EL){
++			// 行为两边同:数字码 → 字符串;text=0 只在成功且有 data 时去正文;超限 429 / 超时 504
++			expect(EL.rest.rpcErrorName(-32602)).toBe(rest.rpcErrorName(-32602));
++			expect(EL.rest.rpcErrorName(1)).toBe(rest.rpcErrorName(1));
++			const both = (r, drop)=>[EL.rest.toolResultBodyOpts(r, drop), rest.toolResultBody(r, { dropText: drop })];
++			const failWith = (o)=>({ content: [{ type: 'text', text: JSON.stringify(o) }], isError: true });
++			[
++				[{ content: [{ type: 'text', text: '正文' }], structuredContent: { a: 1 }, isError: false }, true],
++				[{ content: [{ type: 'text', text: '正文' }], structuredContent: { a: 1 }, isError: false }, false],
++				[{ content: [{ type: 'text', text: '正文' }], isError: false }, true],
++				[failWith({ code: 'E_LIMIT', retryable: true, retryAfterMs: 4200, message: '超限', hint: '等一会儿' }), false],
++				[failWith({ code: 'E_LIMIT', retryable: false, message: '本轮限额' }), false],
++				[failWith({ code: 'E_TOOL_TIMEOUT', message: '超时' }), true],
++				[failWith({ code: 'E_X', message: '坏', data: { candidates: [1] } }), false],
++			].forEach(([r, drop])=>{ const [a, b] = both(r, drop); expect(a).toEqual(b); });
++		}
+ 		// 行为:数字码 → 字符串;text=0 只在成功且有 data 时去正文
+ 		expect(rest.rpcErrorName(-32602)).toBe('INVALID_PARAMS');
+ 		expect(rest.rpcErrorName(1)).toBe('UPSTREAM');
+@@ -182,7 +217,7 @@ describe('② 协议层', ()=>{
  		const headlessMeta = rt.calls[0].params._meta;
  		expect(headlessMeta.timeoutMs).toBe(10000);
  		// 桌面壳投的也是原值(`"timeoutMs": timeout.as_millis()`):同一客户端预算下两边页面实得预算相同

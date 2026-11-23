@@ -4,7 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const src = fs.readFileSync(path.resolve(__dirname, '../DunJiaMain.js'), 'utf8');
+const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '../DunJiaMain.js'));
 
 describe('DunJiaMain scope 化契约', ()=>{
 	test('techniqueScope 默认值在位(默认行为=独立奇门页,字节等价)', ()=>{

@@ -6,6 +6,8 @@ import { TableOddRowBgColor } from '../../utils/constants';
 import { listLocalCharts } from '../../utils/localcharts';
 import { XQButton as Button, XQInput as Input, XQModal as Modal, XQTable as Table } from '../xq-ui';
 import XQIcon from '../xq-icons';
+import { pressable } from '../../utils/pressable';
+import { renderBirthPlaceCell } from '../common/BirthPlaceCell';
 
 
 class ChartSearchModal extends Component{
@@ -160,19 +162,7 @@ class ChartSearchModal extends Component{
 			dataIndex: 'pos',
 			key: 'pos',
 			width: '20%',
-			render: (text, record)=>{
-				let pos = `经度：${record.lon}，纬度：${record.lat}`;
-				let span = (<span>{pos}</span>);
-				if(text){
-					span = (
-						<div>
-							<span>{text}</span><br />
-							<span>{pos}</span>
-						</div>
-					);
-				}
-				return span;
-			},
+			render: renderBirthPlaceCell,   // 经纬度两段各自不折行(与星盘搜索表同一份)
 		},{
 			title: '公开',
 			dataIndex: 'isPub',
@@ -193,7 +183,7 @@ class ChartSearchModal extends Component{
 
 		return (
 			<span>
-				<span onClick={this.showModalHandler}>
+				<span {...pressable(this.showModalHandler)}>
 					{ children }
 				</span>
 				<Modal open={this.state.visible} 

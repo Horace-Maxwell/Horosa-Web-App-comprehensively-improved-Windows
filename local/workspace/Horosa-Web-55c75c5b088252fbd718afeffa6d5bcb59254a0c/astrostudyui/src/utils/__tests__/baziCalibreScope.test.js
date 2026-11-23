@@ -62,9 +62,9 @@ describe('astro model:覆盖层 reducer 与全局同步钉住', ()=>{
 		expect(onFields).toMatch(/this\.requestBazi\(reqFields/);
 		expect(onFields).toMatch(/this\.prefetchBazi\(reqFields\)/);
 		expect(onFields).not.toMatch(/this\.(requestBazi|prefetchBazi)\(flds\.fields/);
-		const index = fs.readFileSync(path.join(__dirname, '../../pages/index.js'), 'utf8');
+		const index = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../pages/index.js'));   // 门面 + 子模块全集
 		expect(index).toMatch(/baziCalibreOverride=\{baziCalibreOverride\}/);
-		const model = fs.readFileSync(path.join(__dirname, '../../models/astro.js'), 'utf8');
+		const model = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../models/astro.js'));   // 门面 + 子模块全集
 		expect(model).toMatch(/_dayBoundaryRecordPinned: (?:values\.bootDayBoundaryUserOverride \? false : )?recordPinsDayBoundary\(values\)/);   // 温启带回「左栏亲手改过」的不钉住
 		expect((model.match(/baziCalibreOverride: \{\},/g) || []).length).toBeGreaterThanOrEqual(3);
 	});

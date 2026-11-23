@@ -13,7 +13,7 @@
 	}
 	.horosa-divi-card-head {
 		display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-		font-weight: 600; font-size: 13px; margin-bottom: 5px;
+		font-weight: 600; font-size: var(--horosa-fs-body); margin-bottom: 5px;
 		color: var(--horosa-text, inherit);
 	}
 	.horosa-divi-line { font-size: 12.5px; line-height: 1.75; color: var(--horosa-text-secondary, #6b7280); }
@@ -22,21 +22,21 @@
 	.horosa-divi-line.is-warn { color: var(--horosa-warn); }
 	.horosa-divi-score { font-size: 28px; font-weight: 700; line-height: 1.05; color: var(--horosa-text, inherit); }
 	/* 「/100」:继承分数色(评级语义色)整体再乘 .55 → 暗底 1.9:1;改走次级字色、不叠透明度 */
-	.horosa-divi-score small { font-size: 13px; font-weight: 400; color: var(--horosa-muted); }
+	.horosa-divi-score small { font-size: var(--horosa-fs-body); font-weight: 400; color: var(--horosa-muted); }
 	.horosa-divi-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 9px; }
 	.horosa-divi-two { display: flex; gap: 10px; }
 	.horosa-divi-two > div { flex: 1; min-width: 0; }
 	.horosa-divi-barrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 	/* 固定 120px 装不下最长项「命度/上升（第三考量）」(需 124px);因 overflow:visible,溢出的字不是被裁
 	   而是压到右侧数值条上。min-width 起底 + 允许按内容伸展,短标签仍对齐在 128px 处。 */
-	.horosa-divi-barrow .lbl { min-width: 128px; font-size: 12px; color: var(--horosa-text-secondary, #6b7280); flex-shrink: 0; }
-	.horosa-divi-barrow .num { width: 24px; text-align: right; font-size: 12px; flex-shrink: 0; color: var(--horosa-text-secondary, #6b7280); }
+	.horosa-divi-barrow .lbl { min-width: 128px; font-size: var(--horosa-fs-small); color: var(--horosa-text-secondary, #6b7280); flex-shrink: 0; }
+	.horosa-divi-barrow .num { width: 24px; text-align: right; font-size: var(--horosa-fs-small); flex-shrink: 0; color: var(--horosa-text-secondary, #6b7280); }
 	.horosa-divi-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--horosa-border-soft, rgba(148,163,184,.22)); overflow: hidden; }
 	.horosa-divi-bar > i { display: block; height: 100%; border-radius: 4px; }
-	.horosa-divi-note { font-size: 12px; line-height: 1.65; opacity: .75; padding: 9px 11px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; margin-top: 6px; }
+	.horosa-divi-note { font-size: var(--horosa-fs-small); line-height: 1.65; opacity: .75; padding: 9px 11px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; margin-top: 6px; }
 	.horosa-divi-kv { font-size: 12.5px; line-height: 1.85; color: var(--horosa-text, inherit); }
 	.horosa-divi-kv b { font-weight: 600; }
-	.horosa-divi-muted { font-size: 12px; color: var(--horosa-text-secondary); margin-top: 6px; }
+	.horosa-divi-muted { font-size: var(--horosa-fs-small); color: var(--horosa-text-secondary); margin-top: 6px; }
 	/* 右栏判断内容：随内容高度（不强行撑满整列），过长则自身滚动 */
 	.horosa-divi-judge { overflow: auto; }
 	/* 卜卦/择日右栏：卡片贴合内容、顶部对齐；下方留白让位给页面背景，而非一张巨大空卡片 */
@@ -79,7 +79,7 @@
 	.horosa-mundane-moment .val { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
 	.horosa-mundane-controls { margin-top: 4px; }
 	.horosa-mundane-hint { font-size: 11.5px; color: var(--horosa-text-secondary); line-height: 1.55; margin-top: 8px; padding: 7px 9px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 7px; }
-	.horosa-mundane-err { font-size: 11px; color: var(--horosa-cinnabar, #c0392b); margin-top: 8px; }
+	.horosa-mundane-err { font-size: var(--horosa-fs-caption); color: var(--horosa-cinnabar, #c0392b); margin-top: 8px; }
 	.horosa-mundane-scanlist {
 		margin-top: 10px; max-height: 260px; overflow-y: auto;
 		border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.16)); border-radius: 8px;
@@ -99,7 +99,7 @@
 	.horosa-mundane-regionform { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
 	.horosa-mundane-regionform .row2 { display: flex; gap: 6px; }
 	.horosa-mundane-regionform .row2 > * { flex: 1; min-width: 0; }
-	.horosa-mundane-steps { margin: 0 0 4px; padding-left: 18px; font-size: 11px; opacity: .72; line-height: 1.75; }
+	.horosa-mundane-steps { margin: 0 0 4px; padding-left: 18px; font-size: var(--horosa-fs-caption); opacity: .72; line-height: 1.75; }
 	.horosa-mundane-steps li { margin-bottom: 1px; }
 	.horosa-mundane-steps b { color: var(--horosa-accent, #b8860b); font-weight: 600; }
 	/* 世俗/卜卦/择日 左栏：加宽列宽（245→300+），并杜绝横向滚动（长日食扫描行/选择器不再撑出滑动条）。仅作用于三个占卜页，不影响本命盘。 */
@@ -120,12 +120,12 @@
 	.horosa-mundane-left { min-width: 0; }
 	.horosa-mundane-scanlist .row .t,
 	.horosa-mundane-scanlist .row .s { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-	/* 卜卦/择日/世俗 左栏所有动作按钮：统一加高(40px)、圆角、悬浮反馈。时间微调行 + 图标按钮保持紧凑。 */
+	/* 卜卦/择日/世俗 左栏所有动作按钮：控件尺寸档 lg(40px)、控件圆角、悬浮反馈。时间微调行 + 图标按钮用 xs 档保持紧凑。 */
 	.horosa-astro-input-panel .ant-btn.ant-btn-sm {
-		height: 40px !important;
-		min-height: 40px;
-		border-radius: 9px;
-		font-size: 13px;
+		height: var(--horosa-control-height-lg) !important;
+		min-height: var(--horosa-control-height-lg);
+		border-radius: var(--horosa-control-radius);
+		font-size: var(--horosa-fs-body);
 		font-weight: 500;
 		display: inline-flex;
 		align-items: center;
@@ -141,9 +141,9 @@
 	/* 时间微调行(此刻/确定/四分钟) + 图标按钮(±)：保持紧凑，不随上面变高 */
 	.horosa-astro-input-panel .horosa-time-adjust-inline .ant-btn.ant-btn-sm,
 	.horosa-astro-input-panel .ant-btn.ant-btn-icon-only.ant-btn-sm {
-		height: 28px !important;
-		min-height: 28px;
-		border-radius: 6px;
+		height: var(--horosa-control-height-xs) !important;
+		min-height: var(--horosa-control-height-xs);
+		border-radius: var(--horosa-control-radius);
 		font-weight: 400;
 	}
 	.horosa-astro-input-panel > .horosa-recalculate-button.ant-btn-sm {
@@ -162,7 +162,7 @@
 	.horosa-divi-subhead.pos { color: var(--horosa-grade-excellent, #2f9e6f); }
 	.horosa-divi-subhead.neg { color: var(--horosa-grade-bad, #cf5b45); }
 	/* 严重度药丸（中文，可读） */
-	.horosa-divi-sev { display: inline-block; min-width: 50px; text-align: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--horosa-on-solid, #fff); flex-shrink: 0; }
+	.horosa-divi-sev { display: inline-block; min-width: 50px; text-align: center; padding: 1px 8px; border-radius: 10px; font-size: var(--horosa-fs-caption); font-weight: 600; color: var(--horosa-on-solid, #fff); flex-shrink: 0; }
 	/* 药丸底 = 明 / 暗各一份的评级语义色,字 = on-solid(旧固定色白字:#d2a01f 1.9 / #93a1b0 2.6 / #e07a3b 2.9:1) */
 	.horosa-divi-sev.sev-critical { background: var(--horosa-grade-bad, #cf3b3b); }
 	.horosa-divi-sev.sev-high { background: var(--horosa-grade-poor, #e07a3b); }
@@ -171,7 +171,7 @@
 	.horosa-divi-sev.sev-info { background: var(--horosa-sev-info, #7c8796); }
 	/* 择日·危象日 原生日期输入(明暗双主题) */
 	.horosa-native-date {
-		height: 26px; padding: 2px 8px; font-size: 12px; border-radius: 6px;
+		height: 26px; padding: 2px 8px; font-size: var(--horosa-fs-small); border-radius: 6px;
 		border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.28));
 		background: var(--horosa-surface, rgba(148,163,184,.06));
 		color: var(--horosa-text, inherit);
@@ -187,12 +187,12 @@
 	.horosa-divi-flag:last-child { border-bottom: none; }
 	.horosa-divi-flag .msg { flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--horosa-text, inherit); }
 	.horosa-divi-legend { font-size: 11.5px; line-height: 1.65; opacity: .72; margin-bottom: 8px; padding: 7px 9px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 7px; }
-	.horosa-divi-verdict-big { font-size: 15px; font-weight: 700; padding: 11px 13px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.26)); }
-	.horosa-divi-verdict-big .sub { font-size: 12px; font-weight: 400; opacity: .8; margin-top: 4px; line-height: 1.55; }
+	.horosa-divi-verdict-big { font-size: var(--horosa-fs-subtitle); font-weight: 700; padding: 11px 13px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.26)); }
+	.horosa-divi-verdict-big .sub { font-size: var(--horosa-fs-small); font-weight: 400; opacity: .8; margin-top: 4px; line-height: 1.55; }
 	.horosa-divi-verdict-big.lean-yes { background: rgba(47,158,111,.12); border-color: rgba(47,158,111,.4); }
 	.horosa-divi-verdict-big.lean-no { background: rgba(207,91,69,.12); border-color: rgba(207,91,69,.4); }
 	.horosa-divi-verdict-big.lean-even { background: rgba(210,160,31,.12); border-color: rgba(210,160,31,.4); }
-	.horosa-divi-kv .tag { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--horosa-accent-soft, rgba(148,163,184,.18)); font-size: 12px; margin: 0 2px; }
+	.horosa-divi-kv .tag { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--horosa-accent-soft, rgba(148,163,184,.18)); font-size: var(--horosa-fs-small); margin: 0 2px; }
 }
 
 /* ===== 出生信息表单 · 时区/夏令时(DST)自动校正指示（结构/中性色，明暗双色走 token）===== */
@@ -211,7 +211,7 @@
 		color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-dst-indicator .horosa-dst-icon {
-		font-size: 14px;
+		font-size: var(--horosa-fs-body-lg);
 		line-height: 1;
 		opacity: 0.9;
 	}
@@ -260,5 +260,103 @@
 	.horosa-dst-indicator .horosa-dst-apply:hover {
 		text-decoration: underline;
 		filter: brightness(1.04);
+	}
+}
+
+/* ===== 奇门盘面附加层:暗干 / 寄干 / 天禽 / 推演标记 + 十二建星(奇门页大盘与三式盘共用 QimenCellOverlay;
+   「上挂下注」:落位与字号由 qimenCellLayout 按格子空位(先退一圈安全距离)算好写在行内,这里只定写法与颜色 —— 两盘一处改两处跟) ===== */
+:global {
+	.horosa-qimen-ov,
+	.horosa-qimen-ring-slot {
+		/* 前缀小字「寄」「暗」与外环「日」字相对主行的大小(= qimenCellLayout.PRE_EM 里的 0.68em) */
+		--horosa-qimen-pre-size: 0.68em;
+	}
+	.horosa-qimen-ov {
+		position: absolute;
+		z-index: 3;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		line-height: 1.12;   /* = qimenCellLayout.LINE_HEIGHT */
+		font-weight: 600;
+		white-space: nowrap;
+		color: var(--horosa-qimen-minor);
+		pointer-events: auto;
+	}
+	.horosa-qimen-ov.is-tag { font-weight: 700; color: var(--horosa-accent-strong, var(--horosa-accent)); }
+	.horosa-qimen-ov-line { display: flex; align-items: baseline; justify-content: center; }
+	/* 前缀小字「寄」「暗」:0.68em + 0.12em 右缝(= qimenCellLayout.PRE_EM) */
+	.horosa-qimen-ov-pre {
+		font-size: var(--horosa-qimen-pre-size);
+		font-weight: 500;
+		margin-right: 0.12em;
+		color: var(--horosa-muted);
+	}
+	/* 推演标记小药丸:描边用内阴影(不占宽,字宽估算里只算左右内边距 0.4em) */
+	.horosa-qimen-ov-tag {
+		padding: 0 0.2em;
+		border-radius: 0.3em;
+		background: var(--horosa-accent-soft);
+		box-shadow: inset 0 0 0 1px var(--horosa-gold-soft);
+	}
+	.horosa-qimen-ov-tag + .horosa-qimen-ov-tag { margin-left: 0.3em; }
+
+	/* 奇门页十二建星外环:九宫外一圈,按方位排十二支 + 建星;日值那一支金底并标「日」 */
+	.horosa-qimen-ring {
+		position: absolute;
+		left: 0;
+		top: 0;
+		box-sizing: border-box;
+		border: 1px solid var(--horosa-border);
+		border-radius: 22px;
+		background: var(--horosa-panel-soft);
+		pointer-events: none;
+	}
+	.horosa-qimen-ring-slot {
+		position: absolute;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		line-height: 1.1;
+		white-space: nowrap;
+		transform: translate(-50%, -50%);
+		pointer-events: auto;
+	}
+	.horosa-qimen-ring-slot.is-v { flex-direction: column; gap: 1px; }
+	.horosa-qimen-ring-zhi { color: var(--horosa-muted); font-weight: 500; }
+	.horosa-qimen-ring-jx { color: var(--horosa-text-soft); font-weight: 700; }
+	.horosa-qimen-ring-slot.is-day {
+		padding: 2px 5px;
+		border-radius: 8px;
+		background: var(--horosa-accent-soft);
+		box-shadow: inset 0 0 0 1px var(--horosa-gold-soft);
+	}
+	.horosa-qimen-ring-slot.is-day.is-v { padding: 4px 2px; }
+	.horosa-qimen-ring-slot.is-day .horosa-qimen-ring-jx { color: var(--horosa-accent-strong, var(--horosa-accent)); }
+	.horosa-qimen-ring-slot i {
+		font-style: normal;
+		font-size: var(--horosa-qimen-pre-size);
+		font-weight: 700;
+		color: var(--horosa-accent-strong, var(--horosa-accent));
+	}
+	/* 盘下图例行末的「十二建星」开关:靠右,与图例隔开 */
+	.horosa-qimen-ring-toggle.ant-btn { margin-left: auto; }
+
+	/* 三式盘外圈地支旁的建星:主题金;日值那一支描一圈细框 */
+	.horosa-qimen-jx {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		line-height: 1;
+		font-weight: 700;
+		color: var(--horosa-accent-strong, var(--horosa-accent));
+		pointer-events: auto;
+	}
+	.horosa-qimen-jx.is-day {
+		padding: 1px 2px;
+		border-radius: 3px;
+		box-shadow: inset 0 0 0 1px var(--horosa-accent);
 	}
 }

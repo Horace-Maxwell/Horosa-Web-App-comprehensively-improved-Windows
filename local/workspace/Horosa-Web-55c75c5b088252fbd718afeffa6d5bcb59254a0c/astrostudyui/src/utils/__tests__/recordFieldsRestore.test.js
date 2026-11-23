@@ -10,7 +10,8 @@ import { RECORD_FIELDS_RESTORE_MANIFEST, applyRecordToFields } from '../recordFi
 import { PD_EXTRA_SETTING_KEYS } from '../primaryDirectionSync';
 
 const SRC_ROOT = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
+const { readSource, fnBody } = require('./helpers/sourceSet');
+const read = (rel)=>readSource(path.join(SRC_ROOT, rel));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 
 // 从 from 起、至其后第一个 until 止的源码切片；找不到直接抛（防标记漂移静默放行）。
 function sliceBetween(source, from, until){
@@ -45,7 +46,7 @@ const savedKeys = (()=>{
 })();
 
 const paramsConsumedKeys = (()=>{
-	const slice = sliceBetween(read('models/astro.js'), 'function fieldsToParams(fields){', 'function shouldIncludePrimaryDirection');
+	const slice = fnBody(read('models/astro.js'), 'function fieldsToParams(fields){');   // 截到这个函数自己的右花括号(全集里下一个函数可能在别的文件)
 	const keys = extractAll(slice, /fields\.(\w+)/g);
 	expect(keys.size).toBeGreaterThan(30);
 	return withPdExtraRegistry(keys, slice, '...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map(');

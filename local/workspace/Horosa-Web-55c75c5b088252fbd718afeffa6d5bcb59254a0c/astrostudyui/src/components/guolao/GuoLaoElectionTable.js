@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { InputNumber, message } from 'antd';
-import { XQSelect as Select, XQButton as Button } from '../xq-ui';
+import { message } from 'antd';
+import { XQSelect as Select, XQButton as Button, XQInputNumber } from '../xq-ui';
 import { MOIRA_PLANET_DEFS } from './GuoLaoMoiraWheel';
 import { mountainPosition, applyDeclination, quickWheelAz } from './electionCore';
 import { fetchQizhengEclipses, fetchQizhengAzimuthSearch } from '../../services/qizheng';
@@ -140,11 +140,11 @@ export function GuoLaoElectionSearch({ fields, transitParams, onPickMoment }){
 				</div>
 				<div className="horosa-guolao-search-field">
 					<label>目标方位°</label>
-					<InputNumber size="small" min={0} max={359.9} value={targetAz} onChange={(v)=>setTargetAz(v || 0)} style={{width: 88}} />
+					<XQInputNumber size="small" min={0} max={359.9} value={targetAz} onChange={(v)=>setTargetAz(v || 0)} style={{width: 88}} />
 				</div>
 				<div className="horosa-guolao-search-field">
 					<label>未来天数</label>
-					<InputNumber size="small" min={1} max={30} value={days} onChange={(v)=>setDays(v || 3)} style={{width: 68}} />
+					<XQInputNumber size="small" min={1} max={30} value={days} onChange={(v)=>setDays(v || 3)} style={{width: 68}} />
 				</div>
 				<div className="horosa-guolao-search-actions">
 					<Button size="small" type="primary" loading={busy} onClick={runAzimuth}>方位搜索</Button>

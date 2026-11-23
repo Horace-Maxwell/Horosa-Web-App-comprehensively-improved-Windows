@@ -2,7 +2,7 @@
 // 数据层全在 utils/recordRelations(纯函数+闸测试);此处只做确认 UI。
 import React, { useEffect, useState } from 'react';
 import { Modal, Button, message, Popconfirm } from 'antd';
-import { XQSelect, XQTextArea } from '../xq-ui';
+import { XQSelect, XQTextArea, XQRadio } from '../xq-ui';
 import {
 	RELATION_TYPES, appendRecordJournal, linkRecords, unlinkRecords, findDuplicateGroups, mergeRecords,
 } from '../../utils/recordRelations';
@@ -166,8 +166,7 @@ export function DuplicateMergeModal({ visible, kind, records, timeField, onClose
 					<div style={{ marginBottom: 6, fontWeight: 600 }}>{`疑似重复：${group[0].name || group[0].event}（${group.length} 条）`}</div>
 					{group.map((r)=>(
 						<div key={r.cid} style={{ display: 'flex', alignItems: 'center', fontSize: 12, padding: '2px 0' }}>
-							<input
-								type='radio'
+							<XQRadio
 								name={`primary-${gi}`}
 								checked={(primaryByGroup[gi] || group[0].cid) === r.cid}
 								onChange={()=>setPrimaryByGroup({ ...primaryByGroup, [gi]: r.cid })}

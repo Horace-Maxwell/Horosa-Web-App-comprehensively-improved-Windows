@@ -1,11 +1,11 @@
 import React, { Component } from 'react';   // 显式引 React:模块级 JSX 常量在 jest classic runtime 下必需
 import { markPanelReady } from '../../utils/perfMark';
-import { Input, Checkbox, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
+import { Input, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
 import PlusMinusTime from '../astro/PlusMinusTime';
 import TimeFieldTrigger from '../comp/QuickTimeField';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { shortOptionLabel } from '../../utils/shortOptionLabel';
-import { XQSelect, XQSideSection, XQSegmented, XQButton } from '../xq-ui';
+import { XQSelect, XQSideSection, XQSegmented, XQButton, XQCheckbox } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -393,9 +393,9 @@ class HoraryMain extends Component{
 							? '古典星集预设只影响盘面显示;判读是否计入三王星由本开关定' : '';
 						const hint = parentOff ? '须先开「撤回作独立破坏」' : (outerDead ? '需三王星入盘:流派预设切「现代心理」' : outerNote);
 						return (
-							<Checkbox key={p.key} className={chipCls(p.label)} disabled={disabled} title={hint || undefined} checked={!!effective[p.key]} onChange={(e)=>setParam(p, !!(e && e.target && e.target.checked))}>
+							<XQCheckbox key={p.key} className={chipCls(p.label)} disabled={disabled} title={hint || undefined} checked={!!effective[p.key]} onChange={(e)=>setParam(p, !!(e && e.target && e.target.checked))}>
 								{p.label}{changedMark(p)}
-							</Checkbox>
+							</XQCheckbox>
 						);
 					})}
 				</div>
@@ -482,40 +482,40 @@ class HoraryMain extends Component{
 				</div>
 				{this.renderCampBlock(args)}
 				<div className="horosa-horary-option-card">
-					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.chartFocus !== false}
+					<XQCheckbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.chartFocus !== false}
 						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ chartFocus: v }); setExtra({ chartFocus: v }); }}>
 						盘面聚焦征象宫
-					</Checkbox>
-					<Checkbox checked={extra.sincerityConfirmed !== false}
+					</XQCheckbox>
+					<XQCheckbox checked={extra.sincerityConfirmed !== false}
 						onChange={(e)=>setExtra({ sincerityConfirmed: (e && e.target && e.target.checked) ? true : false })}>
 						问题真诚自评
-					</Checkbox>
-					<Checkbox className="horosa-chip-full" checked={!!extra.confirmYouthMatch}
+					</XQCheckbox>
+					<XQCheckbox className="horosa-chip-full" checked={!!extra.confirmYouthMatch}
 						onChange={(e)=>setExtra({ confirmYouthMatch: !!(e && e.target && e.target.checked) })}>
 						年轻体貌合上升
-					</Checkbox>
+					</XQCheckbox>
 					{/* 事件盘=有确定客观时刻(⑤类起盘):命度过晚(asc_late)考量的正当救济入口 */}
-					<Checkbox className="horosa-chip-full" checked={!!extra.isEventChart}
+					<XQCheckbox className="horosa-chip-full" checked={!!extra.isEventChart}
 						onChange={(e)=>setExtra({ isEventChart: !!(e && e.target && e.target.checked) })}>
 						事件盘（客观时刻）
-					</Checkbox>
+					</XQCheckbox>
 					{/* 判读叠层四子层(默认开;说明详帮助·卜卦盘) */}
-					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayPerfection !== false}
+					<XQCheckbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayPerfection !== false}
 						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayPerfection: v }); setExtra({ overlayPerfection: v }); }}>
 						盘面完成法连线
-					</Checkbox>
-					<Checkbox disabled={wheelSquare} title={wheelHint} checked={extra.overlayAntiscia !== false}
+					</XQCheckbox>
+					<XQCheckbox disabled={wheelSquare} title={wheelHint} checked={extra.overlayAntiscia !== false}
 						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayAntiscia: v }); setExtra({ overlayAntiscia: v }); }}>
 						盘面映点标记
-					</Checkbox>
-					<Checkbox className="horosa-chip-full" disabled={wheelSquare || !termRingOn} title={termsHint} checked={extra.overlayTerms !== false}
+					</XQCheckbox>
+					<XQCheckbox className="horosa-chip-full" disabled={wheelSquare || !termRingOn} title={termsHint} checked={extra.overlayTerms !== false}
 						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayTerms: v }); setExtra({ overlayTerms: v }); }}>
 						界限环按界主着色
-					</Checkbox>
-					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayStars !== false}
+					</XQCheckbox>
+					<XQCheckbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayStars !== false}
 						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayStars: v }); setExtra({ overlayStars: v }); }}>
 						恒星命中轮缘标注
-					</Checkbox>
+					</XQCheckbox>
 				</div>
 			</XQSideSection>
 			{this.renderAdvanced(args)}

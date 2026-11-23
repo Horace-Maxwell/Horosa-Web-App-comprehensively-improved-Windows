@@ -1,0 +1,43 @@
+diff --git a/astrostudyui/src/components/ziwei/main/headless.js b/astrostudyui/src/components/ziwei/main/headless.js
+index f9bcc129..4aed796a 100644
+--- a/astrostudyui/src/components/ziwei/main/headless.js
++++ b/astrostudyui/src/components/ziwei/main/headless.js
+@@ -13,6 +13,8 @@ import { isYangGan } from '../ziweiCore';
+ import { detectPatterns } from '../ziweiPatterns';
+ import { stableSignature } from '../../../utils/memoBySignature';
+ import { buildZiWeiSnapshotText } from './snapshot';
++import { cachedPost } from '../../../services/_requestCache';
++import { techniqueResultCacheEnabled } from '../../../utils/perfFlags';
+ 
+ // —— R4-B3:/ziwei/birth 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
+ //    抽出来的唯一目的:预热/预取要在【组件之外】构出与首点逐字节同键的 body。
+@@ -50,9 +52,10 @@ export function buildZiweiBirthParams(flds){
+ 	return params;
+ }
+ 
+-// R4-B3(数据层空闲预热):紫微本盘 /ziwei/birth —— 首点概率最高的技法之一。
+-// 走与 requestZiWei 完全同一入口(同 url、同 body、同 requestDedupe 三层缓存)⇒ 用户首点即命中。
+-// silent、丢结果、绝不 dispatch/setState;失败静默。
++// PERF-R9 Ship 7(数据层空闲预热):紫微本盘 /ziwei/birth —— 首点概率最高的技法之一,
++// 却一直不在排盘后的预热组里(本轮补上)。走与 requestZiWei 完全同一入口(同 url、同 body、
++// 同缓存层)⇒ 用户首点即命中。silent、丢结果、绝不 dispatch/setState;失败静默。
++// horosa_ziwei_warm_cached_post_v1:结果缓存开着时走 cachedPost(与页面同一命名空间 ziwei/birth),预热才打得中页面那一格。
+ export async function warmZiweiBirth(fields){
+ 	try{
+ 		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
+@@ -62,10 +65,13 @@ export async function warmZiweiBirth(fields){
+ 		if(!params){
+ 			return null;
+ 		}
++		const opts = { silent: true, retry: { retries: 0 } };
++		if(techniqueResultCacheEnabled()){
++			return await cachedPost(`${Constants.ServerRoot}/ziwei/birth`, params, opts, { ns: 'ziwei/birth' });
++		}
+ 		return await request(`${Constants.ServerRoot}/ziwei/birth`, {
+ 			body: JSON.stringify(params),
+-			silent: true,
+-			retry: { retries: 0 },
++			...opts,
+ 		});
+ 	}catch(e){
+ 		return null;   // 预热失败静默:首点回到冷即付的现状

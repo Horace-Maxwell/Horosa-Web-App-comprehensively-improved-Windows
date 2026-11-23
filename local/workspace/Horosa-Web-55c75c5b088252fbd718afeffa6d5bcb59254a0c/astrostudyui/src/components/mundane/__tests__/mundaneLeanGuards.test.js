@@ -5,7 +5,7 @@ import { buildMundaneCardSections } from '../MundaneMain';
 import { buildMockResult } from '../../../divination/election/__tests__/electionFixture';
 import { buildFacts } from '../../../divination/engine/chartFacts';
 
-const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'MundaneMain.js'), 'utf8');
+const SRC = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'MundaneMain.js'));   // 门面 + 子模块全集
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 describe('世俗盘 当年 / 盘面事实', () => {

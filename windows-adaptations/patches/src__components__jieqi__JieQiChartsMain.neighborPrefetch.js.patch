@@ -1,20 +1,17 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index b97fe93e..b2cf3bbb 100644
+index a81a0de1..d38ab5a5 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -38,15 +38,51 @@ import * as Su28Helper from '../su28/Su28Helper';
- import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
- import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
- import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
--import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
-+import { fetchPreciseJieqiYear, prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
- import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
- import UpdatingBadge from '../common/UpdatingBadge';
- import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
- import { dateKeyOfStr, toSlashDate } from '../../utils/dateStrSafe';
- import { registerProcessCache } from '../../utils/processCacheRegistry';
+@@ -31,11 +31,48 @@ import UpdatingBadge from '../common/UpdatingBadge';
+ import { paramsToFields, hookBirthSig, fieldsToState } from './main/fields';
+ import { getSeedCacheKey, getJieqiFourColumns, compactJieqiSeedResult, mergeJieqiRows, cacheJieqiSeedRows, findJieqiRow, loadJieqiChart, mergeJieQiCharts, isJieQiChartCompatible } from './main/charts';
+ import { buildJieQiSnapshotText, parseJieQiTab, buildJieQiCurrentSnapshotText, tabNeedsJieqiCharts, jieqiSnapshotMeta } from './main/snapshot';
+-export { hookBirthSig } from './main/fields';
 +import { markPanelReady } from '../../utils/perfMark';
++import { prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
++export { hookBirthSig, warmJieqiYear } from './main/fields';
+ export { mergeJieQiCharts, isJieQiChartCompatible } from './main/charts';
+ export { buildJieQiSnapshotText, buildJieQiSnapshotForRecordFields, buildJieQiCurrentSnapshotText } from './main/snapshot';
  
  const TabPane = Tabs.TabPane;
 +
@@ -53,52 +50,10 @@ index b97fe93e..b2cf3bbb 100644
 +	return true;
 +}
  const {Option, OptGroup} = Select
- const JIEQI_STD = [
- 	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
-@@ -311,6 +347,41 @@ function classicalCalibreSig(params){
- 	return JSON.stringify(Object.keys(ov).sort().reduce((acc, k)=>{ acc[k] = ov[k]; return acc; }, {}));
- }
- 
-+// PERF-R9 Ship 7(数据层空闲预热):分至图的 /jieqi/year 年表。
-+// 构参与组件 genSeedParams(=genParams(false))【逐字段同序同值】—— 经 fieldsToState 拿到
-+// 与组件挂载后完全相同的取数口径,再走 fetchPreciseJieqiYear(技法自己的 L1/localStorage/
-+// inflight 三层入口)⇒ 用户首点分至页即命中。
-+// ⚠️ 本条是【重端点】,故在预热组里排最后一位(前面的轻端点先付,交互随时让路)。
-+// silent(fetchPreciseJieqiYear 内置)、丢结果、绝不 dispatch/setState;失败静默。
-+export async function warmJieqiYear(fields){
-+	try{
-+		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
-+			return null;
-+		}
-+		const st = fieldsToState(fields);
-+		if(!st || !st.time || typeof st.time.format !== 'function'){
-+			return null;
-+		}
-+		return await fetchPreciseJieqiYear({
-+			year: st.time.format('YYYY'),
-+			ad: st.ad,
-+			zone: st.zone,
-+			lon: st.lon,
-+			lat: st.lat,
-+			hsys: st.hsys,
-+			zodiacal: st.zodiacal,
-+			siderealAyanamsa: st.siderealAyanamsa,
-+			gpsLat: st.gpsLat,
-+			gpsLon: st.gpsLon,
-+			doubingSu28: st.doubingSu28,
-+			after23NewDay: defaultAfter23NewDay(),
-+			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-+		});
-+	}catch(e){
-+		return null;   // 预热失败静默:首点回到冷即付的现状
-+	}
-+}
-+
- function getSeedCacheKey(params){
- 	return [
- 		params && params.year,
-@@ -1016,16 +1087,9 @@ function jieqiSnapshotMeta(params, currentTab){
- }
+ // 3D 盘懒加载(见上方 makeLazyBoundary 引用处的说明:绝不可改回静态 import)
+ const AstroChartMain3D = makeLazyBoundary(
+@@ -44,15 +81,9 @@ const AstroChartMain3D = makeLazyBoundary(
+ );
  
  export class JieQiChartsMain extends Component{
 -	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
@@ -110,14 +65,13 @@ index b97fe93e..b2cf3bbb 100644
 -		return !wrapperPropsEqual(this.props, nextProps);
 -	}
 -
--
 +	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同类内也带一份通用 wrapperPropsEqual 渲染守卫,
 +	// 与本类内另一份我方细化守卫重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
 +	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
  	constructor(props) {
  		super(props);
  
-@@ -1242,10 +1306,19 @@ export class JieQiChartsMain extends Component{
+@@ -269,10 +300,19 @@ export class JieQiChartsMain extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -141,7 +95,7 @@ index b97fe93e..b2cf3bbb 100644
  	}
  
  	async requestJieQiCharts(seedParams, seedSeq, tab){
-@@ -1353,6 +1426,11 @@ export class JieQiChartsMain extends Component{
+@@ -380,6 +420,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -153,7 +107,7 @@ index b97fe93e..b2cf3bbb 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
-@@ -1632,7 +1710,15 @@ export class JieQiChartsMain extends Component{
+@@ -659,7 +704,15 @@ export class JieQiChartsMain extends Component{
  			return dom;
  		}
  
@@ -170,7 +124,7 @@ index b97fe93e..b2cf3bbb 100644
  			const fourCols = getJieqiFourColumns(item);
  			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
  			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
-@@ -1701,6 +1787,7 @@ export class JieQiChartsMain extends Component{
+@@ -728,6 +781,7 @@ export class JieQiChartsMain extends Component{
  				{cols}
  			</Row>
  		);
@@ -178,7 +132,7 @@ index b97fe93e..b2cf3bbb 100644
  		return dom;
  	}
  
-@@ -1888,6 +1975,16 @@ export class JieQiChartsMain extends Component{
+@@ -915,6 +969,16 @@ export class JieQiChartsMain extends Component{
  		}
  	}
  

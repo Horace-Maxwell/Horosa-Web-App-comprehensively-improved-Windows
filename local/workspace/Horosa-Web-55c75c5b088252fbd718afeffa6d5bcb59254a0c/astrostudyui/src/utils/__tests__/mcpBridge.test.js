@@ -205,6 +205,9 @@ describe('外部客户端档(P0):限流 / 只读直拒 / 每次确认 / 防再�
 		expect((await call(12, 'create_chart_record', 'c')).result.isError).toBe(false);
 		expect(checkExternalLimits('c', 'additive', { approval: 'auto', maxCallsPerMinute: 10, maxAdditivePerHour: 1 }, now + 1).code).toBe('E_LIMIT');
 		expect(checkExternalLimits('c', 'read', { approval: 'auto', maxCallsPerMinute: 10, maxAdditivePerHour: 1 }, now + 2).ok).toBe(true);
+		// 写入额度是进程级一把:换个会话 / 客户端也已用完(多握手几次不能多得写入额度);调用频率仍按会话分
+		expect(checkExternalLimits('another-session', 'additive', { approval: 'auto', maxCallsPerMinute: 10, maxAdditivePerHour: 1 }, now + 3).code).toBe('E_LIMIT');
+		expect(checkExternalLimits('another-session', 'read', { approval: 'auto', maxCallsPerMinute: 10, maxAdditivePerHour: 1 }, now + 4).ok).toBe(true);
 		// 窗口滑过后恢复
 		expect(checkExternalLimits('c', 'additive', { approval: 'auto', maxCallsPerMinute: 10, maxAdditivePerHour: 1 }, now + 3600001).ok).toBe(true);
 	});

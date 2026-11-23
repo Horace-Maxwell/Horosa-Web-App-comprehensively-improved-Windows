@@ -62,7 +62,7 @@ describe('克隆等价性:structuredClone 与 JSON 往返对 /chart 形状同果
 	test('源码带 typeof structuredClone 守卫(jsdom/老环境安全落回 JSON)', () => {
 		const fs = require('fs');
 		const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '..', 'astro.js'), 'utf8');
+		const src = require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '..', 'astro.js'));   // 门面 + 子模块全集
 		expect(src).toMatch(/typeof structuredClone === 'function'/);
 	});
 

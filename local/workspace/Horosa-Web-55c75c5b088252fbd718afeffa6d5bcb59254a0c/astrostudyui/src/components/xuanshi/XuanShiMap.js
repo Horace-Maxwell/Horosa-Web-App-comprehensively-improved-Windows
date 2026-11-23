@@ -1,10 +1,11 @@
 import React from 'react';
 import { watchChartAppearance, watchChartScript } from '../../utils/chartDrawGuard';
-import { Spin, Empty } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import echarts from './echartsCore';
 import chinaGeo from '../../assets/china.geo.json';
 import { fetchMap } from '../../services/xuanshi';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { pressable } from '../../utils/pressable';
 
 // 玄学地图 —— 对齐参考地理地图页:echarts 中国底图(宣纸×墨,始终渲染)+ 古都钉点(朱砂 effectScatter,
 // 半径 ∝ 活动量)+ 朝代游历 chips + 右栏「城市榜」。底图常驻:某朝代 0 钉点时也显示地图、仅无散点(非空白)。
@@ -141,7 +142,7 @@ export default class XuanShiMap extends React.Component {
 			<div>
 				{/* 面包屑 + 标题 + 描述 */}
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>地理地图</span>
 				</div>
 				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>地理地图</h1>
@@ -152,14 +153,14 @@ export default class XuanShiMap extends React.Component {
 
 				{/* 朝代游历 chips */}
 				<div className="xuanshi-facet-chips" style={{ marginBottom: 16 }}>
-					<span className={`xuanshi-fchip${!period ? ' is-active' : ''}`} onClick={() => this.setPeriod('')}><span className="xuanshi-fchip-label">全部朝代</span></span>
+					<span className={`xuanshi-fchip${!period ? ' is-active' : ''}`} {...pressable(() => this.setPeriod(''))}><span className="xuanshi-fchip-label">全部朝代</span></span>
 					{MAP_MACROS.map((m) => (
-						<span key={m} className={`xuanshi-fchip${period === m ? ' is-active' : ''}`} onClick={() => this.setPeriod(m)}><span className="xuanshi-fchip-label">{m}</span></span>
+						<span key={m} className={`xuanshi-fchip${period === m ? ' is-active' : ''}`} {...pressable(() => this.setPeriod(m))}><span className="xuanshi-fchip-label">{m}</span></span>
 					))}
 				</div>
 
 				{err ? (
-					<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
+					<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
 				) : (
 					<div className="xuanshi-map-grid">
 						<div className="xuanshi-card" style={{ padding: 10, minWidth: 0, position: 'relative' }}>
@@ -167,10 +168,10 @@ export default class XuanShiMap extends React.Component {
 							<div ref={this._mapEl} style={{ width: '100%', height: 'calc(68 * var(--horosa-lvh, 1vh))', minHeight: 380 }} />
 							{/* 叠加层:载入中 / 底图失败 / 0 钉点提示(均不替换底图) */}
 							{loading ? (
-								<div className="xuanshi-center" style={{ position: 'absolute', inset: 0, background: 'var(--paper-card)', opacity: 0.85 }}><Spin tip="载入舆图…" /></div>
+								<div className="xuanshi-center" style={{ position: 'absolute', inset: 0, background: 'var(--paper-card)', opacity: 0.85 }}><XQSpin tip="载入舆图…" /></div>
 							) : null}
 							{!loading && !this._geoOk ? (
-								<div className="xuanshi-center" style={{ position: 'absolute', inset: 0 }}><Empty description="中国底图载入失败" /></div>
+								<div className="xuanshi-center" style={{ position: 'absolute', inset: 0 }}><XQEmpty description="中国底图载入失败" /></div>
 							) : null}
 							{!loading && this._geoOk && period && !points.length ? (
 								<div className="xuanshi-chip is-ink" style={{ position: 'absolute', top: 16, left: 16 }}>「{period}」该朝代暂无定位钉点</div>
@@ -185,7 +186,7 @@ export default class XuanShiMap extends React.Component {
 								const sel = selected && selected.modern === p.modern;
 								const byHist = p.by_history || {};
 								return (
-									<div key={i} className={`xuanshi-cityrow${sel ? ' is-active' : ''}`} onClick={() => this.setState({ selected: p })}>
+									<div key={i} className={`xuanshi-cityrow${sel ? ' is-active' : ''}`} {...pressable(() => this.setState({ selected: p }))}>
 										<div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
 											<span className="xuanshi-display" style={{ fontSize: 15, color: 'var(--ink)' }}>{p.modern}</span>
 											<span className="xuanshi-stat-sub" style={{ fontVariantNumeric: 'tabular-nums' }}>{p.count}</span>

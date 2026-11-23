@@ -78,7 +78,14 @@ function changeableKeysOf(src, changeVia, stateAlias){
 		}
 	}else if(changeVia === 'stateDiff'){
 		// 在 componentDidUpdate 里按「保留键前后值」统一落盘的页:分母 = 构造函数 this.state = { … } 字面量第一层的全部键
-		const at = code.indexOf('this.state = {');
+		let at = code.indexOf('this.state = {');
+		// 初值抽成同文件的纯函数(this.state = fn(…);页面与 AI 工具共用,如占星地图 acgInitialState):跟到该函数 return 的对象字面量
+		if(at < 0){
+			const fm = /this\.state\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\(/.exec(code);
+			const def = fm ? code.indexOf(`function ${fm[1]}(`) : -1;
+			const ret = def >= 0 ? code.indexOf('return {', def) : -1;
+			if(ret >= 0){ at = ret; }
+		}
 		if(at >= 0){
 			const open = code.indexOf('{', at);
 			let depth = 0; let end = -1;
@@ -268,6 +275,7 @@ describe('技法页排盘设置登记表合同', ()=>{
 		expect(a2).toEqual(['flag', 'granular', 'house', 'late']);
 		// 统一比对落盘的页:分母 = 构造函数 state 字面量第一层键(嵌套对象 / 展开不算)
 		const d1 = changeableKeysOf("constructor(){ this.state = {\n a: 1,\n b: { x: 1, y: 2 },\n lines: fn(1, 2),\n ...saved,\n }; }", 'stateDiff');
+		expect(changeableKeysOf("export function initOf(saved){ return {\n a: 1,\n b: { x: 1 },\n ...saved,\n }; }\nclass X { constructor(){ this.state = initOf(load()); } }", 'stateDiff')).toEqual(['a', 'b']);
 		expect(d1).toEqual(['a', 'b', 'lines']);
 		// 盘壳 extra 写法:只取第一层键
 		const e1 = changeableKeysOf("onChange={(v)=>setExtra({ horarySchool: v, horaryOverrides: {} })} onChange={(e)=>setExtra({ querent: { ...qs, pos: 1 } })}", 'extraKey');

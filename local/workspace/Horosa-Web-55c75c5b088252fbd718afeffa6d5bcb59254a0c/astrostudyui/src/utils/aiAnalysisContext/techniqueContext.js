@@ -3,7 +3,6 @@
 import { parseDateTimeMs } from '../dateTimeParse';
 import {
 	applyAIExportSectionFilterToSnapshot, exportSettingKeyForSnapshotModule, applyPlanetInfoFilterByContext,
-	requestModuleSnapshotRefresh,
 } from '../aiExport';
 import { refreshModuleSnapshotSlots, loadFreshModuleAISnapshot } from '../moduleSnapshotRefresh';
 import {
@@ -15,7 +14,6 @@ import { buildAstroSnapshotContent } from '../astroAiSnapshot';
 // 列源,曾因 import 本文件连带整座 AI 核(~50 技法构建器)进自己的 chunk(46/47 回灌案)。
 // 此处 import 供本文件其余函数继续使用,listAnalysisSources 在文件尾 re-export 保旧路径兼容。
 import { parseRecordPayload } from '../aiAnalysisSources';
-import { loadModuleAISnapshot } from '../moduleAiSnapshot';
 import { fetchChart } from '../../services/astro';
 import { AI_ANALYSIS_STORES, getStoreRecord, putStoreRecord, schedulePruneContextCache } from '../aiAnalysisStore';
 import { withGuolaoStoredOverrides } from '../../components/guolao/GuoLaoChartStyle';   // 覆盖作用域
@@ -23,18 +21,60 @@ import { sourceContextCacheStamp, ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHN
 import { buildFieldObject, fieldParams, buildSnapshotMetaFromRecord, saveGeneratedTechniqueSnapshot, canonicalSnapshotText } from './recordFields';
 import { generateCaseTechniqueSnapshot, regenerateCaseTechniqueSnapshot } from './regenCase';
 import {
-	ASTRO_LIKE_DERIVED_MODULES, buildAstroLikeContext, buildAstroLikeSingleContext, relativeSnapshotMatchesRecord,
+	ASTRO_LIKE_DERIVED_MODULES, ASTRO_LIKE_DERIVED_LABELS, buildAstroLikeContext, buildAstroLikeSingleContext, relativeSnapshotMatchesRecord,
 	regenerateChartTechniqueSnapshot,
 } from './regenChart';
 import { fetchChartDerivedSections, buildChartContext, buildChartMetaContext, buildCaseContext, buildCaseMetaContext } from './sourceContext';
 import { normalizeTechniqueKey, getTechniqueLabel, getTechniqueAliasList } from './techniqueKey';
 import {
-	pickSnapshotCandidate, getTechniqueSnapshotFromPayload, isCacheSnapshotConfidentMatch,
+	pickSnapshotCandidate, getTechniqueSnapshotFromPayload,
 	getTechniqueSnapshotFromCache, REGENERATED_SNAPSHOT_CACHE, REGENERATED_SNAPSHOT_MAX,
 	REGENERATED_SNAPSHOT_TTL_MS, regeneratedSnapshotKey,
 } from './snapshotMatch';
-import { DERIVED_LAB_HEADLESS_KEYS, buildDerivedLabHeadless } from './derivedLabsHeadless';
+import { DERIVED_LAB_HEADLESS_KEYS, buildDerivedLabHeadless, derivedParamsFor, derivedParamsExplicit, derivedOverrideFor, sameDerivedParams, draconicPageHouseMode } from './derivedLabsHeadless';
 import { chartDetailSettingsFor } from '../chartDetails';
+
+// 派生盘单键:页面快照(同一命主、参数相同)优先;没有就无头现算(allowHeadless)。
+async function buildDerivedSingleContext(source, key, label, allowHeadless){
+	// 调波 / 龙盘 / 重置盘带参数:页面快照出图时的参数与此刻要的不同就不用它(如页面出过 H7、这次要 H9)。
+	// 重置盘没给地点 = 不挑参数:页面出过哪张用哪张,没出过按出生地现算
+	// 变换盘 / 黄道制:记录上带了与辅盘页保存值不同的单次覆盖 → 同样不用页面已存的那张
+	// 只在记录上明写了参数时才挑(没写 = 页面出过哪张用哪张,与此前相同;旧快照没记参数也照用)
+	const explicit = derivedParamsExplicit(key, source.record);
+	const wantParams = explicit ? derivedParamsFor(key, source.record, key === 'draconic' ? draconicPageHouseMode() : '') : derivedOverrideFor(key, source.record);
+	const single = buildAstroLikeSingleContext(source, key, label, wantParams ? (meta)=>sameDerivedParams(meta.derivedParams, wantParams) : undefined);
+	if(!single.available && allowHeadless && DERIVED_LAB_HEADLESS_KEYS.indexOf(key) >= 0 && source.record){
+		const content = `${await buildDerivedLabHeadless(source.record, key) || ''}`.trim();
+		if(content){
+			return { ...single, content, available: true, status: 'ready', meta: { derivedCharts: [key], headless: true } };
+		}
+	}
+	return single;
+}
+
+// 「十三分盘 / 占星地图」聚合键:此前只并辅盘页已存的快照,页面一张都没出过 = 整键 missing。现在十三分 / 十二分 / 调波 / 龙盘四张
+// 没存就按缺省参数现算(都是一次轻请求);重置盘只在记录上给了重置地点时现算(没给 = 与本命相同,不必重复一份);
+// 变换盘 / 黄道制照旧只并已存的(现算最长要一分钟,聚合键不替用户做这个决定,要就单点它们的键)。
+const AGGREGATE_ALWAYS_COMPUTE = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic'];
+async function buildAstroLikeAggregateContext(source, key, label){
+	const saved = buildAstroLikeContext(source, key, label);   // 已存且属本命主的那些(原逻辑,含提示)
+	const have = new Set((saved.meta && saved.meta.derivedCharts) || []);
+	const parts = [];
+	const matched = [];
+	for(const name of ASTRO_LIKE_DERIVED_MODULES){
+		const headless = AGGREGATE_ALWAYS_COMPUTE.indexOf(name) >= 0 || (name === 'relocation' && !!derivedParamsFor('relocation', source.record));
+		if(!have.has(name) && !headless){ continue; }
+		// eslint-disable-next-line no-await-in-loop
+		const one = await buildDerivedSingleContext(source, name, ASTRO_LIKE_DERIVED_LABELS[name] || name, headless);
+		if(one && one.available && one.content){
+			matched.push(name);
+			parts.push(`（以下为${ASTRO_LIKE_DERIVED_LABELS[name] || name}）\n${one.content}`);
+		}
+	}
+	const content = parts.join('\n\n');
+	if(!content){ return saved; }
+	return { key, title: label, module: key, content, available: true, status: 'ready', meta: { derivedCharts: matched } };
+}
 
 async function buildTechniqueContext(source, techniqueKey, baseSourceContext){
 	const key = normalizeTechniqueKey(techniqueKey);
@@ -49,18 +89,10 @@ async function buildTechniqueContext(source, techniqueKey, baseSourceContext){
 	// 十三分盘、正文却是 12 宫本命(与 astrochart 同挂时本命重复两份)。现改读辅盘页出盘即存的派生盘模块快照
 	// (hellenastro/dwadasamsa/harmonic/draconic/relocation;meta 带生辰签名,只认同一张盘),无匹配=missing+提示,不再冒充。
 	if(source.sourceType === 'chart' && key === 'astrochart_like'){
-		return buildAstroLikeContext(source, key, label);
+		return buildAstroLikeAggregateContext(source, key, label);
 	}
 	if(source.sourceType === 'chart' && ASTRO_LIKE_DERIVED_MODULES.indexOf(key) >= 0){
-		const single = buildAstroLikeSingleContext(source, key, label);
-		// 变换盘 / 黄道制:辅盘页没出过这张盘时,按辅盘页保存的设置无头现算(正文与页面快照同一份构建函数)
-		if(!single.available && DERIVED_LAB_HEADLESS_KEYS.indexOf(key) >= 0 && source.record){
-			const content = `${await buildDerivedLabHeadless(source.record, key) || ''}`.trim();
-			if(content){
-				return { ...single, content, available: true, status: 'ready', meta: { derivedCharts: [key], headless: true } };
-			}
-		}
-		return single;
+		return buildDerivedSingleContext(source, key, label, true);
 	}
 	if(source.sourceType === 'chart' && key === 'astrochart'){
 		const ctx = canReuseBaseSourceContext ? baseSourceContext : await buildChartContext(source);
@@ -303,6 +335,9 @@ export async function getAnalysisTechniqueContextWithOptions(source, techniqueKe
 			const mergedRecord = mergeOptionsIntoRecord(record, key, opts);
 			if(key === 'astrochart' || key === 'astrochart_like'){
 				text = await regenerateAstroChartSnapshot(mergedRecord);
+			}else if(DERIVED_LAB_HEADLESS_KEYS.indexOf(key) >= 0){
+				// 派生盘(调波数 / 龙盘宫位口径 / 重置地点的覆盖):按覆盖后的参数现算,与默认路径同一份构建函数
+				text = await buildDerivedLabHeadless(mergedRecord, key);
 			}else{
 				text = await regenerateChartTechniqueSnapshot(mergedRecord, key);
 			}
@@ -425,8 +460,10 @@ export async function getAnalysisTechniqueContexts(source, techniqueKeys, option
 					const before = context.content;
 					const filterKey = context.key || k;
 					// 段过滤后串「星曜后天信息」开关(与导出主链同序同语义;非 planetInfo 技法原样)。
+					// options.skipSectionFilter:调用方自己点名要哪几段(cast_technique 的 sections)—— 不先按「纳入内容」筛掉,
+					// 否则缺省不纳入的段(六壬取象 / 奇门八宫克应 / 太玄经全文 …)点名也拿不到;「星曜后天信息」开关照旧。
 					context.content = applyPlanetInfoFilterByContext(
-						applyAIExportSectionFilterToSnapshot(filterKey, context.content), filterKey);
+						options.skipSectionFilter ? context.content : applyAIExportSectionFilterToSnapshot(filterKey, context.content), filterKey);
 					// 原文非空但过滤后为空 = 用户在「纳入内容」显式全清 → 打标供挂载卡诚实提示
 					// (区别于「快照缺失」),内容置空自然不进 AI prompt(buildContextLayers 跳空 content)。
 					if(`${before || ''}`.trim() && !`${context.content || ''}`.trim()){

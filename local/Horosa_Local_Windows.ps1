@@ -4541,6 +4541,19 @@ try {
   $encodedChartRoot = [System.Uri]::EscapeDataString("http://127.0.0.1:$ChartPort")
   $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
   $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&chartSrv=$encodedChartRoot&kentangSrv=$encodedChartRoot&v=$cacheBust"
+  # horosa_local_l3_rev_v1: tell the page which backend build it is talking to (the desktop app passes the same
+  # rv parameter). The page keeps computed results on disk for 24 hours, keyed by this value; without it the key
+  # never changes, so after updating to a version that changes a calculation, re-opening the same chart in the
+  # same browser within a day would still show the previous version's result. The backend jar is rebuilt for
+  # every version, so its size and write time identify the build. If the jar cannot be read, no rv is sent.
+  $runtimeRev = ''
+  try {
+    $jarItem = Get-Item -LiteralPath $JarPath -ErrorAction Stop
+    $runtimeRev = ('{0:x}-{1:x}' -f [int64]$jarItem.Length, [int64]$jarItem.LastWriteTimeUtc.Ticks)
+  } catch {
+    $runtimeRev = ''
+  }
+  if ($runtimeRev) { $url = "$url&rv=$runtimeRev" }
 
   Write-Host '[3/4] Opening browser...'
   if ($env:HOROSA_NO_BROWSER -eq '1') {

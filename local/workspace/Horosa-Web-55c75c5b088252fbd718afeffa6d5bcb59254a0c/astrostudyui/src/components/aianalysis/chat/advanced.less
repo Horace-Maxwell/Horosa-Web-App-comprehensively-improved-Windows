@@ -17,10 +17,10 @@
 @rail-w: 184px;
 
 .t-title() { font-size: 17px; line-height: 24px; font-weight: 700; }
-.t-body() { font-size: 14px; line-height: 20px; }
-.t-ui() { font-size: 13px; line-height: 20px; }
-.t-sm() { font-size: 12px; line-height: 20px; }
-.t-xs() { font-size: 11px; line-height: 16px; }
+.t-body() { font-size: var(--horosa-fs-body-lg); line-height: 20px; }
+.t-ui() { font-size: var(--horosa-fs-body); line-height: 20px; }
+.t-sm() { font-size: var(--horosa-fs-small); line-height: 20px; }
+.t-xs() { font-size: var(--horosa-fs-caption); line-height: 16px; }
 
 // ── 页面骨架 ──
 .pane {
@@ -62,7 +62,7 @@
 	place-items: center;
 	background: var(--horosa-accent-soft);
 	color: var(--horosa-accent);
-	font-size: 16px;
+	font-size: var(--horosa-fs-title-sm);
 }
 
 .heroSub {
@@ -316,7 +316,7 @@
 	place-items: center;
 	background: var(--horosa-accent-soft);
 	color: var(--horosa-accent);
-	font-size: 16px;
+	font-size: var(--horosa-fs-title-sm);
 }
 
 .headText {
@@ -504,7 +504,7 @@
 
 .mono {
 	font-family: ui-monospace, Menlo, Consolas, monospace;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 20px;
 }
 
@@ -717,7 +717,7 @@
 
 .textarea :global(textarea.ant-input) {
 	font-family: ui-monospace, Menlo, Consolas, monospace;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 20px;
 	border-radius: @r-sm;
 	background: var(--horosa-surface-sunken);
@@ -803,8 +803,8 @@
 // 焦点环用 outline 而非 box-shadow:不与选中态的 inset 描边抢同一属性,
 // 且负 offset 让它恒在药丸内侧 —— 版式闸的右缘判据零风险。
 .segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper:focus-within) {
-	outline: 2px solid var(--horosa-accent);
-	outline-offset: -2px;
+	outline: var(--horosa-focus-outline);
+	outline-offset: var(--horosa-focus-offset);
 }
 
 // ── 内联折叠(策略卡「细项」+ 行动能力卡三段):ghost、箭头在【头部起手】的行卡 ──
@@ -849,7 +849,7 @@
 // 箭头在流内:12(图标) + 8(右距) = 20 → 文字起点 = @sp3 + 20 = 32,与正文左缩进逐像素对齐
 .collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) :global(.ant-collapse-arrow) {
 	margin-right: @sp2;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: var(--horosa-muted);
 }
 
@@ -1040,7 +1040,7 @@
 // (0,5,0) 才压得住 antd 那条钉箭头的 (0,4,0)
 .agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) :global(.ant-collapse-arrow) {
 	right: @sp3;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: var(--horosa-muted);
 	transition: color 0.18s ease;
 }
@@ -1153,7 +1153,7 @@
 
 .table :global(.ant-table) {
 	background: transparent;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 20px;
 }
 

@@ -2,7 +2,8 @@
 // 子开关默认关;首开二次确认;状态行;复制三家客户端配置;复制/轮换令牌;显示端点文件路径;REST 接口子开关(缺省关);终端命令垫片(装 / 移除 / 复制示例);通知脚本钩;无头分析出口。
 // 复制一律走 copyTextSmart(桌面壳剪贴板优先;禁止裸 writeText)。onStatus:向折叠头上报一句状态(可选)。
 import React from 'react';
-import { Switch, Button, Modal, message, Tag, Input, Radio, InputNumber } from 'antd';
+import { Button, Modal, message, Tag, Input } from 'antd';
+import { XQInputNumber, XQRadio, XQSwitch } from '../xq-ui';
 import { desktopMcpServerStatus, desktopMcpServerSetEnabled, desktopMcpServerSetRestEnabled, desktopCliShimStatus, desktopCliShimInstall, desktopCliShimRemove, desktopMcpServerRotateToken, desktopMcpServerRevealToken, desktopNotifyHookStatus, desktopNotifyHookSet, desktopNotifyHookRun } from '../../utils/aiAnalysisDesktop';
 import { copyTextSmart } from '../../utils/clipboardText';
 import { isHeadlessEnabled, setHeadlessEnabled, isPrivateReadEnabled, setPrivateReadEnabled, getExternalPolicy, setExternalPolicy, clearExternalPolicy, DEFAULT_EXTERNAL_POLICY, AGENT_EXTERNAL_APPROVALS, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
@@ -117,7 +118,7 @@ function NotifyHookBlock(){
 	return (
 		<div data-notify-hook="1">
 			<AdvSwitchRow title="通知脚本钩(自动化动作「运行我的通知脚本」)" desc={stateText} checked={!!st.enabled}
-				control={<Switch checked={!!st.enabled} disabled={!!st.killSwitch || busy} data-notify-hook-switch="1" checkedChildren="开" unCheckedChildren="关"
+				control={<XQSwitch checked={!!st.enabled} disabled={!!st.killSwitch || busy} data-notify-hook-switch="1" checkedChildren="开" unCheckedChildren="关"
 					onChange={(on)=>{ if(!on){ apply(false); return; } if(!`${path || ''}`.trim()){ message.warning('先填脚本的绝对路径'); return; } Modal.confirm({ title: '启用通知脚本钩?', content: NOTIFY_HOOK_CONFIRM_COPY, okText: '启用', cancelText: '取消', onOk: ()=>apply(true) }); }} />}>
 				<div className={[styles.stack, styles.gapTop].join(' ')}>
 					<Input size="small" addonBefore="脚本路径" value={path} onChange={(e)=>setPath(e.target.value)} placeholder="/Users/你/bin/horosa-notify.sh" data-notify-hook-path="1" />
@@ -142,17 +143,17 @@ function ExternalPolicyBlock(){
 	return (
 		<div data-external-policy="1" className={[styles.stack, styles.gapTop].join(' ')}>
 			<AdvRow label="外部客户端审批" help="外部程序经本机服务调用时的写入审批档:全自动=直接执行但可撤销;每次确认=写入前弹到本机审批台;只读=拒绝一切写入。缺省全自动(令牌持有者=受信本机进程)。">
-				<Radio.Group className={styles.segment} size="small" value={policy.approval} data-external-policy-approval="1" onChange={(e)=>setExternalPolicy({ approval: e.target.value })}>
-					{AGENT_EXTERNAL_APPROVALS.map((v)=>(<Radio.Button key={v} value={v}>{EXTERNAL_POLICY_APPROVAL_LABELS[v] || v}</Radio.Button>))}
-				</Radio.Group>
+				<XQRadio.Group className={styles.segment} size="small" value={policy.approval} data-external-policy-approval="1" onChange={(e)=>setExternalPolicy({ approval: e.target.value })}>
+					{AGENT_EXTERNAL_APPROVALS.map((v)=>(<XQRadio.Button key={v} value={v}>{EXTERNAL_POLICY_APPROVAL_LABELS[v] || v}</XQRadio.Button>))}
+				</XQRadio.Group>
 			</AdvRow>
 			<AdvRow label="界面类也要确认" help="开启后外部程序的界面类动作(切换技法页、合盘配对、设置对话挂载)也先弹到本机审批台,你允许才执行;缺省关 = 界面动作直接执行(动作条可回退)。">
-				<Switch size="small" checked={!!policy.uiConfirm} data-external-ui-confirm-switch="1" onChange={(v)=>setExternalPolicy({ uiConfirm: !!v })} checkedChildren="开" unCheckedChildren="关" />
+				<XQSwitch size="small" checked={!!policy.uiConfirm} data-external-ui-confirm-switch="1" onChange={(v)=>setExternalPolicy({ uiConfirm: !!v })} checkedChildren="开" unCheckedChildren="关" />
 			</AdvRow>
 			<AdvRow label="外部调用上限" help="每分钟调用上限(1..600)与每小时写入上限(0..10000);超限的调用回 E_LIMIT、不执行、不进账本。">
 				<div className={styles.inline}>
-					<InputNumber size="small" min={1} max={600} value={policy.maxCallsPerMinute} data-external-policy-calls="1" addonAfter="次/分钟" onChange={(v)=>{ if(Number.isFinite(v)){ setExternalPolicy({ maxCallsPerMinute: v }); } }} />
-					<InputNumber size="small" min={0} max={10000} value={policy.maxAdditivePerHour} data-external-policy-writes="1" addonAfter="写入/小时" onChange={(v)=>{ if(Number.isFinite(v)){ setExternalPolicy({ maxAdditivePerHour: v }); } }} />
+					<XQInputNumber size="small" min={1} max={600} value={policy.maxCallsPerMinute} data-external-policy-calls="1" addonAfter="次/分钟" onChange={(v)=>{ if(Number.isFinite(v)){ setExternalPolicy({ maxCallsPerMinute: v }); } }} />
+					<XQInputNumber size="small" min={0} max={10000} value={policy.maxAdditivePerHour} data-external-policy-writes="1" addonAfter="写入/小时" onChange={(v)=>{ if(Number.isFinite(v)){ setExternalPolicy({ maxAdditivePerHour: v }); } }} />
 					<Button size="small" disabled={isDefault} data-external-policy-reset="1" onClick={()=>{ clearExternalPolicy(); message.success('外部客户端策略已恢复缺省'); }}>恢复缺省</Button>
 				</div>
 			</AdvRow>
@@ -229,7 +230,7 @@ export default function ExternalAgentPanel({ onStatus }){
 	return (
 		<div data-external-agent-panel="1" className={styles.subPanel}>
 			<AdvSwitchRow title="外部智能体连接(本机 MCP 服务)" desc={stateText} checked={enabled}
-				control={<Switch checked={enabled} disabled={!status.available || busy} loading={busy} onChange={onToggle} data-mcp-server-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
+				control={<XQSwitch checked={enabled} disabled={!status.available || busy} loading={busy} onChange={onToggle} data-mcp-server-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
 				{running ? (
 					<div className={[styles.stack, styles.gapTop].join(' ')}>
 						<div className={styles.inline}>
@@ -251,7 +252,7 @@ export default function ExternalAgentPanel({ onStatus }){
 			</AdvSwitchRow>
 			<div data-mcp-rest="1">
 				<AdvSwitchRow title="REST 接口(/api/v1)" desc={restText} checked={restOn}
-					control={<Switch checked={restOn} disabled={!status.available || !enabled || busy} loading={busy} onChange={onToggleRest} data-mcp-rest-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
+					control={<XQSwitch checked={restOn} disabled={!status.available || !enabled || busy} loading={busy} onChange={onToggleRest} data-mcp-rest-switch="1" checkedChildren="开" unCheckedChildren="关" />}>
 					{restOn && running && status.restUrl ? (
 						<div className={[styles.inline, styles.gapTop].join(' ')}>
 							<Button size="small" data-mcp-rest-copy="curl" onClick={()=>copyWithToken(restCurlExample, 'curl 示例')}>复制 curl 示例</Button>
@@ -265,11 +266,11 @@ export default function ExternalAgentPanel({ onStatus }){
 			<ExternalPolicyBlock />
 			<div data-headless-exit="1">
 				<AdvSwitchRow title="无头分析出口(run_analysis)" desc="开启后外部程序可经本机 MCP 调 run_analysis:用你现有的接口配置作答,只回文本与用量,不进会话、不落库、只能用只读工具、同时只跑一个。页面内的 AI 永远看不到它。" checked={headlessOn}
-					control={<Switch checked={headlessOn} data-headless-switch="1" onChange={(v)=>{ setHeadlessEnabled(!!v); setHeadlessOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
+					control={<XQSwitch checked={headlessOn} data-headless-switch="1" onChange={(v)=>{ setHeadlessEnabled(!!v); setHeadlessOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
 			</div>
 			<div data-private-read="1">
 				<AdvSwitchRow title="私人内容可读" desc="开启后外部程序可经本机 MCP 读你与星阙 AI 的对话记录、档案备注与断事日志、档案之间的关系(只读)。缺省关。" checked={privateReadOn}
-					control={<Switch checked={privateReadOn} data-private-read-switch="1" onChange={(v)=>{ setPrivateReadEnabled(!!v); setPrivateReadOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
+					control={<XQSwitch checked={privateReadOn} data-private-read-switch="1" onChange={(v)=>{ setPrivateReadEnabled(!!v); setPrivateReadOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
 			</div>
 		</div>
 	);

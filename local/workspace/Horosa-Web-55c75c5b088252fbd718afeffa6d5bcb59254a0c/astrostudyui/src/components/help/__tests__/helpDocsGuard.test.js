@@ -123,7 +123,7 @@ describe('帮助文档护栏', ()=>{
 	});
 
 	it('注册表完整性:导航页每个 tab 都有手册(新增页忘登记即红)', ()=>{
-		const idx = fs.readFileSync(path.join(__dirname, '../../../pages/index.js'), 'utf8');
+		const idx = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '../../../pages/index.js'));   // 门面 + 子模块全集
 		// 导航配置里的 tab key(形如 key: 'xxx' 且同段含 icon/label 的技法项)
 		const keys = new Set();
 		const re = /key:\s*'([A-Za-z0-9_]+)'/g;
@@ -159,15 +159,20 @@ describe('帮助文档护栏', ()=>{
 		expect(currentHostTechnique('mingother')).toBe('');
 		const book = TECHNIQUE_HELP_DOCS.mingother.book;
 		expect(resolveChapterKey(book, { currentTab: 'mingother', hostTechnique: 'xianqin' })).not.toBe(resolveChapterKey(book, { currentTab: 'mingother', hostTechnique: 'cetian' }));
+		// 弹窗正文是独立件(页眉打开弹窗才懒加载它,手册注册表不进首屏):按当前页 + 子页签 + 当前技法取书
+		const body = fs.readFileSync(path.resolve(__dirname, '../TechniqueHelpModalBody.js'), 'utf8');
+		expect(body).toContain('getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab))');
+		expect(body).toContain('hostTechnique: currentHostTechnique(props.currentTab)');
 		const header = fs.readFileSync(path.resolve(__dirname, '../../homepage/PageHeader.js'), 'utf8');
-		expect(header).toContain('getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab))');
-		expect(header).toContain('hostTechnique: currentHostTechnique(props.currentTab)');
+		expect(header).toContain("import(/* webpackChunkName: \"technique-help\" */ '../help/TechniqueHelpModalBody')");
+		expect(header).toContain('<TechniqueHelpModalBody currentTab={props.currentTab} currentSubTab={props.currentSubTab}');
+		expect(header).not.toMatch(/from '\.\.\/help\/techniqueHelpRegistry'/);
 	});
 
 	// 「停在某子技法上切走再切回来被打回首档」的根因是导航层与各技法 Main 各写一份合法集。
 	// 归一到 SubTabRegistry 后,这里锁住「导航层用的就是真值源」且真值源覆盖真实子页签。
 	it('子页签合法集是单一真值源且不缺项', ()=>{
-		const idx = fs.readFileSync(path.join(__dirname, '../../../pages/index.js'), 'utf8');
+		const idx = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '../../../pages/index.js'));   // 门面 + 子模块全集
 		// 导航层必须直接引用真值源,不许再出现手写数组字面量
 		expect(idx).toContain('const auxChartTabs = AUX_SUBTABS;');
 		expect(idx).toContain('const cnYiBuTabs = CNYIBU_SUBTABS;');

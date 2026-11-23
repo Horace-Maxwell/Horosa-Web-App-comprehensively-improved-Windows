@@ -1,26 +1,18 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index ded7f6d5..da8f6088 100644
+index a649174c..9d3f2c85 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
-@@ -8,11 +8,13 @@ import {randomStr,} from '../utils/helper';
- import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
- import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
- import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
--import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, mainChainAbortEnabled } from '../utils/perfFlags';
-+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, mainChainAbortEnabled, stepPrefetchSkewEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
- import { submitStepPrefetch, getStepPrefetcher, registerStepSelectHandler } from '../utils/stepPrefetch';
- // R4-B2(horosa_step_prefetch_arm_v1):「选步长即武装」——构造器经 registerArmPlanBuilder
- // 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
--import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab } from '../utils/stepPrefetchArm';
-+// [Windows-ahead] stepStreak:horosa_pump_skew_v1 连击计量读端(见 buildStepPrefetchTasks 偏斜分支)。
-+import { registerArmPlanBuilder, armStepPrefetch, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
-+// (F1 收敛后 early-boot 守卫由 armStepPrefetch 体内承担,本文件不再直接消费 backendBootGate。)
- // R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
- import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
- import { perfBegin } from '../utils/perfMark';
-@@ -32,6 +34,24 @@ let dtm = new DateTime();
- // recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
- registerFieldsBaselineFactory(()=>newEmptyFields());
+@@ -26,6 +26,7 @@ import { applyZiweiRecordSettings, restoreZiweiUserSeed, dropZiweiSessionTablesU
+ import { newChartSeedValue } from '../utils/newChartSeeds';
+ import { newEmptyFields, fieldsToParams } from './astro/fields';
+ import { shouldIncludePrimaryDirection, isValidChartResponse, showChartServiceError, closeAllDrawer, takeChartCommitTicket, chartCommitTicketLive, buildStepPrefetchTasks, hooking, now } from './astro/chartFlow';
++import { speculativePrecomputeEnabled } from '../utils/perfFlags';
+ export { fieldsToParams as __fieldsToParamsForTest } from './astro/fields';
+ export { buildStepPrefetchTasks as __buildStepPrefetchTasksForTest } from './astro/chartFlow';
+ 
+@@ -50,6 +51,24 @@ registerOptionChartTaskBuilder((variantFields, astroState)=>{
+ // 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
+ // 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
  
 +// PERF-R8 P0(纯观测,horosa_interaction_span_v1 配套):排盘 saga 成功提交 chartObj 后打
 +// refresh-end mark,并与 pages/index.js 的 horosa:tab:*:refresh-start 配 measure ——
@@ -40,86 +32,22 @@ index ded7f6d5..da8f6088 100644
 +	}catch(e){ /* observation only */ }
 +}
 +
- function newEmptyFields(){
- 	const fields = {
- 		cid: {
-@@ -666,9 +686,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
- 	let plan;
- 	if(stepHint && stepHint.dir){
- 		const d = Math.max(2, depth || 2);
--		plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
--		for(let k = 2; k <= d; k += 1){
--			plan.push({ k, dir: stepHint.dir });
-+		// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3
-+		// 且间隔 <2s 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,
-+		// 丢弃零损;任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
-+		// 判定失败=不偏(fail-open 回对称计划)。kill:horosa.perf.stepPrefetchSkew。
-+		let skew = false;
-+		try{
-+			if(stepPrefetchSkewEnabled()){
-+				const s = stepStreak(astroState.currentTab);
-+				skew = s.count >= 3 && s.dir === stepHint.dir
-+					&& (!stepHint.unit || s.unit === stepHint.unit)
-+					&& (Date.now() - s.at) < 2000;
-+			}
-+		}catch(e){ /* 不偏 */ }
-+		if(skew){
-+			plan = [];
-+			for(let k = 1; k <= Math.min(d + 1, 5); k += 1){
-+				plan.push({ k, dir: stepHint.dir });
-+			}
-+		}else{
-+			plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
-+			for(let k = 2; k <= d; k += 1){
-+				plan.push({ k, dir: stepHint.dir });
-+			}
- 		}
- 	}else if(depth > 0){
- 		plan = [];
-@@ -756,28 +796,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
- 	return tasks;
- }
+ const model = {
+ 	namespace: 'astro',
+ 	state:{
+@@ -190,7 +209,6 @@ const model = {
+ 		},
+ 	},
  
--// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 以 store 现
--// fields 双向 ±1、±2 预取(键构造与真点同源 = buildStepPrefetchTasks 唯一路径)。
--// 无 store/无 fields(启动早期/测试)静默跳过;预算 4 任务(调度器硬顶 5)。
-+// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
-+// R4-B2(武装引擎接管上游触发线):上游触发面(opt-in 宿主 + 5s 去重)保持原样;
-+// ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
-+// NO_ARM/early-boot/reportStepUnit(settle 兜底取档靠它)全在 armStepPrefetch 体内。
-+// [Windows-only] F1 收敛(v3.7.1,gotcha #90):旧形态在此处**内联复刻** armStepPrefetch
-+// 的全部守卫后直发 submitStepPrefetch —— 语义同路但绕过 arm 台账,__horosaPrefetch.arms
-+// 在主盘时间条上恒 0(验收探针的「武装线活着」信号盲区,R12-P2 实测 arms=0 即此)。
-+// 改为委托:同守卫、同构造器(planBuilder=buildStepPrefetchTasks 注入)、同 5s 去重,
-+// 唯一行为差 = stats.arms/lastReason 正确入账。sameMinute 闸天然豁免(不传 selectorDatetime,
-+// v3.5.1 裁决:opt-in 宿主已在源头滤掉旁路时间条)。
- registerStepSelectHandler((unit)=>{
--	const store = getStore();
--	if(!store || !store.astro || !store.astro.fields){
--		return;
--	}
--	const st = store.astro;
--	// R4-B2(武装引擎接管上游触发线):
--	// · 上游触发面(opt-in 宿主 + 5s 去重)保持原样;此处把「±2 固定窗」升级为
--	//   ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
--	// · reportStepUnit 记录该技法最近档位 —— settle 兜底武装(无 stepHint 分支)靠它
--	//   取档,「不选步长直接点 ±」的第一下也命中;
--	// · NO_ARM 技法(随机/取现时/流式/浏览型/择日)由 shouldArmForTab 拦下,零任务。
--	if(!(stepPrefetchArmEnabled() && shouldArmForTab(st.currentTab))){
--		return;
--	}
--	reportStepUnit(st.currentTab, unit);
--	submitStepPrefetch(
--		buildStepPrefetchTasks(st.fields, { unit, dir: 0, depth: stepPrefetchDepth() }, st)
--	);
-+	armStepPrefetch('unit-select', { unit });
- });
+-
+ 	reducers: {
+ 		// 用户操作触发的 fields 写入(左栏 / 表单 / 显示设置 / 跳转到盘…):与 save 相同,另把「用户已动手」代次 +1。
+ 		// 温启恢复据此判用户是否已先动手 —— 此前只认 chartObj 变 / 快车道代次推进,紫微左栏改字段两者都不动,回包按快照重建盖掉
+@@ -527,6 +545,41 @@ const model = {
  
- // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-@@ -1303,6 +1333,40 @@ const model = {
  		},
  
- 
++
 +		// [Windows-ahead] perf T-6(speculativePrecompute):排盘表单编辑期的「只暖缓存」预计算。
 +		// 参数构造与下方 *fetch 逐字节一致(date/time/ad/zone/cid + includePrimaryDirection),但结果
 +		// 只进 services/astro 的 chartMem/chartInflight —— 不落任何 state、不关抽屉、不触发 hook、
@@ -157,13 +85,7 @@ index ded7f6d5..da8f6088 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
  			const param = {
-@@ -1336,11 +1400,12 @@ const model = {
- 
-             yield put({
-                 type: 'save',
--                payload: {  
-+                payload: {
- 					chartObj: Result,
+@@ -565,6 +618,7 @@ const model = {
  					drawerVisible: drawer,
                  },
              });
@@ -171,16 +93,7 @@ index ded7f6d5..da8f6088 100644
  
  			if(values.nohook){
  				return;
-@@ -1501,7 +1566,7 @@ const model = {
- 			}
- 			yield put({
-                 type: 'save',
--                payload: {  
-+                payload: {
- 					chartObj: Result,
- 					fields: fields,
- 					byChartData: true,
-@@ -1519,6 +1584,7 @@ const model = {
+@@ -742,6 +796,7 @@ const model = {
  					...(values.__pendingCurrentChart ? { currentChart: values.__pendingCurrentChart, ...(values.drawerVisible ? { drawerVisible: values.drawerVisible } : {}) } : {}),
                  },
              });
@@ -188,7 +101,7 @@ index ded7f6d5..da8f6088 100644
  
  			if(values.nohook){
  				return;
-@@ -1664,11 +1730,12 @@ const model = {
+@@ -887,11 +942,12 @@ const model = {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
@@ -203,13 +116,7 @@ index ded7f6d5..da8f6088 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1684,11 +1751,12 @@ const model = {
- 
-             yield put({
-                 type: 'save',
--                payload: {  
-+                payload: {
- 					chartObj: Result,
+@@ -912,6 +968,7 @@ const model = {
  					fields: fld,
                  },
              });
@@ -217,7 +124,7 @@ index ded7f6d5..da8f6088 100644
  
  			if(values.nohook){
  				return;
-@@ -1706,7 +1774,7 @@ const model = {
+@@ -929,7 +986,7 @@ const model = {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

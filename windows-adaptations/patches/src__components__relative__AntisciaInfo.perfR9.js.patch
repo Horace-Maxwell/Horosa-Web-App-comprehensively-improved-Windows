@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/relative/AntisciaInfo.js b/astrostudyui/src/components/relative/AntisciaInfo.js
-index 3ca73e51..05704829 100644
+index f0f526f7..5e33034f 100644
 --- a/astrostudyui/src/components/relative/AntisciaInfo.js
 +++ b/astrostudyui/src/components/relative/AntisciaInfo.js
-@@ -3,11 +3,13 @@ import { Row, Col, Divider, Popover, } from 'antd';
+@@ -3,11 +3,13 @@ import { Row, Col, Divider, } from 'antd';
  import * as AstroConst from '../../constants/AstroConst';
  import * as AstroText from '../../constants/AstroText';
  import * as AstroHelper from '../astro/AstroHelper';

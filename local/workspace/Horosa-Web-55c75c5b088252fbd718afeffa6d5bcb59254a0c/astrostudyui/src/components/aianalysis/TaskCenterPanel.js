@@ -3,8 +3,9 @@
 // data-* 定位面(测试与端到端驱动器按它点,不按按钮文案):行 data-task-row/-kind;目标任务 data-task-start/-goal-pause/-goal-resume/-steer;
 //   定时任务 data-task-run-now/-pause/-resume/-schedule;通用 data-task-cancel。每个属性在本文件恰一处(taskCenterPanel.test.js 锁)。
 import React from 'react';
-import { Drawer, Button, Tag, Switch, Input, InputNumber, message } from 'antd';
-import { listTasks, subscribeTasks, cancelTask, patchTask, listNotices, subscribeNotices, markRead, isDesktopNotifyEnabled, DESKTOP_NOTIFY_KEY, controllerOf, pushNotice, runScheduledTaskNow, pauseScheduledTask, resumeScheduledTask, describeSchedule } from '../../utils/aiAgent/tasks';
+import { Drawer, Button, Tag, Input, message } from 'antd';
+import { XQInputNumber, XQSwitch } from '../xq-ui';
+import { listTasks, subscribeTasks, cancelTask, listNotices, subscribeNotices, markRead, isDesktopNotifyEnabled, DESKTOP_NOTIFY_KEY, controllerOf, pushNotice, runScheduledTaskNow, pauseScheduledTask, resumeScheduledTask, describeSchedule } from '../../utils/aiAgent/tasks';
 import { formatTaskTime as fmt } from '../../utils/aiAgent/tasks/scheduler';
 import { listPendingApprovals, resolveApproval, subscribeApprovals } from '../../utils/aiAgent/approvals';
 import AgentDiffPreview from './AgentDiffPreview';
@@ -22,6 +23,30 @@ export const TASK_STATUS_LABELS = { queued: '排队', scheduled: '已排期', ru
 export const TASK_KIND_LABELS = { goal: '目标', scheduled: '定时', scan: '扫描' };
 const soft = { fontSize: 12, color: 'var(--horosa-text-soft, #8a8f99)' };
 
+// 内容类提案要写入的全文(模版正文 / 技能包提示词与触发词 / 新的个人口径)。不截断:采纳 = 整段写进去(个人口径会进此后每一轮对话),
+//   人审时看不到后半段,等于没审;长文在卡片里的滚动框内看。
+export function proposalContentText(p){
+	const c = (p && p.changes) || {};
+	const t = p.kind === 'template-new' ? c.instructionText : (p.kind === 'skill-new' ? `触发词:${((c.skill && c.skill.triggers) || []).map((x)=>`/${x}`).join(' ')}\n${(c.skill && c.skill.promptTemplate) || ''}` : c.text);
+	return `${t || ''}`;
+}
+// 采纳后果的一句话(个人口径是整段替换:写明新旧各多少字)
+export function proposalContentNote(p){
+	const n = Array.from(proposalContentText(p)).length;
+	if(p.kind !== 'persona-text'){ return `共 ${n} 字`; }
+	const old = Array.from(`${(p.before && p.before.text) || ''}`).length;
+	return old ? `共 ${n} 字;采纳后整段替换现有的个人口径(${old} 字)` : `共 ${n} 字;现在没有个人口径,采纳后写入`;
+}
+// 提案类型 → 动词(改字段 / 归档与取消归档 / 解除关联 / 从回收站恢复)
+function proposalVerb(p){
+	if(p.kind === 'record-archive'){ return p.changes && p.changes.archived === false ? '取消归档' : '归档'; }
+	if(p.kind === 'record-unlink'){ return '解除关联'; }
+	if(p.kind === 'record-restore'){ return '从回收站恢复'; }
+	if(p.kind === 'template-new'){ return '新建模版'; }
+	if(p.kind === 'skill-new'){ return '新建技能包'; }
+	if(p.kind === 'persona-text'){ return '改个人口径'; }
+	return '修改';
+}
 function TaskRow({ t, onChanged }){
 	const ctl = controllerOf(t.id);
 	const active = ['queued', 'scheduled', 'running', 'paused', 'waiting', 'interrupted'].indexOf(t.status) >= 0;
@@ -100,8 +125,8 @@ function fmtProposalVal(v){ return v === undefined || v === null || v === '' ? '
 function ProposalRows({ pending, recent }){
 	if(!pending.length && !recent.length){ return null; }
 	// 写档案的两个动作(采纳 / 撤销采纳)按是否真落盘提示;拒绝只改提案状态,照常提示
-	const act = (fn, okText, store)=>{
-		const r = fn();
+	const act = async (fn, okText, store)=>{
+		const r = await fn();   // 内容类提案(模版 / 技能包)的采纳要写本机库,回承诺
 		if(r && r.ok){
 			if(store){ toastRecordWrite(message, store, okText); }else{ message.success(okText); }
 		}else{
@@ -112,7 +137,13 @@ function ProposalRows({ pending, recent }){
 		<div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
 			{pending.map((p)=>(
 				<div key={p.id} data-todo="proposal" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
-					<div><Tag style={{ margin: 0 }}>{p.client ? `外部·${p.client}` : 'AI 提案'}</Tag> {p.kind === 'record-archive' ? `归档「${p.title}」` : `修改「${p.title}」`}</div>
+					<div><Tag style={{ margin: 0 }}>{p.client ? `外部·${p.client}` : 'AI 提案'}</Tag> {`${proposalVerb(p)}「${p.title}」`}</div>
+					{['template-new', 'skill-new', 'persona-text'].indexOf(p.kind) >= 0 ? (
+						<>
+							<div data-proposal-content="1" style={{ paddingLeft: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto' }}>{proposalContentText(p)}</div>
+							<div data-proposal-content-note="1" style={{ ...soft, paddingLeft: 8 }}>{proposalContentNote(p)}</div>
+						</>
+					) : null}
 					{p.kind === 'record-edit' ? Object.keys(p.changes || {}).map((k)=>(<div key={k} style={{ paddingLeft: 8 }}>{PROPOSAL_FIELD_LABELS[k] || k}:{fmtProposalVal((p.before || {})[k])} → <b>{fmtProposalVal(p.changes[k])}</b></div>)) : null}
 					{p.reason ? <div style={{ ...soft, paddingLeft: 8 }}>理由:{p.reason}</div> : null}
 					<div style={{ display: 'flex', gap: 6 }}>
@@ -125,7 +156,7 @@ function ProposalRows({ pending, recent }){
 			{recent.map((p)=>(
 				<div key={p.id} data-proposal-row={p.status} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
 					<Tag style={{ margin: 0 }}>{PROPOSAL_STATUS_LABELS[p.status] || p.status}</Tag>
-					<span style={{ flex: '1 1 auto' }}>{p.kind === 'record-archive' ? '归档' : '修改'}「{p.title}」{Array.isArray(p.conflictFields) && p.conflictFields.length ? `(档案已被改过:${p.conflictFields.map((k)=>PROPOSAL_FIELD_LABELS[k] || k).join('、')})` : ''}</span>
+					<span style={{ flex: '1 1 auto' }}>{proposalVerb(p)}「{p.title}」{Array.isArray(p.conflictFields) && p.conflictFields.length ? `(档案已被改过:${p.conflictFields.map((k)=>PROPOSAL_FIELD_LABELS[k] || k).join('、')})` : ''}</span>
 					{p.status === 'accepted' ? <Button size="small" type="link" data-proposal-revert="1" onClick={()=>act(()=>revertProposal(p.id), '已撤销采纳', p.store === 'case' ? 'case' : 'chart')}>撤销采纳</Button> : null}
 				</div>
 			))}
@@ -163,7 +194,7 @@ export default function TaskCenterPanel({ open, onClose }){
 						<div style={{ fontWeight: 600 }}>进行中 {active.length ? `(${active.length})` : ''}</div>
 						<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
 							<span style={soft} title="目标任务同时最多跑几条:空=现状(不限、不排队);1-3=超出的排队,前一条结束自动起下一条">并行</span>
-							<InputNumber size="small" min={1} max={AGENT_GOAL_PARALLEL_MAX} placeholder="不限" value={goalParallel || undefined} style={{ width: 64 }} data-goal-parallel="1" onChange={(v)=>{ setGoalParallel(Number.isFinite(v) ? v : 0); setGoalParallelState(Number.isFinite(v) ? v : 0); }} />
+							<XQInputNumber size="small" min={1} max={AGENT_GOAL_PARALLEL_MAX} placeholder="不限" value={goalParallel || undefined} style={{ width: 64 }} data-goal-parallel="1" onChange={(v)=>{ setGoalParallel(Number.isFinite(v) ? v : 0); setGoalParallelState(Number.isFinite(v) ? v : 0); }} />
 							<Button size="small" data-goal-start-all="1" onClick={async ()=>{ const r = await startAllQueuedGoals(); message.info(r.total ? `已起 ${r.started}/${r.total} 条排队目标${r.started < r.total ? '(其余按并行上限接力)' : ''}` : '没有排队中的目标'); }}>全部开始</Button>
 							<Button size="small" data-new-goal="1" onClick={()=>setGoalOpen(true)}>新建目标</Button>
 							<Button size="small" data-new-schedule="1" onClick={()=>setSchedOpen(true)}>新建定时</Button>
@@ -184,7 +215,7 @@ export default function TaskCenterPanel({ open, onClose }){
 						<div style={{ fontWeight: 600 }}>通知 {notices.filter((n)=>!n.read).length ? `(${notices.filter((n)=>!n.read).length} 未读)` : ''}</div>
 						<div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
 							<span>桌面通知</span>
-							<Switch size="small" checked={desktop} data-desktop-notify-switch="1" onChange={(on)=>{ if(on){ safeLocalStorageSet(DESKTOP_NOTIFY_KEY, '1'); }else{ safeLocalStorageRemove(DESKTOP_NOTIFY_KEY); } setDesktop(on); }} />
+							<XQSwitch size="small" checked={desktop} data-desktop-notify-switch="1" onChange={(on)=>{ if(on){ safeLocalStorageSet(DESKTOP_NOTIFY_KEY, '1'); }else{ safeLocalStorageRemove(DESKTOP_NOTIFY_KEY); } setDesktop(on); }} />
 							<Button size="small" onClick={()=>pushNotice({ level: 'info', title: '星阙测试通知', body: '桌面通知已接通(每分钟最多 6 条,10 秒内同文只发一条)' })}>测试通知</Button>
 							{notices.some((n)=>!n.read) ? <Button size="small" type="link" onClick={()=>markRead('all')}>全部已读</Button> : null}
 						</div>

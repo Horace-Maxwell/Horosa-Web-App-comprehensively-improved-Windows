@@ -9,10 +9,11 @@ import { requestApproval, approvalReasonOf, buildApprovalPreview } from './appro
 import { requestElicitation } from './elicitations';
 import { subscribeAutomationEvents } from './automation/events';
 import { isDesktopBridgeAvailable, invokeDesktopCommand, createAgentNotifier, desktopAgentNotify, desktopMcpServerSetLimits } from '../aiAnalysisDesktop';
-import { withTimeout, bridgeTimeoutMs } from './withTimeout';
+import { withTimeout, bridgeTimeoutMs, bridgeFallbackMs } from './withTimeout';
 import { pushNotice } from './tasks/noticeStore';
 import { reportBackgroundFailure } from './bgSink';
 import { resourceKindOf, resourceKindDenied } from '../aiTools/resourceToolGate';
+import { getErrorMeta, isRetryable } from '../aiTools/errorCodes';
 
 // 外部客户端的「每次确认」待审 / ask_user 反问此前只进任务中心待办(铃铛 +1),用户没打开任务中心就按超时处理;
 //   与目标 / 定时任务同口径推一条 action 级通知(桌面横幅按通知设置);推送失败只留痕,绝不影响审批本身
@@ -33,6 +34,7 @@ function loadTools(){
 				exportToolManifest: registry.exportToolManifest,
 				runTool: registry.runTool,
 				getTool: registry.getTool,   // 工具声明的 timeoutMs 与客户端预算取小(run_analysis 声明 180 s 此前在桥路径不可达)
+				disabledToolInfo: registry.disabledToolInfo,   // 不在目录里的名字:开关关着的内置工具回 E_TOOL_DISABLED + 开哪个开关
 				peekIdempotent: registry.peekIdempotent,   // 幂等预查(限流与审批之前:回放 / 冲突 / 已撤销不再弹审批、不计写入额度)
 				peekNoChange: registry.peekNoChange,       // 无变化预检(审批之前:什么也不会改就不弹审批卡)
 				// 目录变更订阅(注册/注销外部工具、功能开关不经此,由 prefs 事件覆盖)→ 本机 MCP 服务推 tools/list_changed
@@ -69,6 +71,8 @@ export const BUCKET_MAX = 64;
 // 拒绝桶上限:目录外名字/禁用名的拒绝按每分钟 max(5×调用上限, 60) 计,超限 E_LIMIT;与正常 calls 桶互不挤占
 export const REJECT_MAX_PER_MINUTE = 60;
 const clientBuckets = new Map();
+// 写入额度是进程级一把(所有外部会话合计):按会话分 = 多握手几次就多几份写入额度。调用频率仍按会话分
+let externalWrites = [];
 function bucketOf(key){
 	const k = `${key || 'external'}`;
 	let b = clientBuckets.get(k);
@@ -97,17 +101,19 @@ export function checkExternalLimits(clientName, level, policy, now){
 	pruneBucket(b, t);
 	if(level === 'rejected'){
 		const rejCap = Math.max(Number(p.maxCallsPerMinute) * 5 || 0, REJECT_MAX_PER_MINUTE);
-		if(b.rejected.length >= rejCap){ return { ok: false, code: 'E_LIMIT', message: `外部无效调用超过每分钟上限(${rejCap})` }; }
+		if(b.rejected.length >= rejCap){ return { ok: false, code: 'E_LIMIT', message: `外部无效调用超过每分钟上限(${rejCap})`, retryable: true, retryAfterMs: Math.max(0, 60000 - (t - b.rejected[0])) }; }
 		b.rejected.push(t);
 		return { ok: true };
 	}
-	if(b.calls.length >= p.maxCallsPerMinute){ return { ok: false, code: 'E_LIMIT', message: `外部调用超过每分钟上限(${p.maxCallsPerMinute})` }; }
-	if(level === 'additive' && b.writes.length >= p.maxAdditivePerHour){ return { ok: false, code: 'E_LIMIT', message: `外部写入超过每小时上限(${p.maxAdditivePerHour})` }; }
+	// 限流是「等一会儿同参数再来就行」的那一类:回 retryable + 还要等多久(桶里最早一条滑出窗口的毫秒数)
+	if(b.calls.length >= p.maxCallsPerMinute){ return { ok: false, code: 'E_LIMIT', message: `外部调用超过每分钟上限(${p.maxCallsPerMinute})`, retryable: true, retryAfterMs: Math.max(0, 60000 - (t - b.calls[0])) }; }
+	externalWrites = externalWrites.filter((x)=>t - x < 3600000);
+	if(level === 'additive' && externalWrites.length >= p.maxAdditivePerHour){ return { ok: false, code: 'E_LIMIT', message: `外部写入超过每小时上限(所有外部客户端合计 ${p.maxAdditivePerHour})`, retryable: true, retryAfterMs: Math.max(0, 3600000 - (t - externalWrites[0])) }; }
 	b.calls.push(t);
 	return { ok: true };
 }
 function noteExternalWrite(clientName, now){
-	bucketOf(clientName).writes.push(Number.isFinite(now) ? now : Date.now());
+	externalWrites.push(Number.isFinite(now) ? now : Date.now());
 }
 
 // 两道调度(取代此前的全局一条串行队列:一次 120 s 的起盘把之后所有只读查询都堵在后面):
@@ -233,9 +239,49 @@ export function __mcpManifestCacheForTests(){ return manifestCache; }
 // 外部审批档对一件工具的拒绝(单源):目录不列 与 调用即拒 同一个函数。只读档 = 写入类一律拒
 export function externalPolicyBlock(def, policy){
 	const p = policy || getExternalPolicy();
-	if(def && def.level === 'additive' && p && p.approval === 'read-only'){ return { ok: false, code: 'E_APPROVAL_DENIED', message: '外部客户端审批档为只读,写入动作未执行' }; }
+	if(def && def.level === 'additive' && p && p.approval === 'read-only'){ return { ok: false, code: 'E_APPROVAL_DENIED', message: `外部客户端审批档为只读,写入动作未执行;${(typeof globalThis !== 'undefined' && globalThis.__HOROSA_HEADLESS_STORE__) ? '要写入须用户本人在终端执行 ./horosa config approval auto' : '要写入须用户在星阙「外部智能体」面板把审批档改为全自动或每次确认'}` }; }
 	return null;
 }
+// 给外部客户端看的那一面(只动 tools/list 的投影;注册表里的定义、应用内对话送给模型的工具定义、运行时校验一概不变):
+//  ① 只读工具的说明去掉「仅当用户明确要求时调用」:那是给应用内对话写的克制语,外部代理照字面执行会为每次只读查询去征求许可、
+//     不敢连续调用(describe_settings 自己又写着「改设置前必须先调用」,两句打架);写入类原样保留。
+//  ② 参数结构降级成各家接口都收的子集:顶层的 anyOf / oneOf / allOf(有的模型接口见到就把整条请求打回,连带同批其它工具一起用不了)、
+//     嵌套的 if / then / else / allOf(有的函数声明格式不认)摘掉,约束仍由运行时校验执行(不满足照旧回 E_ARGS_INVALID 并说明缺什么);
+//     顶层 anyOf 里的「至少给其一」写进说明;类型含 array 却没写 items 的补上空 items。
+const SCHEMA_COMBINATORS = ['anyOf', 'oneOf', 'allOf', 'if', 'then', 'else', 'not'];
+function portableSchema(node){
+	if(Array.isArray(node)){ return node.map(portableSchema); }
+	if(!node || typeof node !== 'object'){ return node; }
+	const out = {};
+	Object.keys(node).forEach((k)=>{
+		if(SCHEMA_COMBINATORS.indexOf(k) >= 0){ return; }
+		out[k] = (k === 'properties' && node[k] && typeof node[k] === 'object')
+			? Object.keys(node[k]).reduce((acc, pk)=>{ acc[pk] = portableSchema(node[k][pk]); return acc; }, {})
+			: (k === 'items' || k === 'additionalProperties' ? portableSchema(node[k]) : node[k]);
+	});
+	const types = Array.isArray(out.type) ? out.type : [out.type];
+	if(types.indexOf('array') >= 0 && out.items === undefined){ out.items = {}; }
+	return out;
+}
+// 顶层 anyOf / oneOf 的各支若只是 required 清单,折成一句「至少给其一」
+function requiredAlternativesNote(schema){
+	const alts = (schema && (schema.anyOf || schema.oneOf)) || [];
+	const groups = alts.map((a)=>(a && Array.isArray(a.required) && a.required.length ? a.required.join(' + ') : '')).filter(Boolean);
+	return groups.length > 1 ? `参数里以下几组至少给一组:${groups.join(';或 ')}。` : '';
+}
+const GUIDE_FOR_APP = '仅当用户明确要求时调用';
+export function externalToolFace(t){
+	if(!t || typeof t !== 'object'){ return t; }
+	let description = `${t.description || ''}`;
+	if(t.level === 'read' && t.category !== 'ui'){
+		description = description.split(`${GUIDE_FOR_APP}:`).join('').split(`${GUIDE_FOR_APP}。`).join('').split(GUIDE_FOR_APP).join('');
+	}
+	const note = requiredAlternativesNote(t.inputSchema);
+	if(note){ description = `${description}${/[。.!?)）]$/.test(description.trim()) ? '' : '。'}${note}`; }
+	description = description.replace(/。{2,}/g, '。').replace(/[:,;、]\s*$/, '').trim();
+	return { ...t, description, inputSchema: portableSchema(t.inputSchema) };
+}
+
 // tools/list 的目录:按名禁用的不列、外部审批档拒的不列;缓存键 = 工具名策略 + 外部审批档 + 目录版本
 let listedCache = null;
 function mcpListedTools(d){
@@ -244,7 +290,7 @@ function mcpListedTools(d){
 	const key = `${JSON.stringify(getToolPolicy() || {})}|${policy && policy.approval}|${catalogVersion}`;
 	if(listedCache && listedCache.man === man && listedCache.key === key){ return listedCache.tools; }
 	const toolPolicy = getToolPolicy();
-	const tools = man.filter((t)=>t && !isToolDenied(t.name, toolPolicy) && !externalPolicyBlock(t, policy));
+	const tools = man.filter((t)=>t && !isToolDenied(t.name, toolPolicy) && !externalPolicyBlock(t, policy)).map(externalToolFace);
 	listedCache = { man, key, tools };
 	return tools;
 }
@@ -256,21 +302,38 @@ let notifier = null;
 let notifyUnsubs = [];
 export const LEDGER_CHANGED_DOM_EVENT = 'horosa:agent-ledger-changed';   // 字面量 = ledger.LEDGER_EVENT(jest 锁等);不 import ledger 以免把记录库拖进首屏分包
 export const STORE_CHANGED_DOM_EVENT = 'horosa:ai-store-changed';        // 字面量 = aiAnalysisStore.AI_STORE_CHANGED_EVENT(jest 锁等)
+// 目录变化的信号源(单源;桌面发射器与无头 stdio 共用):建档 → resources;AI 助手开关 → tools;账本(撤销 / 写入)→ resources;
+//   模版库写入 → prompts。工具注册表的订阅要等工具目录载入,由调用方各自挂(见下)。返回退订函数表。
+function attachCatalogSignalSources(emit){
+	const unsubs = [];
+	unsubs.push(subscribeAutomationEvents((ev)=>{ if(ev && ev.event === 'record.saved'){ emit('resources'); } }));
+	unsubs.push(subscribeAgentPrefs(()=>{ emit('tools'); }));
+	const w = typeof window !== 'undefined' ? window : null;
+	if(w && typeof w.addEventListener === 'function'){
+		const onLedger = ()=>{ emit('resources'); };
+		const onStore = (e)=>{ const st = e && e.detail ? `${e.detail.store || ''}` : ''; if(st === 'templates'){ emit('prompts'); } };
+		w.addEventListener(LEDGER_CHANGED_DOM_EVENT, onLedger);
+		w.addEventListener(STORE_CHANGED_DOM_EVENT, onStore);
+		unsubs.push(()=>w.removeEventListener(LEDGER_CHANGED_DOM_EVENT, onLedger));
+		unsubs.push(()=>w.removeEventListener(STORE_CHANGED_DOM_EVENT, onStore));
+	}
+	return unsubs;
+}
+// 无头 stdio 用:同一套信号源 + 同一个去抖发射器,onKind('tools'|'resources'|'prompts') 由传输层写成 notifications/<kind>/list_changed。
+//   总开关关 = 不发;返回 dispose(退订 + 清定时器)。
+export function watchAgentCatalog(onKind, opts){
+	const o = opts || {};
+	const n = createAgentNotifier({ enabled: ()=>isAgentEnabled(), notify: (kind)=>onKind(kind), ...(o.delayMs ? { delayMs: o.delayMs } : {}) });
+	const unsubs = attachCatalogSignalSources((kind)=>n.emit(kind));
+	let disposed = false;
+	loadTools().then((d)=>{ if(disposed){ return; } if(d && typeof d.subscribeToolCatalog === 'function'){ unsubs.push(d.subscribeToolCatalog(()=>{ n.emit('tools'); })); } }).catch(()=>{});
+	return ()=>{ disposed = true; unsubs.forEach((u)=>{ try{ u(); }catch(e){ /* noop */ } }); n.dispose(); };
+}
 function armNotifier(){
 	if(notifier){ return; }
 	// notify 经模块导出调用(而非发射器内部缺省):jest 可在 aiAnalysisDesktop 命名空间上打桩观察 kind 序列
 	notifier = createAgentNotifier({ enabled: ()=>bound && isAgentEnabled() && isDesktopBridgeAvailable(), notify: (kind)=>desktopAgentNotify(kind) });
-	notifyUnsubs.push(subscribeAutomationEvents((ev)=>{ if(ev && ev.event === 'record.saved'){ notifier.emit('resources'); } }));
-	notifyUnsubs.push(subscribeAgentPrefs(()=>{ if(notifier){ notifier.emit('tools'); } }));
-	const w = typeof window !== 'undefined' ? window : null;
-	if(w && typeof w.addEventListener === 'function'){
-		const onLedger = ()=>{ if(notifier){ notifier.emit('resources'); } };
-		const onStore = (e)=>{ const st = e && e.detail ? `${e.detail.store || ''}` : ''; if(st === 'templates' && notifier){ notifier.emit('prompts'); } };
-		w.addEventListener(LEDGER_CHANGED_DOM_EVENT, onLedger);
-		w.addEventListener(STORE_CHANGED_DOM_EVENT, onStore);
-		notifyUnsubs.push(()=>w.removeEventListener(LEDGER_CHANGED_DOM_EVENT, onLedger));
-		notifyUnsubs.push(()=>w.removeEventListener(STORE_CHANGED_DOM_EVENT, onStore));
-	}
+	notifyUnsubs.push(...attachCatalogSignalSources((kind)=>{ if(notifier){ notifier.emit(kind); } }));
 	const mine = notifier;
 	// 同 tick 关-开两次:第一份 .then 醒来时 notifier 已换新 ⇒ 不得再往新表里塞订阅(否则重复订阅)
 	loadTools().then((d)=>{ if(notifier !== mine){ return; } if(notifier && d && typeof d.subscribeToolCatalog === 'function'){ notifyUnsubs.push(d.subscribeToolCatalog(()=>{ if(notifier){ notifier.emit('tools'); } })); } }).catch(()=>{});
@@ -399,7 +462,8 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 		try{
 			// 桥是全局串行队列:任一工具永不 settle(如后端无内超时的起盘)会让之后所有外部调用永远排队,
 			// 而壳侧 PageBridge 超时只回它自己的调用者、看不见页面队列已卡死 → 页面侧必须自带超时让队列继续。
-			const ms = bridgeTimeoutMs(params._meta, 120000);
+			// 客户端没给预算 ⇒ 按这件工具声明的 timeoutMs(没声明 / 不比缺省长 = 120 s)
+			const ms = bridgeTimeoutMs(params._meta, bridgeFallbackMs(typeof d.getTool === 'function' ? ((d.getTool(name) || {}).timeoutMs) : NaN));
 			const callId = `mcp-${req.id}`;
 			// 目录版本两路作废:注册 / 注销,以及任一 AI 助手开关变化(无头分析 / 私人内容可读 / 网页读取 / 目标任务 / 定时……)——
 			// 开关只改 enabled() 不注册注销,此前开了开关 tools/list 已见新工具、tools/call 却按旧缓存回「未知工具」,直到别的注册事件把缓存刷掉
@@ -415,7 +479,10 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 				// 拒绝走独立 rejected 桶:超限回 E_LIMIT(不执行),否则按原因出码
 				const rej = checkExternalLimits(bucketKey, 'rejected', policy);
 				if(!rej.ok){ r = rej; }
-				else if(!def){ r = { ok: false, code: 'E_TOOL_NOT_FOUND', message: `未知工具: ${name.slice(0, 64)}` }; }
+				else if(!def){
+					const dis = typeof d.disabledToolInfo === 'function' ? d.disabledToolInfo(name, 'mcp') : null;
+					r = dis ? { ok: false, code: dis.code, message: dis.message } : { ok: false, code: 'E_TOOL_NOT_FOUND', message: `未知工具: ${name.slice(0, 64)}` };
+				}
 				else{ r = { ok: false, code: 'E_APPROVAL_DENIED', message: `工具 ${name} 已被用户禁用,未执行` }; }
 			}else{
 				const level = def.level;
@@ -425,7 +492,10 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 				const idemCtx = { origin: 'mcp', clientName, ...(idemRaw !== undefined && idemRaw !== null ? { idempotencyKey: idemRaw } : {}) };
 				// 幂等预查先于限流与审批(与 runTool 同一份判定 peekIdempotent):同键同参的重试回放第一次的结果 / 在途就等它,
 				//   同键异参直接冲突、第一次已被撤销直接回明确码 —— 都不再弹审批、不计写入额度(此前重试再弹一次审批,用户点跳过客户端就以为没写成)
-				const idem = level === 'additive' && idemCtx.idempotencyKey !== undefined && typeof d.peekIdempotent === 'function' ? await d.peekIdempotent(name, args, idemCtx) : { state: 'none' };
+				// 预查会等同键在途的第一次调用:也受本次调用的预算约束(第一次的工具本体若永不落定,此前同键重试在这里等不到头,串行道跟着堵死)
+				const idem = level === 'additive' && idemCtx.idempotencyKey !== undefined && typeof d.peekIdempotent === 'function'
+					? await withTimeout(Promise.resolve(d.peekIdempotent(name, args, idemCtx)), ms, { code: 'E_TOOL_TIMEOUT', message: '同一幂等键的上一次调用还没结束,等待超时;稍后用同一个键重试' })
+					: { state: 'none' };
 				// 外部客户端档:限流 → 只读档直拒写入 → 每次确认档弹到本机审批台(用户不允许=跳过;到点=超时且审批台自撤)
 				const lim = idem.state !== 'none' ? checkExternalLimits(bucketKey, idem.state === 'hit' ? 'read' : 'rejected', policy) : checkExternalLimits(bucketKey, level, policy);
 				const blocked = externalPolicyBlock(def, policy);
@@ -442,7 +512,10 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 					let precheck = null;   // 审批前就落定的结果(无变化 / 预览自报必拒):不执行
 					// 「界面类也要确认」(外部策略 uiConfirm,缺省关):界面类动作同样先弹本机审批台(读级,不受写入审批档与写入桶影响)
 					const needUiConfirm = def.category === 'ui' && policy.uiConfirm === true;
-					if((level === 'additive' && policy.approval === 'on-request') || needUiConfirm){
+					// 始终要用户点头的写入(软件代摇):不论外部审批档都上审批台
+					const fullDef = typeof d.getTool === 'function' ? d.getTool(name) : null;
+					const forceAsk = level === 'additive' && !!(fullDef && fullDef.alwaysConfirm === true);
+					if((level === 'additive' && policy.approval === 'on-request') || needUiConfirm || forceAsk){
 						// 带 timeoutMs:审批台到点按「未允许」落定并自撤(此前只靠外层 withTimeout,超时后动作条残留「允许/跳过」死按钮)
 						const t0 = Date.now();
 						const key = `mcp:${clientName}`;
@@ -479,7 +552,7 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 						r = { ok: false, code: 'E_TOOL_TIMEOUT', message: '审批耗尽了本次调用的时间预算,未执行' };
 					}else{
 						// 超时必带取消:此前 withTimeout 只让队列继续、工具在后台跑完(写入在客户端已收 E_TOOL_TIMEOUT 后仍落地 = 重试即重复建档;
-						//   run_analysis 在途 1 被占到跑完);预算 = 客户端剩余预算 与 工具声明 timeoutMs 取小(run_analysis 声明的 180 s 此前在桥路径不可达)
+						//   run_analysis 在途 1 被占到跑完);预算 = 客户端剩余预算 与 工具声明 timeoutMs 取小(客户端没给预算时,剩余预算本身就取自工具声明,见上)
 						const ac = typeof AbortController === 'function' ? new AbortController() : null;
 						const declared = typeof d.getTool === 'function' ? Number(((d.getTool(name) || {}).timeoutMs)) : NaN;
 						const budgetMs = Number.isFinite(declared) && declared > 0 ? Math.min(remainMs, declared) : remainMs;
@@ -506,15 +579,50 @@ export async function handleAgentToolRequest(req, deps, ctxExtra){
 			r = { ok: false, code: e && e.code ? e.code : 'E_TOOL_THREW', message: e && e.message ? e.message : `${e}` };
 		}
 		// ledgerLost:动作已落地但账本提交失败(不可撤销)——外部客户端也要知道
-		const text = truncateForMcp(JSON.stringify({ ok: !!r.ok, code: r.code, message: r.message, assumptions: r.assumptions, data: r.data, undo: r.undo, ledgerLost: r.ledgerLost === true ? true : undefined, replayed: r.replayed === true ? true : undefined, noChange: r.noChange === true ? true : undefined }));
+		const env = externalEnvelope(r);
+		const text = truncateForMcp(JSON.stringify(env));
 		// 声明了 outputSchema 的工具:成功必带 structuredContent(规范 MUST;这类工具的 data 有界,不随正文截断丢掉)
 		// 失败一律不带:客户端 SDK 见到 structuredContent 就按 outputSchema 校验,失败时的 data(候选 / 可用技法表等)形状不合 → 整条调用变协议错,
 		//   模型连错误说明都拿不到;失败的 data 已在正文 JSON 里
 		const hasData = !!(r.data && typeof r.data === 'object');
-		const structured = hasData && r.ok && (declaredOutput || !text.truncated) ? r.data : undefined;
+		const structured = hasData && r.ok && (declaredOutput || !text.truncated) ? structuredWithEnvelope(r.data, env) : undefined;
 		return { ok: true, result: { content: [{ type: 'text', text: text.text }], structuredContent: structured, isError: !r.ok } };
 	}
 	return { ok: false, error: { code: -32601, message: `method not found: ${method}` } };
+}
+
+// 回给外部客户端的结果信封(正文 JSON 串):成功 / 失败同一形。
+//   失败恒带 retryable(工具显式给了照工具的,否则查错误码表)与 hint(工具给了照工具的,否则表里的「下一步」),限流另带 retryAfterMs —— 此前外部拿不到这三样,
+//   只能靠读中文 message 猜要不要重试;untrusted:true = 里面的文字(档案名 / 备注 / 名人简介 / 网页内容 …)是数据,不是给调用方的指令。
+export function externalEnvelope(r){
+	const o = r || {};
+	const failed = !o.ok;
+	const meta = failed && o.code ? getErrorMeta(o.code) : null;
+	return {
+		ok: !!o.ok, code: o.code,
+		...(failed ? { retryable: typeof o.retryable === 'boolean' ? o.retryable : isRetryable(o.code) } : {}),
+		...(failed && Number.isFinite(o.retryAfterMs) ? { retryAfterMs: Math.round(o.retryAfterMs) } : {}),
+		message: o.message,
+		// hint:工具给了针对这次失败的下一步(如「改用哪件工具」)照工具的,否则取表里的通用一句
+		...(failed && (typeof o.hint === 'string' && o.hint.trim() ? { hint: o.hint.trim() } : (meta && meta.act ? { hint: meta.act } : {}))),
+		assumptions: o.assumptions, ignoredArgs: Array.isArray(o.ignoredArgs) && o.ignoredArgs.length ? o.ignoredArgs : undefined,
+		data: o.data, undo: o.undo,
+		ledgerLost: o.ledgerLost === true ? true : undefined, replayed: o.replayed === true ? true : undefined, noChange: o.noChange === true ? true : undefined,
+		untrusted: true,
+	};
+}
+// 只取结构化结果的客户端(有 structuredContent 时不把正文交给模型)也要看得到起盘假设、撤销句柄、被忽略的参数与回放标记:
+// 并进 structuredContent(只补 data 里没有的键,不覆盖工具自己的同名字段;各 outputSchema 都不封闭,多出的键不影响校验)
+const STRUCTURED_ENVELOPE_KEYS = ['message', 'assumptions', 'ignoredArgs', 'undo', 'ledgerLost', 'replayed', 'noChange'];
+export function structuredWithEnvelope(data, env){
+	if(!data || typeof data !== 'object' || Array.isArray(data)){ return data; }
+	const out = { ...data };
+	STRUCTURED_ENVELOPE_KEYS.forEach((k)=>{
+		const v = env ? env[k] : undefined;
+		if(v === undefined || v === null || (Array.isArray(v) && !v.length) || Object.prototype.hasOwnProperty.call(out, k)){ return; }
+		out[k] = v;
+	});
+	return out;
 }
 
 // 批尾选中用的 ui:deps.ui 显式注入优先,否则取工具目录侧的工作区桥 ui(与工具内 ctxUi 同源);两者皆无 → null
@@ -616,6 +724,7 @@ export function bindMcpBridge(){
 export function __resetMcpBridgeForTests(){
 	manifestCache = null; catalogVersion = 0; catalogVersionSubscribed = false; lastSyncedCallsPerMinute = null;
 	clientBuckets.clear();
+	externalWrites = [];
 	disarmNotifier();
 	bound = false;
 	waiting.length = 0; running.clear(); exclusiveBusy = false; toolDeps = null;

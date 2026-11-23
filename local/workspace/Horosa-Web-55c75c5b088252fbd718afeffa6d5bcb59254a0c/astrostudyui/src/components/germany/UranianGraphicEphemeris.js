@@ -3,8 +3,8 @@ import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // �
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
-import { Spin, Empty } from 'antd';
-import { XQDatePicker, XQSegmented, XQSelect, XQCheckItem } from '../xq-ui';
+
+import { XQDatePicker, XQSegmented, XQSelect, XQCheckItem, XQEmpty, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
@@ -22,7 +22,7 @@ const RangePicker = XQDatePicker.RangePicker;
 // 数据复用现成 /astroextra/ephemeris 的 dailyPositions(逐日黄经,后端封 Swiss Ephemeris),折叠纯前端算,改盘基即时重折叠不重取。
 
 // 默认行运行星:日 + 火 + 木土天海冥(月太快,90°盘约每 7.5 天绕一圈,默认不画;可勾选)。
-const DEFAULT_PLANETS = [
+export const DEFAULT_PLANETS = [
 	AstroConst.SUN, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN,
 	AstroConst.URANUS, AstroConst.NEPTUNE, AstroConst.PLUTO,
 ];
@@ -67,7 +67,7 @@ function paramsReady(p){
 }
 
 // 本命参考点(行星/角点/白羊点)——从已排的本命盘对象取,无需额外请求。
-function natalLines(chartRoot){
+export function natalLines(chartRoot){
 	const inner = (chartRoot && chartRoot.chart) ? chartRoot.chart : (chartRoot || {});
 	const out = []; const seen = new Set();
 	const push = (id, lon) => { if (id && Number.isFinite(Number(lon)) && !seen.has(id)) { out.push({ id, lon: Number(lon) }); seen.add(id); } };
@@ -75,6 +75,40 @@ function natalLines(chartRoot){
 	(inner.angles || []).forEach((o) => { if (NATAL_LINE_IDS.has(o.id)) push(o.id, o.lon); });
 	push(AstroConst.ARIES_POINT, 0);
 	return out;
+}
+
+// 页面保存的图形星历显示口径(盘基 / 含月亮);AI 快照同读,与页面同一份
+export const GEPHEM_STORE_KEY = 'horosa.uranian.gephem.v1';
+export function storedGephemDisp(){
+	try{ const d = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem(GEPHEM_STORE_KEY)) || '{}') || {}; return { base: [90, 45, 22.5].indexOf(d.base) >= 0 ? d.base : 90, includeMoon: !!d.includeMoon }; }catch(e){ return { base: 90, includeMoon: false }; }
+}
+// 行运折叠线与本命水平线的交点(纯函数,页面图上两线相交处 = 该折叠相位的应期):逐日样本里「行运 − 本命」折叠到 (−base/2, base/2]
+//   后过零即一次接触,日内线性内插;跨折叠界的跳变(相邻差 > base/2)不算。aspect = 内插时刻真实角距按盘基取整(0 / 90 / 180 / 270 …),
+//   retro = 当日行运黄经在减小(逆行段的接触)。按日序排。
+export function graphicEphemerisCrossings(rows, planets, natal, base){
+	const out = [];
+	const b = Number(base) > 0 ? Number(base) : 90;
+	const signed = (x)=>{ let d = ((x % b) + b) % b; if(d > b / 2){ d -= b; } return d; };
+	(planets || []).forEach((pid)=>{
+		(natal || []).forEach((n)=>{
+			let prev = null;
+			for(let i = 0; i < (rows || []).length; i++){
+				const pos = rows[i] && rows[i].positions && rows[i].positions[pid];
+				if(!pos || !Number.isFinite(Number(pos.lon))){ prev = null; continue; }
+				const lon = Number(pos.lon);
+				const d = signed(lon - n.lon);
+				if(prev && Math.abs(d - prev.d) <= b / 2 && ((prev.d < 0 && d >= 0) || (prev.d > 0 && d <= 0))){
+					const t = prev.d === d ? 0 : prev.d / (prev.d - d);
+					let dl = lon - prev.lon; if(dl > 180){ dl -= 360; } if(dl < -180){ dl += 360; }
+					const at = prev.lon + dl * t;
+					const aspect = (Math.round((((at - n.lon) % 360) + 360) % 360 / b) * b) % 360;
+					out.push({ planet: pid, natal: n.id, dayIndex: i - 1 + t, fromDate: rows[i - 1].date, frac: t, aspect, retro: dl < 0 });
+				}
+				prev = { d, lon };
+			}
+		});
+	});
+	return out.sort((x, y)=>x.dayIndex - y.dayIndex);
 }
 
 function planetGlyph(id, color, size){
@@ -93,7 +127,7 @@ const GEPHEM_WRAP = { padding: '4px 8px', height: '100%', overflowY: 'auto', box
 export default class UranianGraphicEphemeris extends Component {
 	constructor(props){
 		super(props);
-		const disp = (() => { try { return JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {}; } catch (e) { return {}; } })();
+		const disp = (() => { try { return JSON.parse(localStorage.getItem(GEPHEM_STORE_KEY) || '{}') || {}; } catch (e) { return {}; } })();
 		this.state = {
 			base: [90, 45, 22.5].indexOf(disp.base) >= 0 ? disp.base : 90,
 			// 太阳弧生命图模式:X 轴改年龄、本命=水平线、推进因子=斜线(同速率→平行线族)、
@@ -134,7 +168,7 @@ export default class UranianGraphicEphemeris extends Component {
 	hideTip(){ if (!this.unmounted && this.state.tip) this.setState({ tip: null }); }
 	_measure(){ if (this.unmounted || !this._wrap) return; const w = this._wrap.clientWidth - 16; if (w > 0 && Math.abs(w - this.state.cw) > 2) this.setState({ cw: w }); }
 
-	saveDisp(patch, cb){ this.setState(patch, cb); try { const cur = JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {}; safeLocalStorageSet('horosa.uranian.gephem.v1', JSON.stringify({ ...cur, ...patch })); } catch (e) { /* noop */ } }
+	saveDisp(patch, cb){ this.setState(patch, cb); try { const cur = JSON.parse(localStorage.getItem(GEPHEM_STORE_KEY) || '{}') || {}; safeLocalStorageSet(GEPHEM_STORE_KEY, JSON.stringify({ ...cur, ...patch })); } catch (e) { /* noop */ } }
 
 	planetSet(){ return this.state.includeMoon ? [AstroConst.MOON, ...DEFAULT_PLANETS] : DEFAULT_PLANETS; }
 
@@ -398,7 +432,7 @@ export default class UranianGraphicEphemeris extends Component {
 
 		if (isLife){
 			if (!nat.length){
-				return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<Empty description="请先完善出生信息（本命盘就绪后即可查看生命图）" /></div>;
+				return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<XQEmpty description="请先完善出生信息（本命盘就绪后即可查看生命图）" /></div>;
 			}
 			return this.renderLife(controls, W, H, mL, mR, mT, mB, stroke, soft);
 		}
@@ -407,13 +441,13 @@ export default class UranianGraphicEphemeris extends Component {
 		const traX = mL + plotW + 32;  // 行运字形外列(与内列拉开间距,放大后不互叠)
 
 		if (this.state.note){
-			return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<Empty description={this.state.note} /></div>;
+			return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<XQEmpty description={this.state.note} /></div>;
 		}
 
 		return (
 			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>
 				{controls}
-				<Spin spinning={this.state.loading}>
+				<XQSpin spinning={this.state.loading}>
 					<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
 						<svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', maxWidth: '100%', color: stroke }}
 							className="horosa-plain-text-board xq-chart-renderer xq-chart-renderer-astro">
@@ -480,7 +514,7 @@ export default class UranianGraphicEphemeris extends Component {
 							</div>
 						) : null}
 					</div>
-				</Spin>
+				</XQSpin>
 				<div style={{ color: soft, fontSize: 11, marginTop: 6 }}>
 					实线=行运行星(折叠盘基);虚线=本命参考。右侧内列=本命字形、外列=行运字形(均自动避让,按行星配色)。悬停线或字形显星名。折叠位相交即该硬相位(0/90/180/270)触发期。月亮默认不画(过快)。
 				</div>

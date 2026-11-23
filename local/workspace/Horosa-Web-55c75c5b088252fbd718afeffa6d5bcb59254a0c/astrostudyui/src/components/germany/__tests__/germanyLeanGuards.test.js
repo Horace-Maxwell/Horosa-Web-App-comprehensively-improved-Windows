@@ -9,6 +9,8 @@ import { saveUranianDisplay, getStoredUranianDisplay, URANIAN_DISPLAY_EVENT } fr
 import * as UranianSchools from '../UranianSchools';
 
 const DIR = path.resolve(__dirname, '..');
+const { importsName, definesLocal, usesLocal } = require('../../../utils/__tests__/helpers/importSpecs');
+
 const raw = (f) => fs.readFileSync(path.join(DIR, f), 'utf8');
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
@@ -37,10 +39,15 @@ describe('盘面共用小工具 uranianDialShared', () => {
 			'UranianModulusDial.js': 'TAU, norm360, polar, glyphTip',
 			'UranianFrameWheel.js': 'TAU, norm360, polar',
 		};
+		// 按 AST 认 import(helpers/importSpecs):用到的必须从单源引、不许自带副本;用不到的就不该再引(死引用由静态检查棘轮看)
 		Object.entries(sites).forEach(([f, names]) => {
-			const src = strip(raw(f));
-			expect(`${f}:${src.includes(`import { ${names} } from './uranianDialShared';`)}`).toBe(`${f}:true`);
-			expect(`${f}:${/const (TAU|norm360|polar|glyphTip)\s*=/.test(src)}`).toBe(`${f}:false`);
+			const src = raw(f);
+			const used = names.split(', ').filter((n) => usesLocal(src, n));
+			expect(`${f}:${used.length > 0}`).toBe(`${f}:true`);   // 防空转:每个盘面至少用到一个共用件
+			names.split(', ').forEach((n) => {
+				expect(`${f}:${n}:${definesLocal(src, n)}`).toBe(`${f}:${n}:false`);
+				if (used.includes(n)) { expect(`${f}:${n}:${importsName(src, { name: n, from: './uranianDialShared' })}`).toBe(`${f}:${n}:true`); }
+			});
 		});
 		expect(raw('UranianDial.js')).not.toContain('AstroHelper.signsBand');
 	});

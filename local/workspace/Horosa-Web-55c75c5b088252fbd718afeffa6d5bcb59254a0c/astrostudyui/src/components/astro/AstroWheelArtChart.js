@@ -8,7 +8,6 @@ import {
 	SIGN_NAMES,
 	getAscSignNumber,
 	getHouseNumberForSign,
-	getObject,
 	getObjectsBySign,
 	getSignSymbol,
 	normalizeDegree,

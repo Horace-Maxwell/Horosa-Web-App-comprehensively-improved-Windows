@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Su28Helper from './Su28Helper';
 import HouseSu from './HouseSu';
-import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { drawPath, drawTextH} from '../graph/GraphHelper';
 import {randomStr,} from '../../utils/helper';
 
 class HouseSu20 extends HouseSu{

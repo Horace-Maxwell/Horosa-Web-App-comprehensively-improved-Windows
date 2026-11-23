@@ -1,0 +1,13 @@
+diff --git a/astrostudyui/src/utils/__tests__/techniqueSnapshotCacheEqualsRefresh.test.js b/astrostudyui/src/utils/__tests__/techniqueSnapshotCacheEqualsRefresh.test.js
+index 1c8e525a..f2dd5e99 100644
+--- a/astrostudyui/src/utils/__tests__/techniqueSnapshotCacheEqualsRefresh.test.js
++++ b/astrostudyui/src/utils/__tests__/techniqueSnapshotCacheEqualsRefresh.test.js
+@@ -278,7 +278,7 @@ describe('刷新应答写槽带出生签名(全站命盘技法页)', ()=>{
+ 			if(!birthSaved){ return; }
+ 			saves.filter((s)=>/^handleSnapshotRefreshRequest$|^_?onSnap(shot)?Refresh/.test(s.owner)).forEach((s)=>{
+ 				guarded += 1;
+-				guardedPages.add(path.relative(root, f));
++				guardedPages.add(path.relative(root, f).split(path.sep).join('/'));   // horosa_win_pathsep_posix_v1:下方点名用的是正斜杠相对路径
+ 				if(s.node.arguments.length < 3){ offenders.push(`${path.relative(root, s.fp)}:${s.node.loc.start.line}`); }
+ 			});
+ 		});

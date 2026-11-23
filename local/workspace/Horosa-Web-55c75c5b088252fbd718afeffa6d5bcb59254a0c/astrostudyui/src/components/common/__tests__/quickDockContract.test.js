@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import QuickDockBar from '../QuickDockBar';
-const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, isSourceSetPart } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const COMPONENTS_DIR = path.resolve(__dirname, '../..');
 
@@ -106,7 +106,7 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
 	test('裸 dock 标记只允许出现在保形白名单(其余页必须走 QuickDockBar)', () => {
 		// kinastro/astro 为用户认可的保形页(动态数据门控)
 		const WHITELIST = ['common/QuickDockBar.js', 'astro/AstroChartMain.js', 'kinastro/KinAstroMain.js'];
-		const offenders = files.filter((f)=>read(f).includes('horosa-bottom-quick-title'))
+		const offenders = files.filter((f)=>!isSourceSetPart(f) && read(f).includes('horosa-bottom-quick-title'))   // 子模块折回门面:门面按全集读
 			.map((f)=>relPosix(f))
 			.filter((rel)=>!WHITELIST.includes(rel));
 		expect(offenders).toEqual([]);

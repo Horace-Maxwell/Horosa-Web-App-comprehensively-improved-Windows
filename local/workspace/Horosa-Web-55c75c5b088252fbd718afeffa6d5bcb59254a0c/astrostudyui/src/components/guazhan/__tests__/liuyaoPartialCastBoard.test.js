@@ -3,13 +3,16 @@
 import fs from 'fs';
 import path from 'path';
 
-const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
 const { jsxNodes } = require('../../../utils/__tests__/helpers/jsxProps');   // 按 AST 认元素
+// 元素逐个文件认(拼起来的全集是文本,不能当一个模块解析)
+const setFiles = require('../../../utils/__tests__/helpers/sourceSet').sourceSetFiles(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
+const jsxIn = (name)=>setFiles.flatMap((f)=>{ const text = fs.readFileSync(f, 'utf8'); return jsxNodes(text, name).map((n)=>({ ...n, text })); });
 
 test('有本卦或任一爻有值就画盘', ()=>{
 	expect(src).toMatch(/const hasGua = \(this\.state\.currentGua !== null && this\.state\.currentGua !== undefined\)\s*\n\s*\|\| \(this\.state\.yao \|\| \[\]\)\.some\(\(y\)=>y && y\.value >= 0\);/);
 	// 卦盘就是 hasGua 为真那一支
-	const charts = jsxNodes(src, 'GuaZhanChart');
+	const charts = jsxIn('GuaZhanChart');
 	expect(charts.length).toBe(1);
-	expect(src.slice(0, charts[0].start).replace(/\s+/g, '').endsWith('{hasGua?(')).toBe(true);
+	expect(charts[0].text.slice(0, charts[0].start).replace(/\s+/g, '').endsWith('{hasGua?(')).toBe(true);
 });

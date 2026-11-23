@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/germany/UranianDialMain.js b/astrostudyui/src/components/germany/UranianDialMain.js
-index 2bc5433a..b206e1fa 100644
+index 0247da7a..40e1abb1 100644
 --- a/astrostudyui/src/components/germany/UranianDialMain.js
 +++ b/astrostudyui/src/components/germany/UranianDialMain.js
 @@ -21,7 +21,7 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolComparisonRows, germanyMidpointRequestParams } from './UranianSchools';
- import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
+ import { tnpGlyph } from './UranianGlyphs';
 -import { listLocalCharts } from '../../utils/localcharts';
 +import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
  import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, chartOrbOverridesFromFields, chartOrbOverridesFromPlain } from '../../utils/classicalChartGlobals';

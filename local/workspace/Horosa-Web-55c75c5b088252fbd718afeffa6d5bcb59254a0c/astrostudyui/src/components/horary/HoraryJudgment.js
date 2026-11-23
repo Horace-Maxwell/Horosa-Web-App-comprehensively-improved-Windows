@@ -9,7 +9,7 @@ import { judgeLayerOverrides } from '../../utils/judgeLayerOverrides';
 import { buildHorarySnapshot } from '../../divination/horary/horarySnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { PLANETS } from '../../divination/data/planets';
-import { SIGNS, signOfLon } from '../../divination/data/signs';
+import { SIGNS } from '../../divination/data/signs';
 import { NATURAL_SIGNIFICATORS } from '../../divination/data/naturalSignificators';
 import { PLANETARY_HOURS } from '../../divination/data/planetaryHours';
 import { turnedHouseOf } from '../../divination/horary/significators';

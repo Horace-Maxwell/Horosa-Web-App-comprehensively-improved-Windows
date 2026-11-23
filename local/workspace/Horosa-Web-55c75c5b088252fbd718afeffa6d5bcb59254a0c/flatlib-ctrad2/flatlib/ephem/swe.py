@@ -13,6 +13,7 @@
 
 import math
 import os
+import sys
 import threading
 import swisseph
 from flatlib import angle
@@ -92,6 +93,12 @@ def _candidateEphePath():
 _EPHE_PATH_ACTIVE = None
 _JPL_FILE_ACTIVE = None
 _EPHE_FASTPATH = os.environ.get('HOROSA_EPHE_PATH_FASTPATH', '1').lower() not in ('0', 'false', 'no', 'off')
+# 星历库把「星历路径 / JPL 文件」这份状态存在哪,各平台不一样:macOS 上整个进程一份,Linux 上每个线程各一份
+# (库在 Linux 上用线程局部存储编译;实测:主线程设好路径后新起的线程在 macOS 看得到、在 Linux 是库的缺省路径)。
+# 所以「已经设好了」要两头都成立才算数:进程里最后一次设的是它(管进程一份的平台),本线程自己也设过它(管每线程一份的平台)。
+# 只记进程级的话,Linux 上排盘服务的工作线程从没设过路径却被当成设好了 —— 星历文件找不到,小行星整颗算不出来、
+# 行星悄悄退回库内置的近似星历。多记一份线程级只多出「每个线程头一回真设一次」,结果不变。
+_EPHE_THREAD = threading.local()
 
 
 def _guardedSetEphePath(path):
@@ -103,8 +110,10 @@ def _guardedSetEphePath(path):
     # C 侧 swe_set_ephe_path 会重置 JPL 文件名:作废 JPL 追踪,ensureEphePath 随后照旧重设(与改前「每次路径后都重设」同义);
     # 路径追踪只在调用成功后记,调用抛错时不留「假已设」。
     _JPL_FILE_ACTIVE = None
+    _EPHE_THREAD.jpl = None
     ret = _SET_EPHE_PATH(path)
     _EPHE_PATH_ACTIVE = path
+    _EPHE_THREAD.path = path
     return ret
 
 
@@ -121,6 +130,8 @@ if _SWE_CLOSE is not None:
         global _EPHE_PATH_ACTIVE, _JPL_FILE_ACTIVE
         _EPHE_PATH_ACTIVE = None
         _JPL_FILE_ACTIVE = None
+        _EPHE_THREAD.path = None
+        _EPHE_THREAD.jpl = None
         return _SWE_CLOSE()
 
     swisseph.close = _guardedClose
@@ -269,9 +280,23 @@ SWE_HOUSESYS = {
 
 # ==== Internal functions ==== #
 
+def _exportEphePathForNewThreads(path):
+    """Linux:把星历路径导出成进程内的环境变量 SE_EPHE_PATH。
+
+    库在 Linux 上每个线程各存一份路径,新线程头一次用库时按这个环境变量初始化(库里它还优先于传入的路径)。
+    不导出的话,不经本模块、直接调 swisseph 的代码(排盘服务工作线程里的扫描 / 推运 / 内置第三方引擎)用的是库的缺省路径:
+    找不到星历文件,行星退回内置近似星历、恒星与小行星直接报错。macOS 上那份状态是进程级的,用不着,也不去动它。
+    已经由外部设好的 SE_EPHE_PATH 不覆盖;路径过长(库里的缓冲区放不下)时库会忽略它,这里不强求。"""
+    if not sys.platform.startswith('linux') or not path:
+        return
+    if not os.environ.get('SE_EPHE_PATH', '').strip():
+        os.environ['SE_EPHE_PATH'] = str(path)
+
+
 def setPath(path):
     """ Sets the path for the swe files. """
     global SEDEFAULT_FLAG, SEACTIVE_PATH, SEACTIVE_MODE, SEACTIVE_JPL_FILE
+    _exportEphePathForNewThreads(path)
     swisseph.set_ephe_path(path)
     SEACTIVE_PATH = path
 
@@ -299,11 +324,14 @@ def ensureEphePath():
     SEACTIVE_PATH 失配,这里照旧恢复(见 _guardedSetEphePath 处的说明:它是进程内唯一入口)。
     """
     global _JPL_FILE_ACTIVE
-    if SEACTIVE_PATH and (not _EPHE_FASTPATH or _EPHE_PATH_ACTIVE != SEACTIVE_PATH):
+    if SEACTIVE_PATH and (not _EPHE_FASTPATH or _EPHE_PATH_ACTIVE != SEACTIVE_PATH
+                          or getattr(_EPHE_THREAD, 'path', None) != SEACTIVE_PATH):
         swisseph.set_ephe_path(SEACTIVE_PATH)
-    if SEACTIVE_JPL_FILE and (not _EPHE_FASTPATH or _JPL_FILE_ACTIVE != SEACTIVE_JPL_FILE):
+    if SEACTIVE_JPL_FILE and (not _EPHE_FASTPATH or _JPL_FILE_ACTIVE != SEACTIVE_JPL_FILE
+                              or getattr(_EPHE_THREAD, 'jpl', None) != SEACTIVE_JPL_FILE):
         swisseph.set_jpl_file(SEACTIVE_JPL_FILE)
         _JPL_FILE_ACTIVE = SEACTIVE_JPL_FILE
+        _EPHE_THREAD.jpl = SEACTIVE_JPL_FILE
 
 
 def getRuntimeConfig():

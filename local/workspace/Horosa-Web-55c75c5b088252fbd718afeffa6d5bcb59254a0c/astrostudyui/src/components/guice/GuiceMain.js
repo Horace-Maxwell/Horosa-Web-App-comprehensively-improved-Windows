@@ -18,7 +18,7 @@ import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../util
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { deriveLocalNongli, deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
 import { leadingYearOf } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -207,22 +207,7 @@ class GuiceMain extends Component {
 	ctxLive() {
 		// 起卦之时农历:与小六壬 / 飞宫同一单源(没动左栏时也随全局时间算法)
 		const nl = resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value);
-		const b = nl.bazi || {};
-		const cell = (zhu, which) => (b[zhu] && b[zhu][which] && b[zhu][which].cell) || undefined;
-		const gz = (zhu) => (b[zhu] && b[zhu].ganzi) || undefined;
-		const pillars = ['year', 'month', 'day', 'time'].map(gz).filter(Boolean);
-		return {
-			yearZhi: cell('year', 'branch'),
-			monthZhi: cell('month', 'branch'),
-			lunarMonth: nl.monthInt,
-			lunarDay: nl.dayInt,
-			hourZhi: cell('time', 'branch'),
-			year: leadingYearOf(nl.date || '') || undefined,
-			dayGan: cell('day', 'stem'),
-			pillars: pillars.length === 4 ? pillars : undefined,
-			fangKey: (this.state.inputs || {}).fangKey || undefined,   // 方应之所本：占者所坐立之方(手录)
-			askEvent: (this.state.inputs || {}).askEvent || '',
-		};
+		return guiceCtxFromNongli(nl, this.state.inputs);
 	}
 
 	snapText() {
@@ -607,6 +592,39 @@ class GuiceMain extends Component {
 			</div>
 		);
 	}
+}
+
+/** 起卦之时的历法坐标(页面与无头同一份):农历 → { 年月时支、农历月日、日干、四柱 … };inputs 带方位 / 占事(手录) */
+export function guiceCtxFromNongli(nongli, inputs) {
+	const nl = nongli || {};
+	const b = nl.bazi || {};
+	const cell = (zhu, which) => (b[zhu] && b[zhu][which] && b[zhu][which].cell) || undefined;
+	const gz = (zhu) => (b[zhu] && b[zhu].ganzi) || undefined;
+	const pillars = ['year', 'month', 'day', 'time'].map(gz).filter(Boolean);
+	const inp = inputs || {};
+	return {
+		yearZhi: cell('year', 'branch'),
+		monthZhi: cell('month', 'branch'),
+		lunarMonth: nl.monthInt,
+		lunarDay: nl.dayInt,
+		hourZhi: cell('time', 'branch'),
+		year: leadingYearOf(nl.date || '') || undefined,
+		dayGan: cell('day', 'stem'),
+		pillars: pillars.length === 4 ? pillars : undefined,
+		fangKey: inp.fangKey || undefined,   // 方应之所本：占者所坐立之方(手录)
+		askEvent: inp.askEvent || '',
+	};
+}
+
+/**
+ * 起课时间源(没有已存的卦):按「年月日时起例」起卦 —— 本技法的缺省起法,全由起课时间决定、可复算,
+ * 与页面在同一时刻点「起卦」得到的卦相同(不是伪造:时间就是这一法的全部输入)。其余十一法要用户报出的数,无头不起。
+ */
+export function guiceTimeCastPayload(nongli, payload) {
+	const p = payload && typeof payload === 'object' ? payload : {};
+	const ctx = guiceCtxFromNongli(nongli, p.inputs);
+	const gua = qiGua('time', ctx);
+	return gua && !gua.error ? { ...p, gua, ctx } : null;
 }
 
 /**

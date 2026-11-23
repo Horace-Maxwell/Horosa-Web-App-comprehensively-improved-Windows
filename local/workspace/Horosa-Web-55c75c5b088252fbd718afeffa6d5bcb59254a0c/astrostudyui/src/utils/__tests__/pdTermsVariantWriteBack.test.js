@@ -24,7 +24,7 @@ describe('Q-169 主限法工具条界系回写排盘字段', ()=>{
 	});
 	it('源码哨兵:computePrimaryDirections 在值真变时写全局仓(setClassicalChartGlobal)并调度主盘重算', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '../../components/direction/AstroDirectMain.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../components/direction/AstroDirectMain.js'));
 		expect(src).toMatch(/Number\(classicalGlobalValue\('termsVariant'\)\) !== tv/);
 		expect(src).toMatch(/setClassicalChartGlobal\('termsVariant', tv\)/);
 		expect(src).toMatch(/scheduleOptionDispatch\(\(payload\)=>\{\s*this\.props\.dispatch\(\{ type: 'astro\/fetchByFields', payload \}\);/);

@@ -137,13 +137,16 @@ export async function getPairSynastryText(recordA0, recordB0, opts = {}){
 	const build = typeof opts.build === 'function' ? opts.build : buildRelativeSnapshotForRecords;   // 测试缝
 	const now = typeof opts.now === 'function' ? opts.now() : Date.now();
 	try{ await ensureRelativeClassicalLoaded(); }catch(e){ /* 分包载不了:按空古典段(构造里同样取不到) */ }
-	const key = pairSynastryKey(recordA, recordB);
+	// opts.extraCharts:['timespace','marks'] 里点名的另取(进缓存键;不点名 = 原键原文)
+	const extraList = (Array.isArray(opts.extraCharts) ? opts.extraCharts : []).filter((x)=>x === 'timespace' || x === 'marks').sort();
+	const extra = { timeSpace: extraList.indexOf('timespace') >= 0, marks: extraList.indexOf('marks') >= 0 };
+	const key = pairSynastryKey(recordA, recordB) + (extraList.length ? `#extra:${extraList.join(',')}` : '');
 	const hit = PAIR_SYNASTRY_CACHE.get(key);
 	if(hit && now - hit.at < PAIR_SYNASTRY_TTL_MS){ return hit.text; }
 	if(PAIR_SYNASTRY_INFLIGHT.has(key)){ return PAIR_SYNASTRY_INFLIGHT.get(key); }
 	const job = (async ()=>{
 		let text = '';
-		try{ text = `${(await build(recordA, recordB)) || ''}`; }catch(e){ text = ''; }
+		try{ text = `${(await (extraList.length ? build(recordA, recordB, extra) : build(recordA, recordB))) || ''}`; }catch(e){ text = ''; }
 		if(text.trim()){
 			PAIR_SYNASTRY_CACHE.set(key, { text, at: now });
 			while(PAIR_SYNASTRY_CACHE.size > PAIR_SYNASTRY_CACHE_MAX){ PAIR_SYNASTRY_CACHE.delete(PAIR_SYNASTRY_CACHE.keys().next().value); }
@@ -155,8 +158,10 @@ export async function getPairSynastryText(recordA0, recordB0, opts = {}){
 }
 export function __resetPairSynastryCacheForTests(){ PAIR_SYNASTRY_CACHE.clear(); PAIR_SYNASTRY_INFLIGHT.clear(); }
 
-export async function buildRelativeSnapshotForRecords(recordA, recordB){
+// extra:{ timeSpace, marks } = 另取时空中点盘 / 马克斯盘(合盘页的另两个页签;缺省不取 = 与此前逐字相同,各多一次后端请求)
+export async function buildRelativeSnapshotForRecords(recordA, recordB, extra){
 	if(!recordA || !recordB) return '';
+	const ex = extra || {};
 	const mk = pairBirthParams;
 	// 与合盘页同一请求口径:宫制 / 黄道 / 岁差 + 古典口径段(界系 / 三分 / 交点 / 自定义岁差历元等;默认不下发 = 请求体零回归)
 	await ensureRelativeClassicalLoaded();
@@ -196,12 +201,14 @@ export async function buildRelativeSnapshotForRecords(recordA, recordB){
 	const comp = await fetchOne(0, 'Comp');            // 比较盘:互摄相位/中点相位/映点
 	const composite = await fetchOne(1, 'Composite');  // 组合盘:复合图盘
 	const synastry = await fetchOne(2, 'Synastry');    // 影响盘:双盘叠加
+	const timeSpace = ex.timeSpace ? await fetchOne(3, 'TimeSpace') : '';   // 时空中点盘(点名才取)
+	const marks = ex.marks ? await fetchOne(4, 'Marks') : '';               // 马克斯盘(点名才取)
 	const scoreTxt = await fetchScore();               // 关系量化:契合分数+顺畅/张力 top 相位
 	const kootaTxt = await fetchAshtakoota();
 	const stripHeader = (txt)=>{ const i = `${txt || ''}`.indexOf('\n['); return i > 0 ? `${txt}`.slice(i + 1) : `${txt || ''}`; }; // 去重复的 [关系起盘信息] 段(仅留首份)
 	const parts = [];
 	if(comp && comp.trim()) parts.push(comp);
-	[composite, synastry, scoreTxt].forEach((t)=>{ if(t && t.trim()) parts.push(parts.length ? stripHeader(t) : t); });
+	[composite, synastry, timeSpace, marks, scoreTxt].forEach((t)=>{ if(t && t.trim()) parts.push(parts.length ? stripHeader(t) : t); });
 	if(kootaTxt){ parts.push(kootaTxt); }
 	return parts.join('\n\n');
 }

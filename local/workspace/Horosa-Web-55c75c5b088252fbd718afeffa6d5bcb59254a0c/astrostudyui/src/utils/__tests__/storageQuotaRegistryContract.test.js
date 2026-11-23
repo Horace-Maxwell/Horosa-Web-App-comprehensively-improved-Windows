@@ -161,7 +161,7 @@ describe('前缀 cache 族有界', ()=>{
 	});
 
 	it('六爻页不再按三卦组合拼缓存键(只经 utils/guaDescCache)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../components/guazhan/GuaZhanMain.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../components/guazhan/GuaZhanMain.js'));
 		expect(src).not.toMatch(/['"]horosa\.guadesc\.cache\.['"]\s*\+/);
 		expect(src).toContain('writeGuaDescCache(');
 		expect(src).toContain('readGuaDescCache(');

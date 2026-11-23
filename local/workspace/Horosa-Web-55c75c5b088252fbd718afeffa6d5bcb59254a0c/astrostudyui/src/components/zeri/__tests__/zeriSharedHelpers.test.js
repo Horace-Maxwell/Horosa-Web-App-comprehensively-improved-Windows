@@ -1,6 +1,6 @@
 // 择日工作台 / 宿主共用小工具单一来源:zeriTreeOps(条件树路径工具、方案导出存文件、连接门选项、判读树门名、日期串)
 // 与 zeriHostUtils(补零 / 今日日期串 / fields 单项 / 建 DateTime)。各工作台与宿主不再各抄一份。
-jest.mock('../../../utils/aiAnalysisExport', ()=>({ saveBlobSmart: jest.fn(()=>'saved') }));
+jest.mock('../../../utils/fileSave', ()=>({ saveBlobSmart: jest.fn(()=>'saved') }));
 
 import fs from 'fs';
 import path from 'path';
@@ -8,9 +8,11 @@ import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, 
 import { pad2, todayStr, mkField, mkDT } from '../zeriHostUtils';
 import { ZERI_GATE_CN } from '../../../divination/zeri/zeriExplainText';
 
-const { saveBlobSmart } = require('../../../utils/aiAnalysisExport');
+const { saveBlobSmart } = require('../../../utils/fileSave');
 const DIR = path.join(__dirname, '..');
-const read = (f)=>fs.readFileSync(path.join(DIR, f), 'utf8');
+const { readWorkbench } = require('../../../utils/__tests__/helpers/zeriWorkbenchSource');
+// 九家工作台读「派文件 + 共用壳 ZeriWorkbenchShell」(树工具在壳里引);其余原样读
+const read = (f)=>(/ZeriWorkbench\.js$/.test(f) ? readWorkbench(f) : fs.readFileSync(path.join(DIR, f), 'utf8'));
 
 const WORKBENCHES = ['BaziZeriWorkbench.js', 'HuangliZeriWorkbench.js', 'IndiaZeriWorkbench.js', 'LiurengZeriWorkbench.js', 'QimenZeriWorkbench.js',
 	'QizhengZeriWorkbench.js', 'SanshiZeriWorkbench.js', 'TaiyiZeriWorkbench.js', 'ZiweiZeriWorkbench.js'];

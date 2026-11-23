@@ -15,6 +15,7 @@ import path from 'path';
 
 const SRC = path.resolve(__dirname, '../..');
 const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const { readAppSection } = require('./helpers/sourceSet');
 const BASE = read('layouts/app/01-base.less');
 
 // ── WCAG ──
@@ -59,7 +60,7 @@ const LIGHT = blockVars(BASE, '    :root {');
 const CLASSIC = blockVars(BASE, "    :root[data-horosa-light-flavor='classic'] {");
 const DARK = blockVars(BASE, "    :root[data-horosa-appearance='dark'] {");
 // --horosa-astro-* 在根上也有一份(02-shell 的 portal 组同时挂 :root;暗色基线 + 亮色覆盖),主题块里有引用它的(如暗色 jx-muted)
-const SHELL = read('layouts/app/02-shell.less');
+const SHELL = readAppSection('02-shell.less');   // 区段按编号拆成一组,按组读
 const ASTRO_DARK = blockVars(SHELL, '    .ant-dropdown {');
 const ASTRO_LIGHT = blockVars(SHELL, "    :root[data-horosa-appearance='light'] .ant-dropdown {");
 const THEMES = {
@@ -104,6 +105,7 @@ const TEXT_AA = [   // 信息文字:≥ 4.5:1
 	'--horosa-liureng-square-main',
 	'--horosa-qimen-jixing', '--horosa-qimen-rumu', '--horosa-qimen-both', '--horosa-qimen-menpo',
 	'--horosa-qimen-kongwang', '--horosa-qimen-geng', '--horosa-qimen-baihu',
+	'--horosa-qimen-minor',   // 奇门格子附加层小字(暗干 / 寄干 / 天禽 / 推演标记;最小 9.5px,按信息字算)
 	'--horosa-planet-sun', '--horosa-planet-moon', '--horosa-planet-mercury', '--horosa-planet-venus',
 	'--horosa-planet-mars', '--horosa-planet-jupiter', '--horosa-planet-saturn',
 	'--horosa-decl-oob',
@@ -141,7 +143,7 @@ const ON_SOLID = [
 const CHART_PAINT = /^--horosa-(ziwei-(star|period|house|duigong|kinastro)|liureng-square-(muted|jiang|line)|series-\d+$)/;
 // 非文字:底色 / 线 / 阴影 / 尺寸 / 动效 / 焦点环 / 实底上的字(上面成对算)
 // `-rgb` = 某个颜色变量的 r, g, b 三元组(旧内核没有 color-mix 时拼 rgba 用),不是颜色本身;与原色同块同值由 legacyEngineFloor 合同核
-const NON_TEXT = /^--horosa-(.*-rgb$|bg|surface|header-bg|nav-bg|panel-|border|shadow|small-shadow|radius|mono$|nav-width|toolbar-height|bottom-dock-height|scroll-safe-bottom|control-height|.*-soft$|.*-bg$|.*-fill$|sanshi-board-|liureng-square-(center-bg|active-bg)|table-row-alt|direction-node-highlight|bazi-interaction|cyan|on-accent|on-solid|tab-(seg-|glow|focus-ring|motion|ease|hover-bg|rail-active-bg|on-thumb)|ziwei-(chart-bg|sanhe-bg|duigong-bg|selected-bg))/;
+const NON_TEXT = /^--horosa-(.*-rgb$|bg|surface|header-bg|nav-bg|panel-|border|shadow|small-shadow|edge-shadow-|radius|mono$|nav-width|toolbar-height|bottom-dock-height|scroll-safe-bottom|control-(height|radius)|.*-soft$|.*-bg$|.*-fill$|sanshi-board-|liureng-square-(center-bg|active-bg)|table-row-alt|direction-node-highlight|bazi-interaction|cyan|on-accent|on-solid|tab-(seg-|glow|focus-ring|motion|ease|hover-bg|rail-active-bg|on-thumb)|ziwei-(chart-bg|sanhe-bg|duigong-bg|selected-bg))/;
 
 describe('主题语义色 · 文字对比度合同', ()=>{
 	it('主题块里每个颜色变量都已登记分档(信息字 / 强调字 / 实底字 / 盘面 / 非文字)', ()=>{
@@ -238,7 +240,7 @@ describe('玄学史页 · 局部色板(.xuanshi-app 亮 / 暗两块)', ()=>{
 });
 
 describe('占星作用域 · 字色(作用域内 astro-* 一组与次级字色)', ()=>{
-	const ASTRO = read('layouts/app/05-astro.less');
+	const ASTRO = readAppSection('05-astro.less');
 	const SCOPE_DARK = blockVars(ASTRO, '    .horosa-workspace-shell .horosa-astro-redesign {');
 	const SCOPE_LIGHT = blockVars(ASTRO, "    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign {");
 	const scoped = {
@@ -303,7 +305,7 @@ describe('叠乘透明度 · 日历非本月格', ()=>{
 	const files = ['layouts/app/04-calendar.less', 'layouts/app/02-shell.less'];
 	const rules = [];
 	files.forEach((f)=>{
-		const s = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
+		const s = (/^layouts\/app\//.test(f) ? readAppSection(path.basename(f)) : read(f)).replace(/\/\*[\s\S]*?\*\//g, '');
 		const re = /([^{}]*\.is-other[^{}]*)\{([^{}]*)\}/g;
 		let m = re.exec(s);
 		while(m){

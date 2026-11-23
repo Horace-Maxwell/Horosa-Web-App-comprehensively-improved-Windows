@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroVedicProgressions.js b/astrostudyui/src/components/astro/AstroVedicProgressions.js
-index 71eecd66..03888004 100644
+index 4ca064e2..a0cd5c70 100644
 --- a/astrostudyui/src/components/astro/AstroVedicProgressions.js
 +++ b/astrostudyui/src/components/astro/AstroVedicProgressions.js
 @@ -8,6 +8,7 @@ import { ProgPageShell } from './progPageLayout';

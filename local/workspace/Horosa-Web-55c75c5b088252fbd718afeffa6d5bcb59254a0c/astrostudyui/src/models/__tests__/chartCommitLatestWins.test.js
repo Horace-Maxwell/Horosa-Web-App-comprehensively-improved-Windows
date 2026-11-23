@@ -146,11 +146,12 @@ describe('源码合同:astro 模型换主盘的 effect', ()=>{
 	const path = require('path');
 	const { parseModule } = require('../../utils/__tests__/helpers/importSpecs');
 	const traverse = require('@babel/traverse').default;
-	const SRC = fs.readFileSync(path.resolve(__dirname, '../astro.js'), 'utf8');
+	const SRC = require('../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '../astro.js'));   // 门面 + 子模块全集
 	function effectsOf(src){
-		const ast = parseModule(src);
+		const ast = parseModule(src, { tolerant: true });   // 全集是拼起来的文本(子模块各自的 import 会重名),容错解析
 		const out = [];
 		traverse(ast, {
+			noScope: true,   // 只看节点形状;全集里子模块各自的 import 重名,建作用域会报重复声明
 			ObjectProperty(p){
 				if(p.node.key && p.node.key.name === 'effects' && p.node.value.type === 'ObjectExpression'){
 					p.node.value.properties.forEach((m)=>{ if(m.type === 'ObjectMethod' && m.generator){ out.push(m); } });
@@ -159,32 +160,32 @@ describe('源码合同:astro 模型换主盘的 effect', ()=>{
 		});
 		return { ast, out };
 	}
-	// 一个 effect 里:各 yield 的位置与种类
+	// 一个 effect 里:各 yield 的位置与种类(直接走这个方法节点;全集里子模块各自的 import 重名,不建作用域)
+	function walkNode(n, fn){
+		if(!n || typeof n.type !== 'string'){ return; }
+		fn(n);
+		Object.keys(n).forEach((k)=>{
+			if(k === 'loc' || /Comments$/.test(k)){ return; }
+			const v = n[k];
+			if(Array.isArray(v)){ v.forEach((c)=>walkNode(c, fn)); } else if(v && typeof v === 'object'){ walkNode(v, fn); }
+		});
+	}
 	function scan(src, method){
 		const yields = [];
 		const calls = [];
 		let epochDecl = null;
-		traverse(parseModule(src), {
-			ObjectMethod(p){
-				if(p.node.start !== method.start){ return; }
-				p.traverse({
-					YieldExpression(y){
-						const a = y.node.argument;
-						const code = src.slice(a ? a.start : y.node.start, a ? a.end : y.node.end);
-						let kind = 'other';
-						if(/^call\(\s*service\.fetchChart\b/.test(code)){ kind = 'fetchChart'; }
-						else if(/^put\(/.test(code) && /type:\s*'save'/.test(code) && /\bchartObj\b/.test(code)){ kind = 'saveChart'; }
-						yields.push({ kind, start: y.node.start });
-					},
-					CallExpression(c){
-						if(c.node.callee.type === 'Identifier'){ calls.push({ name: c.node.callee.name, start: c.node.start }); }
-					},
-					VariableDeclarator(d){
-						if(d.node.id.name === 'chartEpochNext'){ epochDecl = { start: d.node.start, code: src.slice(d.node.init.start, d.node.init.end) }; }
-					},
-				});
-			},
-		}, null);
+		walkNode(method.body, (n)=>{
+			if(n.type === 'YieldExpression'){
+				const a = n.argument;
+				const code = src.slice(a ? a.start : n.start, a ? a.end : n.end);
+				let kind = 'other';
+				if(/^call\(\s*service\.fetchChart\b/.test(code)){ kind = 'fetchChart'; }
+				else if(/^put\(/.test(code) && /type:\s*'save'/.test(code) && /\bchartObj\b/.test(code)){ kind = 'saveChart'; }
+				yields.push({ kind, start: n.start });
+			}
+			if(n.type === 'CallExpression' && n.callee.type === 'Identifier'){ calls.push({ name: n.callee.name, start: n.start }); }
+			if(n.type === 'VariableDeclarator' && n.id && n.id.name === 'chartEpochNext'){ epochDecl = { start: n.start, code: src.slice(n.init.start, n.init.end) }; }
+		});
 		return { yields, calls, epochDecl };
 	}
 	function violations(src){

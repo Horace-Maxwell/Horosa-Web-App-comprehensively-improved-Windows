@@ -1,7 +1,7 @@
 // divination/horary/horarySnapshot.js
 // 把卜卦判断结果拼成 AI 快照文本（[小节标题] + markdown 列表），供 saveModuleAISnapshot('horary', ...)。
 import { PLANETS } from '../data/planets';
-import { SIGNS, signOfLon } from '../data/signs';
+import { SIGNS } from '../data/signs';
 import { PLANETARY_HOURS } from '../data/planetaryHours';
 import { CATEGORY_DEF } from './significators';
 import { schoolOf } from './horarySchools';

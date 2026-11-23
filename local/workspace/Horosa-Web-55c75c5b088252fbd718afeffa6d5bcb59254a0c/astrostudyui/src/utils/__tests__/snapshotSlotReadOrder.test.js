@@ -5,6 +5,7 @@
 //   读这把键的函数必须先比对本窗口态(pickFresherSnapshot / peekPendingStorageValue),删这把键必须走 removeStorageNow / dropPendingStorageWrite。
 import fs from 'fs';
 import path from 'path';
+import { readSource } from './helpers/sourceSet';
 import * as M from '../moduleAiSnapshot';
 import * as A from '../astroAiSnapshot';
 import * as DS from '../deferredStorage';
@@ -149,7 +150,7 @@ function functionChunks(src){
 describe('静态锁:延迟写的键,读先比对本窗口态、删连待写一起丢', ()=>{
 	const files = walk(SRC, []).filter((f)=>!/deferredStorage\.js$/.test(f)).filter((f)=>/\bscheduleStorageWrite\s*\(/.test(fs.readFileSync(f, 'utf8')));
 	// 探针自证:已知的延迟写文件一个不落都扫得到(逐个登记,不拿总数当门槛 —— 模块可选的文件各自在自己的标记块里登记)
-	const KNOWN_DEFERRED = ['utils/bootChartRestore.js', 'utils/moduleAiSnapshot.js', 'utils/astroAiSnapshot.js'];
+	const KNOWN_DEFERRED = ['utils/bootChartRestore.js', 'utils/moduleAiSnapshot.js', 'utils/astroAiSnapshot/store.js'];   // 星盘主快照的存取在 astroAiSnapshot 门面的 store 子模块
 	test('已知的延迟写文件都扫得到(探针自证)', ()=>{
 		const found = files.map((f)=>path.relative(SRC, f).split(path.sep).join('/'));
 		expect(KNOWN_DEFERRED.filter((k)=>found.indexOf(k) < 0)).toEqual([]);
@@ -189,7 +190,7 @@ describe('静态锁:延迟写的键,读先比对本窗口态、删连待写一�
 	});
 	test('两个快照槽的读函数都经 pickFresherSnapshot', ()=>{
 		['utils/moduleAiSnapshot.js', 'utils/astroAiSnapshot.js'].forEach((rel)=>{
-			const src = fs.readFileSync(path.join(SRC, rel), 'utf8');
+			const src = readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读
 			expect(src).toMatch(/pickFresherSnapshot\s*\(/);
 		});
 	});

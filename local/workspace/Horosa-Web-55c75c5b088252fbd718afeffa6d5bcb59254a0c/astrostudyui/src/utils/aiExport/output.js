@@ -1,6 +1,6 @@
 // AI 导出 · 文件输出:文件名、下载、画布墨迹判定、PDF(平铺 / 版式 / 打印 / 分块)、TXT、Word、DOCX。
 // 由 utils/aiExport.js 门面统一对外导出。
-import { withUtf8Bom, saveBlobSmart } from '../aiAnalysisExport';
+import { withUtf8Bom, saveBlobSmart } from '../fileSave';
 // v2 呈现层底座(纯函数/轻量,jest 安全);重件 docx 渲染器走动态 import(exportDocx/exportPdfStyled 内)。
 import { packBlocksIntoChunks } from '../aiExportDocModel';
 import { getAIExportFormatPreference } from './settingsModel';
@@ -37,7 +37,7 @@ export function formatStamp(date){
 }
 
 function downloadBlob(filename, content, mime){
-	// 🔧 文字类导出补 UTF-8 BOM(政策单源 aiAnalysisExport.withUtf8Bom:仅人读的 txt/Word/markdown 加,
+	// 🔧 文字类导出补 UTF-8 BOM(政策单源 fileSave.withUtf8Bom:仅人读的 txt/Word/markdown 加,
 	//   json/csv/pdf 等机读或二进制不加;content 非字符串时原样透传,天然安全)。
 	// 落盘走全站单源 saveBlobSmart(桌面壳=保存桥选目录;取消/失败如实返回,调用方据此报)。
 	const payload = withUtf8Bom(content, mime);

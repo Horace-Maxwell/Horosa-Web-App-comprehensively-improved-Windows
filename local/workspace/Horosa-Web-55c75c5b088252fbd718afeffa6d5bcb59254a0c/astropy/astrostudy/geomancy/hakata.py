@@ -8,6 +8,8 @@ import os
 import random
 from typing import Optional
 
+from ..truerandom import system_random
+
 _DATA = os.path.join(os.path.dirname(__file__), "data", "hakata.json")
 
 
@@ -23,7 +25,7 @@ _CASTS = _RAW["casts"]
 
 def cast_hakata(rng: Optional[random.Random] = None) -> dict:
     """掷 4 片(各 open=1/closed=0)→ 4bit → 局。返回 {tablets:[{label,open}], figure, reading, ...}。"""
-    r = rng or random
+    r = rng or system_random()
     flips = [r.randint(0, 1) for _ in range(4)]
     n = (flips[0] << 3) | (flips[1] << 2) | (flips[2] << 1) | flips[3]
     cast = _CASTS[str(n)]

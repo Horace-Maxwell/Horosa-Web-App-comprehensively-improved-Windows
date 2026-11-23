@@ -3,9 +3,10 @@
 // 三张卡(太乙 / 六壬 / 遁甲)同一套:哪张漏了,那张的内层页签就会跟着内容一起滚走。
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
-const LESS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'layouts', 'app', '22-tail-fixes.less'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'SanShiUnitedMain.js'));
+const LESS = readSource(path.join(__dirname, '..', '..', '..', 'layouts', 'app', '22-tail-fixes.less'));
 const LINES = SRC.split('\n');
 
 // 每组内层页签往上找最近的一张卡;中间不许再套元素(套一层 div 卡身的直接子就不是页签了,样式落空)

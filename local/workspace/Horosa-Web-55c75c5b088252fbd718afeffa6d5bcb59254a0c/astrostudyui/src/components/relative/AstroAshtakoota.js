@@ -1,7 +1,7 @@
 // 合盘页「八重合」:两张盘的月亮宿、月亮座配八项分,满分 36。算法在 astropy/astrostudy/india/extra_tables.py。
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSelect as Select } from '../xq-ui';
+
+import { XQSelect as Select, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, paramsRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from '../astro/AstroExtraCommon';
@@ -143,7 +143,7 @@ class AstroAshtakoota extends Component{
 	render(){
 		const result = this.shown();
 		return (
-			<Spin spinning={this.state.loading && !result}>
+			<XQSpin spinning={this.state.loading && !result}>
 				<div style={{ height: this.props.height || 640, overflow: 'auto', paddingRight: 8 }}>
 					<div style={cardStyle}>
 						<div className="horosa-info-card-title">八重合</div>
@@ -185,7 +185,7 @@ class AstroAshtakoota extends Component{
 					) : null}
 					{result ? this.renderDoshas(result) : null}
 				</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroDoubleChartMain.js b/astrostudyui/src/components/astro/AstroDoubleChartMain.js
-index 9a537a78..1a3bf6e7 100644
+index 582935cc..8b76883e 100644
 --- a/astrostudyui/src/components/astro/AstroDoubleChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroDoubleChartMain.js
 @@ -9,6 +9,7 @@ import AntisciaInfo from '../relative/AntisciaInfo';
@@ -7,7 +7,7 @@ index 9a537a78..1a3bf6e7 100644
  import * as AstroText from '../../constants/AstroText';
  import { randomStr, } from '../../utils/helper';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
- import styles from '../../css/styles.less';
+ import '../../css/styles.less';
  
  const TabPane = Tabs.TabPane;
 @@ -27,12 +28,33 @@ class AstroCompare extends Component{

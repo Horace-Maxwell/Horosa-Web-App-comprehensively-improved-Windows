@@ -1,10 +1,11 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiCelestial.js b/astrostudyui/src/components/xuanshi/XuanShiCelestial.js
-index 072da435..9814de00 100644
+index 32c38773..41c193fc 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiCelestial.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiCelestial.js
-@@ -1,6 +1,6 @@
+@@ -1,7 +1,7 @@
  import React from 'react';
- import { Spin, Empty, Pagination, Select, Input, InputNumber } from 'antd';
+ import { Pagination, Select, Input } from 'antd';
+ import { XQEmpty, XQInputNumber, XQSpin } from '../xq-ui';
 -import * as echarts from 'echarts';
 +import echarts from './echartsCore';
  import { fetchCelestial, fetchMicrochronology, fetchDecadeOmens, fetchCelestialEvent } from '../../services/xuanshi';

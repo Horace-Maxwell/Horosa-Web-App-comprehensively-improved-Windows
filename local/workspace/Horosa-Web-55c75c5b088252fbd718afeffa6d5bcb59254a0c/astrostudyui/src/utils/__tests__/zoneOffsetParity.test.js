@@ -11,6 +11,7 @@ import { dashaZoneMinutes } from '../../components/astro/indiaMain/dasha';
 import { parseZoneHours } from '../beijingTimeShift';
 import { zoneOffsetMinutes as zeriZoneMinutes } from '../../divination/zeri/hourlyScanEngine';
 import { normalizeZone } from '../zoneText';
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 // 原先大运段界那份(对拍用)
 function oldDashaZoneMinutes(src){
@@ -63,17 +64,17 @@ describe('时区串解析单一来源', ()=>{
 		const walk = (d)=>fs.readdirSync(d, { withFileTypes: true }).forEach((e)=>{
 			const f = path.join(d, e.name);
 			if(e.isDirectory()){ if(!/^(__tests__|node_modules|\.umi)$/.test(e.name)){ walk(f); } return; }
-			if(!/\.jsx?$/.test(e.name)){ return; }
+			if(!/\.jsx?$/.test(e.name) || isSourceSetPart(f)){ return; }   // 拆成子模块的:门面按全集读、子模块跳过(不重复计)
 			const rel = path.relative(SRC, f).split(path.sep).join('/');
-			const n = (fs.readFileSync(f, 'utf8').match(RE) || []).length;
+			const n = (readSource(f).match(RE) || []).length;
 			if(n > (ALLOW[rel] || 0)){ over.push(`${rel} ${n} > ${ALLOW[rel] || 0}`); }
 		});
 		walk(SRC);
 		expect(over).toEqual([]);
-		expect((fs.readFileSync(path.join(SRC, 'components/astro/indiaMain/dasha.js'), 'utf8').match(RE) || []).length).toBe(0);
-		expect((fs.readFileSync(path.join(SRC, 'utils/civilMoment.js'), 'utf8').match(RE) || []).length).toBe(0);
-		expect((fs.readFileSync(path.join(SRC, 'divination/zeri/hourlyScanEngine.js'), 'utf8').match(RE) || []).length).toBe(0);
-		expect((fs.readFileSync(path.join(SRC, 'components/sanshi/SanShiUnitedMain.js'), 'utf8').match(RE) || []).length).toBe(0);
+		expect((readSource(path.join(SRC, 'components/astro/indiaMain/dasha.js')).match(RE) || []).length).toBe(0);
+		expect((readSource(path.join(SRC, 'utils/civilMoment.js')).match(RE) || []).length).toBe(0);
+		expect((readSource(path.join(SRC, 'divination/zeri/hourlyScanEngine.js')).match(RE) || []).length).toBe(0);
+		expect((readSource(path.join(SRC, 'components/sanshi/SanShiUnitedMain.js')).match(RE) || []).length).toBe(0);
 	});
 
 	test('择日逐小时引擎:与原先那份逐值相同;只有「±HH[:MM] 之外的数字小时串」改按小时数读(原先一律东八区)', ()=>{

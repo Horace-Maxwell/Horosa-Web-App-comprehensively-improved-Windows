@@ -1,7 +1,8 @@
 // 外部 MCP 服务器面板(P6):总开关(默认关,首开有说明)+ 服务器表(网址或本机命令)+ 连接并检测(列工具与准入/拒绝原因)。
 // 令牌/环境变量只经壳命令直达 0600 文件,页面从不持有、列表回来一律脱敏(hasAuth/envNames)。onStatus:向折叠头上报状态(可选)。
 import React from 'react';
-import { Button, Input, Modal, Select, Space, Switch, Table, Tag, Tooltip, message, Alert } from 'antd';
+import { Button, Input, Modal, Select, Space, Table, Tag, Tooltip, message, Alert } from 'antd';
+import { XQSwitch } from '../xq-ui';
 import { isExternalToolsEnabled, setExternalToolsEnabled, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
 import { desktopMcpClientList, desktopMcpClientUpsert, desktopMcpClientRemove, desktopMcpClientConnect, desktopMcpClientDisconnect, isDesktopBridgeAvailable } from '../../utils/aiAnalysisDesktop';
 import { registerExternalTools, unregisterExternalTools, unregisterAllExternalTools, admitExternalTool, externalToolsRegisteredFor } from '../../integrations/mcpClient';
@@ -116,7 +117,7 @@ export default function ExternalServersPanel({ onStatus }){
 	return (
 		<div data-external-servers="1" className={styles.subPanel}>
 			<AdvSwitchRow title="接入外部 MCP 服务器" desc={`把外部 MCP 服务器(网址或本机命令)接进来,AI 多出它们的只读工具;结果标「未经核实」。默认关,零出站。${isDesktopBridgeAvailable() ? '' : '添加 / 连接 / 删除需桌面版(浏览器预览下只能设开关)。'}`} checked={on}
-				control={<Switch checked={on} data-external-tools-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
+				control={<XQSwitch checked={on} data-external-tools-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
 			{on ? (
 				<div className={styles.subBody}>
 					<div className={styles.toolbarRow}>
@@ -161,7 +162,7 @@ export default function ExternalServersPanel({ onStatus }){
 							</>
 						)}
 						<div className={styles.inline}>
-							<Switch checked={form.readOnlyOnly} data-ext-server-readonly="1" title="只读:只接入声明只读(readOnlyHint)的工具,清单不放行写工具;按清单:清单内的写工具按写入级接入(走审批)" onChange={(v)=>setForm({ ...form, readOnlyOnly: v })} checkedChildren="只读" unCheckedChildren="按清单" />
+							<XQSwitch checked={form.readOnlyOnly} data-ext-server-readonly="1" title="只读:只接入声明只读(readOnlyHint)的工具,清单不放行写工具;按清单:清单内的写工具按写入级接入(走审批)" onChange={(v)=>setForm({ ...form, readOnlyOnly: v })} checkedChildren="只读" unCheckedChildren="按清单" />
 							<span className={styles.soft}>只读=只准入声明了 readOnlyHint 的工具(推荐);按清单=还要把工具名逐个填进下面</span>
 						</div>
 						<Input addonBefore="允许清单" data-ext-server-allowlist="1" value={form.allowTools} onChange={(e)=>setForm({ ...form, allowTools: e.target.value })} placeholder="get_current_time convert_time(空格或逗号分隔)" />

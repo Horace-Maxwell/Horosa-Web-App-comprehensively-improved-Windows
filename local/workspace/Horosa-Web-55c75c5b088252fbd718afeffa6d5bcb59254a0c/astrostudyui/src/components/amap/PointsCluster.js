@@ -1,7 +1,7 @@
 import { Component } from 'react';
-import { Row, Col, Tag, } from 'antd';
+import { Row, Col, } from 'antd';
 import MapV2 from './MapV2';
-import {randomStr, gcj02ToGps, gpsToGcj02} from '../../utils/helper';
+import {randomStr, gpsToGcj02} from '../../utils/helper';
 import { Sex, } from '../../msg/types';
 import { convertLatStrToDegree, convertLonStrToDegree, } from '../astro/AstroHelper';
 import { safeLoadAMapUI, } from './amapUIHelper';

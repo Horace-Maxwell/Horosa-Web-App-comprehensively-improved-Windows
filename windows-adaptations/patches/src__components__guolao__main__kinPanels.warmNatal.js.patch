@@ -1,0 +1,75 @@
+diff --git a/astrostudyui/src/components/guolao/main/kinPanels.js b/astrostudyui/src/components/guolao/main/kinPanels.js
+index 59a34bbc..97c0c828 100644
+--- a/astrostudyui/src/components/guolao/main/kinPanels.js
++++ b/astrostudyui/src/components/guolao/main/kinPanels.js
+@@ -117,20 +117,27 @@ export const kinPanelMethods = {
+ 		const options = this.state.kinastroOptions || {};
+ 		const zhangguo = safeMap(qz.zhangguo);
+ 		const mingGong = safeMap(qz.mingGong);
+-		const overviewContent = [
+-			sectionByTitle.get('起盘'),
+-			sectionByTitle.get('四柱'),
+-		].filter(Boolean).map((item)=>this.renderQizhengKinSection(item));
+-		if(options.showMingGong !== false){
+-			overviewContent.push(this.renderQizhengKinMingGongBlock(mingGong));
+-		}
++		// horosa_freeze_subtabs_v1 接线:content 一律改为**惰性 thunk**(原先在数组构造时就把
++		// 全部 9 个面板的元素树造出来 —— 用户只看得见 1 个)。thunk 由 FreezeSubTab 在
++		// 「本面板激活过」时才求值:未激活过=零成本;已激活过的面板切走后保留 DOM/组件实例,
++		// 切回时拿本轮最新 thunk 立即重渲(不重挂载、不重取数、不闪烁、不丢滚动位置)。
++		const overviewContent = ()=>{
++			const list = [
++				sectionByTitle.get('起盘'),
++				sectionByTitle.get('四柱'),
++			].filter(Boolean).map((item)=>this.renderQizhengKinSection(item));
++			if(options.showMingGong !== false){
++				list.push(this.renderQizhengKinMingGongBlock(mingGong));
++			}
++			return list;
++		};
+ 		const tabs = [
+ 			{key: 'overview', label: '概览', content: overviewContent},
+-			{key: 'planets', label: '星曜', content: this.renderQizhengKinSection(sectionByTitle.get('星曜') || {title: '星曜', rows: []})},
+-			{key: 'houses', label: '宫位', content: this.renderQizhengKinSection(sectionByTitle.get('十二宫') || {title: '十二宫', rows: []})},
+-			options.showShensha === false ? null : {key: 'shensha', label: '神煞', content: this.renderQizhengKinSection(sectionByTitle.get('神煞') || {title: '神煞', rows: []})},
+-			{key: 'dasha', label: '年限', content: this.renderQizhengKinSection(sectionByTitle.get('年限') || {title: '年限', rows: []})},
+-			options.showZhangguo === false ? null : {key: 'readings', label: '断语', content: (
++			{key: 'planets', label: '星曜', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('星曜') || {title: '星曜', rows: []})},
++			{key: 'houses', label: '宫位', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('十二宫') || {title: '十二宫', rows: []})},
++			options.showShensha === false ? null : {key: 'shensha', label: '神煞', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('神煞') || {title: '神煞', rows: []})},
++			{key: 'dasha', label: '年限', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('年限') || {title: '年限', rows: []})},
++			options.showZhangguo === false ? null : {key: 'readings', label: '断语', content: ()=>(
+ 				<div className="horosa-qizheng-kin-info-stack">
+ 					{this.renderQizhengKinReadingCards(sectionByTitle.get('张果断语') || {title: '张果断语', rows: []})}
+ 					<div className="horosa-qizheng-kin-info-card">
+@@ -143,9 +150,9 @@ export const kinPanelMethods = {
+ 					</div>
+ 				</div>
+ 			)},
+-			qz.transit ? {key: 'transit', label: '流时', content: this.renderQizhengKinSection(sectionByTitle.get('流时') || {title: '流时', rows: []})} : null,
+-			qz.electional ? {key: 'electional', label: '择日', content: this.renderQizhengKinSection(sectionByTitle.get('择日') || {title: '择日', rows: []})} : null,
+-			qz.mansions ? {key: 'mansion', label: '宿度', content: (
++			qz.transit ? {key: 'transit', label: '流时', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('流时') || {title: '流时', rows: []})} : null,
++			qz.electional ? {key: 'electional', label: '择日', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('择日') || {title: '择日', rows: []})} : null,
++			qz.mansions ? {key: 'mansion', label: '宿度', content: ()=>(
+ 				<div className="horosa-qizheng-kin-info-stack">
+ 					{sections.filter((item)=>/宿度$/.test(item.title)).map((item)=>this.renderQizhengKinSection(item))}
+ 				</div>
+@@ -163,12 +170,12 @@ export const kinPanelMethods = {
+ 			>
+ 				{tabs.map((item)=>(
+ 					<TabPane tab={item.label} key={item.key}>
+-						{/* 非激活面板冻结(切时间/改选项时七政右栏 5+ 面板不再全员陪跑 reconcile);
+-						    content 元素构造在 tabs 数组定义处已付,此层拦的是 reconcile+render 下沉。 */}
+ 						<FreezeSubTab active={active === item.key}>
+-							<div className="horosa-qizheng-kin-info-stack">
+-								{item.content}
+-							</div>
++							{()=>(
++								<div className="horosa-qizheng-kin-info-stack">
++									{item.content()}
++								</div>
++							)}
+ 						</FreezeSubTab>
+ 					</TabPane>
+ 				))}

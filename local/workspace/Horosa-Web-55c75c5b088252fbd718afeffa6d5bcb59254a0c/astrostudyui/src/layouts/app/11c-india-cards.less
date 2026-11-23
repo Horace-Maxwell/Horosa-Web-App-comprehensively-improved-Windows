@@ -1,0 +1,715 @@
+// 全站样式 · 印占补充:二十八宿徽标、敌友矩阵、各新增卡片美化、相映点击高亮
+// 从 11-kinastro-guazhan.less 按区段拆出(规则原样、次序不变;读源码的检查经登记表读全集)。
+    // 设计语言：Abhijit 28 宿徽标 / 来源标签(社区标准) / 强度条 —— 半透明金，亮暗皆适配。
+    .horosa-workspace-shell .horosa-india-abhijit-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 0 6px;
+        font-size: 10.5px;
+        font-weight: 700;
+        line-height: 16px;
+        color: var(--horosa-astro-gold);
+        background: rgba(215, 173, 105, 0.14);
+        border: 1px solid rgba(215, 173, 105, 0.32);
+        border-radius: 8px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-india-source-tag {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 0 6px;
+        font-size: var(--horosa-fs-micro);
+        font-weight: 650;
+        line-height: 15px;
+        color: var(--horosa-astro-muted);
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid rgba(215, 173, 105, 0.20);
+        border-radius: 7px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-source-tag {
+        background: rgba(0, 0, 0, 0.035);
+    }
+
+    .horosa-workspace-shell .horosa-india-flag-badge {
+        display: inline-block;
+        margin-left: 5px;
+        padding: 0 5px;
+        font-size: var(--horosa-fs-micro);
+        font-weight: 700;
+        line-height: 15px;
+        color: var(--horosa-astro-muted);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 6px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    // ── 敌友 Pañcadhā 矩阵（WP-G）──────────────────────────────
+    .horosa-india-maitri-wrap {
+        overflow-x: auto;
+        margin: 4px 0 8px;
+    }
+    .horosa-india-maitri-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: var(--horosa-fs-small);
+        text-align: center;
+        th, td {
+            border: 1px solid var(--horosa-border, rgba(127, 127, 127, 0.18));
+            padding: 4px 6px;
+            white-space: nowrap;
+        }
+        thead th, tbody th {
+            font-weight: 600;
+            color: var(--horosa-astro-muted, #8fa0b9);
+            background: var(--horosa-surface-sunken, rgba(127, 127, 127, 0.06));
+        }
+    }
+    .horosa-india-maitri-cell {
+        font-weight: 600;
+        &.is-adhimitra { color: var(--horosa-on-accent); background: var(--horosa-astro-gold, #d7ad69); }
+        &.is-mitra     { color: var(--horosa-astro-gold, #d7ad69); background: rgba(215, 173, 105, 0.16); }
+        &.is-sama      { color: var(--horosa-astro-muted, #8fa0b9); background: rgba(127, 127, 127, 0.08); }
+        &.is-satru     { color: var(--horosa-grade-poor); background: rgba(196, 122, 82, 0.14); }
+        &.is-adhisatru { color: var(--horosa-on-solid); background: var(--horosa-grade-bad); }
+        &.is-self      { color: var(--horosa-astro-muted, #8fa0b9); }
+    }
+    .horosa-india-maitri-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 6px 0 4px;
+    }
+    .horosa-india-maitri-chip {
+        padding: 1px 9px;
+        font-size: var(--horosa-fs-caption);
+        font-weight: 600;
+        border-radius: 10px;
+        &.is-adhimitra { color: var(--horosa-on-accent); background: var(--horosa-astro-gold, #d7ad69); }
+        &.is-mitra     { color: var(--horosa-astro-gold, #d7ad69); background: rgba(215, 173, 105, 0.16); }
+        &.is-sama      { color: var(--horosa-astro-muted, #8fa0b9); background: rgba(127, 127, 127, 0.10); }
+        &.is-satru     { color: var(--horosa-grade-poor); background: rgba(196, 122, 82, 0.16); }
+        &.is-adhisatru { color: var(--horosa-on-solid); background: var(--horosa-grade-bad); }
+    }
+    .horosa-india-maitri-note {
+        font-size: var(--horosa-fs-caption);
+        color: var(--horosa-astro-muted, #8fa0b9);
+        opacity: 0.85;
+        line-height: 1.5;
+    }
+    .horosa-india-shad-table {
+        font-size: var(--horosa-fs-caption);
+        width: 100%;
+        th, td { padding: 3px 4px; }
+        td { font-variant-numeric: tabular-nums; color: var(--horosa-astro-muted, #8fa0b9); text-align: center; }
+        td strong { color: var(--horosa-astro-gold, #d7ad69); }
+        // 行首标签列(分量名「七盘 Sapta」等)中英文换行,不横滑就能看全。
+        tbody th {
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.2;
+            text-align: left;
+            max-width: 3.6em;
+            font-size: var(--horosa-fs-micro);
+        }
+    }
+    // ── 行=曜/列=分量 版:分量名作列头(英文换行+居中),曜标签 1 字窄 → 不横滑全显示 ──
+    .horosa-india-shad-table-wrap {
+        table-layout: fixed;
+        th, td { padding: 3px 2px; }
+        // 列头(分量名「旺 Uccha」等):中英文自然换行 + 居中 + 小字 + 底对齐。
+        thead th {
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.12;
+            text-align: center;
+            vertical-align: bottom;
+            font-size: 9px;
+            max-width: none;
+            color: var(--horosa-astro-muted, #8fa0b9);
+        }
+        thead th.is-sum { color: var(--horosa-astro-gold, #d7ad69); }
+        // 行首曜标签(日月火…1 字)居中、金色、窄列。
+        tbody th {
+            white-space: nowrap;
+            word-break: normal;
+            text-align: center;
+            max-width: none;
+            width: 1.6em;
+            font-size: var(--horosa-fs-caption);
+            font-weight: 700;
+            color: var(--horosa-astro-gold, #d7ad69);
+        }
+        td { font-size: var(--horosa-fs-micro); }
+    }
+    // ── 印占 P0/P1/P2 新增卡片美化(Hora/Choghadia/Vimsopaka/Kakshya/Sodhya/Āyurdāya/Nāḍī)──
+    // 表格内吉/凶·强/弱语义着色(复用 --horosa-jx-ji 吉绿 / --horosa-jx-xiong 凶红,亮暗自适应)。
+    .horosa-workspace-shell .horosa-india-shad-table td.is-good,
+    .horosa-workspace-shell .horosa-india-shad-table th.is-good { color: var(--horosa-jx-ji); font-weight: 600; }
+    .horosa-workspace-shell .horosa-india-shad-table td.is-warn,
+    .horosa-workspace-shell .horosa-india-shad-table th.is-warn { color: var(--horosa-jx-xiong); font-weight: 600; }
+    // 双栏时段表(Hora/Choghadia):等宽两栏 + 列头柔底 + 斑马行,密而清爽。
+    .horosa-workspace-shell .horosa-india-period-grid {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+    }
+    .horosa-workspace-shell .horosa-india-period-grid > table {
+        flex: 1 1 200px;
+        border-collapse: collapse;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-india-period-grid thead tr:first-child th {
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+        font-weight: 600;
+        padding: 4px 5px;
+        border-radius: 6px 6px 0 0;
+        letter-spacing: 0.02em;
+    }
+    .horosa-workspace-shell .horosa-india-period-grid thead tr + tr th {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-weight: 500;
+        padding: 2px 5px;
+    }
+    .horosa-workspace-shell .horosa-india-period-grid tbody tr:nth-child(odd) { background: rgba(125, 140, 170, 0.06); }
+    .horosa-workspace-shell .horosa-india-period-grid tbody td,
+    .horosa-workspace-shell .horosa-india-period-grid tbody th { padding: 2.5px 5px; }
+    // Kakshya 点阵:●命中=吉绿描点、·空=极淡,密集网格一眼可辨。
+    .horosa-workspace-shell .horosa-india-bav-cell.is-on { color: var(--horosa-jx-ji); font-weight: 700; }
+    .horosa-workspace-shell .horosa-india-bav-matrix + .horosa-india-bav-matrix { margin-top: 6px; }
+    // 卡内说明小字(Āyurdāya 定法/减、Kakshya 段序主管)统一弱化排版。
+    .horosa-workspace-shell .horosa-india-card-note {
+        font-size: var(--horosa-fs-caption);
+        line-height: 1.45;
+        color: var(--horosa-jx-muted, var(--horosa-text-soft, #8fa0b9));
+        margin-top: 4px;
+    }
+    // 凝量/福点/基础寿 强调数:金色加重。
+    .horosa-workspace-shell .horosa-india-emph { color: var(--horosa-gold); font-weight: 700; }
+    // Sudarśana 当前循环年行:柔金底高亮。
+    .horosa-workspace-shell .horosa-india-shad-table tr.is-current-year { background: var(--horosa-accent-soft); }
+    // info-row 内吉/凶强调(Panchaka/Abhijit 等)。
+    .horosa-workspace-shell .horosa-info-row strong.is-good { color: var(--horosa-jx-ji); }
+    .horosa-workspace-shell .horosa-info-row strong.is-warn { color: var(--horosa-jx-xiong); }
+    // 引擎子块未能计算(jyotish.partialErrors)的一行提示:凶色、不加底,只说哪几段没算出来。
+    .horosa-workspace-shell .horosa-india-card-note.horosa-india-partial-note { color: var(--horosa-jx-xiong); }
+
+    // ── 相映 Graha Drishti 点击高亮（WP-A）─────────────────────
+    // 可点的九曜:悬停微浮 + 手型;再点同星取消、点他星切换。
+    .horosa-india-square-object-clickable {
+        cursor: pointer;
+        transition: transform 0.12s ease, filter 0.12s ease;
+    }
+    .horosa-india-square-object-clickable:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.14);
+    }
+    // 选中的源星:圆角矩形金色粗描边 + 外发光 + 浅金底,密集格里也一眼可见。
+    .horosa-india-square-object.is-aspect-source {
+        background: rgba(215, 173, 105, 0.3);
+        box-shadow: 0 0 0 2px var(--horosa-astro-gold, #d7ad69), 0 0 9px 1px rgba(215, 173, 105, 0.55);
+        border-radius: 6px;
+    }
+    // 北印/东印:盘面是 overflow:hidden 的分层 div,南印那套「外阴影」框会被裁掉(且被更具体规则重置为 none),
+    // 故点击星体看不到选中框。改用「内描边 inset 高亮」——留在元素内不被祖先 overflow 裁,并抬 z-index 压住邻层,
+    // 让北/东印也能像南印一样把选中星框起来。
+    .horosa-india-north-board .horosa-india-square-object.is-aspect-source,
+    .horosa-india-east-board .horosa-india-square-object.is-aspect-source {
+        background: rgba(215, 173, 105, 0.32);
+        box-shadow: inset 0 0 0 2px var(--horosa-astro-gold, #d7ad69);
+        border-radius: 6px;
+        position: relative;
+        z-index: 3;
+    }
+    // 被相映的宫:南印是真实格子,浅青底 + 内描边(与金色源星冷暖对照),加深确保看得清。
+    // 🔴 暗色基底规则 `:root[dark] .cell`(特异度 0,3,0)会盖过 `.cell.is-aspected`(0,2,0),
+    // 故暗/亮主题各显式加 :root 前缀的 is-aspected 规则,确保背景真的着上。
+    .horosa-india-square-cell.is-aspected,
+    :root[data-horosa-appearance='dark'] .horosa-india-square-cell.is-aspected {
+        background: rgba(120, 178, 240, 0.28);
+        box-shadow: inset 0 0 0 1.5px rgba(120, 178, 240, 0.78);
+    }
+    :root[data-horosa-appearance='light'] .horosa-india-square-cell.is-aspected {
+        background: rgba(70, 132, 205, 0.26);
+        box-shadow: inset 0 0 0 1.5px rgba(70, 132, 205, 0.72);
+    }
+    // 北印 / 东印是叠满整盘的分层 div,不能整层着色(会糊满全盘);改在 SVG 里按宫形画高亮多边形。
+    .horosa-india-aspect-fill {
+        fill: rgba(120, 178, 240, 0.24);
+        stroke: rgba(120, 178, 240, 0.72);
+        stroke-width: 0.8;
+        pointer-events: none;
+    }
+    :root[data-horosa-appearance='light'] .horosa-india-aspect-fill {
+        fill: rgba(70, 132, 205, 0.22);
+        stroke: rgba(70, 132, 205, 0.7);
+    }
+
+    // WP-C 星体符号(glyph)模式:用 ywastrochart 字体渲染 ☉☽☿♀♂♃♄☊☋,正常字重、不带字间距。
+    .horosa-india-square-object-glyph {
+        font-family: 'ywastrochart';
+        font-weight: 400;
+        letter-spacing: 0;
+        line-height: 1;
+    }
+    // WP-N §1.6 显示方向开关行(逆时针/锁水瓶)。
+    .horosa-india-toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    // WP-E1 Vimśopaka 无连座吉位时的灰字注。
+    .horosa-india-vimsopaka-none {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: var(--horosa-fs-caption);
+        opacity: 0.7;
+    }
+
+    .horosa-workspace-shell .horosa-india-flag-badge.is-good {
+        color: var(--horosa-astro-gold);
+        background: rgba(215, 173, 105, 0.14);
+        border-color: rgba(215, 173, 105, 0.34);
+    }
+
+    .horosa-workspace-shell .horosa-india-flag-badge.is-warn {
+        color: var(--horosa-grade-poor);
+        background: rgba(224, 122, 63, 0.14);
+        border-color: rgba(224, 122, 63, 0.36);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-flag-badge {
+        background: rgba(0, 0, 0, 0.04);
+        border-color: rgba(0, 0, 0, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-india-bar-track {
+        position: relative;
+        width: 100%;
+        min-width: 54px;
+        height: 6px;
+        margin-top: 3px;
+        border-radius: 999px;
+        background: rgba(215, 173, 105, 0.10);
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-india-bar-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(215, 173, 105, 0.5), var(--horosa-astro-gold));
+        transition: width 0.25s ease;
+    }
+
+    .horosa-workspace-shell .horosa-india-av-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-india-av-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        min-width: 0;
+        padding: 8px 9px;
+        border: 1px solid rgba(215, 173, 105, 0.12);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+    }
+
+    .horosa-workspace-shell .horosa-india-av-cell span {
+        overflow: hidden;
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-small);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-india-av-cell strong {
+        color: var(--horosa-astro-gold);
+        font-size: var(--horosa-fs-subtitle);
+        line-height: 1.1;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button.is-active {
+        border-color: rgba(231, 189, 117, 0.42);
+        background: rgba(231, 189, 117, 0.12);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-data-row,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-av-cell {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    // Bhinna Ashtakavarga 全展示矩阵(12宫×7曜)：bindu 越高金色越浓(热力图)。
+    .horosa-workspace-shell .horosa-india-bav-matrix {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-x: auto;
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-row {
+        display: grid;
+        grid-template-columns: 18px repeat(12, minmax(15px, 1fr));
+        gap: 2px;
+        align-items: stretch;
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-rowlabel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--horosa-fs-caption);
+        font-weight: 700;
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-cell {
+        font-size: var(--horosa-fs-micro);
+        line-height: 18px;
+        text-align: center;
+        border-radius: 3px;
+        color: var(--horosa-astro-text);
+        background: rgba(215, 173, 105, calc(var(--bav, 0) * 0.34));
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-cell.is-head {
+        color: var(--horosa-astro-muted);
+        font-weight: 700;
+        background: transparent;
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-cell.is-sav {
+        font-weight: 700;
+        color: var(--horosa-astro-gold);
+        background: rgba(215, 173, 105, 0.1);
+    }
+
+    .horosa-workspace-shell .horosa-india-bav-sav {
+        margin-top: 2px;
+        padding-top: 3px;
+        border-top: 1px solid rgba(215, 173, 105, 0.2);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-data-row span {
+        color: var(--horosa-text);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bottom-quick-button.is-active {
+        background: var(--horosa-gold-soft);
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 2px;
+        color: var(--horosa-astro-text);
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-empty {
+        padding: 18px 12px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        color: var(--horosa-astro-muted);
+        text-align: center;
+        font-size: var(--horosa-fs-body);
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-overview {
+        margin-bottom: 0;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    // ── WP-D 大运 5 级钻取(面包屑 + 当前级列表)─────────────────
+    .horosa-workspace-shell .horosa-india-dasha-drill {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumbs {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 6px;
+        margin: 10px 0 8px;
+        padding: 7px 10px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb-seg {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px 3px;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb-sep {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-small);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        padding: 2px 7px;
+        border: none;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--horosa-astro-muted);
+        cursor: pointer;
+        font: inherit;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb:hover {
+        background: rgba(231, 189, 117, 0.10);
+        color: var(--horosa-astro-gold);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb strong {
+        font-size: var(--horosa-fs-body);
+        font-weight: 700;
+        color: inherit;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb em {
+        font-size: var(--horosa-fs-caption);
+        font-style: normal;
+        opacity: 0.7;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-crumb.is-current {
+        background: rgba(231, 189, 117, 0.14);
+        color: var(--horosa-astro-gold);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 0 10px 5px;
+        border-bottom: 1px solid rgba(215, 173, 105, 0.16);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-head span {
+        color: var(--horosa-astro-gold);
+        font-size: var(--horosa-fs-body);
+        font-weight: 700;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-head em {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-caption);
+        font-style: normal;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+        transition: border-color 0.18s ease, background 0.18s ease;
+    }
+    /* :focus-visible 与 :hover 分写两条:不认 :focus-visible 的内核(Safari 15.4 以前)遇到同列表里的它会把整条连 :hover 一起丢掉。 */
+    .horosa-workspace-shell .horosa-india-dasha-drill-row.is-drillable:hover {
+        border-color: rgba(231, 189, 117, 0.38);
+        background: rgba(231, 189, 117, 0.08);
+        outline: none;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-row.is-drillable:focus-visible {
+        border-color: rgba(231, 189, 117, 0.38);
+        background: rgba(231, 189, 117, 0.08);
+        outline: none;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-row:disabled {
+        cursor: default;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-row.is-current {
+        border-color: rgba(231, 189, 117, 0.45);
+        background: rgba(231, 189, 117, 0.10);
+        box-shadow: inset 3px 0 0 var(--horosa-astro-gold);
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-lord {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-lord strong {
+        color: var(--horosa-astro-gold);
+        font-size: var(--horosa-fs-body-lg);
+        font-weight: 760;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-lord em {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-caption);
+        font-style: normal;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-cur-badge {
+        padding: 0 6px;
+        border-radius: 8px;
+        background: var(--horosa-astro-gold);
+        color: #1a1410;
+        font-size: var(--horosa-fs-micro);
+        font-weight: 700;
+        line-height: 16px;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        text-align: right;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-meta span {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-caption);
+        font-variant-numeric: tabular-nums;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-meta em {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-micro);
+        font-style: normal;
+        opacity: 0.8;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-drill-chev {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-small);
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-hover {
+        position: relative;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-hover .horosa-india-dasha-subpanel {
+        position: absolute;
+        top: 50%;
+        right: calc(100% + 12px);
+        z-index: var(--horosa-z-pinned-panel);
+        display: none;
+        transform: translateY(-50%);
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-hover:hover .horosa-india-dasha-subpanel,
+    .horosa-workspace-shell .horosa-india-dasha-hover:focus-within .horosa-india-dasha-subpanel {
+        display: block;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+        padding: 9px 10px;
+        border: 1px solid rgba(215, 173, 105, 0.14);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+        transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    /* :focus-visible 与 :hover 分写两条:不认 :focus-visible 的内核(Safari 15.4 以前)遇到同列表里的它会把整条连 :hover 一起丢掉。 */
+    .horosa-workspace-shell .horosa-india-dasha-item:hover {
+        border-color: rgba(231, 189, 117, 0.38);
+        background: rgba(231, 189, 117, 0.08);
+        outline: none;
+    }
+    .horosa-workspace-shell .horosa-india-dasha-item:focus-visible {
+        border-color: rgba(231, 189, 117, 0.38);
+        background: rgba(231, 189, 117, 0.08);
+        outline: none;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item.is-active {
+        border-color: rgba(231, 189, 117, 0.45);
+        background: rgba(231, 189, 117, 0.10);
+        box-shadow: inset 3px 0 0 var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item-main {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item-main strong {
+        color: var(--horosa-astro-gold);
+        font-size: var(--horosa-fs-subtitle);
+        font-weight: 760;
+        line-height: 1.1;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item-main span,
+    .horosa-workspace-shell .horosa-india-dasha-item-meta em {
+        color: var(--horosa-astro-muted);
+        font-size: var(--horosa-fs-small);
+        font-style: normal;
+        line-height: 1.25;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+        text-align: right;
+    }
+
+    .horosa-workspace-shell .horosa-india-dasha-item-meta span {
+        overflow: hidden;
+        color: var(--horosa-astro-text);
+        font-size: var(--horosa-fs-small);
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-dasha-panel {
+        color: var(--horosa-text);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-dasha-empty,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-dasha-item {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-dasha-item.is-active {
+        border-color: rgba(184, 137, 63, 0.38);
+        background: var(--horosa-gold-soft);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-india-dasha-item-meta span {
+        color: var(--horosa-text);
+    }

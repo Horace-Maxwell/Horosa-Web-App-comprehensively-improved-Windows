@@ -2,6 +2,7 @@
 // 1582 前日期按儒略历标注。源码护栏 + 行为断言双判。
 import fs from 'fs';
 import path from 'path';
+import { readSource } from './helpers/sourceSet';   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import moment from 'moment';
 import { fieldsToParams, buildJyotishSnapshotLines } from '../../components/astro/IndiaChart';
 import { eastSlotOfSign, EAST_SLOT_POLYGONS } from '../../components/astro/IndiaEastChart';
@@ -68,7 +69,7 @@ describe('大运深层起点取精确时刻', ()=>{
 	it('源码:后端段不得从日期串直接构造 moment', ()=>{
 		const files = ['components/astro/indiaMain/dasha.js', 'components/astro/IndiaChartMain.js'];
 		files.forEach((rel)=>{
-			const src = fs.readFileSync(path.join(SRC, rel), 'utf8');
+			const src = readSource(path.join(SRC, rel));   // 页面门面按全集读
 			expect(src).not.toMatch(/moment\((subItem|item|p|m)\.(start|end)\)/);
 		});
 	});

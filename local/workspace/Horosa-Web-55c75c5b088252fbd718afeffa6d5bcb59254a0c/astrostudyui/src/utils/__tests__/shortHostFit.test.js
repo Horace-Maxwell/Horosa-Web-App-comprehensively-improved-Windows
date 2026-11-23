@@ -13,7 +13,7 @@ import {
 } from '../boxSizeVars';
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>require('./helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 
 function box(el, dims){
 	Object.keys(dims).forEach((k)=>{

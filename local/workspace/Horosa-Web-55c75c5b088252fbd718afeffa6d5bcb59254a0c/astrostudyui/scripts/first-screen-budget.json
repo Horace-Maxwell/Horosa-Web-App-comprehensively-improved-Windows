@@ -1,0 +1,7 @@
+{
+	"_doc": "首屏字节预算单源(check-chunk-dup.js ⑥ 读):首屏 = umi 入口 + 根路由批次 + 布局层家族。maxBytes = 实测 × 1.05;首屏变小后用 node scripts/check-chunk-dup.js dist-file --write-budget 收紧(只许往下,放宽须 --accept-increase 并写明理由)。",
+	"maxBytes": 6889323,
+	"measuredBytes": 6561260,
+	"measuredFrom": "dist-file",
+	"files": 31
+}

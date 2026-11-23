@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const parser = require('@babel/parser');
+const { facadeOf, isSourceSetPart, sourceSetFiles } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '../..');
 const SINGLE_SOURCE_RE = /\b(scriptFilterBy|scriptFilterOption|matchesUserQuery|scriptMatchKey)\b/;
@@ -79,9 +80,17 @@ function scan(file){
 		});
 	});
 	if(/export function XQSelect\(/.test(code)){ kinds.Select = 'antd'; }   // xq-ui 本身:里面的 <Select> 是 antd 的
+	// this.xxx 指向的方法按整个组件找:类方法按职责拆在子文件里(方法对象的对象方法,门面 mixinMethods 挂回)时,
+	// 用到它的 JSX 与它本身常分在两个文件 —— 子模块折回门面,全集里每个文件的类方法 / 类属性 / 对象方法都算
 	const methods = {};
-	visit(ast, (n)=>{
-		if((n.type === 'ClassMethod' || n.type === 'ClassProperty') && n.key && n.key.name){ methods[n.key.name] = code.slice(n.start, n.end); }
+	const unit = facadeOf(file) || file;
+	(isSourceSetPart(file) || facadeOf(file) || sourceSetFiles(unit).length > 1 ? sourceSetFiles(unit) : [file]).forEach((f)=>{
+		const c = f === file ? code : fs.readFileSync(f, 'utf8');
+		let a = f === file ? ast : null;
+		if(!a){ try{ a = parser.parse(c, { sourceType: 'module', errorRecovery: true, plugins: ['jsx', 'classProperties', 'optionalChaining', 'nullishCoalescingOperator', 'dynamicImport', 'objectRestSpread', 'exportDefaultFrom'] }); }catch(e){ return; } }
+		visit(a, (n)=>{
+			if((n.type === 'ClassMethod' || n.type === 'ClassProperty' || n.type === 'ObjectMethod') && n.key && n.key.name && !methods[n.key.name]){ methods[n.key.name] = c.slice(n.start, n.end); }
+		});
 	});
 	const bad = [];
 	visit(ast, (n)=>{

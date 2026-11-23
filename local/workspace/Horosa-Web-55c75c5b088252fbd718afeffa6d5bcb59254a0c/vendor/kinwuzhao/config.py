@@ -213,6 +213,12 @@ def gangzhi(year, month, day, hour, minute, after23_new_day=1, hour_gan_use_next
         mTG1 = find_lunar_month(yTG).get(lunar_date_d(year, month, day).get("月"))
     else:
         mTG1 = mTG
+        # 交节当日按精确交节时刻校正年 / 月柱(sxtwl 日级;同本目录 jieqi.gangzhi 的修法,共享件单源)
+        try:
+            from kin_year_domain import jie_exact_year_month as _jie_exact
+            yTG, mTG1 = _jie_exact(year, month, day, hour, minute, yTG, mTG1)
+        except ImportError:
+            pass
     if _h is not None:
         hTG1 = hTG  # v2.2.1: lateZi 直接生效到 hTG1
     else:

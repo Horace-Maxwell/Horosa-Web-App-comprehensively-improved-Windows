@@ -181,7 +181,7 @@ _CLASSICAL_ECHO_KEYS = (
 
 class WebChartSrv:
     exposed = True
-    PD_SYNC_REV = 'pd_method_sync_v28'
+    PD_SYNC_REV = 'pd_method_sync_v29'
     WARMED = False  # PD warmup 完成置 True;/healthz 据此报「真就绪」(P0 启动稳健化,纯增量)
     PD_WARMUP_SAMPLE = {
         'date': '2028/04/06',

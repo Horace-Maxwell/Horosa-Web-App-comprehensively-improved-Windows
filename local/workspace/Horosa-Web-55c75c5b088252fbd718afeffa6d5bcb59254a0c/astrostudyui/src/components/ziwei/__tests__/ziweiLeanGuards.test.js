@@ -6,9 +6,10 @@ import * as ZiWeiHelper from '../ZiWeiHelper';
 import * as ziweiSchools from '../ziweiSchools';
 import { ZWEngineOptions } from '../ziweiOptions';
 import { notifyZiweiTempOverrideRestored, ZIWEI_TEMP_OVERRIDE_RESTORED_EVENT } from '../ziweiTempOverrideScope';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const DIR = path.resolve(__dirname, '..');
-const raw = (f) => fs.readFileSync(path.join(DIR, f), 'utf8');
+const raw = (f) => readSource(path.join(DIR, f));
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 // 取某函数体(花括号配对)
 function fnBody(src, name){

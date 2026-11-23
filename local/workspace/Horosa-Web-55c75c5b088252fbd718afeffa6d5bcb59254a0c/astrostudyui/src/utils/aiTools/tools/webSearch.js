@@ -3,6 +3,7 @@
 import { GUIDE } from './_shared';
 import { isWebSearchEnabled } from '../../aiAgent/prefs';
 import { runWebSearch, WEB_SEARCH_MAX_RESULTS, WEB_SEARCH_UNVERIFIED } from '../../../integrations/webSearch';
+import { switchHintText } from '../switchHints';
 
 export default {
 	name: 'web_search',
@@ -11,6 +12,7 @@ export default {
 	undoKind: 'none',
 	cacheable: true,
 	enabled: ()=>isWebSearchEnabled(),
+	disabledHint: ()=>switchHintText('webSearch'),
 	timeoutMs: 20000,
 	description: `联网检索:按关键词查外部搜索引擎,返回 results[{title,url,snippet,publishedAt}]。用于时事、外部资料、地名核对等**排盘数据之外**的信息;命理判断本身不要依赖检索。${GUIDE}:用户明确要求查资料/查新闻,或缺少排盘之外的事实时。`,
 	inputSchema: {

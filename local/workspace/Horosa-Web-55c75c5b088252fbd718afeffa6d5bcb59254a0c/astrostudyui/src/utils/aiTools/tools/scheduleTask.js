@@ -8,6 +8,7 @@ import { isSchedulerEnabled } from '../../aiAgent/prefs';
 import { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES } from '../../aiAnalysisContext';
 import { SCHEDULE_TYPES, SCHEDULED_KINDS, SCHEDULED_KIND_LABELS, MISSED_POLICIES, DAYS_AHEAD_DEFAULT, normalizeSchedule, computeNextRun, describeSchedule } from '../../aiAgent/tasks/schedule';
 import { createTask } from '../../aiAgent/tasks/taskStore';
+import { switchHintText, taskReleaseHint } from '../switchHints';
 
 function fmt(at){
 	const d = at ? new Date(parseDateTimeMs(at)) : null;
@@ -21,9 +22,11 @@ export default {
 	level: 'additive',
 	category: 'tasks',
 	undoKind: 'cancel-task',
+	// 无头模式:调度器只在常驻服务(./horosa start / serve)里跑;单次 ./horosa call 建的任务存进数据目录,等常驻服务开着时到点
 	enabled: ()=>isSchedulerEnabled(),
+	disabledHint: ()=>switchHintText('scheduler'),
 	timeoutMs: 15000,
-	description: `新建一个定时任务:到点自动做并通知用户。kind=daily-brief 每日简报(建议挂载命盘;不挂则出通用天象简报)/ monthly-fortune 每月流年·月运(建议挂载命盘;不挂则出通用天象月运)/ custom-prompt 自定义提示词(需 prompt)/ zeri-reminder 择日方案到期提醒(不用 AI,提前 daysAhead 天)。schedule:daily{time} / weekly{weekday 0-6,time} / monthly{day 1-28,time} / once{at ISO 时刻}。应用没开时错过的运行按 missedPolicy 跳过或补跑一次。${GUIDE}:用户明确要求「每天/每周/每月/到时候提醒我/定时」时调用;一次性的事直接做不要排期。`,
+	description: `新建一个定时任务:到点自动做并通知用户。kind=daily-brief 每日简报(建议挂载命盘;不挂则出通用天象简报)/ monthly-fortune 每月流年·月运(建议挂载命盘;不挂则出通用天象月运)/ custom-prompt 自定义提示词(需 prompt)/ zeri-reminder 择日方案到期提醒(不用 AI,提前 daysAhead 天)。schedule:daily{time} / weekly{weekday 0-6,time} / monthly{day 1-28,time} / once{at ISO 时刻}。应用没开时错过的运行按 missedPolicy 跳过或补跑一次;无头模式下只在常驻服务(./horosa start / serve)开着时到点,无人值守运行只能读取与提议。${GUIDE}:用户明确要求「每天/每周/每月/到时候提醒我/定时」时调用;一次性的事直接做不要排期。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['kind', 'schedule'],
 		properties: {
@@ -49,24 +52,25 @@ export default {
 		const nextRunAt = schedule ? computeNextRun(schedule, new Date()) : null;
 		if(!nextRunAt){ return { ok: false, code: 'E_SCHEDULE_INVALID', message: '排期不合法或已过期:daily/weekly/monthly 需 time=HH:mm(weekly 另需 weekday 0-6,monthly 另需 day 1-28);once 需未来时刻' }; }
 		if(args.kind === 'custom-prompt' && !`${args.prompt || ''}`.trim()){ return { ok: false, code: 'E_ARGS_INVALID', message: 'custom-prompt 需要 prompt' }; }
+		let extraSpec = {};
 		const title = `${args.title || ''}`.trim().slice(0, 80) || SCHEDULED_KIND_LABELS[args.kind] || '定时任务';
 		// 外部客户端排的定时任务先停着(paused)、不会到点自动跑:要用户在任务中心点「继续」才进入排期 —— 未生效前可撤销
 		const external = !!(ctx && ctx.origin === 'mcp');
 		const task = await createTask({
 			kind: 'scheduled', status: external ? 'paused' : 'scheduled', title, origin: ctx && ctx.origin ? ctx.origin : 'in-app', aiOrigin: { requestId: ctx && ctx.requestId, clientName: ctx && ctx.clientName },
 			nextRunAt, missedPolicy: args.missedPolicy === 'catch-up' ? 'catch-up' : 'skip', notify: args.notify !== false,
-			spec: { kind: args.kind, schedule, modelSelection: snapshotModelSelection(ctx && ctx.modelSelection) || undefined, sourceCid: args.sourceCid || null, techniques: Array.isArray(args.techniques) ? args.techniques.slice(0, 6) : [], prompt: `${args.prompt || ''}`.slice(0, 2000), daysAhead: args.daysAhead || DAYS_AHEAD_DEFAULT },
+			spec: { kind: args.kind, schedule, modelSelection: snapshotModelSelection(ctx && ctx.modelSelection) || undefined, sourceCid: args.sourceCid || null, techniques: Array.isArray(args.techniques) ? args.techniques.slice(0, 6) : [], prompt: `${args.prompt || ''}`.slice(0, 2000), daysAhead: args.daysAhead || DAYS_AHEAD_DEFAULT, ...extraSpec },
 		});
 		return {
 			ok: true,
 			data: { taskId: task.id, status: task.status, title: task.title, kind: args.kind, schedule: describeSchedule(schedule), nextRunAt: task.nextRunAt, missedPolicy: task.missedPolicy, ...(external ? { awaitingUserStart: true } : {}) },
 			undo: { kind: 'cancel-task', payload: { taskId: task.id } },
 			summary: external
-				? `定时任务「${task.title}」已建好但暂停:${describeSchedule(schedule)},需用户在任务中心点「继续」才会到点运行`
+				? `定时任务「${task.title}」已建好但暂停:${describeSchedule(schedule)},${taskReleaseHint('resume', task.id)}才会到点运行`
 				: `定时任务「${task.title}」已排期:${describeSchedule(schedule)},下次 ${fmt(task.nextRunAt)}(错过则${task.missedPolicy === 'catch-up' ? '补跑一次' : '跳过'})`,
-			...(external ? { message: `定时任务「${task.title}」已建好、暂停待确认:外部客户端排的任务不会自动运行,需用户在星阙任务中心点「继续」;生效前可撤销` } : {}),
+			...(external ? { message: `定时任务「${task.title}」已建好、暂停待确认:外部客户端排的任务不会自动运行,${taskReleaseHint('resume', task.id)};生效前可撤销` } : {}),
 			assumptions: external
-				? ['外部客户端排的定时任务先暂停,需用户在任务中心点「继续」才进入排期;生效前可在动作记录里撤销']
+				? [`外部客户端排的定时任务先暂停,${taskReleaseHint('resume', task.id)}才进入排期;生效前可在动作记录里撤销`]
 				: ['到点由应用心跳触发:应用没开的时段不会运行,下次打开按错过策略处理;撤销只对还没跑过的任务有效'],
 		};
 	},

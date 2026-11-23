@@ -1,0 +1,51 @@
+diff --git a/astrostudyui/src/components/sanshi/main/board.js b/astrostudyui/src/components/sanshi/main/board.js
+index 9118c2ec..ef1a91c4 100644
+--- a/astrostudyui/src/components/sanshi/main/board.js
++++ b/astrostudyui/src/components/sanshi/main/board.js
+@@ -8,6 +8,19 @@ import { clamp } from '../../dunjia/qimenPageShared';
+ import { createDeferredResizeObserver } from '../../../utils/deferredResizeObserver';
+ import { SANSHI_BOARD_MIN, SANSHI_BOARD_MAX, SANSHI_BOARD_READABLE_MIN } from './options';
+ import { getViewportHeight } from './format';
++import { memo } from 'react';
++import { getDeclaredZoom } from '../../../utils/zoomDomain';
++
++// [S4 已收敛 v3.10.0] SanShiBoardLayer 退役:盘面单源迁至共享 SanshiUnitedBoard(上游),
++// 渲染隔离由下方 MemoSanshiUnitedBoard(React.memo,浅比)承接 —— 语义与原 wrapperPropsEqual 等价。
++// horosa_sanshi_render_slice_v1(S4 残差):共享盘无自带 memo,壳层 props 全引用稳定 ⇒ 浅比隔离盘面重绘。
++// 惰性包一次:本文件与 SanshiUnitedBoard 互为 import(同一导入环),模块求值期不得把对方的绑定交给任何调用
++// (importCycleContract ①:交出去的函数也可能被当场调用);首次画盘时才 memo(…),此后恒用同一包装(组件身份稳定、不重挂)。
++let memoSanshiUnitedBoard = null;
++function getMemoSanshiUnitedBoard(){
++	if(!memoSanshiUnitedBoard){ memoSanshiUnitedBoard = memo(SanshiUnitedBoard); }
++	return memoSanshiUnitedBoard;
++}
+ 
+ export const boardMethods = {
+ 	captureLeftBoardHost(node){
+@@ -69,7 +82,6 @@ export const boardMethods = {
+ 		}
+ 		return clamp(Math.round(target), boardMin, SANSHI_BOARD_MAX);
+ 	},
+-
+ 	renderLeftBoard(height){
+ 		if(!this.state.hasPlotted){
+ 			return <XQStageEmpty>点击左侧“起盘”后显示三式合一盘</XQStageEmpty>;
+@@ -82,8 +94,9 @@ export const boardMethods = {
+ 		const boardFields = this.state.hasPlotted
+ 			? (this.state.plottedFields || this.state.localFields || this.props.fields)
+ 			: this.getActiveFields();
++		const MemoSanshiUnitedBoard = getMemoSanshiUnitedBoard();
+ 		return (
+-			<SanshiUnitedBoard
++			<MemoSanshiUnitedBoard
+ 				boardSize={boardSize}
+ 				fitWidth={this.state.leftBoardWidth > 0 ? this.state.leftBoardWidth - 8 : 0}
+ 				chartWrap={this.state.castChart}
+@@ -99,6 +112,7 @@ export const boardMethods = {
+ 				ascRaMode={this.state.ascRaMode}
+ 				showWeakSolid={this.state.showWeakSolid}
+ 				showJianChu={!!(this.state.options && this.state.options.showJianChu)}
++				zoomTick={getDeclaredZoom()}   // 盘格附注的几何按界面缩放算(盘内直接读全局缩放):缩放档进浅比,换档必重画,不靠「换档恰好也改了盘宽」
+ 				showAstroMeaning={this.props.showAstroMeaning}
+ 			/>
+ 		);

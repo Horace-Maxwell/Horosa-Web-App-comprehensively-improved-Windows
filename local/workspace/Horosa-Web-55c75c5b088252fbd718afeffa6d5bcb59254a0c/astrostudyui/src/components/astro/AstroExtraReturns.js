@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSelect as Select } from '../xq-ui';
+
+import { XQSelect as Select, XQSpin } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, chartParams, chartRequestKey, astroSymbol } from './AstroExtraCommon';
@@ -60,13 +60,23 @@ async function fetchReturns(chartObj, body, count){
 }
 
 // AI 快照（请求型，内部拉三体返照）。section 头 [多重回归] 与 aiExport preset 对齐。
-export async function buildExtraReturnsSnapshotText(chartObj){
+// opts:{ bodies: 星体键数组, count: 回数 }(挂载设置 / 外部智能体可指定;缺 = 土 / 木 / 月交三体各 5 回,与此前逐字相同)。
+// 页面上可逐个查看的十一体都能取;不认的键丢掉,一个都不剩 = 回缺省三体;回数只认页面下拉里有的档。
+export const EXTRA_RETURN_BODY_OPTIONS = BODIES.map((b)=>({ value: b.key, label: b.cn }));
+export const EXTRA_RETURN_SNAPSHOT_BODIES = SNAPSHOT_BODIES.slice();
+export const EXTRA_RETURN_COUNT_OPTIONS = COUNT_OPTIONS.slice();
+export const EXTRA_RETURN_SNAPSHOT_COUNT = 5;
+export async function buildExtraReturnsSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
+	const o = opts || {};
+	const picked = (Array.isArray(o.bodies) ? o.bodies : []).filter((k)=>BODIES.some((b)=>b.key === k));
+	const bodyKeys = picked.length ? BODIES.map((b)=>b.key).filter((k)=>picked.indexOf(k) >= 0) : SNAPSHOT_BODIES;   // 按页面星体表的顺序出
+	const count = COUNT_OPTIONS.indexOf(Number(o.count)) >= 0 ? Number(o.count) : EXTRA_RETURN_SNAPSHOT_COUNT;
 	const bodyLines = [];
-	for(let i = 0; i < SNAPSHOT_BODIES.length; i++){
-		const b = bodyMeta(SNAPSHOT_BODIES[i]);
+	for(let i = 0; i < bodyKeys.length; i++){
+		const b = bodyMeta(bodyKeys[i]);
 		// bug 修:导出此前只取 4 回而 UI 取 5 回(组件 state.count=5)→ 对齐 5。
-		const r = await fetchReturns(chartObj, b.key, 5);
+		const r = await fetchReturns(chartObj, b.key, count);
 		const rows = (r && r.returns) || [];
 		if(!rows.length){ continue; }
 		// bug 修:导出此前缺各回 time 与本命黄经 natalLon(UI 逐行/页脚均有)→ 补进每行;
@@ -179,7 +189,7 @@ class AstroExtraReturns extends Component{
 					</Select>
 				</div>
 				</div>
-				<Spin spinning={this.state.loading}>
+				<XQSpin spinning={this.state.loading}>
 					{rows.length ? (
 						<div style={{ border: '1px solid rgba(128,128,128,0.12)', borderRadius: 8, overflow: 'hidden' }}>
 							{rows.map((x, i) => {
@@ -219,7 +229,7 @@ class AstroExtraReturns extends Component{
 					) : (
 						<div style={{ fontSize: 12.5, color: 'var(--horosa-text-secondary)', padding: '12px 0' }}>{this.state.loading ? '' : '暂无返照数据（请确认本地服务运行且本命盘已排出）。'}</div>
 					)}
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

@@ -201,6 +201,6 @@ test('紫微:过期提示写明本结果的排盘口径与现在的紫微设置(
 	expect(note).toContain('现在是');
 	expect(ziweiStaleCalibreNote(now, now)).toBe('');
 	expect(ziweiStaleCalibreNote({ timeAlg: 1, gender: 1 }, now)).toBe('');   // 旧存案不带页面键 = 出厂口径
-	const t = require('fs').readFileSync(require('path').join(__dirname, '..', 'ZiweiZeriWorkbench.js'), 'utf8');
+	const t = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench('ZiweiZeriWorkbench.js');   // 派文件 + 共用壳(结果表过期提示在壳里)
 	expect(t).toContain('{staleCalibreNote ? <div className="horosa-zeri-stale-calibre"');
 });

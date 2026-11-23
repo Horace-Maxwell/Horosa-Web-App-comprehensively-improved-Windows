@@ -13,6 +13,7 @@ import { buildHorarySnapshot } from '../../divination/horary/horarySnapshot';
 import { runElection } from '../../divination/election/electionEngine';
 import { buildElectionSnapshot } from '../../divination/election/electionSnapshot';
 import { fetchChartResultForRecord } from './chartParams';
+import * as AstroConst from '../../constants/AstroConst';
 
 // 卜卦盘 horary：仅凭起课时间+地点起西洋盘(无需人工摇卦),用引擎默认类别 general 出结构化裁决快照。
 // 与 DivinationChartShell 同源(fetchChart→Result→runHorary);后端不可达 → 无盘返 '' → 显「缺失」(西洋盘必后端)。
@@ -42,6 +43,32 @@ function divinationSettingsFields(record){
 	}
 }
 
+// 齿轮显式给的盘面参数(宫制 / 黄道 / 岁差):存档与流派之后最后覆盖;空 = 随存档 / 流派(不动)。
+// 只认这三键;payload 顶层同名键只由齿轮写(存档口径在 payload.settings 里)。
+export function explicitDivinationChartParams(options){
+	const o = options && typeof options === 'object' ? options : {};
+	const out = {};
+	['hsys', 'zodiacal'].forEach((k)=>{ const v = o[k]; if(v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v))){ out[k] = Number(v); } });
+	if(o.siderealAyanamsa !== undefined && o.siderealAyanamsa !== null && o.siderealAyanamsa !== ''){ out.siderealAyanamsa = `${o.siderealAyanamsa}`; }
+	return out;
+}
+
+// 显式盘面参数时在首段补一行写明本次实际口径(流派说明里写的宫制等此时不适用);没给 = 原样返回(逐字节同此前)
+export function withChartParamNote(text, params){
+	const p = params || {};
+	if(!text || !Object.keys(p).length){ return text; }
+	const lab = (opts, v)=>{ const o = (opts || []).find((x)=>`${x.value}` === `${v}`); return o ? o.label : `${v}`; };
+	const parts = [];
+	if(p.hsys !== undefined){ parts.push(`宫制=${lab(AstroConst.HOUSE_SYSTEM_OPTIONS, p.hsys)}`); }
+	if(p.zodiacal !== undefined){ parts.push(`黄道=${Number(p.zodiacal) === 1 ? '恒星黄道' : '回归黄道'}`); }
+	if(p.siderealAyanamsa !== undefined){ parts.push(`岁差制=${lab(AstroConst.INDIA_AYANAMSA_OPTIONS, p.siderealAyanamsa)}`); }
+	const note = `盘面参数(本次指定,以此为准;流派说明里的宫制 / 黄道不适用):${parts.join(' · ')}`;
+	const lines = `${text}`.split('\n');
+	const at = lines.length && /^\[.+\]$/.test(lines[0]) ? 1 : 0;
+	lines.splice(at, 0, note);
+	return lines.join('\n');
+}
+
 // 齿轮换没换卜卦流派:合并后顶层 horarySchool(只由齿轮写,剪枝后只在≠存档时留下)≠ 存档流派
 // (horaryStoredSchool:没存流派按存档宫制反推,与挂载基线同口径)
 function horaryGearSchoolChanged(options, savedSettings){
@@ -60,7 +87,7 @@ export async function regenerateHorarySnapshot(record, options){
 	}
 	// 🔴 流派 backend 参数组播入排盘 record(与技法页 HoraryMain 同源同函数):此前挂载
 	// 重算只把流派用在判读层,盘本身仍按默认起 —— 换 Regiomontanus 档判读变了、宫头没变,
-	// 与技法页同档盘面分叉(B-1 死开关)。存档 overrides(hp_ 前缀之外的 backend 键)随档覆盖。
+	// 与技法页同档盘面分叉(选了不起作用)。存档 overrides(hp_ 前缀之外的 backend 键)随档覆盖。
 	// 齿轮换了流派(顶层 horarySchool 只由齿轮写)= 页面换派:存档的逐项覆盖整组作废(HoraryMain 换派连同 horaryOverrides:{} 一起落)
 	const gearSchoolChanged = horaryGearSchoolChanged(options, savedSettings);
 	// 存档流派(没存流派按存档宫制反推)
@@ -77,6 +104,7 @@ export async function regenerateHorarySnapshot(record, options){
 	}catch(_e){
 		// 流派表异常不阻断(按原 record 起盘=旧行为)。
 	}
+	chartRecord = { ...chartRecord, ...explicitDivinationChartParams(options) };
 	const chart = await fetchChartResultForRecord(chartRecord);
 	if(!chart){
 		return '';
@@ -113,14 +141,17 @@ export async function regenerateHorarySnapshot(record, options){
 			} : {}),
 		});
 		// 第三参问句/阵营 → [定盘考量] 段(页面 saveSnap 同构;曾缺参致该段在挂载里必然消失)。
-		return j ? (buildHorarySnapshot(j, chart, { questionText: ox.questionText, castingCamp: ox.castingCamp }) || '') : '';
+		return j ? withChartParamNote(buildHorarySnapshot(j, chart, { questionText: ox.questionText, castingCamp: ox.castingCamp }) || '', explicitDivinationChartParams(options)) : '';
 	}catch(e){
 		return '';
 	}
 }
 
 // 择日盘 election：同理,引擎默认 topicId=marriage(runElection 自带兜底)出总评/红线/分项/应期/建议快照。
-export async function regenerateElectionSnapshot(record, options){
+// 择日盘起盘 + 判读的共用核(挂载快照与 scan_election_moments 共用):回 { report, chart } 或 null(起不了盘)。
+// deps.fetchChart 测试缝;natalRecordId / crisisDate 是两个挂载键(见下)。
+export async function runElectionForRecord(record, options, deps){
+	const fetchR = (deps && deps.fetchChartResult) || fetchChartResultForRecord;
 	// 同 horary:起课/事盘记录用 divTime,映射为 birth 后才能起西洋盘。
 	let chartRecord = (record && record.birth) ? record : { ...record, birth: (record && (record.divTime || record.updateTime)) || '' };
 	// 随案存档口径打底(择日页面默认整宫制随 settings 回放;流派 hsys 联动在后覆盖)。
@@ -147,9 +178,38 @@ export async function regenerateElectionSnapshot(record, options){
 	}catch(_e){
 		// 流派表异常不阻断。
 	}
-	const chart = await fetchChartResultForRecord(chartRecord);
+	chartRecord = { ...chartRecord, ...explicitDivinationChartParams(options) };
+	const chart = await fetchR(chartRecord);
 	if(!chart){
-		return '';
+		return null;
+	}
+	// 本命合参:齿轮给了命盘档案 id → 按择日盘同一口径(宫制 / 黄道 / 岁差 / 传统)起本命盘、取本命事实(页面「选本命盘」同一路径);找不到不报错、按无本命判
+	let natalFacts;
+	const oNat = options && typeof options === 'object' ? options.natalRecordId : undefined;
+	if(oNat){
+		try{
+			// eslint-disable-next-line global-require
+			const { findAnalysisSourceById } = require('../aiAnalysisSources');
+			const src = findAnalysisSourceById(`${oNat}`);
+			const nr = src && src.sourceType === 'chart' && src.record ? src.record : null;
+			if(nr && nr.birth){
+				const nChart = await fetchR({ ...nr, hsys: chartRecord.hsys, zodiacal: chartRecord.zodiacal, siderealAyanamsa: chartRecord.siderealAyanamsa, tradition: chartRecord.tradition });
+				// eslint-disable-next-line global-require
+				if(nChart){ natalFacts = require('../../divination/engine/chartFacts').buildFacts(nChart); }
+			}
+		}catch(_e){ natalFacts = undefined; }
+	}
+	// 危象日基准:齿轮给了病始日期 → 同地点当日正午起盘取月黄经(页面 fetchCrisisBase 同一取法);没给 = 随存档 extra.crisisBase
+	let crisisOverride;
+	const oCrisis = options && typeof options === 'object' ? options.crisisDate : undefined;
+	if(oCrisis && /^-?\d{4,5}-\d{2}-\d{2}$/.test(`${oCrisis}`)){
+		try{
+			const cChart = await fetchR({ ...chartRecord, birth: `${oCrisis} 12:00:00` });
+			// eslint-disable-next-line global-require
+			const F = cChart ? require('../../divination/engine/chartFacts').buildFacts(cChart) : null;
+			const moonLon = F && F.planets && F.planets.moon ? F.planets.moon.lon : null;
+			crisisOverride = moonLon != null ? { date: `${oCrisis}`, moonLon } : null;
+		}catch(_e){ crisisOverride = null; }
 	}
 	try{
 		// AI 挂载「每技法设置」:用事类别经 options.topicId 透传（缺省 marriage=现状）。
@@ -176,16 +236,21 @@ export async function regenerateElectionSnapshot(record, options){
 		// 判读全局层与页面(ElectionJudgment:278)同构——缺此 spread 时 AI 再生的择日判读
 		// (太阳三态/空亡/partile/恒星轨/映点)全部跌回引擎默认,与页面判读卡分叉。
 		const { judgeLayerOverrides } = require('../judgeLayerOverrides');
-		const j = runElection(chart, topicId, undefined, undefined, {
-			westSchool, surgeryPart: pick('surgeryPart'), crisisBase: pick('crisisBase'),
+		const j = runElection(chart, topicId, natalFacts, undefined, {
+			westSchool, surgeryPart: pick('surgeryPart'), crisisBase: crisisOverride !== undefined ? crisisOverride : pick('crisisBase'),
 			...judgeLayerOverrides(),
 			electionParams: Object.keys(electionParams).length ? electionParams : undefined, tradeSide: pick('tradeSide'),
 			talismanStar: pick('talismanStar'), surgeryPartOpposite: !!pick('surgeryPartOpposite'),
 		});
-		return j ? (buildElectionSnapshot(j) || '') : '';
+		return j ? { report: j, chart, natal: !!natalFacts } : null;
 	}catch(e){
-		return '';
+		return null;
 	}
+}
+
+export async function regenerateElectionSnapshot(record, options){
+	const r = await runElectionForRecord(record, options);
+	return r ? withChartParamNote(buildElectionSnapshot(r.report) || '', explicitDivinationChartParams(options)) : '';
 }
 
 // ===== P4 区间扫描：把单一目标时刻扩展为「from→to 按 step」的多时点列表 =====

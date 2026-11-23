@@ -22,6 +22,7 @@ import {
 import { resolveZhangshengElem, DEFAULT_QIMEN_OPTIONS, DEFAULT_TAIYI_OPTIONS } from './catalog';
 import { buildCaseSnapshotFields, buildCaseSnapshotParams, getCaseGenderLabel } from './recordFields';
 import { toSlashDate } from '../dateStrSafe';
+import { buildSanShiZiweiSihuaSnapshotLines } from '../../components/sanshi/SanShiZiWeiSihua';
 
 export function buildSanshiUnifiedFallbackSnapshot(record, payload){
 	const result = payload && payload.result ? payload.result : {};
@@ -226,7 +227,7 @@ export async function regenerateJinkouSnapshot(record, payload){
 	return buildJinKouSnapshotText(
 		result.params,
 		result.liureng,
-		null,
+		(payload && payload.runyear) || null,   // 存档 / 问测人出生推出的行年(此前恒 null:重算路径 [行年] 段恒「无」,与存档路径不一致)
 		jinkouData,
 		_jkWuxing,
 		payload && payload.guireng !== undefined && payload.guireng !== null ? payload.guireng : 0,
@@ -311,6 +312,23 @@ export async function computeQimenPanForCase(record, payload){
 	const pan = calcDunJia(fields, nongli, options, { ...buildQimenSeedContext(fields), displaySolarTime });
 	// 显式还原相关人员(空[]也算显式、覆盖全局兜底)，使八门化气大阵生年干随已存记录一致(AI 挂载/储存四同步)。
 	pan.faRelatedPeople = qs && Array.isArray(qs.faRelatedPeople) ? qs.faRelatedPeople : [];
+	// 齿轮给了相关人员(命盘档案 id,逗号分隔)= 覆盖存档名单:逐个取命盘、按页面同一函数(birthToYearGan)取生年干;
+	// 取不到的档案跳过不报错;空 = 随存档
+	const relIds = `${(options && options.relatedRecordIds) || ''}`.split(/[,，\s]+/).map((x)=>x.trim()).filter(Boolean).slice(0, 12);
+	if(relIds.length){
+		try{
+			// eslint-disable-next-line global-require
+			const { findAnalysisSourceById } = require('../aiAnalysisSources');
+			// eslint-disable-next-line global-require
+			const { birthToYearGan } = require('../../components/dunjia/DunJiaCalc');
+			pan.faRelatedPeople = relIds.map((cid)=>{
+				const src = findAnalysisSourceById(cid);
+				const r = src && src.sourceType === 'chart' ? src.record : null;
+				if(!r || !r.birth){ return null; }
+				return { cid: `${cid}`, name: `${r.name || src.title || '未命名'}`, yearGan: birthToYearGan(r.birth) || '' };
+			}).filter(Boolean);
+		}catch(e){ /* 取档失败按存档名单 */ }
+	}
 	return pan;
 }
 
@@ -371,16 +389,76 @@ export async function regenerateTaiyiSnapshot(record, payload){
 	return buildTaiyiSnapshotText(pan);
 }
 
+// 三式合一「紫微四化」页签同源:起课时刻的紫微盘(/ziwei/birth,参数形同页签 buildZiweiParams)→ buildSanShiZiweiSihuaSnapshotLines。
+// 取盘失败 / 无四化 → [](不产段,与页签没打开过时一致)。
+export async function regenerateSanshiZiweiSihuaLines(record, payload){
+	try{
+		const opts = payload && typeof payload === 'object' ? (payload.options && typeof payload.options === 'object' ? payload.options : payload) : {};
+		const base = buildCaseSnapshotParams(record, null, { withTimeAlg: true });
+		const timeAlg = opts.timeAlg !== undefined && opts.timeAlg !== null && opts.timeAlg !== '' ? Number(opts.timeAlg) : base.timeAlg;
+		const fields = buildCaseSnapshotFields(record);
+		const gender = fields.gender && fields.gender.value !== undefined && fields.gender.value !== null ? fields.gender.value : 1;
+		const params = {
+			date: base.date, time: base.time, zone: base.zone, lon: base.lon, lat: base.lat, gpsLat: base.gpsLat, gpsLon: base.gpsLon,
+			gender, timeAlg: timeAlg === 1 ? 1 : 0,
+			after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+		};
+		const data = await request(`${Constants.ServerRoot}/ziwei/birth`, { body: JSON.stringify(params), silent: true });
+		const result = data && data[Constants.ResultKey];
+		const chart = result && result.chart ? result.chart : null;
+		return chart ? buildSanShiZiweiSihuaSnapshotLines(chart, 0, 0) : [];
+	}catch(e){
+		return [];
+	}
+}
+
+// 三式合一「八宫逐宫」段的无头取数:奇门局(与本快照奇门段同一份)、六壬天地盘(起课时刻的参照盘 + 奇门四柱定日时)、
+// 外圈星盘(起课时刻按当前排盘设置起的星盘),喂页面同一个 buildSanshiPalaceSections。任一环取不到 → 不出该段。
+async function sanshiPalaceSectionLines(record, payload, lrOpts){
+	try{
+		// eslint-disable-next-line global-require
+		const S = require('../../components/sanshi/SanShiUnitedMain');
+		// eslint-disable-next-line global-require
+		const { fetchChartResultForRecord } = require('./chartParams');
+		const o = payload && payload.options && typeof payload.options === 'object' ? payload.options : (payload || {});
+		const pageSaved = (()=>{ try{ return S.SANSHI_PAGE_SETTINGS.load() || {}; }catch(e){ return {}; } })();
+		const outerCoord = ['ecliptic', 'equatorial'].indexOf(o.outerCoord) >= 0 ? o.outerCoord : (pageSaved.outerCoord || 'ecliptic');
+		const ascRaMode = o.ascRaMode !== undefined && o.ascRaMode !== null && o.ascRaMode !== '' ? o.ascRaMode : pageSaved.ascRaMode;
+		const chartRecord = (record && record.birth) ? record : { ...record, birth: (record && (record.divTime || record.updateTime)) || '' };
+		const [dunjia, lrResult, chartRes] = await Promise.all([
+			computeQimenPanForCase(record, payload),
+			requestLiurengGods(record, lrOpts),
+			fetchChartResultForRecord(chartRecord),
+		]);
+		if(!dunjia || !Array.isArray(dunjia.cells)){ return []; }
+		const astroChart = chartRes && chartRes.chart ? chartRes.chart : null;
+		let lrLayout = null;
+		const lrChart = lrResult && lrResult.liureng ? await ensureLiurengChartObjects(lrResult) : null;
+		if(lrChart){
+			const chartForLr = { ...lrChart, nongli: S.buildLrNongli(lrChart.nongli, dunjia) };
+			const guirengType = (lrOpts && lrOpts.guireng !== undefined && lrOpts.guireng !== null) ? lrOpts.guireng : 2;
+			try{ lrLayout = S.buildLiuRengLayout(chartForLr, guirengType, null); }catch(e){ lrLayout = null; }
+		}
+		const outerData = astroChart ? S.buildOuterData(astroChart, outerCoord, ascRaMode) : null;
+		const out = [];
+		S.buildSanshiPalaceSections({ dunjia, lrLayout, outerData }).forEach((sec)=>{ out.push(`[${sec.title}]`, ...sec.body, ''); });
+		return out;
+	}catch(e){
+		return [];
+	}
+}
+
 export async function regenerateSanshiUnifiedSnapshot(record, payload){
 	// 六壬子组:挂载齿轮的合并选项落在 payload.options(optionsPath:'options');regenerateLiurengSnapshot 读 options.*
 	// (castMethod/guireng/wuxing/换将/分昼夜/选时/演数)。原先此处没传 → 三式合一的大六壬永远默认盘(C-❌2 缺口)。
 	// 三式合一的六壬层锁「正时正将」(页面不出起课法 / 选时 / 演数):重算同锁,不按存档 / 齿轮里别的起课法出页面出不了的盘
 	// 占事类型 / 十二长生页面同样不设:占事类型不带(= 页面),十二长生维持此前的「土」(三式合一挂载内容不因六壬缺省改随日干而变)
 	const sanshiLrOpts = { ...((payload && payload.options) || {}), castMethod: 'zheng', xuanShiZhi: undefined, yanShuNum: undefined, zhanCategory: undefined, wuxing: '土' };
-	const [liurengText, qimenText, taiyiText] = await Promise.all([
+	const [liurengText, qimenText, taiyiText, ziweiSihuaLines] = await Promise.all([
 		regenerateLiurengSnapshot(record, sanshiLrOpts, payload && payload.runyear),
 		regenerateQimenSnapshot(record, payload),
 		regenerateTaiyiSnapshot(record, payload),
+		regenerateSanshiZiweiSihuaLines(record, payload),
 	]);
 	// [制度化] 🔴 与 live 页 buildSanShiUnitedSnapshotText 同源的挑段/前缀规则(sanshiSnapshotSections 单源):
 	// 此前三大全文按 [大六壬][奇门遁甲][太乙] 整篇嵌套 → 内嵌段头(盘型/全局速览…)被解析成独立段,
@@ -422,6 +500,14 @@ export async function regenerateSanshiUnifiedSnapshot(record, payload){
 		...flattenInto('奇门遁甲', qimenText, SANSHI_QIMEN_EXTRA_SECTIONS, '奇门'),
 		...flattenInto('太乙', taiyiText, SANSHI_TAIYI_SECTION_TITLES, '太乙'),
 	];
+	// 八宫逐宫(正北坎宫 … 西北乾宫):与页面快照同一个合成函数(遁甲干神星 + 六壬天盘神将 + 外圈星盘 / 人事宫位 / 虚实),
+	// 外圈分宫与上升取法随挂载齿轮 / 页面保存值
+	if(lines.length){
+		const palaceLines = await sanshiPalaceSectionLines(record, payload, sanshiLrOpts);
+		if(palaceLines.length){ lines.push(...palaceLines); }
+	}
+	// 紫微四化页签:页面切到该页签才取盘;无头照页面同一套取数(起课时刻排紫微盘,首个大限 / 流年 = 页签初始选中)
+	if(lines.length && ziweiSihuaLines && ziweiSihuaLines.length){ lines.push('[紫微四化]', ...ziweiSihuaLines, ''); }
 	if(lines.length){
 		return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 	}

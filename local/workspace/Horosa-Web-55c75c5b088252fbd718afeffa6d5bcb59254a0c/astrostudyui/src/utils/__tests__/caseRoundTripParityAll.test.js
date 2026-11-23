@@ -192,7 +192,7 @@ describe('存案保真总闸 · 源码接线锚(防复辟)', ()=>{
 	});
 
 	it('🔴 applyCase 必须自增代次(不增则后缀恒定,等于没修),并同一次写下载入的 cid', ()=>{
-		const src = fs.readFileSync(path.join(helper.UI_SRC, 'models/user.js'), 'utf8');
+		const src = readSource(path.join(helper.UI_SRC, 'models/user.js'));   // 门面 + 子模块全集
 		expect(src).toContain('caseApplySeq: prevSeq + 1, appliedCaseCid: appliedCid');
 		// appliedCaseCid 只由 applyCase 写(别处写 = 编辑 / 存为事盘又被当成载入)
 		expect((src.match(/appliedCaseCid:/g) || []).length).toBe(2);   // 初值 + applyCase

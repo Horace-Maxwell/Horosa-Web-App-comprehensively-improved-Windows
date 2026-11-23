@@ -110,7 +110,7 @@ describe('金口诀起课', ()=>{
 	});
 
 	test('复原课 / 行年的位置确实推进两个代次', ()=>{
-		const t = fs.readFileSync(path.join(__dirname, '../../jinkou/JinKouMain.js'), 'utf8');
+		const t = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '../../jinkou/JinKouMain.js'));
 		expect(t).toContain('this._godsReqSeq = (this._godsReqSeq || 0) + 1;   // 在途的起课作废:课由存档复原');
 		expect(t).toContain('this._runYearReqSeq = (this._runYearReqSeq || 0) + 1;   // 在途的行年作废:行年由存档复原');
 	});

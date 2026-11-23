@@ -5,12 +5,12 @@
 `_build_snapshot` / `_with_seed` 也以 `import … as 原名` 从这里取。本模块无副作用。
 """
 
-import random
 import re
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from numbers import Integral, Real
 
+from astrostudy.truerandom import run_seeded
 from astrostudy.civil_calendar import (
     CivilDateTime, civil_datetime, civil_ymd_valid, display_year, format_display_date, parse_civil_date,
     stdlib_datetime_ok,
@@ -108,13 +108,8 @@ def plain_row(label, value):
 
 
 def with_seed(seed, func):
-    """以固定种子跑 func,结束后把全局 random 状态还原。"""
-    state = random.getstate()
-    try:
-        random.seed(seed)
-        return func()
-    finally:
-        random.setstate(state)
+    """按种子跑 func:真随机记录 → 回放记录;整数种子 → 标准库按种子播种,结束后把全局 random 状态还原。"""
+    return run_seeded(seed, func)
 
 
 DISPLAY_REPLACEMENTS = {

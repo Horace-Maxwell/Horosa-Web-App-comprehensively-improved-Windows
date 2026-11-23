@@ -1,4 +1,5 @@
 import React from 'react';
+import { SystemNotice, SystemNoticeButton } from './SystemNotice';
 import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAnalysisDesktop';
 import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
@@ -19,7 +20,7 @@ import { ServerRoot } from '../../utils/constants';
 //   保证可见(即便还没有业务请求失败);③「重启服务」走轻量 restart_local_services_command
 //   (只重启后端进程;老壳无此命令时回退全量修复命令,代数差安全)。
 //
-// 配色取中性告警色(琥珀),非术数语义色,明暗主题下均可读。
+// 外观走系统提示条统一件(SystemNotice):主题变量 + 信息 / 警告语气,亮暗都可读。
 export default function ServiceStatusBanner() {
   const [online, setOnline] = React.useState(true);
   const [retrying, setRetrying] = React.useState(false);
@@ -135,93 +136,32 @@ export default function ServiceStatusBanner() {
 
   if (online && !infoMsg) return null;
 
-  // audit 修:pointerEvents 父 none 会吞掉子元素事件 → 改为父 auto + 用 transparent 占位让背景能透过点击。
-  // 关键:把横幅本身放进一个 fit-content 的内联块,周围空白用 pointer-events:none 包裹。
-  const wrapStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0,
-    zIndex: 2000,
-    display: 'flex', justifyContent: 'center',
-    pointerEvents: 'none', // 整个 wrap 让点击穿透
-  };
-
-  // 在线 + 仅信息提示:渲染中性信息横幅(蓝灰),可关闭,不带故障操作钮。
+  // 外层点穿、只有提示条本身收事件(SystemNotice 的样式里做了),不挡页面背后的点击。
+  // 在线 + 仅信息提示:信息语气,可关闭,不带故障操作钮。
   if (online && infoMsg) {
-    const infoBar = {
-      marginTop: 8,
-      maxWidth: '96%',
-      padding: '8px 14px',
-      borderRadius: 8,
-      fontSize: 13,
-      lineHeight: 1.4,
-      color: '#1d4e78',
-      background: 'rgba(230, 242, 252, 0.97)',
-      border: '1px solid rgba(84, 141, 191, 0.55)',
-      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)',
-      pointerEvents: 'auto',
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      cursor: 'default',
-    };
-    const infoBtn = {
-      padding: '3px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
-      border: '1px solid rgba(84, 141, 191, 0.7)',
-      background: 'rgba(255, 255, 255, 0.7)',
-      color: '#1d4e78',
-    };
     return (
-      <div style={wrapStyle} aria-live="polite">
-        <div style={infoBar}>
-          <span>ℹ️ {infoMsg}</span>
-          <button type="button" onClick={() => setInfoMsg('')} style={infoBtn}>知道了</button>
-        </div>
-      </div>
+      <SystemNotice tone="info" layer="notice">
+        <span>{infoMsg}</span>
+        <SystemNoticeButton onClick={() => setInfoMsg('')}>知道了</SystemNoticeButton>
+      </SystemNotice>
     );
   }
-  const barStyle = {
-    marginTop: 8,
-    maxWidth: '96%',
-    padding: '8px 14px',
-    borderRadius: 8,
-    fontSize: 13,
-    lineHeight: 1.4,
-    color: '#7a4f01',
-    background: 'rgba(255, 244, 222, 0.97)',
-    border: '1px solid rgba(214, 158, 46, 0.55)',
-    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)',
-    pointerEvents: 'auto', // 但 bar 本身收事件 - 子元素自动继承
-    display: 'flex',
-    gap: 12,
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    cursor: 'default',
-  };
-  const btnStyle = {
-    padding: '3px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
-    border: '1px solid rgba(214, 158, 46, 0.7)',
-    background: 'rgba(255, 255, 255, 0.7)',
-    color: '#7a4f01',
-  };
-
   return (
-    <div style={wrapStyle} aria-live="polite">
-      <div style={barStyle}>
-        <span>
-          {gaveUpMsg
-            ? `⚠️ ${gaveUpMsg}`
-            : '⚠️ 本地服务暂时不可达，正在自动探测恢复，操作会自动重试。'}
-        </span>
-        <button type="button" disabled={retrying} onClick={handleRetry} style={btnStyle}>
-          {retrying ? '正在重试…' : '立即重试'}
-        </button>
-        {hasTauri ? (
-          <button type="button" onClick={handleRestart} style={btnStyle}>🔧 重启服务</button>
-        ) : null}
-        {hasTauri ? (
-          <button type="button" onClick={handleDiag} style={btnStyle}>🔍 打开诊断</button>
-        ) : null}
-      </div>
-    </div>
+    <SystemNotice tone="warn" layer="notice">
+      <span>
+        {gaveUpMsg
+          ? gaveUpMsg
+          : '本地服务暂时不可达，正在自动探测恢复，操作会自动重试。'}
+      </span>
+      <SystemNoticeButton disabled={retrying} onClick={handleRetry}>
+        {retrying ? '正在重试…' : '立即重试'}
+      </SystemNoticeButton>
+      {hasTauri ? (
+        <SystemNoticeButton onClick={handleRestart}>重启服务</SystemNoticeButton>
+      ) : null}
+      {hasTauri ? (
+        <SystemNoticeButton onClick={handleDiag}>打开诊断</SystemNoticeButton>
+      ) : null}
+    </SystemNotice>
   );
 }

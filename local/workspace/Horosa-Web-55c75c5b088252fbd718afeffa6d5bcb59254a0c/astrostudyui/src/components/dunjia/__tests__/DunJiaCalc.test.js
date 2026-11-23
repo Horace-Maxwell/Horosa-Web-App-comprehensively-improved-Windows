@@ -436,8 +436,12 @@ describe('DunJiaCalc options', ()=>{
 	});
 
 	// 置闰超神接气:2015-12-22(超神距未达置闰阈值 dgap=8<9)→ 冬至阳遁七局中元(本引擎口径;用户确认正确,
-	//   参考实现按 dgap≥8 闰大雪给阴七,以本引擎为准)。中宫值符(天内寄中)时天盘照常飞布,非伏吟。
-	test('置闰超神接气:2015-12-22 冬至阳遁七局中元(dgap=8<9不置闰),中宫值符天盘飞布', ()=>{
+	//   参考实现按 dgap≥8 闰大雪给阴七,以本引擎为准)。
+	// 此刻是丙午时(甲辰旬,遁壬):壬在坤二 → 值符天芮(天内);时干丙是中五宫的干、寄坤 → 值符加坤 = 原地不动。
+	//   天盘干由九星带着本宫的地盘干走,星没动,天盘干就与地盘干逐宫相同(伏吟)。
+	//   这条用例早先锁的是「壬落巽、乙落坤…」那一圈:参考实现在这种情形从圈上最后一个干排起,九星八门八神都伏吟、
+	//   天盘干却转了两宫,与它自己的星盘矛盾 —— 已按「干随星走」改正(全年真盘对拍见 qimenOverlayOracle.test.js)。
+	test('置闰超神接气:2015-12-22 冬至阳遁七局中元(dgap=8<9不置闰);值符天芮、时干在中五 → 天盘干伏吟', ()=>{
 		const fields = makeFields('2015-12-22', '11:42:00');
 		const nongli = buildLocalNongliForTest('2015-12-22', '11:42:00');
 		const context = {
@@ -450,7 +454,12 @@ describe('DunJiaCalc options', ()=>{
 		expect(pan.juText).toEqual('阳遁七局中元');
 		expect(pan.zhiFu).toEqual('天内');
 		expect(pickMap(pan.diPan)).toEqual({ 1: '丁', 2: '庚', 3: '壬', 4: '癸', 6: '戊', 7: '己', 8: '辛', 9: '乙' });
-		expect(pickMap(pan.tianGan)).toEqual({ 1: '壬', 2: '戊', 3: '乙', 4: '庚', 6: '辛', 7: '丁', 8: '癸', 9: '己' });
+		expect(pan.ganzhi.time).toEqual('丙午');
+		expect(pickMap(pan.tianGan)).toEqual(pickMap(pan.diPan));
+		expect(pickMap(pan.tianGan)).toEqual({ 1: '丁', 2: '庚', 3: '壬', 4: '癸', 6: '戊', 7: '己', 8: '辛', 9: '乙' });
+		// 九星各在本宫(八门随值使按时辰另走:甲辰到丙午走两步,死门落巽,不在此列)
+		expect(pan.cells.filter((c)=>c.palaceNum !== 5).map((c)=>`${c.palaceNum}${c.tianXing}`).sort()).toEqual(
+			['1辅', '2英', '3内', '4冲', '6柱', '7任', '8蓬', '9心']);
 	});
 });
 

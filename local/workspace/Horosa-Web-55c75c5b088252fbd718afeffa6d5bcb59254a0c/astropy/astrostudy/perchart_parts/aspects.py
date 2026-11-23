@@ -8,6 +8,29 @@ from astrostudy.perchart_parts.chart_tables import excludeBad, isStrongGood, tak
 _ANTIPODE_PAIRS = frozenset([frozenset((const.ASC, const.DESC)), frozenset((const.MC, const.IC)),
                             frozenset((const.NORTH_NODE, const.SOUTH_NODE))])
 
+PARALLEL_ORB = 1.0
+
+
+def parallelGroups(decls, orb=PARALLEL_ORB):
+    """赤纬平行分组:每组 = 同号、两两赤纬差都不超过 orb 的极大集合。
+    decls 为 (点名, 赤纬) 序列。同号的点按赤纬排序,从每个点起向大的一侧取 orb 宽的窗,
+    不被前一个窗包含的、至少两点的窗就是一组 —— 组内任意两星都平行,组与组互不为子集,
+    与点的遍历顺序无关;相邻两组可以共用一颗星(10.0 / 10.8 / 11.6 → 前两颗一组、后两颗一组)。
+    赤纬为 0 的点不分南北,不入组。组内按点名排序,组间按 (首个点名, 整组) 排序。"""
+    groups = []
+    for sign in (1.0, -1.0):
+        pts = sorted(((d, oid) for oid, d in decls if d * sign > 0), key=lambda x: (x[0], x[1]))
+        prevEnd = -1
+        end = 0
+        for i in range(len(pts)):
+            end = max(end, i)
+            while end + 1 < len(pts) and pts[end + 1][0] - pts[i][0] <= orb:
+                end += 1
+            if end > i and end > prevEnd:
+                groups.append(sorted(oid for _, oid in pts[i:end + 1]))
+            prevEnd = max(prevEnd, end)
+    return sorted(groups, key=lambda grp: (grp[0], grp))
+
 
 class AspectsMixin:
     """相位与互容:接纳 / 互容 / 即时相位 / 日下状态 / 相位表 / 映点 / 星座相位 / 赤纬平行 / 扩展相位对象。"""
@@ -368,16 +391,19 @@ class AspectsMixin:
 
     def getParallel(self):
         # 上升 / 下降、天顶 / 天底、北交 / 南交是定义上的对点,赤纬恒互为相反数,永远「反平行」—— 不列,免得每张盘都多三条废话
+        # 平行按组列:每组是两两都在 1° 内的极大集合(parallelGroups)。此前按「甲已在某组就把乙并进去」链式并组,
+        # 组内首尾可差近 2°、同一对星既单列又并在大组里,且随遍历顺序变。反平行仍逐对列。
         res = {}
-        res['parallel'] = []
         res['contraParallel'] = {}
 
         planets = const.LIST_ALL_POINTS.copy()
+        decls = []
         for objA in planets:
             try:
                 planetA = self.chart.get(objA)
             except:
                 continue
+            decls.append((objA, planetA.decl))
             for objB in planets:
                 if objA == objB or frozenset((objA, objB)) in _ANTIPODE_PAIRS:
                     continue
@@ -385,21 +411,8 @@ class AspectsMixin:
                     planetB = self.chart.get(objB)
                 except:
                     continue
-                delta = abs(planetA.decl - planetB.decl)
                 sameSize = planetA.decl * planetB.decl > 0
-                if delta <= 1 and sameSize:
-                    found = False
-                    for pSet in res['parallel']:
-                        if objA in pSet:
-                            pSet.add(objB)
-                            found = True
-                            break
-                    if found is False:
-                        pSet = set()
-                        pSet.add(objA)
-                        pSet.add(objB)
-                        res['parallel'].append(pSet)
-                elif sameSize is False and abs(abs(planetA.decl) - abs(planetB.decl)) <= 1:
+                if sameSize is False and abs(abs(planetA.decl) - abs(planetB.decl)) <= PARALLEL_ORB:
                     if objA in res['contraParallel']:
                         res['contraParallel'][objA].add(objB)
                     else:
@@ -407,10 +420,8 @@ class AspectsMixin:
                         res['contraParallel'][objA] = set()
                         res['contraParallel'][objA].add(objB)
 
-        # set 迭代序随 PYTHONHASHSEED 跨进程漂移,同参请求在服务重启后响应字节不稳
-        # (2026-07 对拍实证:仅此字段序漂移,数值全同)。出口确定化:组内按 id 字典序,
-        # parallel 组间按首元素排序;纯排序,成员与数值零变。
-        res['parallel'] = sorted((sorted(pSet) for pSet in res['parallel']), key=lambda grp: grp[0])
+        res['parallel'] = parallelGroups(decls)
+        # set 迭代序随 PYTHONHASHSEED 跨进程漂移,同参请求在服务重启后响应字节不稳 → 出口按 id 字典序
         res['contraParallel'] = {objA: sorted(objBs) for objA, objBs in res['contraParallel'].items()}
         return res
 

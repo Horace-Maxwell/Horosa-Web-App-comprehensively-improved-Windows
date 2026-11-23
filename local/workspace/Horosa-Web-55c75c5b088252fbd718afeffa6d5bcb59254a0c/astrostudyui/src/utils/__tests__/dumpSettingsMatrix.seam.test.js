@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../techniqueMountSettings';
+import { sourceSetFiles } from './helpers/sourceSet';
 
 const enabled = process.env.HOROSA_DUMP_MATRIX === '1';
 const maybe = enabled ? it : it.skip;
@@ -22,7 +23,7 @@ maybe('dump TECHNIQUE_SETTINGS_SCHEMA 全展开矩阵', () => {
 	const schemaPath = path.join(__dirname, '..', 'techniqueMountSettings.js');
 	const out = {
 		dumpedBy: 'dumpSettingsMatrix.seam.test.js',
-		schemaFileBytes: fs.statSync(schemaPath).size,
+		schemaFileBytes: sourceSetFiles(schemaPath).reduce((n, f)=>n + fs.statSync(f).size, 0),   // 门面 + 子模块全集
 		techniques: {},
 	};
 	for(const [key, sch] of Object.entries(TECHNIQUE_SETTINGS_SCHEMA)){

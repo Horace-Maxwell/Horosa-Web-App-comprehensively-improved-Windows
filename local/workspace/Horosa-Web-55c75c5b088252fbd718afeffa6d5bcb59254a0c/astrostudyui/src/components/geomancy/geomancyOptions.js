@@ -16,3 +16,9 @@ export const QUESITED_HOUSE_OPTIONS = [
 ];
 // 转宫下拉只写宫名
 export const TURN_HOUSE_LABELS = ['一命', '二财', '三兄弟', '四田宅', '五子女', '六疾厄', '七夫妻', '八疾死', '九迁移', '十官禄', '十一福德', '十二玄秘'];
+
+// 行星地占盘星座对应表(地占页左栏与 AI 挂载齿轮同一份)
+export const PCHART_ZODIAC_OPTIONS = [
+	{ key: 'classical', label: '古典行星地占表(默认)', short: '古典' },
+	{ key: 'planetary_alt', label: '另一传本对应表', short: '传本乙' },
+];

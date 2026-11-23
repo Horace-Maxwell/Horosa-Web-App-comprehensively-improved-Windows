@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { clientToFixed } from '../../utils/zoomDomain';
 import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
 import XQIcon from '../xq-icons';
+import { useEscapeClose } from '../../utils/useEscapeClose';
 
 export function ZeriFloatClose({ onClose }){
 	return (
@@ -30,6 +31,7 @@ export function fitFloatBox(raw, minW, minH, vw, vh){
 }
 
 export default function ZeriFloatPanel({ title, sub, initialBox, minW = 380, minH = 320, onClose, bodyClassName = '', bodyStyle, children }){
+	useEscapeClose(onClose, typeof onClose === 'function');   // Esc 只关这一层浮窗(层栈,不连带关掉外面的工作台)
 	const [box, setBox] = useState(()=>{
 		const raw = typeof initialBox === 'function' ? initialBox() : initialBox;
 		const hasWin = typeof window !== 'undefined';

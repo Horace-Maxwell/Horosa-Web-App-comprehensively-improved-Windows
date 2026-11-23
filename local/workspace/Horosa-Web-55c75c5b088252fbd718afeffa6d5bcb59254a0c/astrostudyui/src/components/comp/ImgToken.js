@@ -2,6 +2,7 @@ import { Component } from 'react';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import { XQInput } from '../xq-ui';
+import { pressable } from '../../utils/pressable';
 
 
 class ImgToken extends Component{
@@ -54,7 +55,7 @@ class ImgToken extends Component{
 				<XQInput placeholder="验证码" style={{ width: '50%' }} onChange={this.changeInput} value={this.props.value} />
 				<img style={{ width: '49%', height: 32, marginTop: -5, marginLeft: '1%' }} 
 					alt='点击获取验证码图片'
-					onClick={this.clickTokenImg}
+					{...pressable(this.clickTokenImg)}
 					src={this.state.tokenImg} />
 
 			</div>

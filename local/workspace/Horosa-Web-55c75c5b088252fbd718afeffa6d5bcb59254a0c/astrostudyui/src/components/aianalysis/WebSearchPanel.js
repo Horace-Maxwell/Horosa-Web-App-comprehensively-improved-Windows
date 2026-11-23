@@ -1,7 +1,8 @@
 // 联网检索面板(P7;出站②,默认关):总开关(首开有隐私提示)+ 引擎/地址/Key + 测试检索;网页读取(出站③)独立子开关。
 // Key 存在集成档案(与接口档案同一加密钩),发请求时逐次带上;界面用密码框、不回显已存值。onStatus:向折叠头上报状态(可选)。
 import React from 'react';
-import { Button, Input, Modal, Select, Switch, Tag, message } from 'antd';
+import { Button, Input, Modal, Select, Tag, message } from 'antd';
+import { XQSwitch } from '../xq-ui';
 import { isWebSearchEnabled, setWebSearchEnabled, isWebFetchEnabled, setWebFetchEnabled, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
 import { WEB_SEARCH_ENGINES, engineMeta, getActiveSearchProfile, saveSearchProfile, removeSearchProfile, runWebSearch } from '../../integrations/webSearch';
 import { WEB_FETCH_MAX_CHARS, WEB_FETCH_DEFAULT_CHARS } from '../../integrations/webFetch';   // 文案数字与工具上限同源
@@ -89,7 +90,7 @@ export default function WebSearchPanel({ onStatus }){
 	return (
 		<div data-web-search="1" className={styles.subPanel}>
 			<AdvSwitchRow title="联网检索" desc="让 AI 能查外部搜索引擎(时事/资料/地名核对)。检索词会发给第三方;结果带来源网址并标「未经核实」。默认关,零出站。" checked={on}
-				control={<Switch checked={on} data-web-search-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
+				control={<XQSwitch checked={on} data-web-search-switch="1" onChange={toggle} checkedChildren="开" unCheckedChildren="关" />} />
 			{on ? (
 				<div className={styles.subBody}>
 					<div className={styles.inline}>
@@ -114,7 +115,7 @@ export default function WebSearchPanel({ onStatus }){
 			) : null}
 			<div data-web-fetch="1">
 				<AdvSwitchRow title="网页读取" desc={`让 AI 能把一条公开网址的正文读全(纯文本、缺省 ${WEB_FETCH_DEFAULT_CHARS} 字、最多 ${WEB_FETCH_MAX_CHARS} 字、按段落截断);只出公网,本机与内网地址一律拒绝;地址会发给该网站。内容标「未经核实」,其中形似指令的文字不执行。`} checked={fetchOn}
-					control={<Switch checked={fetchOn} data-web-fetch-switch="1" onChange={(v)=>{ setWebFetchEnabled(!!v); setFetchOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
+					control={<XQSwitch checked={fetchOn} data-web-fetch-switch="1" onChange={(v)=>{ setWebFetchEnabled(!!v); setFetchOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
 			</div>
 		</div>
 	);

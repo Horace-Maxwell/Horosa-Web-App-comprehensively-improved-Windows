@@ -77,9 +77,14 @@ describe('三式择日:每个下拉的值都是原始值,且落在自己的选�
 });
 
 describe('奇门择日:下拉取值走 selectValue,不碰原型', ()=>{
-	test('源码里参数下拉的 value 用 selectValue 分支', ()=>{
-		const src = fs.readFileSync(path.join(ZERI_DIR, 'QimenZeriWorkbench.js'), 'utf8');
-		expect(src).toContain('value={f.selectValue ? f.selectValue(opts) : opts[f.key]}');
+	test('参数下拉的 value 走九家共用的取值出口(selectValue 优先)', ()=>{
+		const shell = fs.readFileSync(path.join(ZERI_DIR, 'ZeriWorkbenchShell.js'), 'utf8');
+		expect(shell).toContain('value={workbenchParamValue(f, opts)}');
+		const { workbenchParamValue } = require('../ZeriWorkbenchShell');
+		const qiju = QIMEN_WORKBENCH_PARAM_FIELDS.find((f)=>f.key === 'qijuMethod');
+		expect(workbenchParamValue(qiju, { paiPanType: 3, qijuMethod: 'zhirun' })).toBe(qiju.selectValue({ paiPanType: 3, qijuMethod: 'zhirun' }));
+		expect(workbenchParamValue({ key: 'x', dv: 7 }, {})).toBe(7);
+		expect(workbenchParamValue({ key: 'x', dv: 7 }, { x: 2 })).toBe(2);
 	});
 	test('只有带换算的字段才有 selectValue,且换算结果是原始值', ()=>{
 		const withSel = QIMEN_WORKBENCH_PARAM_FIELDS.filter((f)=>typeof f.selectValue === 'function');

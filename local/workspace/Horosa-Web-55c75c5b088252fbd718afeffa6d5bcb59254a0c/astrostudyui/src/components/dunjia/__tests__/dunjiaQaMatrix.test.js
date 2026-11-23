@@ -53,8 +53,8 @@ describe('奇门新档压测大矩阵', ()=>{
 		Object.keys(NL).length && expect(true).toBe(true);
 	});
 
-	// ── ② 传本档笛卡尔:八神3×寄宫5×暗干5×暗支2 = 150,日家盘 ──
-	test('传本档笛卡尔150:零抛+暗干开档必产+快照注记一致律', ()=>{
+	// ── ② 传本档笛卡尔:八神3×寄宫6×暗干6×暗支2 = 216,日家盘 ──
+	test('传本档笛卡尔216:零抛+暗干开档必产+快照注记一致律', ()=>{
 		const d = '2026-02-17', t = '10:00:00';
 		let n = 0;
 		GODS_PRESET_OPTIONS.forEach((g)=>{
@@ -79,7 +79,7 @@ describe('奇门新档压测大矩阵', ()=>{
 				});
 			});
 		});
-		expect(n).toBe(3 * 5 * 5 * 2);
+		expect(n).toBe(3 * 6 * 6 * 2);
 	});
 
 	// ── ③ 飞盘组:顺飞2³×中门2×显示2=32 × 阴阳两盘 ──
@@ -253,6 +253,7 @@ describe('挂载齿轮/导出/存档链', ()=>{
 		// 豁免:挂载专属键(不进独立页 options 的合法键,新增须写理由)
 		const EXEMPT = new Set([
 			'faRelatedPeople',   // 相关人员:独立页在 state 非 options,挂载走 payload 顶层同名
+			'relatedRecordIds',  // 相关人员的命盘档案 id(AI 挂载专属):重算 computeQimenPanForCase 取生年干覆盖 faRelatedPeople,不进独立页 options
 			'chartCategory',     // 盘类:独立页在 state 非 options
 		]);
 		const bad = qimenSchema.fields.map((f)=>f.name).filter((n)=>!dmKeys.has(n) && !EXEMPT.has(n));

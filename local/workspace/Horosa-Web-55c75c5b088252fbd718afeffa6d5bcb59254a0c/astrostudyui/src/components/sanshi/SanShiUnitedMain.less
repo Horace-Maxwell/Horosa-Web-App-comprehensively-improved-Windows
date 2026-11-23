@@ -89,7 +89,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--horosa-fs-body);
   color: var(--horosa-text-soft);
 }
 
@@ -99,7 +99,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 0 9px;
-  font-size: 15px;
+  font-size: var(--horosa-fs-subtitle);
   line-height: 1;
   color: var(--horosa-text);
   font-weight: 600;
@@ -127,31 +127,31 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--horosa-fs-small);
   color: var(--horosa-muted);
   font-weight: 500;
 }
 
 .dateMetaLabel {
-  font-size: 12px;
+  font-size: var(--horosa-fs-small);
   color: var(--horosa-muted);
   font-weight: 500;
 }
 
 .dateMetaValue {
-  font-size: 13px;
+  font-size: var(--horosa-fs-body);
   color: var(--horosa-text-soft);
   font-weight: 600;
 }
 
 .dateTime {
-  font-size: 13px;
+  font-size: var(--horosa-fs-body);
   color: var(--horosa-text-soft);
   font-weight: 500;
 }
 
 .dateInlineTime {
-  font-size: 12px;
+  font-size: var(--horosa-fs-small);
   color: var(--horosa-muted);
   font-weight: 500;
 }
@@ -187,7 +187,7 @@
 }
 
 .pillarGan {
-  font-size: 18px;
+  font-size: var(--horosa-fs-title);
   line-height: 18px;
   font-weight: 700;
   color: var(--horosa-text);
@@ -195,7 +195,7 @@
 
 .pillarZhi {
   margin-top: 2px;
-  font-size: 18px;
+  font-size: var(--horosa-fs-title);
   line-height: 18px;
   font-weight: 700;
   color: var(--horosa-text-soft);
@@ -217,7 +217,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: var(--horosa-fs-subtitle);
   line-height: 1;
   margin: 0 auto;
 }
@@ -243,7 +243,7 @@
   border: 1px solid var(--horosa-border);
   background: var(--horosa-panel-soft);
   color: var(--horosa-text-soft);
-  font-size: 15px;
+  font-size: var(--horosa-fs-subtitle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -282,7 +282,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--horosa-fs-small);
   line-height: 1;
 }
 
@@ -385,6 +385,11 @@
   font-weight: 500;
 }
 
+/* 地支 + 建星一组(左栏「十二建星」开):整组按地支原来的锚点定位,建星在同一行、朝锚点反方向长 */
+.outerBranchGroup {
+  gap: 2px;
+}
+
 // 虚实红绿点:绝对定位于地支宫格朝盘心一侧(具体位置由 WEAK_SOLID_POS 行内给出),横排;描边+投影明暗两态皆可辨。
 .outerWeakSolid {
   position: absolute;
@@ -433,6 +438,12 @@
   height: 11%;
   transform: translate(-50%, -50%);
   pointer-events: auto;
+}
+
+/* 格旁空格(奇门环上每宫顺时针一侧那一格):暗干与推演标记,由 QimenCellOverlay 按格算好落位 */
+.qmSide {
+  position: absolute;
+  pointer-events: none;
 }
 
 .lrMark {
@@ -627,7 +638,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
-  font-size: 20px;
+  font-size: var(--horosa-fs-title-lg);
   line-height: 1;
   color: var(--horosa-text, #222);
 }
@@ -657,7 +668,7 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  font-size: 20px;
+  font-size: var(--horosa-fs-title-lg);
   line-height: 1.1;
   color: var(--horosa-text);
   font-weight: 700;
@@ -680,57 +691,57 @@
     grid-template-columns: 1fr 164px;
   }
   .dateLabel {
-    font-size: 13px;
+    font-size: var(--horosa-fs-body);
   }
   .dateValue {
-    font-size: 15px;
+    font-size: var(--horosa-fs-subtitle);
   }
   .dateMetaText,
   .dateMetaLabel {
-    font-size: 11px;
+    font-size: var(--horosa-fs-caption);
   }
   .dateMetaValue {
-    font-size: 12px;
+    font-size: var(--horosa-fs-small);
   }
   .dateTime {
-    font-size: 12px;
+    font-size: var(--horosa-fs-small);
   }
   .pillarGan,
   .pillarZhi {
-    font-size: 18px;
+    font-size: var(--horosa-fs-title);
     line-height: 18px;
   }
   .metaTitle,
   .metaValue {
-    font-size: 13px;
+    font-size: var(--horosa-fs-body);
     min-height: 30px;
   }
   .ssItem,
   .ssValue {
-    font-size: 12px;
+    font-size: var(--horosa-fs-small);
     min-height: 26px;
   }
   .outerBranch {
-    font-size: 16px;
+    font-size: var(--horosa-fs-title-sm);
   }
   .qmTianGan,
   .qmGod,
   .qmDiGan,
   .qmStar {
-    font-size: 12px;
+    font-size: var(--horosa-fs-small);
   }
   .centerKe,
   .centerChuan {
-    font-size: 11px;
+    font-size: var(--horosa-fs-caption);
   }
   .bottomBox {
     grid-template-columns: 1fr 88px;
   }
   .bottomCell {
-    font-size: 16px;
+    font-size: var(--horosa-fs-title-sm);
     min-height: 34px;
   }
   .bottomRight {
-    font-size: 16px;
+    font-size: var(--horosa-fs-title-sm);
   }
 }

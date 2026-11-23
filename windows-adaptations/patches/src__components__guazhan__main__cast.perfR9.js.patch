@@ -1,0 +1,25 @@
+diff --git a/astrostudyui/src/components/guazhan/main/cast.js b/astrostudyui/src/components/guazhan/main/cast.js
+index aa64fc97..cb1dd555 100644
+--- a/astrostudyui/src/components/guazhan/main/cast.js
++++ b/astrostudyui/src/components/guazhan/main/cast.js
+@@ -16,6 +16,7 @@ import { setNongliLocalCache } from '../../../utils/localCalcCache';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../../utils/dayBoundary';
+ import { matchesUserQuery } from '../../../utils/scriptMode';
+ import { guaDescIdsOf, fetchGuaDescByIds, GUAZHAN_PAGE_SETTINGS } from './snapshot';
++import { markPanelReady } from '../../../utils/perfMark';
+ 
+ export const castMethods = {
+ 	clickTimeGua(fields){
+@@ -107,6 +108,12 @@ export const castMethods = {
+ 		if(nowKey !== key){ return; }
+ 		this.setState({
+ 			guaDesc: desc,
++		}, ()=>{
++			// horosa_panel_ready_v1:六爻的落定点。任何一次交互(改时间→requestNongli→genTimeGua、
++			// 点爻、起卦)最终都收束到「取卦辞回来」这一次 setState —— 中栏卦象(yao/currentGua)
++			// 在更早一次 setState 已落,右栏断卦(getLiuyaoAnalysis 由 yao+nongli 同步派生)与卦辞
++			// 面板在本次落完。故这里是本族最后一次绘制提交。
++			markPanelReady('guazhan');
+ 		});
+ 	},
+ 

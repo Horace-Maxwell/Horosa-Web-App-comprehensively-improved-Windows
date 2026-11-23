@@ -5,6 +5,8 @@ from __future__ import annotations
 import random
 from typing import Dict, Optional, Tuple
 
+from ..truerandom import system_random
+
 SIKIDY_COL_NAMES = {
     1: "Tale", 2: "Maly", 3: "Fahatelo", 4: "Bilady", 5: "Fianahana", 6: "Abidy",
     7: "Betsimisay", 8: "Fahavalo", 9: "Fahasivy", 10: "Omasina", 11: "Haja",
@@ -17,7 +19,7 @@ def _xorcol(a: Tuple[int, ...], b: Tuple[int, ...]) -> Tuple[int, ...]:
 
 
 def cast_sikidy(rng: Optional[random.Random] = None) -> Dict[int, Tuple[int, int, int, int]]:
-    r = rng or random
+    r = rng or system_random()
     col: Dict[int, Tuple[int, ...]] = {}
     for c in range(1, 5):
         col[c] = tuple(r.randint(0, 1) for _ in range(4))

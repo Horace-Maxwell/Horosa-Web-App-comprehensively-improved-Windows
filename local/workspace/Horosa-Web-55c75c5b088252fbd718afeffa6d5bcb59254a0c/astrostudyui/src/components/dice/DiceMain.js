@@ -17,7 +17,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { randomStr, randomNum,} from '../../utils/helper';
+import { randomInt } from '../../utils/trueRandom';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
@@ -278,15 +278,11 @@ class DiceMain extends Component{
 		const _zone = this.state.zone || '+08:00';
 		const _m = moment().utcOffset(_zone);
 		let datetime = new DateTime({ ad: 1, zone: _zone, year: _m.year(), month: _m.month() + 1, date: _m.date(), hour: _m.hour(), minute: _m.minute(), second: _m.second() });
-		let ran = randomNum(3);
-		let ranPlanet = ran % ALL_PLANETS.length;
-		let planet = ALL_PLANETS[ranPlanet];
-		if(this.state.tradition){
-			ranPlanet = ran % TRAD_PLANETS.length;
-			planet = TRAD_PLANETS[ranPlanet];
-		}
-		let ranSign = randomNum(3) % 12;
-		let ranHouse = randomNum(3) % 12;
+		// 三颗骰子各掷一次:星、座、宫都在各自的面数上等概率取(真随机,见 utils/trueRandom.js)
+		const pool = this.state.tradition ? TRAD_PLANETS : ALL_PLANETS;
+		let planet = pool[randomInt(pool.length)];
+		let ranSign = randomInt(12);
+		let ranHouse = randomInt(12);
 		let params = {
 			date: datetime.format('yyyy-MM-dd'),
 			time: datetime.format('HH:mm:ss'),

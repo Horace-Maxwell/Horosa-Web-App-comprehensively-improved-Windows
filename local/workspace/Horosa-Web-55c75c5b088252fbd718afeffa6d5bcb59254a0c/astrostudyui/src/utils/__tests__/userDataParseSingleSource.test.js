@@ -9,6 +9,7 @@ import { classifyStorageKey } from '../storageKeyRegistry';
 import { readUserDataJson, listCorruptArchives, listCorruptUnarchivedKeys, safeLocalStorageSet, __resetCorruptUnarchivedForTests } from '../safeStorage';
 
 const { parseModule } = require('./helpers/importSpecs');
+const { facadeOf } = require('./helpers/sourceSet');
 const traverse = require('@babel/traverse').default;
 const SRC = path.resolve(__dirname, '../..');
 // 自带留档 / 只读不写的单源文件
@@ -79,7 +80,9 @@ describe('源码合同(登记表驱动):用户数据键读端走单源', ()=>{
 		const bad = [];
 		walk(SRC, []).forEach((f)=>{
 			const rel = path.relative(SRC, f).split(path.sep).join('/');
-			if(SINGLE_SOURCE_FILES.has(rel)){ return; }
+			// 按职责拆进子目录的门面:子文件与门面同一身份(读写可能分落在门面与子文件里,按门面认才不漏不误)
+			const owner = facadeOf(f);
+			if(SINGLE_SOURCE_FILES.has(owner ? path.relative(SRC, owner).split(path.sep).join('/') : rel)){ return; }
 			const src = fs.readFileSync(f, 'utf8');
 			if(src.indexOf('JSON.parse(') < 0){ return; }
 			selfParsedAndWritten(src).forEach((h)=>bad.push(`${rel}:${h.line} ${h.key}`));

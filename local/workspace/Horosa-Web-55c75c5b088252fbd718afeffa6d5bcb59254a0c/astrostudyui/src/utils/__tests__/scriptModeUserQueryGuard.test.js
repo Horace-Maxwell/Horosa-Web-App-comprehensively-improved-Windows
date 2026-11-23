@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const parser = require('@babel/parser');
+const { readSource, facadeOf, sourceSetFiles } = require('./helpers/sourceSet');
 const traverse = require('@babel/traverse').default;
 
 const SRC = path.resolve(__dirname, '../..');
@@ -47,7 +48,7 @@ const EXEMPT = {
 	'utils/aiTools/normalize/place.js|h.c._name.indexOf(head)': '同上',
 	'utils/aiTools/normalize/place.js|h.c._en.indexOf(head.toLowerCase())': '同上',
 	'utils/localRecordStore.js|grp.indexOf(tag)': '标签筛选:下拉里选中的标签值与记录标签数组精确比对(值即原值,不是文字检索)',
-	'components/dunjia/DunJiaCalc.js|YANG_JIEQI.indexOf(jqCur)': '节气常量表里查当前节气(term 是节气名数据,不是输入)',
+	'components/dunjia/calc/yinyangdun.js|YANG_JIEQI.indexOf(jqCur)': '节气常量表里查当前节气(term 是节气名数据,不是输入)',
 	'utils/preciseCalcBridge.js|uniq.indexOf(t)': '节气名去重(term 是节气名数据,不是检索词)',
 	'utils/aiChat/commands.js|it.value.indexOf(q)': '年份参数补全:候选值是四位数字,与输入的数字前缀比(无汉字可归一)',
 };
@@ -135,10 +136,15 @@ function parse(code){
 }
 
 // 返回 [{ snippet, line, why }]
-function scan(code){
+// unitCode:文件所属组件的全集文本(门面 + 子模块)。检索框与它的处理函数、处理函数与比对处常分在不同子文件里
+// (类方法按职责拆出),「检索框写进来的状态名」按整个组件收;比对仍逐文件判、行号按本文件。
+function scan(code, unitCode){
 	let ast;
 	try{ ast = parse(code); }catch(e){ return [{ snippet: '', line: 0, why: `解析失败:${e.message}` }]; }
-	const stateNames = inputStateNames(ast, code);
+	let stateNames = inputStateNames(ast, code);
+	if(unitCode && unitCode !== code){
+		try{ stateNames = new Set([...stateNames, ...inputStateNames(parser.parse(unitCode, { sourceType: 'module', plugins: PLUGINS, errorRecovery: true }), unitCode)]); }catch(e){ /* 全集解析不了就只用本文件 */ }
+	}
 	// 表格列的自由文字筛选(同一列对象里有 filterDropdown 的 onFilter):第一个参数就是用户输入的检索词
 	const userParams = new Set();
 	traverse(ast, {
@@ -261,7 +267,8 @@ describe('用户输入的检索比对都经单源归一(界面简繁)', () => {
 		if(SELF.has(rel)){ return; }
 		if(!/\.(indexOf|lastIndexOf|includes|startsWith|endsWith|search|match)\(|RegExp\(/.test(code)){ return; }
 		scanned += 1;
-		scan(code).forEach((b)=>{
+		const unit = facadeOf(file) || (sourceSetFiles(file).length > 1 ? file : null);
+		scan(code, unit ? readSource(unit) : null).forEach((b)=>{
 			const ex = exemptKey(rel, b.snippet);
 			if(ex){ used.add(ex); return; }
 			(report[rel] = report[rel] || []).push(`${b.line}: ${b.why} —— ${b.snippet.slice(0, 120)}`);

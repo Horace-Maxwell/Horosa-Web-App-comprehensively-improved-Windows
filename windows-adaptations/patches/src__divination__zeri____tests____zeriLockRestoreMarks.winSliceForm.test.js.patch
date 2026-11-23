@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js b/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
-index 66f75596..fe669664 100644
+index e9378810..92af6f1a 100644
 --- a/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
 +++ b/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
-@@ -124,8 +124,17 @@ describe('六壬 / 太乙 / 三式内嵌页:存案标记只由载入存案置、
- 		const t = fs.readFileSync(path.join(SRC, 'components', 'sanshi', 'SanShiUnitedMain.js'), 'utf8');
+@@ -125,8 +125,17 @@ describe('六壬 / 太乙 / 三式内嵌页:存案标记只由载入存案置、
+ 		const t = readSource(path.join(SRC, 'components', 'sanshi', 'SanShiUnitedMain.js'));
  		expect(t).toMatch(/this\._zeriRestoredLocks = zeriRestoredLockMarks\(this\.props\.zeriLocked, normalizedOptions\)/);
  		expect(t).toMatch(/this\._zeriRestoredLocks = clearZeriLockMarks\(this\._zeriRestoredLocks, partial\)/);
 +		// horosa_win_slice_form_v1(Windows 侧移植适配):合一页左栏在我方渲染切片里是子组件 SanShiInputPanel(见 SanShiUnitedMain 的

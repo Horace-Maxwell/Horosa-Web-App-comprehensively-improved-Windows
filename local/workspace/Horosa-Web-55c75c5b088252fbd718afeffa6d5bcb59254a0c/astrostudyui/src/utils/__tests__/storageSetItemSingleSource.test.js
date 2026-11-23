@@ -4,6 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 import { safeLocalStorageSet, safeStorageSetOn } from '../safeStorage';
+const { facadeOf } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '../..');
 
@@ -32,9 +33,15 @@ function walk(dir, out){
 	return out;
 }
 
+// 白名单按文件身份认:按职责拆进子目录的门面,子文件与门面同一身份(拆分只是搬家,写入点没多)
+function allowedKey(rel){
+	const f = facadeOf(path.join(SRC, rel));
+	return f ? path.relative(SRC, f).split(path.sep).join('/') : rel;
+}
+
 function scanText(rel, text){
 	const bad = [];
-	if(ALLOWED[rel]){ return bad; }
+	if(ALLOWED[allowedKey(rel)]){ return bad; }
 	text.split('\n').forEach((line, i)=>{
 		if(line.indexOf('.setItem(') < 0){ return; }
 		const t = line.trim();
@@ -75,6 +82,9 @@ describe('源码合同', ()=>{
 		expect(scanText('components/x/Foo.js', '// storage.setItem(k, v) 旧写法')).toEqual([]);
 		expect(scanText('utils/aiAgent/tasks/taskRegistry.js', 'window.sessionStorage.setItem(WINDOW_ID_KEY, id);')).toEqual([]);
 		expect(scanText('utils/aiAgent/tasks/taskRegistry.js', 'window.localStorage.setItem("x", id);').length).toBe(1);
+		// 门面的登记子文件与门面同一身份;同目录下没登记的文件不沾光
+		expect(scanText('utils/localRecordStore/trashOps.js', 'storage.setItem(trashKey, text);')).toEqual([]);
+		expect(scanText('utils/localRecordStore/notRegistered.js', 'storage.setItem(k, v);').length).toBe(1);
 	});
 });
 

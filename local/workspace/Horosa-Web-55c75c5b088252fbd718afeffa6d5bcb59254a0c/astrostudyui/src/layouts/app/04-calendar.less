@@ -111,10 +111,11 @@
     }
 
     .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right > .ant-tabs-nav {
+        --horosa-rail-tint: var(--horosa-nav-bg);
         width: 136px;
         padding: 10px 8px;
         border-left: 1px solid var(--horosa-border);
-        background: var(--horosa-nav-bg);
+        background: var(--horosa-rail-tint);
     }
 
     .horosa-workspace-shell .horosa-cnyibu-page > .ant-tabs-right > .ant-tabs-nav {
@@ -139,7 +140,7 @@
         margin: 2px 0;
         padding: 0 8px;
         border-radius: 7px;
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         white-space: nowrap;
     }
 
@@ -219,7 +220,7 @@
     }
     .horosa-workspace-shell .horosa-calendar-page .horosa-calendar-tabs.ant-tabs-right .ant-tabs-tab .ant-tabs-tab-btn {
         white-space: nowrap;
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         font-weight: 600;
         letter-spacing: 1.5px;
         color: var(--horosa-text-soft) !important;
@@ -490,7 +491,7 @@
         border-radius: 7px;
         background: var(--horosa-panel-soft);
         color: var(--horosa-text-soft);
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         font-weight: 700;
     }
 
@@ -701,7 +702,7 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
-        font-size: 13px;
+        font-size: var(--horosa-fs-body);
         color: var(--horosa-text);
     }
     .horosa-workspace-shell .horosa-huangli-head {
@@ -715,7 +716,7 @@
             linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
             var(--horosa-calendar-heading-bg);
     }
-    .horosa-workspace-shell .horosa-huangli-head-solar { font-size: 15px; font-weight: 700; }
+    .horosa-workspace-shell .horosa-huangli-head-solar { font-size: var(--horosa-fs-subtitle); font-weight: 700; }
     .horosa-workspace-shell .horosa-huangli-head-lunar { color: var(--horosa-text-soft); }
     .horosa-workspace-shell .horosa-huangli-head-gz,
     .horosa-workspace-shell .horosa-huangli-head-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
@@ -723,7 +724,7 @@
         margin: 0; padding: 0 7px; border-radius: 5px;
         border: 1px solid var(--horosa-border);
         background: var(--horosa-panel-soft);
-        color: var(--horosa-text-soft); font-size: 12px;
+        color: var(--horosa-text-soft); font-size: var(--horosa-fs-small);
     }
 
     .horosa-workspace-shell .horosa-huangli-yiji {
@@ -745,14 +746,14 @@
         border: 1px solid var(--horosa-border); border-radius: 8px; overflow: hidden;
     }
     .horosa-workspace-shell .horosa-huangli-section-title {
-        padding: 5px 10px; font-weight: 700; font-size: 12px;
+        padding: 5px 10px; font-weight: 700; font-size: var(--horosa-fs-small);
         background: var(--horosa-panel-soft); color: var(--horosa-text-soft);
         border-bottom: 1px solid var(--horosa-border);
     }
     .horosa-workspace-shell .horosa-huangli-section-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
 
     .horosa-workspace-shell .horosa-huangli-kv { display: flex; gap: 8px; align-items: baseline; }
-    .horosa-workspace-shell .horosa-huangli-kv-label { flex: 0 0 52px; color: var(--horosa-muted); font-size: 12px; }
+    .horosa-workspace-shell .horosa-huangli-kv-label { flex: 0 0 52px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); }
     .horosa-workspace-shell .horosa-huangli-kv-value { flex: 1; min-width: 0; }
     .horosa-workspace-shell .horosa-huangli-kv-value.is-good { color: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-huangli-kv-value.is-bad { color: var(--horosa-jx-xiong); }
@@ -760,7 +761,7 @@
 
     .horosa-workspace-shell .horosa-huangli-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
     .horosa-workspace-shell .horosa-huangli-tag {
-        margin: 0; padding: 0 7px; border-radius: 5px; font-size: 12px;
+        margin: 0; padding: 0 7px; border-radius: 5px; font-size: var(--horosa-fs-small);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); color: var(--horosa-text-soft);
     }
     .horosa-workspace-shell .horosa-huangli-tag.is-good { color: var(--horosa-jx-ji); border-color: var(--horosa-jx-ji); }
@@ -769,7 +770,7 @@
     .horosa-workspace-shell .horosa-huangli-muted { color: var(--horosa-muted); }
     .horosa-workspace-shell .horosa-huangli-pengzu { line-height: 1.6; }
     .horosa-workspace-shell .horosa-huangli-row { display: flex; gap: 8px; align-items: baseline; }
-    .horosa-workspace-shell .horosa-huangli-tagline-label { flex: 0 0 32px; color: var(--horosa-muted); font-size: 12px; }
+    .horosa-workspace-shell .horosa-huangli-tagline-label { flex: 0 0 32px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); }
     .horosa-workspace-shell .horosa-huangli-pos { display: flex; flex-wrap: wrap; gap: 4px; }
 
     /* 时辰吉凶：一时辰一行（避免两列挤压把「宜」截断） */
@@ -791,24 +792,24 @@
 
     .horosa-workspace-shell .horosa-huangli-inline { display: flex; flex-wrap: wrap; gap: 12px; color: var(--horosa-text-soft); }
     .horosa-workspace-shell .horosa-huangli-divider { margin: 8px 0; border-top-color: var(--horosa-border); }
-    .horosa-workspace-shell .horosa-huangli-note { color: var(--horosa-muted); font-size: 12px; line-height: 1.55; }
+    .horosa-workspace-shell .horosa-huangli-note { color: var(--horosa-muted); font-size: var(--horosa-fs-small); line-height: 1.55; }
     .horosa-workspace-shell .horosa-huangli-yearbtn { margin-top: 8px; }
 
     /* ── 年度吉日榜（Modal 门户在 workspace-shell 外，选择器不带 shell 前缀；--horosa-* 变量在 :root 全局可用）── */
     .horosa-year-auspicious-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-    .horosa-year-auspicious-burial { color: var(--horosa-text-soft); font-size: 13px; }
+    .horosa-year-auspicious-burial { color: var(--horosa-text-soft); font-size: var(--horosa-fs-body); }
     .horosa-year-auspicious-list { max-height: calc(52 * var(--horosa-lvh, 1vh)); overflow: auto; }
     .horosa-year-auspicious-item { cursor: pointer; border-radius: 8px; padding: 8px 10px !important; transition: background 140ms ease; }
     .horosa-year-auspicious-item:hover { background: var(--horosa-accent-soft); }
     .horosa-year-auspicious-row { display: flex; flex-direction: column; gap: 6px; width: 100%; }
     .horosa-year-auspicious-date { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .horosa-ya-solar { font-weight: 700; color: var(--horosa-text); }
-    .horosa-ya-week, .horosa-ya-lunar { color: var(--horosa-text-soft); font-size: 12px; }
+    .horosa-ya-week, .horosa-ya-lunar { color: var(--horosa-text-soft); font-size: var(--horosa-fs-small); }
     .horosa-year-auspicious-reasons { display: flex; flex-wrap: wrap; gap: 4px; }
-    .horosa-year-auspicious-note { margin-top: 10px; color: var(--horosa-muted); font-size: 12px; line-height: 1.5; }
+    .horosa-year-auspicious-note { margin-top: 10px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); line-height: 1.5; }
     .horosa-year-auspicious-modal .horosa-huangli-tag,
     .horosa-year-auspicious-modal .horosa-huangli-gz {
-        margin: 0; padding: 0 7px; border-radius: 5px; font-size: 12px;
+        margin: 0; padding: 0 7px; border-radius: 5px; font-size: var(--horosa-fs-small);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); color: var(--horosa-text-soft);
     }
     .horosa-year-auspicious-modal .horosa-huangli-tag.is-good { color: var(--horosa-jx-ji); border-color: var(--horosa-jx-ji); }
@@ -848,13 +849,13 @@
         box-shadow: var(--horosa-small-shadow);
         padding: 12px;
     }
-    .horosa-workspace-shell .horosa-tongshu-school-note { margin: 4px 0 8px; color: var(--horosa-muted); font-size: 12px; line-height: 1.5; }
+    .horosa-workspace-shell .horosa-tongshu-school-note { margin: 4px 0 8px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); line-height: 1.5; }
     .horosa-workspace-shell .horosa-tongshu-date { margin-bottom: 4px; }
 
     .horosa-workspace-shell .horosa-tongshu-month { display: flex; flex-direction: column; gap: 4px; }
     .horosa-workspace-shell .horosa-tongshu-dayrow {
         display: flex; align-items: center; gap: 8px;
-        padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px;
+        padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: var(--horosa-fs-body);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft);
         transition: border-color 140ms ease, background 140ms ease;
     }
@@ -869,7 +870,7 @@
 
     .horosa-workspace-shell .horosa-tongshu-detail { display: flex; flex-direction: column; gap: 10px; }
     .horosa-workspace-shell .horosa-tongshu-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-    .horosa-workspace-shell .horosa-tongshu-detail-date { font-size: 15px; font-weight: 700; }
+    .horosa-workspace-shell .horosa-tongshu-detail-date { font-size: var(--horosa-fs-subtitle); font-weight: 700; }
     .horosa-workspace-shell .horosa-tongshu-verdict {
         padding: 6px 10px; border-radius: 7px; font-weight: 700; text-align: center;
         border: 1px solid var(--horosa-border);
@@ -881,21 +882,21 @@
     .horosa-workspace-shell .horosa-tongshu-good { padding: 8px 10px; border-radius: 7px; color: var(--horosa-jx-ji); background: rgba(31, 138, 76, 0.08); border: 1px solid var(--horosa-jx-ji); line-height: 1.5; }
     .horosa-workspace-shell .horosa-tongshu-banyu { line-height: 1.75; color: var(--horosa-text); }
     .horosa-workspace-shell .horosa-tongshu-banyu.is-hit { color: var(--horosa-jx-ji); }
-    .horosa-workspace-shell .horosa-tongshu-note-line { color: var(--horosa-text-soft); font-size: 12px; line-height: 1.6; }
+    .horosa-workspace-shell .horosa-tongshu-note-line { color: var(--horosa-text-soft); font-size: var(--horosa-fs-small); line-height: 1.6; }
 
     /* 奇门叠数 */
     .horosa-workspace-shell .horosa-tongshu-qimen-head { font-weight: 700; margin-bottom: 4px; }
-    .horosa-workspace-shell .horosa-tongshu-qimen-best { color: var(--horosa-jx-ji); font-size: 13px; margin-bottom: 8px; }
+    .horosa-workspace-shell .horosa-tongshu-qimen-best { color: var(--horosa-jx-ji); font-size: var(--horosa-fs-body); margin-bottom: 8px; }
     .horosa-workspace-shell .horosa-tongshu-hours { display: flex; flex-direction: column; gap: 4px; }
     .horosa-workspace-shell .horosa-tongshu-hour {
-        display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px;
+        display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: var(--horosa-fs-body);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft);
     }
     .horosa-workspace-shell .horosa-tongshu-hour.is-good { border-left: 3px solid var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-tongshu-hour.is-bad { border-left: 3px solid var(--horosa-jx-xiong); }
     .horosa-workspace-shell .horosa-tongshu-hour.is-active { border-color: var(--horosa-accent); background: var(--horosa-accent-soft); }
     .horosa-workspace-shell .horosa-tongshu-hour-zhi { flex: 0 0 40px; font-weight: 700; }
-    .horosa-workspace-shell .horosa-tongshu-hour-range { flex: 0 0 auto; min-width: 56px; color: var(--horosa-muted); font-size: 12px; }
+    .horosa-workspace-shell .horosa-tongshu-hour-range { flex: 0 0 auto; min-width: 56px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); }
     .horosa-workspace-shell .horosa-tongshu-hour-sum { flex: 1 1 auto; min-width: 0; white-space: nowrap; color: var(--horosa-text-soft); }
     .horosa-workspace-shell .horosa-tongshu-hour > .horosa-huangli-tag { flex: 0 0 auto; margin-left: auto; }
 
@@ -911,8 +912,8 @@
     }
     .horosa-workspace-shell .horosa-tongshu-star.is-hit { border-color: var(--horosa-jx-ji); background: rgba(31, 138, 76, 0.06); }
     .horosa-workspace-shell .horosa-tongshu-star-name { font-weight: 700; color: var(--horosa-text); margin-bottom: 3px; }
-    .horosa-workspace-shell .horosa-tongshu-star-desc { color: var(--horosa-text-soft); font-size: 12px; line-height: 1.5; margin-bottom: 4px; }
-    .horosa-workspace-shell .horosa-tongshu-star-field { font-size: 12px; line-height: 1.6; color: var(--horosa-text-soft); opacity: 0.75; transition: none; }
+    .horosa-workspace-shell .horosa-tongshu-star-desc { color: var(--horosa-text-soft); font-size: var(--horosa-fs-small); line-height: 1.5; margin-bottom: 4px; }
+    .horosa-workspace-shell .horosa-tongshu-star-field { font-size: var(--horosa-fs-small); line-height: 1.6; color: var(--horosa-text-soft); opacity: 0.75; transition: none; }
     .horosa-workspace-shell .horosa-tongshu-star-field.is-active {
         color: var(--horosa-text); opacity: 1; font-weight: 600;
         background: var(--horosa-accent-soft); border-radius: 5px; padding: 1px 5px; margin: 1px -5px;
@@ -922,26 +923,26 @@
 
     /* 天元乌兔 */
     .horosa-workspace-shell .horosa-tongshu-wutu-head { font-weight: 700; margin-bottom: 4px; }
-    .horosa-workspace-shell .horosa-tongshu-wutu-best { color: var(--horosa-jx-ji); font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+    .horosa-workspace-shell .horosa-tongshu-wutu-best { color: var(--horosa-jx-ji); font-size: var(--horosa-fs-small); margin-bottom: 8px; line-height: 1.5; }
     .horosa-workspace-shell .horosa-tongshu-dayrow-jc.is-good { color: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-tongshu-dayrow-jc.is-bad { color: var(--horosa-jx-xiong); }
 
     /* 三元玄空 */
     .horosa-workspace-shell .horosa-tongshu-xuankong-head { font-weight: 700; margin-bottom: 4px; }
-    .horosa-workspace-shell .horosa-tongshu-xuankong-best { color: var(--horosa-jx-ji); font-size: 12px; margin-bottom: 8px; }
+    .horosa-workspace-shell .horosa-tongshu-xuankong-best { color: var(--horosa-jx-ji); font-size: var(--horosa-fs-small); margin-bottom: 8px; }
     .horosa-workspace-shell .horosa-tongshu-sizhu-row {
         display: grid; grid-template-columns: 2.8em 3em 1fr 3em 2.8em auto; gap: 8px; align-items: center;
-        padding: 6px 10px; border-radius: 7px; font-size: 13px;
+        padding: 6px 10px; border-radius: 7px; font-size: var(--horosa-fs-body);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); margin-bottom: 5px;
     }
     .horosa-workspace-shell .horosa-tongshu-sizhu-lab {
-        font-weight: 700; color: var(--horosa-on-accent); font-size: 12px; text-align: center;
+        font-weight: 700; color: var(--horosa-on-accent); font-size: var(--horosa-fs-small); text-align: center;
         padding: 1px 0; border-radius: 4px; background: var(--horosa-accent);
     }
     .horosa-workspace-shell .horosa-tongshu-sizhu-gz { font-weight: 700; }
     .horosa-workspace-shell .horosa-tongshu-sizhu-gua { min-width: 0; white-space: nowrap; color: var(--horosa-text); }
     .horosa-workspace-shell .horosa-tongshu-sizhu-wx { color: var(--horosa-jx-other); text-align: right; }
-    .horosa-workspace-shell .horosa-tongshu-sizhu-yun { color: var(--horosa-muted); font-size: 12px; text-align: right; }
+    .horosa-workspace-shell .horosa-tongshu-sizhu-yun { color: var(--horosa-muted); font-size: var(--horosa-fs-small); text-align: right; }
     .horosa-workspace-shell .horosa-tongshu-sizhu-row > .horosa-huangli-tag { justify-self: end; }
 
     /* ── 日子馆：三栏（左栏当事人表单 / 中排行 / 右详情），当事人卡竖排在左栏 ──
@@ -953,7 +954,7 @@
     }
     .horosa-workspace-shell .horosa-rizi-person-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .horosa-workspace-shell .horosa-rizi-person-role {
-        font-weight: 700; color: var(--horosa-on-accent); flex: 0 0 auto; font-size: 12px;
+        font-weight: 700; color: var(--horosa-on-accent); flex: 0 0 auto; font-size: var(--horosa-fs-small);
         padding: 1px 8px; border-radius: 5px; background: var(--horosa-accent);
     }
     .horosa-workspace-shell .horosa-rizi-person-name { flex: 1; min-width: 60px; }
@@ -961,14 +962,14 @@
     .horosa-workspace-shell .horosa-rizi-ranking-head { font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .horosa-workspace-shell .horosa-rizi-ranking-actions { display: inline-flex; align-items: center; gap: 12px; font-weight: 400; }
     .horosa-workspace-shell .horosa-rizi-showall {
-        cursor: pointer; color: var(--horosa-accent); font-size: 12px; font-weight: 600;
+        cursor: pointer; color: var(--horosa-accent); font-size: var(--horosa-fs-small); font-weight: 600;
         padding: 2px 8px; border: 1px solid var(--horosa-accent); border-radius: 999px; white-space: nowrap;
     }
     .horosa-workspace-shell .horosa-rizi-showall:hover { background: var(--horosa-accent-soft); }
-    .horosa-workspace-shell .horosa-rizi-computing { font-size: 12px; color: var(--horosa-muted); animation: horosa-rizi-pulse 1s ease-in-out infinite; }
+    .horosa-workspace-shell .horosa-rizi-computing { font-size: var(--horosa-fs-small); color: var(--horosa-muted); animation: horosa-rizi-pulse 1s ease-in-out infinite; }
     @keyframes ~":global(horosa-rizi-pulse)" { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
     .horosa-workspace-shell .horosa-rizi-rankrow {
-        display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px;
+        display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: var(--horosa-fs-body);
         border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); margin-bottom: 4px;
         transition: border-color 140ms ease, background 140ms ease;
     }
@@ -976,13 +977,13 @@
     .horosa-workspace-shell .horosa-rizi-rankrow.is-active { border-color: var(--horosa-accent); background: var(--horosa-accent-soft); }
     .horosa-workspace-shell .horosa-rizi-rank-no { flex: 0 0 24px; font-weight: 700; color: var(--horosa-jx-other); text-align: center; }
     .horosa-workspace-shell .horosa-rizi-rank-no.is-medal {
-        border-radius: 50%; line-height: 20px; height: 20px; color: #1a1207; font-size: 12px;
+        border-radius: 50%; line-height: 20px; height: 20px; color: #1a1207; font-size: var(--horosa-fs-small);
     }
     .horosa-workspace-shell .horosa-rizi-rank-no.is-medal-1 { background: linear-gradient(150deg, #ffe08a, #d4a02a); box-shadow: 0 0 6px rgba(212,160,42,0.5); }
     .horosa-workspace-shell .horosa-rizi-rank-no.is-medal-2 { background: linear-gradient(150deg, #eef1f5, #b7bfc9); }
     .horosa-workspace-shell .horosa-rizi-rank-no.is-medal-3 { background: linear-gradient(150deg, #f0b98a, #c07b45); }
     .horosa-workspace-shell .horosa-rizi-rank-date { flex: 0 0 88px; font-weight: 600; }
-    .horosa-workspace-shell .horosa-rizi-rank-week { flex: 0 0 30px; color: var(--horosa-muted); font-size: 12px; }
+    .horosa-workspace-shell .horosa-rizi-rank-week { flex: 0 0 30px; color: var(--horosa-muted); font-size: var(--horosa-fs-small); }
     .horosa-workspace-shell .horosa-rizi-rank-gz { flex: 0 0 40px; color: var(--horosa-text-soft); }
     .horosa-workspace-shell .horosa-rizi-rank-score { margin-left: auto; font-weight: 700; color: var(--horosa-jx-other); white-space: nowrap; flex-shrink: 0; }   /* 分数不折行(放大档窄栏里「11分」被挤成逐字竖排) */
     .horosa-workspace-shell .horosa-rizi-rank-score.is-hi { color: var(--horosa-jx-ji); }

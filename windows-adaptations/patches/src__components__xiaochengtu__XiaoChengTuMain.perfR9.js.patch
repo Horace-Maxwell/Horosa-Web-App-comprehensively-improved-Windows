@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-index fc0560f5..e754fcb9 100644
+index 15b4609c..44c452de 100644
 --- a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 +++ b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 @@ -18,6 +18,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';

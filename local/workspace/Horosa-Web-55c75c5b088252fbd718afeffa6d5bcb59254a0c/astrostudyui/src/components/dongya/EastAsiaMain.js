@@ -2,9 +2,9 @@
 // 全部在前端按出生资料算(易卦星盘另读本命盘的星位与宫位),与「其他」页其余技法同一版式:
 // 左栏时间地点与选项,中栏图,右栏表,最右是技法切换。
 import { Component } from 'react';
-import { InputNumber } from 'antd';
+
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
-import { XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { XQSelect as Select, XQTabs as Tabs, XQSideSection, XQInputNumber } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SmallTable, cardStyle } from '../astro/AstroExtraCommon';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -133,7 +133,7 @@ export default class EastAsiaMain extends Component{
 						</div>
 						<div className="horosa-side-field">
 							<div className="horosa-side-field-label">流年</div>
-							<InputNumber min={1} max={9999} value={this.state.flowYear || (model ? model.flowYear : null)} onChange={(v)=>this.setState({ flowYear: Number(v) || null })} style={{ width: '100%' }} />
+							<XQInputNumber min={1} max={9999} value={this.state.flowYear || (model ? model.flowYear : null)} onChange={(v)=>this.setState({ flowYear: Number(v) || null })} style={{ width: '100%' }} />
 						</div>
 						<div className="horosa-side-field">
 							<div className="horosa-side-field-label">算命学藏干表</div>

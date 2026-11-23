@@ -17,7 +17,7 @@ import {
 	buildJinKouSnapshotText, deriveBenMingFromRunYear as deriveJinkouBenMing,
 	deriveXuSuiFromRunYear as deriveJinkouXuSui,
 } from '../../components/jinkou/JinKouMain';
-import { buildGuaSnapshotText, buildTimeGua, buildLinesGua } from '../../components/guazhan/GuaZhanMain';
+import { buildGuaSnapshotText, buildTimeGua, buildLinesGua, withGuaDesc } from '../../components/guazhan/GuaZhanMain';
 import { buildHuangJiSnapshotForFields } from '../../components/huangji/HuangJiMain';
 import { buildTaiXuanSnapshotForFields } from '../../components/taixuan/TaiXuanMain';
 import { buildJingJueSnapshotForFields } from '../../components/jingjue/JingJueMain';
@@ -29,6 +29,9 @@ import { buildTarotSnapshotForFields } from '../../components/tarot/TarotMain';
 // 此前只调用未导入 → 挂载黄历事盘时抛 ReferenceError(同型问题先例:
 // 调用点在运行时闭包里,模块加载与渲染阶段都踩不到)。
 import { parseDateParts } from '../dateStrSafe';
+import { resolveDisplayRunYear } from '../../components/lrzhan/main/birthRunYear';
+import { liurengBenmingXingnian } from '../../components/lrzhan/main/panData';
+import { buildLocalBaziResult } from '../baziLunarLocal';
 import { resolveZhangshengElem } from './catalog';
 import { buildFieldObject, buildCaseSnapshotFields, buildCaseSnapshotParams } from './recordFields';
 import {
@@ -216,13 +219,36 @@ async function deriveNongliForRecord(record){
 }
 
 // [制度化] export 供全技法段登记哨兵真跑(aiExportSectionsParityAll.test):生产消费不变。
+// 问测人出生(挂载设置 querentBirth / querentGender;没有存档行年时用):行年按年差法(与六壬 / 金口诀页的兜底同一函数
+// resolveDisplayRunYear),本命支按出生公历年,出生年柱按本地八字引擎 —— 交给起课法「本命 / 行年」各档与金口诀属相 / 虚岁
+export function querentRunYearOf(record, p){
+	const bp = parseDateParts(p && p.querentBirth);
+	if(!bp || bp.year < 1 || (p && p.runyear)){ return null; }
+	const gp = parseDateParts(`${(record && (record.divTime || record.birth)) || ''}`);
+	if(!gp){ return null; }
+	const g = p.querentGender === 'female' || `${p.querentGender}` === '0' ? 0 : 1;
+	const birthF = { date: { value: { year: bp.year, ad: 1 } }, gender: { value: g } };
+	const guaF = { date: { value: { year: gp.year, ad: 1 } } };
+	const runyear = resolveDisplayRunYear(null, birthF, guaF);
+	if(!runyear){ return null; }
+	let birthGanZi = '';
+	try{
+		const r = buildLocalBaziResult({ date: `${bp.year}-${`${bp.month}`.padStart(2, '0')}-${`${bp.day}`.padStart(2, '0')}`, time: '12:00:00', zone: (record && record.zone) || '+08:00', gender: g });
+		birthGanZi = (r && r.bazi && r.bazi.fourColumns && r.bazi.fourColumns.year && r.bazi.fourColumns.year.ganZhi) || '';
+	}catch(e){ birthGanZi = ''; }
+	const bx = liurengBenmingXingnian(birthF, runyear);
+	return { runyear: { ...runyear, birthGanZi }, benmingZhi: bx.benmingZhi, xingnianZhi: bx.xingnianZhi };
+}
+
 export async function regenerateCaseTechniqueSnapshot(record, moduleName, payload){
 	const key = normalizeTechniqueKey(moduleName || (payload && payload.module) || (record && record.sourceModule) || '');
 	if(!record || !key){
 		return '';
 	}
 	// 六壬起课法等配置由「每技法设置」merge 进 payload 顶层（mergeOptionsIntoPayload optionsPath:''）→ 透传给 regenerate。
-	const p = payload && typeof payload === 'object' ? payload : {};
+	const p0 = payload && typeof payload === 'object' ? payload : {};
+	const qr = (key === 'liureng' || key === 'jinkou' || key === 'sanshiunited') ? querentRunYearOf(record, p0) : null;
+	const p = qr ? { ...p0, runyear: qr.runyear, benmingZhi: p0.benmingZhi || qr.benmingZhi, xingnianZhi: p0.xingnianZhi || qr.xingnianZhi } : p0;
 	const liurengOpts = {
 		// 起课时间算法:存档 clickSaveCase 与齿轮(optionsPath:'')都落 payload 顶层;此白名单漏它
 		// → 差分闸当场判 FAIL-DEAD(键进了 schema、无人消费)。透传后 requestLiurengGods 随参重取盘。
@@ -252,6 +278,16 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 		xingnianZhi: p.xingnianZhi,
 	};
 	switch(key){
+	case 'jieqi': {
+		// 分至(二分二至四盘 + 二十四节气):年份 = 起课时间那一年;与分至页同一份取数与正文
+		const { buildJieQiSnapshotForRecordFields } = await import(/* webpackChunkName: "jieqi-headless" */ '../../components/jieqi/JieQiChartsMain');
+		return buildJieQiSnapshotForRecordFields(buildFieldObject(record));
+	}
+	case 'mundane': {
+		// 世俗盘:按起课时间定事件(入宫 / 最近一次新满月 / 日月食)现算;页面同一份正文构建函数
+		const { buildMundaneSnapshotForRecord } = await import(/* webpackChunkName: "mundane-headless" */ './regenMundane');
+		return buildMundaneSnapshotForRecord(record, p);
+	}
 	case 'huangli': {
 		// 老黄历日课:纯日期确定复算(动态 import 保 AI chunk 不吃 calendar 组件树)
 		const prm = buildCaseSnapshotParams(record);
@@ -282,7 +318,7 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 	case 'liureng':
 		return regenerateLiurengSnapshot(record, liurengOpts, p.runyear);
 	case 'jinkou':
-		return regenerateJinkouSnapshot(record, payload);
+		return regenerateJinkouSnapshot(record, p);
 	case 'qimen':
 		return regenerateQimenSnapshot(record, payload);
 	case 'taiyi':
@@ -299,7 +335,8 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 		if(p.gua && (p.gua.currentGua || Array.isArray(p.gua.yao))){
 			const merged = mergeLiuyaoGearSettings(p.gua.liuyaoSettings || {}, lyGear || {});
 			await ensureLiuyaoDoctrineLoaded();   // 无头路径先把《断易天机》断语库载入缓存(此前未开过六爻页即静默缺断语行)
-			return buildGuaSnapshotText(buildCaseSnapshotFields(record), { ...p.gua, liuyaoSettings: merged });
+			// 存卦没带卦辞(无头建的事盘)时补取,与页面同一卦辞
+			return buildGuaSnapshotText(buildCaseSnapshotFields(record), await withGuaDesc({ ...p.gua, liuyaoSettings: merged }));
 		}
 		return regenerateSixyaoSnapshot(record, lyGear);
 	}
@@ -359,8 +396,16 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 	case 'guice': {
 		// 皇极轨策为问占型(无生时);选项嵌于 payload.options。
 		// 🔴 卦自 payload.gua 取、绝不按时重起(重起=伪造一个用户没见过的卦);故须整个 payload 一并递进去。
-		const { buildGuiceSnapshotForCase } = await import(/* webpackChunkName: "guice-main" */ '../../components/guice/GuiceMain');
-		return buildGuiceSnapshotForCase(p, (p.options && typeof p.options === 'object') ? p.options : {});
+		const gm = await import(/* webpackChunkName: "guice-main" */ '../../components/guice/GuiceMain');
+		let gp = p;
+		// 起课时间源(没有已存的卦):按「年月日时起例」起(缺省起法,时间即全部输入);已存的卦绝不重起
+		if(!(p.gua && p.gua.up) && record && record.sourceModule === ''){
+			try{
+				const { deriveLocalNongli } = await import('../divinationTimeDraft');
+				gp = gm.guiceTimeCastPayload(deriveLocalNongli(buildFieldObject(record)), p) || p;
+			}catch(e){ gp = p; }
+		}
+		return gm.buildGuiceSnapshotForCase(gp, (p.options && typeof p.options === 'object') ? p.options : {});
 	}
 	case 'xiaoliuren': {
 		// 小六壬:已存课(payload.nums)优先绝不覆盖;缺课(起课时间/事盘无存)→ 按占时正统起
@@ -514,7 +559,8 @@ export async function buildSixyaoCaseFromLines(record, lines, moving){
 	if(!nongli){ return null; }
 	const base = buildLinesGua(lines, moving, nongli);
 	if(!base){ return null; }
-	const gua = { ...base, guaOrigin: 'cast', liuyaoSettings: normalizeLiuyaoSettings(loadPersistedLiuyaoSettings()) };
+	// 卦辞随卦存进事盘(页面存卦也带卦辞),之后挂载 / 导出不再缺「卦辞与断语」
+	const gua = await withGuaDesc({ ...base, guaOrigin: 'cast', liuyaoSettings: normalizeLiuyaoSettings(loadPersistedLiuyaoSettings()) });
 	const snapshot = buildGuaSnapshotText(buildCaseSnapshotFields(rec), gua);
 	return snapshot ? { gua, snapshot } : null;
 }
@@ -537,7 +583,7 @@ async function regenerateSixyaoSnapshot(record, gearFlat){
 		const st = (gearFlat && typeof gearFlat === 'object' && Object.keys(gearFlat).length)
 			? { ...gua, liuyaoSettings: mergeLiuyaoGearSettings(gua.liuyaoSettings || {}, gearFlat) }
 			: gua;
-		return buildGuaSnapshotText(fields, st);
+		return buildGuaSnapshotText(fields, await withGuaDesc(st));
 	}catch(e){
 		return '';
 	}

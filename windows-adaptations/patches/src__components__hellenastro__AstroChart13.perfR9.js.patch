@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/hellenastro/AstroChart13.js b/astrostudyui/src/components/hellenastro/AstroChart13.js
-index f4695d2d..07a0f7ef 100644
+index 6ca525ad..0e39f2cb 100644
 --- a/astrostudyui/src/components/hellenastro/AstroChart13.js
 +++ b/astrostudyui/src/components/hellenastro/AstroChart13.js
 @@ -9,6 +9,7 @@ import { randomStr, } from '../../utils/helper';
- import styles from '../../css/styles.less';
+ import '../../css/styles.less';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { registerProcessCache } from '../../utils/processCacheRegistry';
 +import { markPanelReady } from '../../utils/perfMark';
  
- function fieldsToParams(fields){
- 	const params = {
-@@ -166,7 +167,11 @@ class AstroChart13 extends Component{
+ // export:AI 无头复算(aiAnalysisContext/derivedLabsHeadless)与页面同一份构参、同一份取数缓存
+ export function fieldsToParams(fields){
+@@ -167,7 +168,11 @@ class AstroChart13 extends Component{
  			chartObj: result,
  		};
  

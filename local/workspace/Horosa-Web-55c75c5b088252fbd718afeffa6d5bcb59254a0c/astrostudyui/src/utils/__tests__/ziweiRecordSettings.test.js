@@ -153,7 +153,7 @@ describe('还原', ()=>{
 		expect(fresh.currentZiweiSessionTables().sihua).toBe('{"甲":["太阳"]}');
 		fresh.dropZiweiSessionTablesUnlessFor('');
 		expect(fresh.currentZiweiSessionTables()).toEqual({ sihua: null, brightness: null });
-		const astroSrc = require('fs').readFileSync(require('path').join(__dirname, '../../models/astro.js'), 'utf8');
+		const astroSrc = require('./helpers/sourceSet').readSource(require('path').join(__dirname, '../../models/astro.js'));   // 门面 + 子模块全集
 		expect((astroSrc.match(/keepSessionFor\(/g) || []).length).toBe(4);   // 两处放弃 + 两处失败
 		const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/ziwei/ZiWeiInput.js'), 'utf8');
 		expect(src).toContain("clearZiweiSessionTables('sihua');");

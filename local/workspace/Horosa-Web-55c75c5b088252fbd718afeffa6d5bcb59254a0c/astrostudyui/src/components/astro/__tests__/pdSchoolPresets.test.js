@@ -1,4 +1,4 @@
-// 主限法流派预设守卫(P1-1):复刻 schoolPresets.test.js 的零回归断言模式。
+// 主限法流派预设守卫:复刻 schoolPresets.test.js 的零回归断言模式。
 // 🔴 默认档 'horosa' 各维必须 = 应用当前默认(pdMethod='core_alchabitius' 的解耦等价对
 // ptolemy×alcabitius + pdtype 0 + 顺逆双开 + Ptolemy 钥匙 + aspect 框架 + 平行关),
 // 保证选默认档 = 改动前主限表字节级一致。

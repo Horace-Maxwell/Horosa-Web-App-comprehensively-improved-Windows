@@ -1,7 +1,8 @@
 // 回答审阅批注(C6):批注列表(错误/夸大/漏项/无据 + 原句 + 理由 + 严重度)· 审阅模型(跨家族/同家族)· 是否对拍数据 · 程序核对条数 ·「按批注重写」「再审」;
 // 重写稿气泡标「按审阅重写稿」,被替代稿标「已重写」。data-review-* 供机读;零数据层 import。
 import React from 'react';
-import { Button, Space, Tag, Tooltip, Alert, Spin } from 'antd';
+import { Button, Space, Tag, Tooltip, Alert } from 'antd';
+import { XQSpin } from '../../xq-ui';
 import { REVIEW_KIND_LABELS, reviewSummaryLine } from '../../../utils/aiReview';
 
 export const REVIEW_KIND_COLORS = { error: 'red', exaggeration: 'orange', omission: 'gold', ungrounded: 'purple' };
@@ -19,7 +20,7 @@ export default function ReviewNotes({ item, busy, rewriting, onRewrite, onRerun,
 	return (
 		<div data-review-status={rv ? rv.status : ''} data-review-verdict={rv && rv.verdict ? rv.verdict : ''} data-review-issues={issues.length} style={{ marginTop: 6 }}>
 			{tags.length ? <div style={{ marginBottom: rv ? 6 : 0 }}><Space size={4} wrap>{tags}</Space></div> : null}
-			{rv && rv.status === 'running' ? <div style={{ fontSize: 12, color: 'var(--horosa-muted, #888)' }}><Spin size="small" /> 审阅中…{rv.model ? `(${rv.model})` : ''}</div> : null}
+			{rv && rv.status === 'running' ? <div style={{ fontSize: 12, color: 'var(--horosa-muted, #888)' }}><XQSpin size="small" /> 审阅中…{rv.model ? `(${rv.model})` : ''}</div> : null}
 			{rv && rv.status === 'error' ? <Alert type="warning" showIcon message={`审阅失败:${rv.error || '未知错误'}`} action={<Button size="small" onClick={onRerun} disabled={!!busy}>再审</Button>} /> : null}
 			{rv && rv.status === 'done' ? (
 				<div style={{ border: '1px solid var(--horosa-border, #e5e5e5)', borderRadius: 6, padding: '6px 10px', background: 'var(--horosa-surface-raised, #fafafa)' }}>

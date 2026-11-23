@@ -118,14 +118,21 @@ def _db_info_rows(stats):
     return rows
 
 
+def _dayun_value(number, verse):
+    """一运一行:「条文 1945｜条文正文」。号码前写明是条文号 —— 光写「10岁：1945」读起来像公元年份。"""
+    num = "" if number in (None, "") else str(number).strip()
+    text = _verse_text(verse)
+    return f"条文 {num}｜{text}" if num else text
+
+
 def _dayun_rows(dayun):
     rows = []
     for item in dayun or []:
         if isinstance(item, dict):
-            rows.append(row(f"{item.get('age', '')}岁", f"{item.get('tiaowen_number', '')}｜{_verse_text(item.get('tiaowen'))}"))
+            rows.append(row(f"{item.get('age', '')}岁", _dayun_value(item.get('tiaowen_number'), item.get('tiaowen'))))
         else:
             safe = json_safe(item)
-            rows.append(row(f"{safe.get('dayun_number', '')}岁", f"{safe.get('tiaowen_key', '')}｜{_verse_text(safe.get('tiaowen'))}"))
+            rows.append(row(f"{safe.get('dayun_number', '')}岁", _dayun_value(safe.get('tiaowen_key'), safe.get('tiaowen'))))
     return rows
 
 

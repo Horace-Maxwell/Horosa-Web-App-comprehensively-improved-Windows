@@ -1,0 +1,57 @@
+diff --git a/astrostudyui/src/components/planetarium/babylon/stateFlow.js b/astrostudyui/src/components/planetarium/babylon/stateFlow.js
+index cf14f5a0..0e0ac69e 100644
+--- a/astrostudyui/src/components/planetarium/babylon/stateFlow.js
++++ b/astrostudyui/src/components/planetarium/babylon/stateFlow.js
+@@ -5,12 +5,32 @@ import { fetchPlanetariumState } from '../../../services/planetarium';
+ import { PLANETARIUM_PERF_KEY } from './constants';
+ import { nowMs } from './skyMath';
+ import { starLimitForMag, buildRequestParams, buildInitialSceneParams, cachePlanetariumState, getCachedPlanetariumState, cachedStateMatches, sceneRequestSignature, isStarOnlyReason } from './sceneParams';
++import { markPanelReady } from '../../../utils/perfMark';
++import { planetariumRenderGatingEnabled } from '../../../utils/perfFlags';
+ 
+ export const stateFlowMethods = {
+ 	markInteraction(){
+ 		this.lastInteractionAt = nowMs();
+ 	},
+ 
++	// perf:planetariumRenderGating —— 依「可见 + 激活」决定渲染循环停/起。
++	// 本组件仅在天文馆为激活 tab 时挂载(切走即卸载释放),故此处实质门控的是窗口隐藏/最小化;
++	// 可见+激活时:照常满帧/降帧渲染,行为一字不动。
++	_applyRenderActivity(){
++		if(!this.renderer){
++			return;
++		}
++		const gate = planetariumRenderGatingEnabled();
++		const hidden = (typeof document !== 'undefined') && document.hidden;
++		const shouldRun = gate ? ((this.props.active !== false) && !hidden) : true;
++		if(shouldRun){
++			this.renderer.startRenderLoop();
++			this.renderer.renderOnce();
++		}else{
++			this.renderer.stopRenderLoop();
++		}
++	},
++
+ 	scheduleBackgroundFull(options = {}){
+ 		if(this._isUnmounted){
+ 			return;
+@@ -157,6 +177,9 @@ export const stateFlowMethods = {
+ 				catalogCount: data.meta ? data.meta.renderedCatalogCount : 0,
+ 			},
+ 		}), ()=>{
++			// horosa_panel_ready_v1:数据已应用到 3D 场景与右栏,本次提交即「点击→画完」终点。
++			// 播放帧的 setState({time}) 不经此路,不会刷样本;归属键=页签键 'planetarium'。
++			markPanelReady('planetarium');
+ 			this.requestInFlight = false;
+ 			this.flushPendingRequest();
+ 			if(followupFull && !this._isUnmounted){
+@@ -311,6 +334,9 @@ export const stateFlowMethods = {
+ 				syncing: false,
+ 				syncLabel: '',
+ 				error: data && data.err ? data.err : '天文馆数据载入失败',
++			}, ()=>{
++				// 错误横幅画出同样终结本次交互(失败终态盖章,与七政各失败终态先例同)。
++				markPanelReady('planetarium');
+ 			});
+ 			this.requestInFlight = false;
+ 			this.flushPendingRequest();

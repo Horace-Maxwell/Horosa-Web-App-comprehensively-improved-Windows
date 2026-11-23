@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Row, Col, Popover } from 'antd';
+import { Row, Col } from 'antd';
 import { XQSelect as Select } from '../xq-ui';
 import AstroChart from './AstroChart';
 import AstroDoubleChart from './AstroDoubleChart';

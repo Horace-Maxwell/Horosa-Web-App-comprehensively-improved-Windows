@@ -3,9 +3,10 @@
 //    setParams 的 flag 门/旧路径兜底由源码静态哨兵钉住(与 astro3dWs0.test 同范式)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import { norm360, shortestArcDelta, easeInOutCubic } from '../morphMath';
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'Astro3D.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'Astro3D.js'));
 const FLAGS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'utils', 'perfFlags.js'), 'utf8');
 
 describe('最短弧 shortestArcDelta(黄经差取劣弧,跨 0°/360° 不绕远)', () => {

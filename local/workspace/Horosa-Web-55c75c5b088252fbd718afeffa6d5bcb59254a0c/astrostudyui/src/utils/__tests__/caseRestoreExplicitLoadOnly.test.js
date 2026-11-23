@@ -432,10 +432,14 @@ describe('记录键分类合同', ()=>{
 		expect(recordChangeAffectsCast(undefined)).toBe(true);
 	});
 	test('判据单一出处:user 模型不另写一份键表', ()=>{
-		const src = fs.readFileSync(path.join(UI_SRC, 'models/user.js'), 'utf8');
+		const { readSource, sourceSetFiles } = require('./helpers/sourceSet');
+		const userModel = path.join(UI_SRC, 'models/user.js');
+		const src = readSource(userModel);   // 门面 + 子模块全集
 		const { importsName, definesLocal } = require('./helpers/importSpecs');
-		expect(importsName(src, { name: 'recordChangeAffectsCast', from: '../utils/localRecordStore' })).toBe(true);
-		expect(definesLocal(src, 'recordChangeAffectsCast')).toBe(false);
+		// 导入按文件判(门面引入;子模块各自的相对路径不同),不另写一份 = 全集里每个文件都没有本地定义
+		const files = sourceSetFiles(userModel).map((f)=>fs.readFileSync(f, 'utf8'));
+		expect(importsName(files[files.length - 1], { name: 'recordChangeAffectsCast', from: '../utils/localRecordStore' })).toBe(true);
+		expect(files.some((code)=>definesLocal(code, 'recordChangeAffectsCast'))).toBe(false);
 		expect(src).not.toMatch(/RECORD_DISPLAY_ONLY_FIELDS/);
 		// 批量分支与单条分支都经判据(批量分支按条取 fieldsByCid)
 		const body = src.slice(src.indexOf('*syncRecordFromStore('), src.indexOf('*addLocalChartQuiet('));
@@ -521,6 +525,7 @@ const SET_CURRENT_CASE_SITES = {
 function setCurrentCaseSites(){
 	const files = walk(UI_SRC, []).filter((f)=>!/__tests__|\.umi/.test(f));
 	const out = [];
+	const { facadeOf } = require('./helpers/sourceSet');
 	files.forEach((f)=>{
 		const lines = fs.readFileSync(f, 'utf8').split('\n');
 		lines.forEach((l, i)=>{
@@ -528,10 +533,11 @@ function setCurrentCaseSites(){
 			if(!/type:\s*'(user\/)?setCurrentCase'/.test(code)){ return; }
 			let fn = '?';
 			for(let j = i; j >= 0; j--){
-				const m = lines[j].match(/^\s*(?:function\s*\*\s*|\*)([A-Za-z0-9_]+)\s*\(/);
+				const m = lines[j].match(/^\s*(?:export\s+)?(?:function\s*\*\s*|\*)([A-Za-z0-9_]+)\s*\(/);
 				if(m){ fn = m[1]; break; }
 			}
-			out.push({ site: `${relPosix(UI_SRC, f)}::${fn}`, file: f, fn });
+			// 拆成子模块的门面:位点记在门面名下(拆分不改登记键;判据按「同一个模型」成立)
+			out.push({ site: `${relPosix(UI_SRC, facadeOf(f) || f)}::${fn}`, file: f, fn });
 		});
 	});
 	return out;
@@ -562,11 +568,14 @@ describe('静态:全部读档守卫的键只出自共用件', ()=>{
 	const GUARD = /lastRestoredCaseId|_appliedCaseVersion|_lastRestoredZeriCase|_lastCaseKey/;
 	const SOURCES = /getKentangSavedCasePayload\(|getDivinationSavedCasePayload\(|restoreZeriWorkbenchFromCase\(|caseRestoreKey\(/;
 	test('每个带守卫的组件都接了共用件;没有一个自己读当前事盘的更新时间 / 载入代次', ()=>{
-		const guarded = COMPONENT_FILES.filter((f)=>GUARD.test(fs.readFileSync(f, 'utf8')));
+		// 按组件判:子模块折回门面,门面按全集读(类方法拆在子文件里时,守卫字段与读档入口常分在不同文件)
+		const { readSource, isSourceSetPart } = require('./helpers/sourceSet');
+		const units = COMPONENT_FILES.filter((f)=>!isSourceSetPart(f));
+		const guarded = units.filter((f)=>GUARD.test(readSource(f)));
 		expect(guarded.length).toBeGreaterThanOrEqual(20);
 		const bad = [];
 		guarded.forEach((f)=>{
-			const code = fs.readFileSync(f, 'utf8').split('\n').map((l)=>l.replace(/\/\/.*$/, '')).join('\n');
+			const code = readSource(f).split('\n').map((l)=>l.replace(/\/\/.*$/, '')).join('\n');
 			if(!SOURCES.test(code)){ bad.push(`${path.relative(UI_SRC, f)}: 守卫没接共用件`); }
 			if(/currentCase\.updateTime|caseApplySeq|appliedCaseCid/.test(code)){ bad.push(`${path.relative(UI_SRC, f)}: 自己读更新时间 / 载入代次`); }
 		});
@@ -582,7 +591,7 @@ describe('静态:全部读档守卫的键只出自共用件', ()=>{
 		expect(puts).toEqual([]);
 	});
 	test('caseedit 没带记录时不从表单字段反拼记录再设回(丢性别 / 备注 / 研究字段)', ()=>{
-		const src = fs.readFileSync(path.join(UI_SRC, 'models/astro.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.join(UI_SRC, 'models/astro.js'));   // 门面 + 子模块全集
 		const i = src.indexOf("values.key === 'caseedit'");
 		const body = src.slice(i, src.indexOf("values.key === 'chartdeeplearn'", i));
 		expect(body).not.toMatch(/caze\.cid\.value/);

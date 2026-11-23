@@ -175,7 +175,7 @@ describe('补取的边角:非规范时刻写法 / 空地名 / 空经纬 / 删档
 		['lon', 'lat', 'gpsLon', 'gpsLat'].forEach((k)=>{ expect([k, fetch.payload[k].value]).toEqual([k, BASE_FIELDS[k].value]); });
 		expect(p.timeAlg.value).toBe(fetch.payload.timeAlg.value);
 		const fs = require('fs'); const path = require('path');
-		expect(fs.readFileSync(path.join(__dirname, '../../components/guazhan/GuaZhanMain.js'), 'utf8')).toContain('currentCaseFieldsPatch({ timeAlg: true })');
+		expect(require('./helpers/sourceSet').readSource(path.join(__dirname, '../../components/guazhan/GuaZhanMain.js'))).toContain('currentCaseFieldsPatch({ timeAlg: true })');
 	});
 	test('起课时刻解析(parseCaseRecordDivTime):建 currentCase 与补取比对同一种;时区缺 = +08:00;空 / 坏值 = null', ()=>{
 		expect(parseCaseRecordDivTime({ divTime: '2020-03-04 05:06:07', zone: '+09:00' }).format('YYYY-MM-DD HH:mm:ss')).toBe('2020-03-04 05:06:07');
@@ -199,7 +199,7 @@ describe('补取的边角:非规范时刻写法 / 空地名 / 空经纬 / 删档
 		puts = runEffect('clearCurrentCaseIfRemoved', { cids: [] }, st);
 		expect(puts).toEqual([]);
 		const fs = require('fs'); const path = require('path');
-		const user = fs.readFileSync(path.join(__dirname, '../../models/user.js'), 'utf8');
+		const user = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../models/user.js'));   // 门面 + 子模块全集
 		const ledger = fs.readFileSync(path.join(__dirname, '../aiTools/ledger.js'), 'utf8');
 		const list = fs.readFileSync(path.join(__dirname, '../../components/user/CaseList.js'), 'utf8');
 		expect(user).toContain('if(removed){ yield* clearCurrentCaseIn([values.cid], { put, select }); }');

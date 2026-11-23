@@ -91,8 +91,8 @@ export const TOOL_ERROR_CODES = Object.freeze({
 	E_UNDO_RECORD_EDITED: def('user', false, '账本(记录 updateTime 晚于动作时刻)', '记录已被手工编辑过,请走档案管理处理', '记录在动作之后被编辑过,未自动撤销'),
 	E_USER_SKIPPED: def('user', false, '审批等待台(用户选了跳过)', '如仍需执行,请用户重新允许', '用户跳过了这次调用'),
 	// ── 对标增强轮(审批三档 / 反问 / 资料检索 / 功能开关) ──
-	E_APPROVAL_DENIED: def('user', false, '运行时审批判定(只读档或类别档=只读)', '请用户到 进阶 →「AI 助手行动能力」把审批档改为「全自动」或「每次确认」后再试', '当前审批档为只读,写入动作未执行', SINCE_AGENT_V2),
-	E_TOOL_DISABLED: def('protocol', false, '注册表(工具的功能开关关闭)', '请用户到 进阶 →「AI 助手行动能力」打开对应功能开关,或改用其它工具', '该工具对应的功能未开启', SINCE_AGENT_V2),
+	E_APPROVAL_DENIED: def('user', false, '运行时审批判定(只读档或类别档=只读)', '请用户把审批档改为「全自动」或「每次确认」后再试(桌面:进阶 →「AI 助手行动能力」;无头模式:用户本人在终端跑 ./horosa config approval auto)', '当前审批档为只读,写入动作未执行', SINCE_AGENT_V2),
+	E_TOOL_DISABLED: def('protocol', false, '注册表(工具的功能开关关闭)', '请用户打开对应功能开关,或改用其它工具(桌面:进阶 →「AI 助手行动能力」;无头模式:./horosa config 列出可开的项)', '该工具对应的功能未开启', SINCE_AGENT_V2),
 	E_ELICIT_UNAVAILABLE: def('tool', false, 'ask_user(当前调用通道无反问能力)', '改为在回答里直接向用户提出问题', '当前通道无法向用户提问', SINCE_AGENT_V2),
 	E_ELICIT_TIMEOUT: def('user', false, 'ask_user(用户未在限时内作答)', '在回答里说明缺什么,等用户下一条消息补充', '用户未在限时内作答', SINCE_AGENT_V2),
 	E_ELICIT_DECLINED: def('user', false, 'ask_user(用户拒绝作答或已停止)', '不再追问同一问题,按已有信息作答或说明无法继续', '用户拒绝了这个问题', SINCE_AGENT_V2),

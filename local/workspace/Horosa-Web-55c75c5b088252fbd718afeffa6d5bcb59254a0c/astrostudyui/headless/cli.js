@@ -12,7 +12,8 @@ const { spawn, spawnSync } = require('child_process');
 
 const UI_ROOT = path.resolve(__dirname, '..');
 const REPO_ROOT = path.resolve(UI_ROOT, '../..');
-const EXIT = { OK: 0, TOOL_ERROR: 1, USAGE: 2, NOT_RUNNING: 3, AUTH: 4, FAILED: 5, INTERRUPTED: 130 };
+// NEEDS_HUMAN:人工子命令没得到本人确认(非交互被闸住,或交互里答了不)——与「用法错」分开,脚本据此知道该交给人
+const EXIT = { OK: 0, TOOL_ERROR: 1, USAGE: 2, NOT_RUNNING: 3, AUTH: 4, FAILED: 5, NEEDS_HUMAN: 6, INTERRUPTED: 130 };
 const SHORTCUTS = [['records', 'list_records', 'query'], ['tasks', 'list_tasks', null], ['context', 'get_current_context', null], ['proposals', 'list_proposals', null], ['actions', 'list_actions', null], ['materials', 'search_materials', 'query']];
 const HEADLESS_NOT_RUNNING = '无头服务没在跑(./horosa start 起服务;或去掉 --server 让本进程直接跑)';
 const APP_NOT_RUNNING = '桌面 App 的本机服务没开:在星阙「AI 分析 › 进阶 › 外部连接」打开「外部智能体连接」';
@@ -34,6 +35,8 @@ function usage(){
 		'  status                      服务状态(地址 / 版本 / 工具件数)',
 		'  endpoint                    端点文件路径',
 		'  config [键 [值]]            查看 / 修改设置:approval(auto|read-only)· headless-analysis(on|off)· private-read(on|off)· web-fetch(on|off)',
+	'                              · calls-per-minute(1-600)· writes-per-hour(0-10000):外部客户端限流额度,调高属人工操作',
+	'                              · scheduler(on|off:定时任务)· goal-tasks(on|off:目标任务);两类任务只在常驻服务(start / serve / mcp 会话)里到点 / 开跑',
 		'  ai [status]                 模型接口:当前用哪个、有哪些档案(密钥只报有没有)',
 		'  ai add <接口类型> [--model M[,M2]] [--base-url U] [--name N] [--key-env 变量名 | --key-stdin] [--no-use]',
 		'                              新建接口档案(缺省设为当前;不给密钥来源就隐藏输入;接口类型:openai / anthropic / gemini / deepseek / ollama / custom …)',
@@ -41,19 +44,24 @@ function usage(){
 		'  export [文件] [--overwrite]  整库导出(与桌面「全量备份」同一格式,桌面可直接恢复;密钥不随包走)',
 		'  import <文件> [--dry-run] [--yes]   导入桌面或无头的全量备份(先列出将写入什么;导入前整份数据目录自动留快照)',
 		'  proposals [accept|reject|revert <提案id>] [--yes]   AI 提议的档案修改:不带参数 = 列出;采纳等只能由人来做',
-		'  (人工子命令在非交互环境要同时 --yes 与 HOROSA_ALLOW_UNATTENDED_APPROVAL=1;放宽设置 config approval auto 等同此)',
+		'  (人工子命令——采纳 / 撤销 / 放宽设置 / 删接口档案 / 导入——要用户本人在终端执行;没得到本人确认时退出码 6)',
 		'  undo <动作id> [--yes]       撤销 AI 做过的一条写入(./horosa actions 列出最近的动作与 id)',
+		'  tasks [参数…]               后台任务列表(= call list_tasks)+ 调度状态(常驻服务在不在调度、两个任务开关)',
+		'  tasks resume|start|run <任务id> [--yes]   放行:resume 定时任务继续排期 · start 目标任务开跑(须常驻服务)· run 定时任务立即跑一次(人工子命令)',
+		'  tasks pause|cancel <任务id> 收紧:暂停 / 取消(取消是终态)',
 		'  import … [--include-security]   备份里的安全开关(审批档 / 私人内容 / 联网等)缺省每项取本机与备份里较严的一档,要整值一并导入加这个',
 		'',
 		'批量验证:',
 		'  batch <命例文件> -t <技法,…|all> [-o 输出.jsonl] [-j 并行数] [--resume]   一批命例逐例起盘,一行一例写 JSONL + 汇总(./horosa batch --help 看全部选项)',
 		'  batch --celebrities -t …    用内置名人库(约 5.9 万例)当命例',
 		'  batch-pack [输出.tar.gz]    打批量运行包:到 Linux 服务器上只要 Node + Python(+ Java)就能跑,不用装前端依赖',
+		'  verify <命题.json>          命题验证:把写明了的命题放到一批命例上机械地判定,出裁决与可复核的凭据(--explain 看命题怎么写;--check 凭据 复核)',
 		'',
 		'工具:',
 		'  tools                       列出全部工具(只读 / 写入)',
 		'  describe <工具>             某件工具的说明与参数结构',
 		'  call <工具> [参数…]         调用任意工具;参数 = JSON 对象 / k=v(字符串)/ k:=JSON / -(从标准输入读 JSON)',
+		'  call … --data              只打结构化数据(structuredContent,单行 JSON;失败照常打错误到标准错误、退出码不变)—— 脚本 / AI 接管输出用这个,比 --json(完整信封、美化)小一半',
 		'  call … --idempotency-key K  写入类:同一个键重试不重复写(同键换参数被拒;键随动作账本落盘保留 30 分钟,换进程 / 服务重启后照样认;也可写 --idempotency-key=K)',
 		'  resources [--cursor C] · templates · read <资源地址> · prompts [--cursor C] · prompt <名称> [k=v…]',
 		'',
@@ -108,6 +116,7 @@ function parseArgs(argv){
 		const val = (name)=>{ i += 1; if(i >= argv.length){ throw new Error(`${name} 后面要跟一个值`); } return argv[i]; };
 		switch(a){
 		case '--json': opts.json = true; break;
+		case '--data': opts.data = true; break;   // 只打结构化数据(structuredContent,单行),给脚本 / AI 用
 		case '--progress': opts.progress = true; break;
 		case '--no-progress': case '--quiet': case '-q': opts.progress = false; break;
 		case '-h': case '--help': help = true; break;
@@ -133,7 +142,7 @@ function parseArgs(argv){
 		// 口径与协议层 / 页面注册表同一份(去首尾空白、按码点计、上限 200;共用用例表对拍)
 		case '--idempotency-key': { const proto = require('./protocol'); const n = proto.idempotencyKeyCheck({ _meta: { idempotencyKey: `${val('--idempotency-key')}` } }); if(!n.key){ throw new Error(`--idempotency-key 要 1..${proto.IDEMPOTENCY_KEY_MAX} 字的键`); } opts.idempotencyKey = n.key; break; }
 		case '--api-key': case '--key': throw new Error(`${a} 不收:密钥放命令行会留在 shell 历史与进程表里。用 --key-env 变量名、--key-stdin,或不给(隐藏输入)`);
-		case '--timeout': { const n = Number(val('--timeout')); if(!(n >= 1 && n <= 600)){ throw new Error('--timeout 要 1..600 之间的秒数'); } opts.timeout = n; break; }
+		case '--timeout': { const n = Number(val('--timeout')); if(!(n >= 1 && n <= 1800)){ throw new Error('--timeout 要 1..1800 之间的秒数'); } opts.timeout = n; break; }
 		default:
 			if(/^--(api-key|key)=/.test(a)){ throw new Error('--api-key / --key 不收:密钥放命令行会留在 shell 历史与进程表里。用 --key-env 变量名、--key-stdin,或不给(隐藏输入)'); }
 			if(EQ_VALUE_OPTIONS.some((o)=>a.startsWith(`--${o}=`))){ const [k, v] = a.slice(2).split(/=(.*)/s); argv.splice(i + 1, 0, v); argv[i] = `--${k}`; i -= 1; break; }
@@ -510,8 +519,13 @@ async function callTool(opts, tool, tokens){
 	let args = built.args;
 	if(built.stdin){ args = { ...(await readStdinJson()), ...args }; }
 	return cmdTool(opts, 'tools/call', { name: tool, arguments: args }, (r)=>{
-		if(opts.json){ out(`${JSON.stringify(r, null, 2)}\n`); }
 		const f = fmtToolResult(r);
+		if(opts.data){
+			// 成功:只打 structuredContent(没有就退回正文);失败:错误信封照打到 stderr,退出码照常
+			if(f.isError){ err(f.text); }else{ out(`${r && r.structuredContent !== undefined ? JSON.stringify(r.structuredContent) : JSON.stringify(f.text.trim())}\n`); }
+			return f.isError ? EXIT.TOOL_ERROR : EXIT.OK;
+		}
+		if(opts.json){ out(`${JSON.stringify(r, null, 2)}\n`); }
 		if(!opts.json){ (f.isError ? err : out)(f.text); }
 		if(f.isError && /本机服务|后端|E_CAST_BACKEND/.test(f.text)){ err('提示:本机计算服务可能没开 —— ./horosa start(或 ./horosa doctor 看哪里不对)\n'); }
 		return f.isError ? EXIT.TOOL_ERROR : EXIT.OK;
@@ -819,6 +833,7 @@ async function cmdStatus(opts){
 	if(h){
 		const n = await cmdToolCount(ep);
 		info.headless.tools = n;
+		try{ const sc = await adminCall(opts, async (c)=>{ const r = await c.get('/admin/scheduler'); return r && r.ok ? r.scheduler : null; }); if(sc){ info.headless.scheduler = sc; } }catch(e){ /* 管理口读不到:不影响状态 */ }
 	}
 	let corrupt = [];
 	try{ corrupt = require('./runtime').listCorruptDataFiles(); }catch(e){ corrupt = []; }
@@ -828,6 +843,7 @@ async function cmdStatus(opts){
 	if(archived.length){ info.corruptArchiveKeys = archived; }
 	if(opts.json){ out(`${JSON.stringify(info, null, 2)}\n`); }else{
 		out(h ? `无头服务运行中 · MCP ${ep.url}${ep.restUrl ? ` · REST ${ep.restUrl}` : ''} · 版本 ${h.version} · 工具 ${info.headless.tools} 件\n` : '无头服务没在跑(./horosa start;或不起服务、命令直接在本进程跑)\n');
+		if(h && info.headless.scheduler){ out(fmtScheduler(info.headless.scheduler)); }
 		out(`本机计算服务:Java :${be.ports.server} ${be.server ? '在跑' : '没开'} · Python :${be.ports.chart} ${be.chart ? '在跑' : '没开'}\n`);
 		if(corrupt.length){ out(`注意:数据目录里有 ${corrupt.length} 个读不了、已改名留档的数据文件(./horosa doctor 看详情)\n`); }
 		if(archived.length){ out(`注意:本机存储里有 ${archived.length} 份读不出来时原样另存的内容留档(./horosa doctor 看详情)\n`); }
@@ -912,7 +928,12 @@ async function adminCall(opts, fn){
 
 async function cmdConfig(opts, rest){
 	if(rest.length > 2){ throw new CliError(EXIT.USAGE, 'config 用法:./horosa config [键 [值]]'); }
-	if(rest.length === 2 && loosensPolicy(rest[0], rest[1]) && !process.stdin.isTTY && !(await humanConfirm(opts, '', ''))){ return EXIT.USAGE; }
+	if(rest.length === 2 && loosensPolicy(rest[0], rest[1]) && !process.stdin.isTTY && !(await humanConfirm(opts, '', ''))){ return EXIT.NEEDS_HUMAN; }
+	// 限流额度:调高(比现值大)= 放宽,同样是人工操作;调低不拦
+	if(rest.length === 2 && RATE_LIMIT_KEYS.indexOf(rest[0]) >= 0 && /^\d+$/.test(`${rest[1]}`.trim())){
+		const cur = await adminCall(opts, async (c)=>{ const r = await c.get('/admin/config'); return r && r.ok && r.config ? Number(r.config[rest[0]]) : NaN; });
+		if((!Number.isFinite(cur) || Number(rest[1]) > cur) && !process.stdin.isTTY && !(await humanConfirm(opts, '', ''))){ return EXIT.NEEDS_HUMAN; }
+	}
 	return adminCall(opts, async (c)=>{
 		const r = rest.length >= 2 ? await c.post('/admin/config', { key: rest[0], value: rest[1] }) : await c.get('/admin/config');
 		if(!r.ok){ err(`horosa: ${r.error && r.error.message}\n`); return EXIT.USAGE; }
@@ -933,14 +954,21 @@ async function humanConfirm(opts, question, hint){
 		return false;
 	}
 	if(opts.yes && process.env[UNATTENDED_ENV] === '1'){ return true; }
-	err(`horosa: 这是人工操作:非交互环境要同时加 --yes 并设环境变量 ${UNATTENDED_ENV}=1 才放行(防止能跑命令的程序替你批准)${hint || ''}\n`);
+	// 只说「要本人来」与该跑的命令;无人值守的放行方式只写在文档里(报错不主动递绕过的梯子)
+	err(`horosa: 这一步是人工操作,要用户本人在终端执行:${humanCommandLine()}${hint || ''}\n`);
 	return false;
 }
+function humanCommandLine(){
+	const q = (a)=>(/^[\w@%+=:,./-]+$/.test(a) ? a : `'${`${a}`.replace(/'/g, "'\\''")}'`);
+	return `./horosa ${CURRENT_ARGV.filter((a)=>a !== '--yes' && a !== '-y').map(q).join(' ')}`.trim();
+}
 // 放宽外部访问的设置(写入全自动 / 私人内容 / 网页抓取 / 无头分析出口)同样是人工操作;收紧(只读 / 关)不拦
+const RATE_LIMIT_KEYS = ['calls-per-minute', 'writes-per-hour'];
+const LOOSEN_KEYS = ['headless-analysis', 'private-read', 'web-fetch', 'scheduler', 'goal-tasks'];
 function loosensPolicy(key, value){
 	const v = `${value}`.trim().toLowerCase();
 	if(key === 'approval'){ return v === 'auto'; }
-	return ['headless-analysis', 'private-read', 'web-fetch'].indexOf(key) >= 0 && ['on', '1', 'true', 'yes', '开'].indexOf(v) >= 0;
+	return LOOSEN_KEYS.indexOf(key) >= 0 && ['on', '1', 'true', 'yes', '开'].indexOf(v) >= 0;
 }
 
 async function confirmTty(question){
@@ -952,6 +980,28 @@ async function confirmTty(question){
 	return /^y(es)?$/i.test(`${ans}`.trim());
 }
 
+// 人工审阅前把提案内容打到终端(标准错误;--json 的标准输出不受影响):要写入的全文、逐字段的旧 → 新。
+// 内容出自外部 AI:控制字符(含终端转义序列)一律换成「?」再打。
+const PROPOSAL_VERBS = { 'record-edit': '修改档案', 'record-archive': '归档 / 取消归档', 'record-unlink': '解除关联', 'record-restore': '从回收站恢复', 'template-new': '新建模版', 'skill-new': '新建技能包', 'persona-text': '改个人口径' };
+function proposalReviewText(p){
+	const safe = (v)=>`${v === undefined || v === null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v)}`.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '?');
+	const len = (s)=>Array.from(`${s || ''}`).length;
+	const ch = p.changes || {}; const be = p.before || {};
+	const L = [`提案 ${safe(p.id)} · ${PROPOSAL_VERBS[p.kind] || safe(p.kind)}「${safe(p.title)}」· 来自 ${p.client ? `外部客户端 ${safe(p.client)}` : 'AI'} · 状态 ${safe(p.status)}`];
+	if(p.reason){ L.push(`理由:${safe(p.reason)}`); }
+	if(p.kind === 'template-new'){ L.push(`模版正文(${len(ch.instructionText)} 字):`, safe(ch.instructionText)); }
+	else if(p.kind === 'skill-new'){
+		const sk = ch.skill || {};
+		L.push(`触发词:${(sk.triggers || []).map((x)=>`/${safe(x)}`).join(' ') || '(无)'}`, `提示词(${len(sk.promptTemplate)} 字):`, safe(sk.promptTemplate));
+	}else if(p.kind === 'persona-text'){
+		L.push(`新的个人口径(${len(ch.text)} 字;采纳后整段替换现有的 ${len(be.text)} 字,并进入此后每一轮对话):`, safe(ch.text));
+		if(len(be.text)){ L.push('—— 现有的个人口径 ——', safe(be.text)); }
+	}else{
+		Object.keys(ch).forEach((k)=>L.push(`${safe(k)}:${safe(be[k]) || '(空)'} → ${safe(ch[k]) || '(空)'}`));
+	}
+	return `${L.join('\n')}\n`;
+}
+
 async function cmdProposals(opts, rest){
 	const op = rest[0];
 	if(!op || op === 'list'){
@@ -961,8 +1011,14 @@ async function cmdProposals(opts, rest){
 	const id = rest[1];
 	if(!id){ throw new CliError(EXIT.USAGE, `proposals ${op} 要给提案 id(./horosa proposals 列出)`); }
 	const verb = { accept: '采纳(改动写进档案)', reject: '拒绝(档案不动)', revert: '撤销采纳(档案改回提案前)' }[op];
-	if(!(await humanConfirm(opts, `确认${verb}提案 ${id}?`))){ return EXIT.USAGE; }
 	return adminCall(opts, async (c)=>{
+		// 先把这条提案要改什么打出来,再问:此前确认语只有一个编号,采纳前终端里从没出现过要写入的内容
+		try{
+			const l = await c.get('/admin/proposals');
+			const p = l && l.ok ? (l.proposals || []).find((x)=>x && x.id === id) : null;
+			if(p){ err(proposalReviewText(p)); }
+		}catch(e){ /* 读不到内容不拦:照旧只按编号确认,服务端自会回「没有这条」 */ }
+		if(!(await humanConfirm(opts, `确认${verb}提案 ${id}?`))){ return EXIT.NEEDS_HUMAN; }
 		const r = await c.post(`/admin/proposals/${encodeURIComponent(id)}/${op}`, {});
 		if(!r.ok){ err(`horosa: ${r.error && r.error.message}\n`); return EXIT.FAILED; }
 		const res = r.result || {};
@@ -971,11 +1027,53 @@ async function cmdProposals(opts, rest){
 	});
 }
 
+// 后台任务(定时 / 目标):列出 + 人工放行(resume / start / run,要本人确认)+ 收紧(pause / cancel,不拦)
+function fmtTaskTime(iso){
+	if(!iso){ return ''; }
+	const d = new Date(iso);
+	if(Number.isNaN(d.getTime())){ return ''; }
+	const p = (n)=>(n < 10 ? '0' : '') + n;
+	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtScheduler(sc){
+	if(!sc){ return ''; }
+	const where = sc.running ? `调度在跑(本进程每 ${Math.round(sc.intervalMs / 1000)} 秒查一次到期任务)` : '调度没在跑(要 ./horosa start 起常驻服务,单次命令不调度)';
+	const sw = `定时任务 ${sc.enabled ? '开' : '关'} · 目标任务 ${sc.goalTasks ? '开' : '关'} · 无头分析出口 ${sc.headlessAnalysis ? '开' : '关'}`;
+	return `${where}\n${sw}${sc.lastTickAt ? ` · 上次查看 ${fmtTaskTime(sc.lastTickAt)}` : ''}\n`;
+}
+async function cmdTasks(opts, rest){
+	const op = rest[0];
+	if(!op || op === 'list'){
+		// 列表仍是 list_tasks 工具(与此前 ./horosa tasks 同一输出,脚本照用);文字模式在前面多一行调度状态
+		if(!opts.json && !opts.data){
+			try{ const sc = await adminCall(opts, async (c)=>{ const r = await c.get('/admin/scheduler'); return r && r.ok ? r.scheduler : null; }); if(sc){ out(fmtScheduler(sc)); } }catch(e){ /* 管理口读不到:只列任务 */ }
+		}
+		return callTool(opts, 'list_tasks', rest.slice(op ? 1 : 0));
+	}
+	const OPS = { resume: '继续排期', start: '开跑目标任务', run: '立即运行一次', pause: '暂停', cancel: '取消(终态)' };
+	if(!OPS[op]){ throw new CliError(EXIT.USAGE, `tasks 只认 list / ${Object.keys(OPS).join(' / ')}`); }
+	const id = rest[1];
+	if(!id){ throw new CliError(EXIT.USAGE, `tasks ${op} 要给任务 id(./horosa tasks 列出)`); }
+	// 放行类(会让 AI 到点 / 立刻调模型、花费用)= 人工操作;收紧不拦
+	if(['resume', 'start', 'run'].indexOf(op) >= 0 && !(await humanConfirm(opts, `确认${OPS[op]}:${id}?`))){ return EXIT.NEEDS_HUMAN; }
+	return adminCall(opts, async (c)=>{
+		const r = await c.post(`/admin/tasks/${encodeURIComponent(id)}/${op}`, {});
+		if(!r.ok){ err(`horosa: ${r.error && r.error.message}\n`); return EXIT.FAILED; }
+		const res = r.result || {};
+		if(opts.json){ out(`${JSON.stringify(res, null, 2)}\n`); return res.ok ? EXIT.OK : EXIT.TOOL_ERROR; }
+		if(!res.ok){ out(`没做成:${res.message || res.code}\n`); return EXIT.TOOL_ERROR; }
+		if(res.started){ out(`已开跑:${id}(进度与结果:./horosa tasks)\n`); return EXIT.OK; }
+		const tail = res.nextRunAt ? `,下次 ${fmtTaskTime(res.nextRunAt)}${res.resident === false ? '(常驻服务没开:./horosa start 后才会到点)' : ''}` : '';
+		out(`已${OPS[op].replace('(终态)', '')}:${id}${tail}\n`);
+		return EXIT.OK;
+	});
+}
+
 // 撤销 AI 做过的一条写入(与桌面「动作记录 › 撤销」同一函数):./horosa undo <动作id>;动作 id 用 ./horosa actions 列出
 async function cmdUndo(opts, rest){
 	const id = rest[0];
 	if(!id){ throw new CliError(EXIT.USAGE, 'undo 要给动作 id(./horosa actions 列出最近的动作)'); }
-	if(!(await humanConfirm(opts, `确认撤销动作 ${id}?`))){ return EXIT.USAGE; }
+	if(!(await humanConfirm(opts, `确认撤销动作 ${id}?`))){ return EXIT.NEEDS_HUMAN; }
 	return adminCall(opts, async (c)=>{
 		const r = await c.post(`/admin/actions/${encodeURIComponent(id)}/undo`, {});
 		if(!r.ok){ err(`horosa: ${r.error && r.error.message}\n`); return EXIT.FAILED; }
@@ -1088,7 +1186,7 @@ async function cmdAi(opts, rest){
 	}
 	if(sub === 'remove'){
 		const id = need(rest[1], '档案 id');
-		if(!(await humanConfirm(opts, `确认删除接口档案 ${id}(连同存着的密钥)?`))){ return EXIT.USAGE; }
+		if(!(await humanConfirm(opts, `确认删除接口档案 ${id}(连同存着的密钥)?`))){ return EXIT.NEEDS_HUMAN; }
 		return adminCall(opts, async (c)=>{ const r = await c.post(`/admin/ai/profiles/${encodeURIComponent(id)}/remove`, {}); if(!r.ok){ return fail(r); } out(opts.json ? `${JSON.stringify(r, null, 2)}\n` : `已删除接口档案 ${id}\n`); return EXIT.OK; });
 	}
 	if(sub === 'test'){
@@ -1128,7 +1226,7 @@ async function cmdImport(opts, rest){
 			(opts.json ? err : out)(`${['将写入(本机已有的同 id 档案会被备份里的版本替换):'].concat(rows).concat((pv.warnings || []).map((w)=>`  注意:${w}`)).join('\n')}\n`);
 		}
 		if(opts.dryRun){ if(opts.json){ out(`${JSON.stringify(pv, null, 2)}\n`); } return EXIT.OK; }
-		if(!(await humanConfirm(opts, '确认导入?(导入前整份数据目录会自动留快照)', ';或先 --dry-run 看看'))){ return EXIT.USAGE; }
+		if(!(await humanConfirm(opts, '确认导入?(导入前整份数据目录会自动留快照)', ';或先 --dry-run 看看'))){ return EXIT.NEEDS_HUMAN; }
 		// 真导入绑定预览时的内容哈希:预览之后文件被换了 → 服务端拒
 		const r = await c.post('/admin/import', { path: file, dryRun: false, expectSha256: pv.sha256, includeSecurity: opts.includeSecurity });
 		if(!r.ok){ err(`horosa: ${r.error && r.error.message}\n`); return EXIT.FAILED; }
@@ -1156,12 +1254,15 @@ function cmdSetup(){
 	return r.status === 0 ? EXIT.OK : EXIT.FAILED;
 }
 
+let CURRENT_ARGV = [];   // 本次命令行(人工闸报错里回显该跑的命令)
 async function main(argv){
+	CURRENT_ARGV = Array.isArray(argv) ? argv.slice() : [];
 	// 批量验证有自己的一组选项(列名对应 / 并发 / 续跑 …),整段交给 batch.js;Ctrl-C 也由它收尾(写完在算的几例、写汇总)
-	if(argv[0] === 'batch' || argv[0] === 'batch-pack'){
+	if(argv[0] === 'batch' || argv[0] === 'batch-pack' || argv[0] === 'verify'){
 		const noop = ()=>{};
 		INTERRUPT.handlers.add(noop);
-		try{ return argv[0] === 'batch' ? await require('./batch').main(argv.slice(1), IO) : await require('./batchPack').main(argv.slice(1), IO); }
+		const mod = argv[0] === 'batch' ? './batch' : argv[0] === 'verify' ? './verify' : './batchPack';
+		try{ return await require(mod).main(argv.slice(1), IO); }
 		finally{ INTERRUPT.handlers.delete(noop); }
 	}
 	let parsed;
@@ -1181,6 +1282,7 @@ async function main(argv){
 		case 'status': return await cmdStatus(opts);
 		case 'endpoint': { const f = opts.via === 'app' ? appEndpointPath() : headlessEndpointPath(); const ok = fs.existsSync(f); out(`${f}${ok ? '' : '(不存在:服务没在跑)'}\n`); return ok ? EXIT.OK : EXIT.NOT_RUNNING; }
 		case 'config': return await cmdConfig(opts, rest);
+		case 'tasks': return await cmdTasks(opts, rest);
 		case 'ai': return await cmdAi(opts, rest);
 		case 'export': return await cmdExport(opts, rest);
 		case 'import': return await cmdImport(opts, rest);
@@ -1228,7 +1330,7 @@ async function main(argv){
 	}
 }
 
-module.exports = { main, EQ_VALUE_OPTIONS, humanConfirm, UNATTENDED_ENV, backendEnv, backendsUp, parseArgs, buildArguments, fmtTools, fmtToolResult, fmtList, fmtProgress, fmtAiStatus, usage, EXIT, SHORTCUTS, __interruptForTests: ()=>{ INTERRUPT.handlers.forEach((h)=>h()); }, __resetInterruptForTests: ()=>{ INTERRUPT.fired = false; }, __setIoForTests: (o)=>{ IO.out = o.out; IO.err = o.err; }, __setBackendStarterForTests: (fn)=>{ BACKEND.start = fn || startBackends; } };
+module.exports = { main, EQ_VALUE_OPTIONS, humanConfirm, proposalReviewText, UNATTENDED_ENV, backendEnv, backendsUp, parseArgs, buildArguments, fmtTools, fmtToolResult, fmtList, fmtProgress, fmtAiStatus, usage, EXIT, SHORTCUTS, __interruptForTests: ()=>{ INTERRUPT.handlers.forEach((h)=>h()); }, __resetInterruptForTests: ()=>{ INTERRUPT.fired = false; }, __setIoForTests: (o)=>{ IO.out = o.out; IO.err = o.err; }, __setBackendStarterForTests: (fn)=>{ BACKEND.start = fn || startBackends; } };
 if(require.main === module){
 	main(process.argv.slice(2)).then((code)=>require('./exit').exitAfterFlush(code));
 }

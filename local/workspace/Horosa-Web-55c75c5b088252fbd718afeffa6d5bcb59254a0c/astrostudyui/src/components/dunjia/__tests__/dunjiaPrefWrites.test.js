@@ -5,7 +5,7 @@ import path from 'path';
 import { safeLocalStorageSet } from '../../../utils/safeStorage';
 import { classifyStorageKey } from '../../../utils/storageKeyRegistry';
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'DunJiaMain.js'), 'utf8');
+const SRC = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(__dirname, '..', 'DunJiaMain.js'));
 
 describe('奇门显示偏好写入', ()=>{
 	test('两个键都已登记,写入直达本机存储', ()=>{

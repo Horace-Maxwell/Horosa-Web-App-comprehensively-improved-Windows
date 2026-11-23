@@ -15,8 +15,6 @@ const rel = (f)=>path.relative(SRC, f).split(path.sep).join('/');
 
 // 基线:现存的环(路径相对 src,分量内按字母序)。只许删、缩小,不许增;每条写明为什么暂留。
 const CYCLE_BASELINE = [
-	// 三式合一页面渲染盘面组件,盘面组件从页面取排盘助手与盘面布局常量(都只在渲染时读)
-	['components/sanshi/SanShiUnitedMain.js', 'components/sanshi/SanshiUnitedBoard.js'],
 	// AI 导出设置模型 ↔ 段过滤 ↔ 设置分组 ↔ 上下文识别 ↔ 快照查找:设置读写与段过滤函数级互相递归(读设置要规范化、规范化要查段表)
 	['utils/aiExport/contextResolve.js', 'utils/aiExport/sectionFilter.js', 'utils/aiExport/settingsGroups.js', 'utils/aiExport/settingsModel.js', 'utils/aiExport/snapshotLookup.js'],
 	// 请求层用通用助手的 isObject,通用助手用请求层的 innerHandleError(都只在函数体里用)

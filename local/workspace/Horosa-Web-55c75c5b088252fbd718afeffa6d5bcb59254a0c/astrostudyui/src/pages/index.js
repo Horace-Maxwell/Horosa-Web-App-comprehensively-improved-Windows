@@ -1,22 +1,13 @@
+// 主页外壳(AstroIndex):导航、页签与各技法页的懒加载在这里;账户 / 命盘事盘 / 盘面设置等抽屉与首页弹窗的渲染树片段
+// 按职责拆在 ./components/astroIndex/ 下(accountDrawers · recordDrawers;目录名 components 不进约定式路由),
+// 本文件原位置换成调用它的表达式。读源码的检查读「子模块 + 门面」全集(scripts/source-sets.json)。
 import React from 'react';
 import { connect  } from 'dva';
-import { Spin, } from 'antd';
+
 // R4-B2:切页签 300ms 后武装 ±depth 步进预取((c) 时机)+ 手势起点技法归属。
 import { armStepPrefetch } from '../utils/stepPrefetchArm';
 import { setCurrentTechnique } from '../utils/perfMark';
 import DateTime from '../components/comp/DateTime';
-import LoginForm from '../components/user/LoginForm';
-import RegisterForm from '../components/user/RegisterForm';
-import ResetPwdForm from '../components/user/ResetPwdForm';
-import ChangePwdForm from '../components/user/ChangePwdForm';
-import ChangeParamsFormComp from '../components/user/ChangeParamsFormComp';
-import ChartAddFormComp from '../components/user/ChartAddFormComp';
-import ChartEditFormComp from '../components/user/ChartEditFormComp';
-import ChartList from '../components/user/ChartList';
-import CaseAddFormComp from '../components/user/CaseAddFormComp';
-import CaseEditFormComp from '../components/user/CaseEditFormComp';
-import CaseList from '../components/user/CaseList';
-import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
 import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
 import { makeLazyBoundary } from '../utils/lazyBoundary';
@@ -103,11 +94,6 @@ const IndiaChartMain = lazyPreloadable(() => import('../components/astro/IndiaCh
 // 合盘转 lazy(此前 eager 拖整组件进首屏;快照链亦已在 aiAnalysisContext 动态化,饿链全断)。
 const AstroRelative = lazyPreloadable(() => import('../components/astro/AstroRelative'), { order: 2, navKey: 'relativechart' });
 const AstroDirectMain = lazyPreloadable(() => import('../components/direction/AstroDirectMain'), { order: 1, navKey: 'direction' });
-import AspSelector from '../components/astro/AspSelector';
-import AstroOrbSetting from '../components/astro/AstroOrbSetting';
-import PlanetSelector from '../components/astro/PlanetSelector';
-import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
-import ChartsGps from '../components/user/ChartsGps';
 // 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
@@ -131,8 +117,6 @@ const AIAnalysisMain = lazyPreloadable(() => import('../components/aianalysis/AI
 // order 2/3 的 idle 队列殿后 —— 补 navKey(与 navigationPages/openDrawer 的 key 同名)。
 const GuoLaoChartMain = lazyPreloadable(() => import('../components/guolao/GuoLaoChartMain'), { order: 1, navKey: 'guolao' });
 const CommToolsMain = lazyPreloadable(() => import('../components/commtools/CommToolsMain'), { order: 2, navKey: 'commtools' });
-import DLFeature from '../components/deeplearn/DLFeature';
-import HomePageSetup from '../components/HomePageSetup';
 import BaZi from '../components/cntradition/BaZi';
 const ZiWeiMain = lazyPreloadable(() => import('../components/ziwei/ZiWeiMain'), { order: 1, navKey: 'ziwei' });
 const GuaZhanMain = lazyPreloadable(() => import('../components/guazhan/GuaZhanMain'), { order: 1, navKey: 'guazhan' });
@@ -143,13 +127,16 @@ const ShuSuanMain = lazyPreloadable(() => import('../components/shusuan/ShuSuanM
 const MingOtherMain = lazyPreloadable(() => import('../components/mingother/MingOtherMain'), { order: 2, navKey: 'mingother' });
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
-import { APPEARANCE_DARK, syncChartPalette } from '../utils/appearance';
+import { syncChartPalette } from '../utils/appearance';
 import XQIcon from '../components/xq-icons';
-import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
+import { XQTabs, XQSpin } from '../components/xq-ui';
 import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
 import { registerWorkspaceBridge, registerWorkspaceUi } from '../utils/aiTools/workspaceBridge';
+import { currentScriptMode, setScriptMode } from '../utils/scriptMode';
 import { recordSeedsForFieldWrite } from '../utils/newChartSeeds';
+import { renderQueryDrawer as renderQueryDrawerImpl, renderRegisterDrawer as renderRegisterDrawerImpl, renderLoginDrawer as renderLoginDrawerImpl, renderResetPwdDrawer as renderResetPwdDrawerImpl, renderChangePwdDrawer as renderChangePwdDrawerImpl, renderChangeParamsDrawer as renderChangeParamsDrawerImpl } from './components/astroIndex/accountDrawers';
+import { renderChartAddDrawer as renderChartAddDrawerImpl, renderChartEditDrawer as renderChartEditDrawerImpl, renderChartListDrawer as renderChartListDrawerImpl, renderCaseAddDrawer as renderCaseAddDrawerImpl, renderCaseEditDrawer as renderCaseEditDrawerImpl, renderCaseListDrawer as renderCaseListDrawerImpl, renderSelectAspectDrawer as renderSelectAspectDrawerImpl, renderSelectOrbDrawer as renderSelectOrbDrawerImpl, renderSelectPlanetDrawer as renderSelectPlanetDrawerImpl, renderChartDisplayDrawer as renderChartDisplayDrawerImpl, renderChartsGpsDrawer as renderChartsGpsDrawerImpl, renderMemoDrawer as renderMemoDrawerImpl, renderCommToolsDrawer as renderCommToolsDrawerImpl, renderChartDeepLearnDrawer as renderChartDeepLearnDrawerImpl, renderHomepageModal as renderHomepageModalImpl } from './components/astroIndex/recordDrawers';
 
 const TabPane = XQTabs.TabPane;
 
@@ -560,7 +547,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     };
 
     // AI 助手工具桥:当前盘口径改写只走 changeCond 正门(函数声明提升,注册在定义前合法)
-    registerWorkspaceBridge({ changeCond, dispatch });
+    // 界面简繁读写也挂桥上:工具层不许直接导入显示层 scriptMode(scriptLayerBoundary),经桥调用
+    registerWorkspaceBridge({ changeCond, dispatch, scriptModeRead: currentScriptMode, scriptModeWrite: setScriptMode });
     function changeCond(values){
         let flds = {
             ...fields,
@@ -715,6 +703,11 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         if(!el || typeof document === 'undefined'){ return; }
         try{
             const vis = (s)=> s && s.offsetParent !== null && s.getBoundingClientRect().width > 120;
+            // 当前页自己已经在舞台里显示「计算中」(统一三态件 XQState 的加载态)时不再叠一个全局徽标:两套加载提示同时出现
+            const main = document.getElementById('mainContent');
+            const ownLoading = main ? main.querySelectorAll('.xq-state-loading') : [];
+            for(let k = 0; k < ownLoading.length; k++){ if(ownLoading[k].offsetParent !== null){ el.style.display = 'none'; return; } }
+            el.style.display = '';
             let stage = null;
             const cand = document.querySelectorAll('.horosa-chart-stage-redesign, .horosa-chart-stage');
             for(let i = 0; i < cand.length; i++){ if(vis(cand[i])){ stage = cand[i]; break; } }
@@ -722,6 +715,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 const grids = document.querySelectorAll('.horosa-astro-redesign-grid');
                 for(let j = 0; j < grids.length; j++){ const mid = grids[j].children[1]; if(vis(mid)){ stage = mid; break; } }
             }
+            // 找不到盘面舞台:贴在工作区右上角(在页头之下),不回落到窗口右上压住页头与页签条的交界
+            if(!stage && main && vis(main)){ stage = main; }
             if(stage){
                 const r = stage.getBoundingClientRect();
                 // r 与 innerWidth 同属 rect 域(计算自洽);徽标 .horosa-workspace-updating
@@ -758,8 +753,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         {/* [连续调整不打断] 去满屏压暗遮罩:请求进行中改为右上角非阻塞「更新中…」小徽标;
             盘面 keep-stale(各技法本就在重算时保留旧盘态,不清空),故调时间可连续不闪。 */}
         {loading ? <div className="horosa-workspace-updating" ref={positionUpdatingBadge}>{tip || '更新中…'}</div> : null}
-        <Spin spinning={false} wrapperClassName="horosa-main-spin">
-            <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
+        <XQSpin spinning={false} wrapperClassName="horosa-main-spin">
+            <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><XQSpin size="large" tip="加载中…" /></div>}>
             <XQTabs
                 defaultActiveKey="astrochart" tabPosition='left' rail={false} onChange={changeTab}
                 activeKey={activeMainTab}
@@ -1195,516 +1190,64 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             </XQTabs>
             </React.Suspense>
 
-            <Drawer
-                title='星盘配置'
-                width={720}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.query}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <AstroFormComp 
-                    { ...fields }
-                    fields={fields}
-                    fieldsAry={aryfields}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderQueryDrawerImpl({ closeDrawer, drawerVisible, fields, aryfields, dispatch })}
 
-            <Drawer
-                title='注册'
-                width={300}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.register}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <RegisterForm 
-                    {...registerFields}
-                    tokenImg={tokenImg}
-                    fields={registerFields}
-                    fieldsAry={aryregflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderRegisterDrawerImpl({ closeDrawer, drawerVisible, registerFields, tokenImg, aryregflds, dispatch })}
 
-            <Drawer
-                title='登录'
-                width={300}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.login}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <LoginForm 
-                    {...loginFields}
-                    fields={loginFields}
-                    fieldsAry={aryloginflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderLoginDrawerImpl({ closeDrawer, drawerVisible, loginFields, aryloginflds, dispatch })}
 
-            <Drawer
-                title='忘记密码'
-                width={300}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.resetpwd}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ResetPwdForm 
-                    {...registerFields}
-                    tokenImg={tokenImg}
-                    fields={registerFields}
-                    fieldsAry={aryregflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderResetPwdDrawerImpl({ closeDrawer, drawerVisible, registerFields, tokenImg, aryregflds, dispatch })}
 
-            <Drawer
-                title='修改密码'
-                width={300}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.changepwd}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChangePwdForm 
-                    {...pwdFields}
-                    fields={pwdFields}
-                    fieldsAry={convertToArray(pwdFields)}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChangePwdDrawerImpl({ closeDrawer, drawerVisible, pwdFields, dispatch })}
 
-            <Drawer
-                title='修改参数'
-                width={700}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.changeparams}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChangeParamsFormComp 
-                    {...fields}
-                    fields={fields}
-                    fieldsAry={aryfields}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChangeParamsDrawerImpl({ closeDrawer, drawerVisible, fields, aryfields, dispatch })}
 
-            <Drawer
-                title='添加星盘'
-                width={700}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.chartadd}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartAddFormComp 
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChartAddDrawerImpl({ closeDrawer, drawerVisible, currentChart, arychartflds, dispatch })}
 
-            <Drawer
-                title='编辑星盘'
-                width={700}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.chartedit}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartEditFormComp 
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChartEditDrawerImpl({ closeDrawer, drawerVisible, currentChart, arychartflds, dispatch })}
 
-            <Drawer
-                title='星盘列表'
-                width={950}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={false}
-                open={drawerVisible.chartlist}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartList
-                    height={height} 
-                    userInfo={userInfo}
-                    charts={charts}
-                    pageSize={pageSize}
-                    pageIndex={pageIndex}
-                    total={total}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChartListDrawerImpl({
+            	closeDrawer, drawerVisible, height, userInfo, charts, pageSize, pageIndex, total, dispatch,
+            })}
 
-            <Drawer
-                title='添加起课'
-                width={700}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.caseadd}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}
-            >
-                <CaseAddFormComp
-                    {...currentCase}
-                    fields={currentCase}
-                    fieldsAry={arycaseflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderCaseAddDrawerImpl({ closeDrawer, drawerVisible, currentCase, arycaseflds, dispatch })}
 
-            <Drawer
-                title='编辑起课'
-                width={700}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.caseedit}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}
-            >
-                <CaseEditFormComp
-                    {...currentCase}
-                    fields={currentCase}
-                    fieldsAry={arycaseflds}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderCaseEditDrawerImpl({ closeDrawer, drawerVisible, currentCase, arycaseflds, dispatch })}
 
-            <Drawer
-                title='起课列表'
-                width={950}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={false}
-                open={drawerVisible.caselist}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}
-            >
-                <CaseList
-                    height={height}
-                    userInfo={userInfo}
-                    cases={cases}
-                    casePageSize={casePageSize}
-                    casePageIndex={casePageIndex}
-                    caseTotal={caseTotal}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderCaseListDrawerImpl({
+            	closeDrawer, drawerVisible, height, userInfo, cases, casePageSize, casePageIndex, caseTotal,
+            	dispatch,
+            })}
 
-            <Drawer
-                title='相位选择'
-                width={340}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.selectasp}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <AspSelector
-                    layout="drawer"
-                    value={aspects}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderSelectAspectDrawerImpl({ closeDrawer, drawerVisible, aspects, dispatch })}
 
-            <Drawer
-                title='容许度设置'
-                width={380}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.selectorb}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}
-            >
-                <AstroOrbSetting
-                    fields={fields}
-                    chartObj={chartObj}
-                    dispatch={dispatch}
-                    onClose={closeDrawer}
-                />
-            </Drawer>
+            {renderSelectOrbDrawerImpl({ closeDrawer, drawerVisible, fields, chartObj, dispatch })}
 
-            <Drawer
-                title='显示星体'
-                width={400}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.selectplanet}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <PlanetSelector
-                    value={planetDisplay}
-                    lots={lotsDisplay}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderSelectPlanetDrawerImpl({ closeDrawer, drawerVisible, planetDisplay, lotsDisplay, dispatch })}
 
-            <Drawer
-                title='星盘设置'
-                className='horosa-chart-settings-drawer'
-                width={940}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.selectchartdisplay}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartDisplaySelector
-                    layout="drawer"
-                    value={chartDisplay}
-                    showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
-                    showPlanetHouseInfo={showPlanetHouseInfo}
-                    showAstroMeaning={showAstroMeaning}
-                    showOnlyRulExaltReception={showOnlyRulExaltReception}
-                    wheelArt={wheelArt}
-                    planetListStyle={app.planetListStyle}
-                    termsVariant={fields && fields.termsVariant ? fields.termsVariant.value : 0}
-                    voidClassical={voidClassical}
-                    fields={fields}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChartDisplayDrawerImpl({
+            	closeDrawer, drawerVisible, chartDisplay, fields, showPdBounds, showPlanetHouseInfo,
+            	showAstroMeaning, showOnlyRulExaltReception, wheelArt, app, voidClassical, dispatch,
+            })}
 
-            <Drawer
-                title='我的命盘分布'   /* 与公共菜单「命盘分布」同词;数据源=本机命盘库 */
-                width={900}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={true}
-                open={drawerVisible.chartsgps}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartsGps
-                    height={height} 
-                    charts={charts}
-                    userInfo={userInfo}
-                    dispatch={dispatch}
-                />
-            </Drawer>
+            {renderChartsGpsDrawerImpl({ closeDrawer, drawerVisible, height, charts, userInfo, dispatch })}
 
-            <Drawer
-                title='命盘批注'
-                width={500}
-                placement="right"
-                destroyOnClose={true}
-                onClose={closeDrawer}
-                maskClosable={true}
-                open={drawerVisible.memo}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <ChartMemo
-                    memoType={memoType}
-                    memo={memo}
-                    currentSubTab={currentSubTab}
-                    currentTab={activeMainTab}
-                    userInfo={userInfo}
-                    currentChart={currentChart}
-                    dispatch={dispatch}
-                    loading={loading}
-                />
-            </Drawer>
+            {renderMemoDrawerImpl({
+            	closeDrawer, drawerVisible, ChartMemo, memoType, memo, currentSubTab, activeMainTab, userInfo,
+            	currentChart, dispatch, loading,
+            })}
 
-            <Drawer
-                title='小工具'
-                width={960}
-                placement="left"
-                className="horosa-commtools-drawer"
-                destroyOnClose={true}
-                onClose={closeDrawer}
-                maskClosable={true}
-                open={drawerVisible.commtools}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <CommToolsMain
-                    fields={fields}
-                    dispatch={dispatch}
-                    loading={loading}
-                />
-            </Drawer>
+            {renderCommToolsDrawerImpl({ closeDrawer, drawerVisible, CommToolsMain, fields, dispatch, loading })}
 
-            <Drawer
-                title='命主实况'
-                width={1000}
-                placement="left"
-                onClose={closeDrawer}
-                maskClosable={true}
-                destroyOnClose={false}
-                open={drawerVisible.chartdeeplearn}
-                style={{
-                    height: 'calc(100% - 0px)',
-                    overflow: 'auto',
-                    paddingBottom: 53,
-                    backgroundColor: 'transparent',
-                }}        
-            >
-                <DLFeature
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    deeplearn={deeplearn}
-                    height={height} 
-                    dispatch={dispatch}
-                    loading={loading}
-                />
-            </Drawer>
+            {renderChartDeepLearnDrawerImpl({
+            	closeDrawer, drawerVisible, currentChart, arychartflds, deeplearn, height, dispatch, loading,
+            })}
 
-            <XQModal
-                title={null}
-                footer={null}
-                centered
-                closable={false}
-                width={1228}
-                destroyOnClose={true}
-                maskClosable={true}
-                open={drawerVisible.homepage}
-                onCancel={closeDrawer}
-                className="xq-nav-popup"
-                transitionName="xq-nav-popup-motion"
-                maskTransitionName="xq-nav-popup-mask-motion"
-            >
-                <div className="xq-nav-popup-shell">
-                    <HomePageSetup
-                        dispatch={dispatch}
-                        loading={loading}
-                        pages={navigationPages}
-                        currentKey={activeMainTab}
-                        onNavigate={changeTab}
-                        onOpenTools={()=>openDrawer('commtools')}
-                        onClose={closeDrawer}
-                    />
-                </div>
-            </XQModal>
+            {renderHomepageModalImpl({
+            	drawerVisible, closeDrawer, dispatch, loading, navigationPages, activeMainTab, changeTab, openDrawer,
+            })}
 
-        </Spin>
+        </XQSpin>
 		</div>
 		</TechniqueErrorBoundary>
 	);

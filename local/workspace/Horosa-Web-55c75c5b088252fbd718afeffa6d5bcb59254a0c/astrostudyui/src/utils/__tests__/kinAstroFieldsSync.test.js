@@ -3,12 +3,13 @@
 // 防的 bug 类：宿主 didMount 把 fields 的性别/农历锚点拷进 state，载入命例（fields 变化）时
 // didUpdate 只重取盘不重同步 → 一掌经/策天等 11 技法性别停留旧值。修法＝标记式值变化检测
 // （fieldsSyncSrc），本套测试钉死其语义 + 源码哨兵防接线被删。
-import fs from 'fs';
 import path from 'path';
-const { importsName } = require('./helpers/importSpecs');   // 按 AST 读 import:同一条里多导几个名字 / 换行排版都照认
+const { fileImportsName } = require('./helpers/importSpecs');   // 按 AST 读 import:同一条里多导几个名字 / 换行排版都照认
 import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../kinAstroFieldsSync';
+const { readSource, sourceSetFiles } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const KIN_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js'), 'utf8');
+const KIN_FACADE = path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js');
+const KIN_SRC = readSource(KIN_FACADE);
 
 function mkFields({ date = '1990-05-18', time = '10:00:00', gender = 1, zone = '+08:00' } = {}){
 	return {
@@ -100,7 +101,9 @@ describe('computeKinFieldsResync 行为矩阵', ()=>{
 describe('KinAstroMain 接线哨兵（源码自省：重同步接线不许被删）', ()=>{
 	it('从 utils/kinAstroFieldsSync 引入三函数', ()=>{
 		['normBinaryGender', 'parseFieldsDateTime', 'computeKinFieldsResync'].forEach((name)=>{
-			expect(`${name}:${importsName(KIN_SRC, { name, from: '../../utils/kinAstroFieldsSync' })}`).toBe(`${name}:true`);
+			// 全集逐个文件按 AST 问(拼出来的全集是文本,不能当一个模块解析;子模块的引用路径层级不同也照认)
+			const hit = sourceSetFiles(KIN_FACADE).some((f)=>fileImportsName(f, { name, target: path.join(__dirname, '..', 'kinAstroFieldsSync') }));
+			expect(`${name}:${hit}`).toBe(`${name}:true`);
 		});
 	});
 

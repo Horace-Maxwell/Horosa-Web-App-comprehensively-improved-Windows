@@ -1,10 +1,10 @@
 import { Component } from 'react';
-import { Popconfirm, message, Modal, Dropdown, Checkbox } from 'antd';
+import { Popconfirm, message, Modal, Dropdown } from 'antd';
 import * as AstroText from '../../constants/AstroText';
 import { TableOddRowBgColor } from '../../utils/constants';
 import EditableTags from '../comp/EditableTags';
 import { getCaseTypeLabel, exportLocalCasesBackup, importLocalCasesBackup, listLocalCaseTags, validateLocalCasesBackup, previewLocalCasesBackup, listLocalCasesTrash, restoreLocalCaseFromTrash, restoreLocalCaseFromDeletedLog, purgeLocalCaseTrashItem, clearLocalCasesTrash, listLocalCases, upsertLocalCase, removeLocalCase, pinLocalCase, moveLocalCase, CASE_TYPE_OPTIONS , flagLocalCase, setLocalCaseTags, countLocalCasesLiveTrash, LOCAL_CASES_TRASH_CAP } from '../../utils/localcases';
-import { XQButton, XQPagination, XQSearch, XQSelect, XQTable } from '../xq-ui';
+import { XQButton, XQPagination, XQSearch, XQSelect, XQTable, XQCheckbox } from '../xq-ui';
 import { toRecordCopy, parseGroupTags } from '../../utils/localRecordStore';
 import { toastRecordWrite, runRecordBatch, toastRecordBatch, toastRecordImport, toastTrashPurge, RECORD_BATCH_DELETE_NOT_PERSISTED_NOTE, emitRecordsChanged } from '../../utils/recordStoreNotice';
 import { runAutoBackupOnce } from '../../utils/autoBackup';
@@ -13,7 +13,7 @@ import DeletedLogPanel from './DeletedLogPanel';
 import { countDeletedLogEntries, DELETED_LOG_CAP } from '../../utils/localRecordStore';
 import { shouldSkipDeleteConfirm, setSkipDeleteConfirm, clearSkipDeleteConfirm } from '../../utils/uiPrefs';
 import { recordsToCsv } from '../../utils/recordExportLite';
-import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/fileSave';
 import { copyDesktopClipboard } from '../../utils/aiAnalysisDesktop';
 import XQIcon from '../xq-icons';
 import { parseRecordPayload } from '../../utils/aiAnalysisSources';
@@ -438,12 +438,12 @@ class CaseList extends Component{
 				onCancel={()=>{this.setState({ deleteRec: null, deleteLabel: null, skipNext: false });}}
 				footer={(
 					<div style={{ display: 'flex', alignItems: 'center' }}>
-						<Checkbox
+						<XQCheckbox
 							checked={!!this.state.skipNext}
 							onChange={(e)=>{this.setState({ skipNext: e.target.checked });}}
 						>
 							<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>下次不再提醒</span>
-						</Checkbox>
+						</XQCheckbox>
 						<div style={{ flex: 1 }} />
 						<XQButton onClick={()=>{this.setState({ deleteRec: null, deleteLabel: null, skipNext: false });}}>取消</XQButton>
 						<XQButton type="primary" onClick={this.confirmDelete}>确定</XQButton>

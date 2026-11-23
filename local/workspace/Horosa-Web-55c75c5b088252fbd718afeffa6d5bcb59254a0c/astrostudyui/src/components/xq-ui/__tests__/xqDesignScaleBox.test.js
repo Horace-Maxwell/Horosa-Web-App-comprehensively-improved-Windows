@@ -16,13 +16,14 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC = path.resolve(__dirname, '..', '..', '..');
-const read = (r)=>fs.readFileSync(path.join(SRC, r), 'utf8');
+const read = (r)=>require('../../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, r));   // 拆成子模块的门面按「门面 + 子模块」全集读,其余文件原样读
 const stripComments = (t)=>t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"])\/\/[^\n]*/g, '$1');
 
 const { XQDesignScaleBox, designScaleOf, designHeightScaleOf, FIT_HEIGHT_MIN_SCALE, HTML_DESIGN_BOX_ATTR } = require('../XQDesignScaleBox');
 const floor = require('../../../utils/chartTextFloor');
 const { jsxNodes } = require('../../../utils/__tests__/helpers/jsxProps');   // 按 AST 认元素 / 属性 / 子节点(不按排版写正则)
-const boxes = (rel)=>jsxNodes(read(rel), 'XQDesignScaleBox');
+// JSX 要逐个文件解析(全集是拼起来的文本、不能当一个模块解析):门面与子模块各自找
+const boxes = (rel)=>require('../../../utils/__tests__/helpers/sourceSet').sourceSetFiles(path.join(SRC, rel)).flatMap((f)=>jsxNodes(fs.readFileSync(f, 'utf8'), 'XQDesignScaleBox'));
 
 function mountIn(width, el, height){
 	const host = document.createElement('div');

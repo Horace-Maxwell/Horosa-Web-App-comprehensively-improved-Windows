@@ -17,10 +17,10 @@ describe('改时间的最新时刻', ()=>{
 		expect(pendingTimePatch(host)).toBe(null);
 	});
 	test('七个立即派发型页面都接上(取时刻函数开头优先最新改动;改时间时记;字段换了清)', ()=>{
-		const fs = require('fs');
 		const path = require('path');
+		const { readSource } = require('./helpers/sourceSet');
 		['taiyi/TaiYiMain', 'huangji/HuangJiMain', 'wuzhao/WuZhaoMain', 'shenyishu/ShenYiShuMain', 'jingjue/JingJueMain', 'taixuan/TaiXuanMain', 'kinastro/KinAstroMain'].forEach((f)=>{
-			const src = fs.readFileSync(path.resolve(__dirname, '../../components', `${f}.js`), 'utf8');
+			const src = readSource(path.resolve(__dirname, '../../components', `${f}.js`));   // 拆成子模块的门面按全集读(类方法拆在 main/ 下)
 			const g = src.indexOf('getTimeFieldsFromSelector(baseFields){');
 			expect([f, g > 0]).toEqual([f, true]);
 			expect([f, src.slice(g, g + 200).indexOf('pendingTimePatch(this)') > 0]).toEqual([f, true]);

@@ -146,7 +146,7 @@
     .horosa-ziwei-center-info-modal .horosa-ziwei-bazi-cell span {
         display: block;
         color: var(--horosa-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         line-height: 1;
     }
 
@@ -155,14 +155,14 @@
         display: block;
         margin-top: 8px;
         color: var(--horosa-text);
-        font-size: 18px;
+        font-size: var(--horosa-fs-title);
         font-weight: 760;
         line-height: 1;
     }
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-bazi-card .horosa-ziwei-bazi-cell strong {
         margin-top: 6px;
-        font-size: 16px;
+        font-size: var(--horosa-fs-title-sm);
     }
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-direction-mini-grid,
@@ -188,7 +188,7 @@
     .horosa-ziwei-center-info-modal .horosa-ziwei-direction-mini em {
         display: block;
         color: var(--horosa-muted);
-        font-size: 11px;
+        font-size: var(--horosa-fs-caption);
         font-style: normal;
         line-height: 1.2;
     }
@@ -198,7 +198,7 @@
         display: block;
         margin: 5px 0;
         color: var(--horosa-text);
-        font-size: 15px;
+        font-size: var(--horosa-fs-subtitle);
         font-weight: 720;
         line-height: 1;
     }
@@ -236,7 +236,7 @@
     .horosa-ziwei-center-info-modal .horosa-info-card-title {
         margin-bottom: 10px;
         color: var(--horosa-gold);
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         font-weight: 760;
     }
 
@@ -255,12 +255,12 @@
 
     .horosa-ziwei-center-info-modal .horosa-info-row span {
         color: var(--horosa-muted);
-        font-size: 13px;
+        font-size: var(--horosa-fs-body);
     }
 
     .horosa-ziwei-center-info-modal .horosa-info-row strong {
         color: var(--horosa-text);
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         font-weight: 680;
         text-align: right;
     }
@@ -395,12 +395,12 @@
         align-items: center;
         gap: 7px;
         color: var(--horosa-astro-gold);
-        font-size: 13px;
+        font-size: var(--horosa-fs-body);
         font-weight: 720;
     }
 
     .horosa-workspace-shell .horosa-guolao-field-title .xq-icon {
-        font-size: 16px;
+        font-size: var(--horosa-fs-title-sm);
     }
 
     .horosa-workspace-shell .horosa-guolao-time-control .ant-row {
@@ -416,18 +416,6 @@
 
     .horosa-workspace-shell .horosa-guolao-redesign .xq-select {
         width: 100%;
-    }
-
-    .horosa-workspace-shell .horosa-guolao-redesign .xq-select .ant-select-selector,
-    .horosa-workspace-shell .horosa-guolao-redesign .ant-picker,
-    .horosa-workspace-shell .horosa-guolao-redesign .ant-input,
-    .horosa-workspace-shell .horosa-guolao-redesign .ant-btn {
-        min-height: 34px;
-        border-color: rgba(215, 173, 105, 0.18) !important;
-        border-radius: 6px !important;
-        background: #090b0e !important;
-        color: var(--horosa-astro-text) !important;
-        box-shadow: none !important;
     }
 
     .horosa-workspace-shell .horosa-guolao-redesign .xq-select .ant-select-selection-item {
@@ -453,15 +441,6 @@
         color: var(--horosa-astro-gold);
     }
 
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guolao-redesign .xq-select .ant-select-selector,
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guolao-redesign .ant-picker,
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guolao-redesign .ant-input,
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guolao-redesign .ant-btn {
-        border-color: var(--horosa-border) !important;
-        background: var(--horosa-surface-solid) !important;
-        color: var(--horosa-text) !important;
-    }
-
     .horosa-workspace-shell .horosa-guolao-place-button.ant-btn {
         display: inline-flex;
         align-items: center;
@@ -477,7 +456,7 @@
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.012);
         color: var(--horosa-astro-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         line-height: 1.35;
         word-break: break-word;
     }
@@ -500,7 +479,7 @@
         min-width: 0;
         margin: 0;
         color: var(--horosa-astro-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 650;
     }
 
@@ -567,26 +546,9 @@
         grid-column-end: -1;
     }
 
+    /* 推运年份 / 择日天数:统一件数字框(XQInputNumber),外观随全站控件(同行的下拉同高同皮),这里只管占满宽 */
     .horosa-workspace-shell .horosa-guolao-mini-input {
         width: 100%;
-        min-height: 34px;
-        box-sizing: border-box;
-        padding: 4px 9px;
-        border: 1px solid rgba(215, 173, 105, 0.18);
-        border-radius: 6px;
-        background: #090b0e;
-        color: var(--horosa-astro-text);
-        outline: none;
-        font: inherit;
-        font-weight: 700;
-        color-scheme: dark;
-    }
-
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-guolao-mini-input {
-        border-color: var(--horosa-border);
-        background: var(--horosa-surface-solid);
-        color: var(--horosa-text);
-        color-scheme: light;
     }
 
     .horosa-workspace-shell .horosa-qizheng-kin-board {
@@ -664,7 +626,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-house-foot span {
         overflow: hidden;
         color: var(--horosa-astro-muted);
-        font-size: 11px;
+        font-size: var(--horosa-fs-caption);
         font-weight: 650;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -756,7 +718,7 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-center span {
         color: var(--horosa-astro-gold);
-        font-size: 11px;
+        font-size: var(--horosa-fs-caption);
         font-weight: 760;
         letter-spacing: 0;
         text-transform: uppercase;
@@ -777,7 +739,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-center p {
         margin: 0;
         color: var(--horosa-astro-muted);
-        font-size: 13px;
+        font-size: var(--horosa-fs-body);
         font-weight: 650;
     }
 
@@ -809,12 +771,12 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-center-grid small {
         color: var(--horosa-astro-muted);
-        font-size: 10px;
+        font-size: var(--horosa-fs-micro);
     }
 
     .horosa-workspace-shell .horosa-qizheng-kin-center-grid b {
         color: var(--horosa-astro-text);
-        font-size: 15px;
+        font-size: var(--horosa-fs-subtitle);
     }
 
     :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-qizheng-kin-center-grid b {
@@ -833,7 +795,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-center-meta span,
     .horosa-workspace-shell .horosa-qizheng-kin-board-footer span {
         color: var(--horosa-astro-muted);
-        font-size: 11px;
+        font-size: var(--horosa-fs-caption);
         font-weight: 650;
     }
 
@@ -886,7 +848,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-info-card h4 {
         margin: 0 0 9px;
         color: var(--horosa-astro-text);
-        font-size: 14px;
+        font-size: var(--horosa-fs-body-lg);
         font-weight: 780;
     }
 
@@ -909,14 +871,14 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-row > span {
         color: var(--horosa-astro-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 650;
     }
 
     .horosa-workspace-shell .horosa-qizheng-kin-row strong {
         min-width: 0;
         color: var(--horosa-astro-text);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 760;
         line-height: 1.48;
         overflow-wrap: break-word; overflow-wrap: anywhere;
@@ -939,7 +901,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-prose p {
         margin: 0;
         color: var(--horosa-astro-text);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 650;
         line-height: 1.65;
         white-space: pre-wrap;
@@ -951,7 +913,7 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-empty {
         color: var(--horosa-astro-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 650;
     }
 
@@ -993,7 +955,7 @@
         border-radius: 50%;
         color: var(--horosa-on-accent);
         background: var(--horosa-astro-gold, #e7bd75);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 800;
         flex: 0 0 auto;
     }
@@ -1011,7 +973,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-reading-head strong {
         min-width: 0;
         color: var(--horosa-astro-text);
-        font-size: 13px;
+        font-size: var(--horosa-fs-body);
         font-weight: 800;
         line-height: 1.35;
         overflow-wrap: break-word; overflow-wrap: anywhere;
@@ -1030,7 +992,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-reading-detail p {
         margin: 0;
         color: var(--horosa-astro-muted);
-        font-size: 12px;
+        font-size: var(--horosa-fs-small);
         font-weight: 650;
         line-height: 1.55;
         overflow-wrap: break-word; overflow-wrap: anywhere;
@@ -1057,11 +1019,11 @@
         }
 
         .horosa-workspace-shell .horosa-qizheng-kin-house-head strong {
-            font-size: 15px;
+            font-size: var(--horosa-fs-subtitle);
         }
 
         .horosa-workspace-shell .horosa-qizheng-kin-planet b {
-            font-size: 13px;
+            font-size: var(--horosa-fs-body);
         }
     }
 

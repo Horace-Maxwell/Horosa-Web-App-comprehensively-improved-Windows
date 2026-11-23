@@ -32,7 +32,7 @@
 		justify-content: center;
 		writing-mode: vertical-lr;
 		letter-spacing: 3px;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-weight: 700;
 		color: var(--horosa-gold, #9a6a25);
 		background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.10));
@@ -58,7 +58,7 @@
 		border-radius: 7px;
 		background: var(--horosa-surface-solid, #fff);
 		color: var(--horosa-muted, #68758a);
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-weight: 700;
 		cursor: pointer;
 		transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
@@ -97,7 +97,7 @@
 		border-radius: 6px;
 		background: var(--horosa-surface-solid, #fff);
 		color: var(--horosa-muted, #68758a);
-		font-size: 11px;
+		font-size: var(--horosa-fs-caption);
 		font-weight: 600;
 		cursor: pointer;
 	}
@@ -135,10 +135,10 @@
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-chip.is-readonly:hover { border-color: var(--horosa-border, rgba(76, 98, 134, 0.17)); }
 	.horosa-workspace-shell .horosa-ziwei-luck-chip .chip-top {
-		font-size: 12px; line-height: 1.2; color: var(--horosa-muted, #68758a); white-space: nowrap;
+		font-size: var(--horosa-fs-small); line-height: 1.2; color: var(--horosa-muted, #68758a); white-space: nowrap;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-chip .chip-sub {
-		font-size: 13px; font-weight: 700; line-height: 1.2; letter-spacing: 1px; white-space: nowrap;
+		font-size: var(--horosa-fs-body); font-weight: 700; line-height: 1.2; letter-spacing: 1px; white-space: nowrap;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-chip.is-selected {
 		background: linear-gradient(180deg, #b5863a, #9a6a25);
@@ -180,18 +180,18 @@
 		border-radius: 6px;
 		background: linear-gradient(180deg, #b5863a, #9a6a25);
 		color: #fff;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-weight: 600;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-ganzi {
-		font-size: 18px; font-weight: 700; letter-spacing: 2px;
+		font-size: var(--horosa-fs-title); font-weight: 700; letter-spacing: 2px;
 		color: var(--horosa-ziwei-house-name, #9b6a2d);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-sub-tag {
-		font-size: 12px; color: var(--horosa-text-soft, #52627a);
+		font-size: var(--horosa-fs-small); color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-pal-inline {
-		margin-left: auto; font-size: 12px; color: var(--horosa-ziwei-house-age, #6f7d8d); white-space: nowrap;
+		margin-left: auto; font-size: var(--horosa-fs-small); color: var(--horosa-ziwei-house-age, #6f7d8d); white-space: nowrap;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-sihua {
 		display: grid;
@@ -201,12 +201,12 @@
 	.horosa-workspace-shell .horosa-ziwei-luck-sihua .hua {
 		display: flex; align-items: center; gap: 4px;
 		padding: 5px 9px; border-radius: 7px;
-		font-size: 13px; color: var(--horosa-on-solid);   /* 底 = --horosa-sihua-*(明暗成对);暗色实底是浅亮色,字随之变深墨 */
+		font-size: var(--horosa-fs-body); color: var(--horosa-on-solid);   /* 底 = --horosa-sihua-*(明暗成对);暗色实底是浅亮色,字随之变深墨 */
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 		overflow-wrap: break-word; overflow-wrap: anywhere;
 	}
-	.horosa-workspace-shell .horosa-ziwei-luck-sihua .hua b { font-size: 14px; font-weight: 800; }
-	.horosa-workspace-shell .horosa-ziwei-luck-sihua .hua i { margin-left: auto; font-style: normal; font-size: 11px; }
+	.horosa-workspace-shell .horosa-ziwei-luck-sihua .hua b { font-size: var(--horosa-fs-body-lg); font-weight: 800; }
+	.horosa-workspace-shell .horosa-ziwei-luck-sihua .hua i { margin-left: auto; font-style: normal; font-size: var(--horosa-fs-caption); }
 	.horosa-workspace-shell .horosa-ziwei-luck-flow {
 		display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px;
 	}
@@ -215,7 +215,7 @@
 		padding: 3px 9px; border-radius: 12px;
 		border: 1px solid rgba(215, 173, 105, 0.30);
 		background: var(--horosa-surface-solid, #fff);
-		font-size: 12px; color: var(--horosa-text-soft, #52627a);
+		font-size: var(--horosa-fs-small); color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-flow .flow-chip i { font-style: normal; font-weight: 600; color: var(--horosa-gold, #9a6a25); }
 	/* P1-C 流年神煞（将前·岁前）chips */
@@ -223,20 +223,20 @@
 		display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; align-items: center;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-label {
-		font-size: 11px; font-weight: 600; color: var(--horosa-muted, #68758a); margin-right: 2px;
+		font-size: var(--horosa-fs-caption); font-weight: 600; color: var(--horosa-muted, #68758a); margin-right: 2px;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-chip {
 		display: inline-flex; align-items: center; gap: 2px;
 		padding: 2px 7px; border-radius: 10px;
 		border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.16));
 		background: var(--horosa-surface-solid, #fff);
-		font-size: 11px; color: var(--horosa-text-soft, #52627a);
+		font-size: var(--horosa-fs-caption); color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-jiangsui .js-chip i { font-style: normal; font-weight: 600; color: var(--horosa-muted, #8a8f95); }
 	.horosa-workspace-shell .horosa-ziwei-luck-note {
 		display: flex; justify-content: space-between; align-items: center; gap: 8px;
 		padding-top: 4px;
-		font-size: 12px; color: var(--horosa-muted, #68758a);
+		font-size: var(--horosa-fs-small); color: var(--horosa-muted, #68758a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-note a {
 		white-space: nowrap; font-weight: 600; color: var(--horosa-accent, #9a6a25); cursor: pointer;
@@ -252,7 +252,7 @@
 		padding: 8px 2px 4px;
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-count {
-		margin-bottom: 10px; font-size: 12px; font-weight: 600; letter-spacing: 1px; color: var(--horosa-muted, #68758a);
+		margin-bottom: 10px; font-size: var(--horosa-fs-small); font-weight: 600; letter-spacing: 1px; color: var(--horosa-muted, #68758a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-list { display: flex; flex-direction: column; gap: 8px; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-item {
@@ -268,52 +268,52 @@
 	.horosa-workspace-shell .horosa-ziwei-pattern-item.cat-poge { border-left-color: #68758a; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-name {
-		font-size: 15px; font-weight: 700; letter-spacing: 1px; color: var(--horosa-ziwei-house-name, #9b6a2d);
+		font-size: var(--horosa-fs-subtitle); font-weight: 700; letter-spacing: 1px; color: var(--horosa-ziwei-house-name, #9b6a2d);
 	}
-	.horosa-workspace-shell .horosa-ziwei-pattern-cat { padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 600; color: #fff; }
+	.horosa-workspace-shell .horosa-ziwei-pattern-cat { padding: 1px 8px; border-radius: 9px; font-size: var(--horosa-fs-caption); font-weight: 600; color: #fff; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-cat.cat-fugui { background: #9a6a25; }   /* 药丸白字 ≥ 4.5:1(旧 #c0883a 2.9 / #1497a8 3.4 / #68758a 4.3) */
 	.horosa-workspace-shell .horosa-ziwei-pattern-cat.cat-wengui { background: #0e7383; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-cat.cat-wugui { background: #a9473f; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-cat.cat-poge { background: #5d6b7a; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-broken {
-		padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: 700; color: var(--horosa-on-solid, #fff); background: var(--horosa-danger, #cf1322);
+		padding: 1px 7px; border-radius: 9px; font-size: var(--horosa-fs-caption); font-weight: 700; color: var(--horosa-on-solid, #fff); background: var(--horosa-danger, #cf1322);
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-duanyi {
-		margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--horosa-text-soft, #52627a); overflow-wrap: break-word; overflow-wrap: anywhere;
+		margin-top: 6px; font-size: var(--horosa-fs-body); line-height: 1.6; color: var(--horosa-text-soft, #52627a); overflow-wrap: break-word; overflow-wrap: anywhere;
 	}
-	.horosa-workspace-shell .horosa-ziwei-pattern-src { margin-top: 4px; font-size: 11px; text-align: right; color: var(--horosa-muted, #68758a); }
+	.horosa-workspace-shell .horosa-ziwei-pattern-src { margin-top: 4px; font-size: var(--horosa-fs-caption); text-align: right; color: var(--horosa-muted, #68758a); }
 	/* P0-3 格局命中详情展开 */
 	.horosa-workspace-shell .horosa-ziwei-pattern-head { cursor: pointer; }
 	.horosa-workspace-shell .horosa-ziwei-pattern-toggle {
-		margin-left: auto; font-size: 11px; font-weight: 600; color: var(--horosa-muted, #68758a);
+		margin-left: auto; font-size: var(--horosa-fs-caption); font-weight: 600; color: var(--horosa-muted, #68758a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail {
 		margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--horosa-border, rgba(76, 98, 134, 0.18));
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail-title {
-		font-size: 11px; font-weight: 700; color: var(--horosa-muted, #68758a); margin: 2px 0 4px;
+		font-size: var(--horosa-fs-caption); font-weight: 700; color: var(--horosa-muted, #68758a); margin: 2px 0 4px;
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail ul {
 		margin: 0 0 6px; padding-left: 16px;
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail li {
-		font-size: 12px; line-height: 1.7; color: var(--horosa-text-soft, #52627a); overflow-wrap: break-word; overflow-wrap: anywhere;
+		font-size: var(--horosa-fs-small); line-height: 1.7; color: var(--horosa-text-soft, #52627a); overflow-wrap: break-word; overflow-wrap: anywhere;
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail li.is-broken { color: var(--horosa-danger, #cf1322); }
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail-note {
-		font-size: 12px; line-height: 1.6; color: var(--horosa-text-soft, #52627a);
+		font-size: var(--horosa-fs-small); line-height: 1.6; color: var(--horosa-text-soft, #52627a);
 	}
 	.horosa-workspace-shell .horosa-ziwei-pattern-detail-src {
-		margin-top: 4px; font-size: 11px; color: var(--horosa-muted, #68758a);
+		margin-top: 4px; font-size: var(--horosa-fs-caption); color: var(--horosa-muted, #68758a);
 	}
 	/* P1-A 自定义四化表编辑器（Modal 内，portal 到 body，不加 workspace 作用域） */
 	.horosa-ziwei-sihua-editor { display: flex; flex-direction: column; gap: 6px; }
 	.horosa-ziwei-sihua-editor-row { display: grid; grid-template-columns: 28px repeat(4, 1fr); gap: 6px; align-items: center; }
 	.horosa-ziwei-sihua-editor-row .gan { font-weight: 700; color: var(--horosa-ziwei-house-name, #9b6a2d); text-align: center; }
-	.horosa-ziwei-sihua-editor-head { font-size: 12px; font-weight: 600; color: var(--horosa-muted, #68758a); }
+	.horosa-ziwei-sihua-editor-head { font-size: var(--horosa-fs-small); font-weight: 600; color: var(--horosa-muted, #68758a); }
 	.horosa-ziwei-sihua-editor-head span { text-align: center; }
 	.horosa-ziwei-sihua-editor .ant-select { width: 100%; }
-	.horosa-ziwei-sihua-editor-tip { margin-top: 10px; font-size: 11px; color: var(--horosa-muted, #68758a); line-height: 1.6; }
+	.horosa-ziwei-sihua-editor-tip { margin-top: 10px; font-size: var(--horosa-fs-caption); color: var(--horosa-muted, #68758a); line-height: 1.6; }
 	/* P1-A/B 流派设置 Collapse + 自定义编辑按钮（暗色为默认基色，浅色用 override；与 option-card 同语言） */
 	.horosa-workspace-shell .horosa-ziwei-school-collapse {
 		margin-top: 8px;
@@ -325,7 +325,7 @@
 	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header {
 		padding: 7px 10px !important;
 		color: var(--horosa-astro-muted) !important;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		font-weight: 650;
 	}
 	.horosa-workspace-shell .horosa-ziwei-school-collapse .ant-collapse-header .ant-collapse-arrow {
@@ -351,7 +351,7 @@
 	}
 	.horosa-workspace-shell .horosa-ziwei-school-edit-btn {
 		align-self: flex-start;
-		padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+		padding: 5px 12px; font-size: var(--horosa-fs-small); font-weight: 600; cursor: pointer;
 		border-radius: 6px;
 		border: 1px solid rgba(215, 173, 105, 0.45);
 		background: rgba(215, 173, 105, 0.12);
@@ -401,11 +401,11 @@
 	        padding-bottom: 12px;
 	        border-bottom: 1px solid var(--horosa-huangji-line);
 	    }
-	    .horosa-guice-board-title { font-size: 20px; font-weight: 700; letter-spacing: .04em; }
-	    .horosa-guice-board-kicker { margin-top: 3px; font-size: 12px; color: var(--horosa-huangji-muted); }
+	    .horosa-guice-board-title { font-size: var(--horosa-fs-title-lg); font-weight: 700; letter-spacing: .04em; }
+	    .horosa-guice-board-kicker { margin-top: 3px; font-size: var(--horosa-fs-small); color: var(--horosa-huangji-muted); }
 	    .horosa-guice-board-time {
 	        padding: 3px 10px; border-radius: 12px; white-space: nowrap;
-	        font-size: 12px; font-weight: 700;
+	        font-size: var(--horosa-fs-small); font-weight: 700;
 	        color: var(--horosa-huangji-accent-strong);
 	        background: color-mix(in srgb, var(--horosa-huangji-accent) 14%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.14); }
 	        border: 1px solid var(--horosa-huangji-line-strong);
@@ -437,25 +437,25 @@
 	    }
 	    .horosa-guice-gua-card.is-ben { border-color: var(--horosa-huangji-line-strong); }
 	    .horosa-guice-gua-card-kicker {
-	        font-size: 11px; font-weight: 700; letter-spacing: .08em;
+	        font-size: var(--horosa-fs-caption); font-weight: 700; letter-spacing: .08em;
 	        color: var(--horosa-huangji-accent);
 	    }
-	    .horosa-guice-gua-card strong { font-size: 15px; color: var(--horosa-huangji-text); }
-	    .horosa-guice-gua-card span { font-size: 11px; line-height: 1.4; color: var(--horosa-huangji-muted); }
+	    .horosa-guice-gua-card strong { font-size: var(--horosa-fs-subtitle); color: var(--horosa-huangji-text); }
+	    .horosa-guice-gua-card span { font-size: var(--horosa-fs-caption); line-height: 1.4; color: var(--horosa-huangji-muted); }
 	    .horosa-guice-tri-pair { display: flex; gap: 12px; align-items: flex-end; }
 	    .horosa-guice-tri { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 	    .horosa-guice-tri em {
-	        font-style: normal; font-size: 10px; font-weight: 700;
+	        font-style: normal; font-size: var(--horosa-fs-micro); font-weight: 700;
 	        color: var(--horosa-huangji-accent);
 	    }
 
 	    /* ── 段题 ── */
 	    .horosa-guice-section-title {
 	        display: flex; align-items: baseline; gap: 10px;
-	        font-size: 13px; font-weight: 700; color: var(--horosa-huangji-text);
+	        font-size: var(--horosa-fs-body); font-weight: 700; color: var(--horosa-huangji-text);
 	    }
 	    .horosa-guice-section-title em {
-	        font-style: normal; font-size: 11px; font-weight: 500;
+	        font-style: normal; font-size: var(--horosa-fs-caption); font-weight: 500;
 	        color: var(--horosa-huangji-muted);
 	    }
 
@@ -469,17 +469,17 @@
 	        background: var(--horosa-huangji-card-bg);
 	    }
 	    .horosa-guice-siwei.is-empty { border-style: dashed; opacity: .72; }
-	    .horosa-guice-siwei-wei { font-size: 11px; color: var(--horosa-huangji-muted); }
+	    .horosa-guice-siwei-wei { font-size: var(--horosa-fs-caption); color: var(--horosa-huangji-muted); }
 	    .horosa-guice-siwei-num {
 	        font-size: 30px; line-height: 1.1; font-weight: 700;
 	        color: var(--horosa-huangji-accent-strong);
 	        font-variant-numeric: tabular-nums;
 	    }
-	    .horosa-guice-siwei-gua { font-size: 14px; font-weight: 600; color: var(--horosa-huangji-text); }
-	    .horosa-guice-siwei-wx { font-style: normal; font-size: 11px; color: var(--horosa-huangji-muted); }
+	    .horosa-guice-siwei-gua { font-size: var(--horosa-fs-body-lg); font-weight: 600; color: var(--horosa-huangji-text); }
+	    .horosa-guice-siwei-wx { font-style: normal; font-size: var(--horosa-fs-caption); color: var(--horosa-huangji-muted); }
 	    .horosa-guice-tag.is-borrow {
 	        margin-top: 2px; padding: 0 7px; border-radius: 9px;
-	        font-style: normal; font-size: 10px; font-weight: 600;
+	        font-style: normal; font-size: var(--horosa-fs-micro); font-weight: 600;
 	        color: var(--horosa-huangji-accent-strong);
 	        background: color-mix(in srgb, var(--horosa-huangji-accent) 16%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.16); }
 	        border: 1px solid var(--horosa-huangji-line-strong);
@@ -495,14 +495,14 @@
 	        background: var(--horosa-huangji-card-bg);
 	        min-width: 0;
 	    }
-	    .horosa-guice-field-label { font-size: 11px; color: var(--horosa-huangji-muted); }
+	    .horosa-guice-field-label { font-size: var(--horosa-fs-caption); color: var(--horosa-huangji-muted); }
 	    .horosa-guice-field-value {
 	        font-size: 17px; font-weight: 700; color: var(--horosa-huangji-text);
 	        font-variant-numeric: tabular-nums;
 	        overflow-wrap: break-word; overflow-wrap: anywhere;
 	    }
 	    .horosa-guice-field-sub {
-	        font-style: normal; font-size: 11px; line-height: 1.45;
+	        font-style: normal; font-size: var(--horosa-fs-caption); line-height: 1.45;
 	        color: var(--horosa-huangji-muted); overflow-wrap: break-word; overflow-wrap: anywhere;
 	    }
 
@@ -510,7 +510,7 @@
 	    .horosa-guice-group + .horosa-guice-group { margin-top: 10px; }
 	    .horosa-guice-group-title {
 	    	margin-bottom: 8px;
-	    	font-size: 11px; font-weight: 700; letter-spacing: .08em;
+	    	font-size: var(--horosa-fs-caption); font-weight: 700; letter-spacing: .08em;
 	    	color: var(--horosa-huangji-accent);
 	    }
 	    .horosa-guice-group .horosa-huangji-select-field + .horosa-huangji-select-field { margin-top: 9px; }
@@ -520,7 +520,7 @@
 	    .horosa-guice-group .horosa-heluo-switch-field > span { flex: 1; }
 	    .horosa-guice-group .horosa-heluo-switch-field .horosa-guice-hint { flex-basis: 100%; }
 	    .horosa-guice-hint {
-	    	font-style: normal; font-size: 11px; line-height: 1.5; font-weight: 400;
+	    	font-style: normal; font-size: var(--horosa-fs-caption); line-height: 1.5; font-weight: 400;
 	    	color: var(--horosa-huangji-muted);
 	    }
 	    /* 起卦是本页主操作。原为吸底 sticky 常驻,但会悬浮遮挡其下选项(用户实测反感);
@@ -535,7 +535,7 @@
 	    // (22-tail-fixes.less 的 #mainContent .ant-btn.ant-btn-primary),与起课 / 定局 / 起盘同一长相,亮暗同款。
 	    .horosa-guice-error {
 	    	margin-top: 8px; padding: 7px 10px; border-radius: 8px;
-	    	font-size: 12px; line-height: 1.5;
+	    	font-size: var(--horosa-fs-small); line-height: 1.5;
 	    	color: var(--horosa-huangji-accent-strong);
 	    	background: color-mix(in srgb, var(--horosa-huangji-accent) 12%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.12); }
 	    	border: 1px solid var(--horosa-huangji-line-strong);
@@ -554,7 +554,7 @@
 	    	padding-bottom: 7px;
 	    	margin-bottom: 4px;
 	    	border-bottom: 1px solid var(--horosa-huangji-line);
-	    	font-size: 12px; letter-spacing: .04em;
+	    	font-size: var(--horosa-fs-small); letter-spacing: .04em;
 	    	color: var(--horosa-huangji-accent);
 	    }
 	    .horosa-guice-page .horosa-huangji-info-heading:empty { display: none; }
@@ -567,14 +567,14 @@
 	    	display: grid;
 	    	grid-template-columns: 18px minmax(56px, auto) minmax(0, 1fr) minmax(60px, auto);
 	    	align-items: baseline; gap: 8px;
-	    	padding: 6px 0; font-size: 12px;
+	    	padding: 6px 0; font-size: var(--horosa-fs-small);
 	    	border-top: 1px solid var(--horosa-huangji-line);
 	    }
 	    .horosa-guice-page .horosa-zhengchuan-step:first-child { border-top: 0; }
 	    .horosa-guice-page .horosa-zhengchuan-step-no {
 	    	width: 18px; height: 18px; border-radius: 50%;
 	    	display: inline-flex; align-items: center; justify-content: center;
-	    	font-size: 10px; font-weight: 700;
+	    	font-size: var(--horosa-fs-micro); font-weight: 700;
 	    	color: var(--horosa-huangji-accent-strong);
 	    	background: color-mix(in srgb, var(--horosa-huangji-accent) 14%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.14); }
 	    }
@@ -592,7 +592,7 @@
 	    .horosa-guice-tabs, .horosa-zhengchuan-tabs {
 	    	.ant-tabs-nav { margin-bottom: 10px; }
 	    	.ant-tabs-nav::before { border-bottom-color: var(--horosa-huangji-line); }
-	    	.ant-tabs-tab { padding: 5px 2px; font-size: 14px; font-weight: 650; color: var(--horosa-huangji-muted); }
+	    	.ant-tabs-tab { padding: 5px 2px; font-size: var(--horosa-fs-body-lg); font-weight: 650; color: var(--horosa-huangji-muted); }
 	    	.ant-tabs-tab:hover { color: var(--horosa-huangji-accent); }
 	    	.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
 	    		color: var(--horosa-huangji-accent-strong); font-weight: 650;
@@ -607,7 +607,7 @@
 	    .horosa-huangji-tabs > .ant-tabs-nav .ant-tabs-tab .ant-tabs-tab-btn,
 	    .horosa-suzhan-tabs > .ant-tabs-nav .ant-tabs-tab .ant-tabs-tab-btn,
 	    .horosa-jinkou-tabs > .ant-tabs-nav .ant-tabs-tab .ant-tabs-tab-btn {
-	        font-size: 14px; font-weight: 650;
+	        font-size: var(--horosa-fs-body-lg); font-weight: 650;
 	    }
 
 	    /* 窄屏：五卦与四位各自折行，绝不撑出横向滚动 */

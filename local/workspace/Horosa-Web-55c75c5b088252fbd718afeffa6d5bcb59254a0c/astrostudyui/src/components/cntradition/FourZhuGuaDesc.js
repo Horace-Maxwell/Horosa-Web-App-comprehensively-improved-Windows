@@ -3,7 +3,7 @@ import { Row, Col } from 'antd';
 import { XQSelect as Select } from '../xq-ui';
 import DoubleMeiyiGuaSym from '../gua/DoubleMeiyiGuaSym';
 import GuaChartDiv from '../gua/GuaChartDiv';
-import styles from '../../css/styles.less';
+import '../../css/styles.less';
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 import ExternalLink from '../common/ExternalLink';

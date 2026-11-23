@@ -16,7 +16,7 @@ import {
 	getStoredLightFlavor,
 } from '../../utils/appearance';
 import { isDesktopBridgeAvailable as hasUpdateBridge, appVersionLocal } from '../../utils/aiAnalysisDesktop';
-import { getTechniqueHelpDoc, currentHostTechnique } from '../help/techniqueHelpRegistry';
+import { makeLazyBoundary } from '../../utils/lazyBoundary';
 import {
 	runAIExport,
 	loadAIExportSettings,
@@ -46,6 +46,22 @@ import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, ZERI_SN
 import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../utils/aiAnalysisDesktop';
 import styles from './PageHeader.less';
 import { getLayoutViewportWidth } from '../../utils/shellZoom';
+
+// 操作手册正文懒加载:手册注册表连带全部技法手册,打开弹窗才拉(不进首屏)
+// 加载态占住手册成品的高度(HelpBook 缺省 72% 布局视口)+ 骨架:此前先出一个 190px 的「加载中」小框,分包到了再跳到全高
+const helpLoadingFallback = (
+	<div className="horosa-help-book is-loading" style={{ height: 'calc(72 * var(--horosa-lvh, 1vh))' }} aria-busy="true" aria-label="操作手册载入中">
+		<div className="horosa-help-book-nav horosa-help-skel-nav">
+			{[0, 1, 2, 3, 4, 5, 6, 7].map((i)=><div key={i} className="horosa-help-skel-line" style={{ width: `${68 - (i % 3) * 14}%` }} />)}
+		</div>
+		<div className="horosa-help-skel-main">
+			<div className="horosa-help-skel-line is-title" />
+			{[0, 1, 2, 3, 4, 5].map((i)=><div key={i} className="horosa-help-skel-line" style={{ width: `${96 - (i % 4) * 9}%` }} />)}
+		</div>
+	</div>
+);
+const TechniqueHelpModalBody = makeLazyBoundary(()=>import(/* webpackChunkName: "technique-help" */ '../help/TechniqueHelpModalBody'), { label: '操作手册', fallback: helpLoadingFallback });
+const preloadHelpBody = ()=>{ try{ const p = TechniqueHelpModalBody.preload(); if(p && p.catch){ p.catch(()=>{}); } }catch(e){ /* 预热失败静默:点开时走正常路径 */ } };
 
 // 帮助弹窗宽:最多 1200,不超过布局视口的 92%(手册左栏菜单 + 右栏正文要并排放下)
 function helpModalWidth(){
@@ -718,7 +734,8 @@ function PageHeader(props){
 					<Dropdown menu={{items: astroSettingsMenu, onClick: onAstroSettingsClick}} placement="bottom" trigger={['click']}>
 						<XQButton className={styles.astroHeaderCommand} size="small" iconName="settings">设置</XQButton>
 					</Dropdown>
-					<XQButton className={styles.astroHeaderCommand} size="small" iconName="help" onClick={()=>setAstroHelpVisible(true)}>帮助</XQButton>
+					{/* 指针移上 / 键盘聚焦就开始拉手册分包:点开时多半已就绪 */}
+					<XQButton className={styles.astroHeaderCommand} size="small" iconName="help" onMouseEnter={preloadHelpBody} onFocus={preloadHelpBody} onClick={()=>setAstroHelpVisible(true)}>帮助</XQButton>
 				</div>
 				<div className={styles.astroUtilityBar}>
 					{/* 亮色配色档切换(仅亮色显示):古典宣纸 ↔ 经典白色,只换配色变量其余零动。
@@ -759,23 +776,9 @@ function PageHeader(props){
 						</XQToolbar>
 					)}
 				>
-					{(()=>{
-						// 手册(HelpBook):左栏本页全部技法、右栏当前技法;弹窗开着(含收起动画)时挂载,每次打开都停在你当前所在的技法
-						const HelpDoc = (astroHelpVisible || astroHelpMounted) ? getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)) : null;
-						if(HelpDoc && HelpDoc.book){
-							const ctx = { currentTab: props.currentTab, currentSubTab: props.currentSubTab, hostTechnique: currentHostTechnique(props.currentTab) };
-							return <HelpDoc ctx={ctx} compact={helpModalWidth() < 760} />;
-						}
-						return null;
-					})()}
-					<div className={styles.astroHelpBody} style={{ maxHeight: 'calc(74 * var(--horosa-lvh, 1vh))', overflowY: 'auto', display: (()=>{ const D = getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)); return D && D.book ? 'none' : undefined; })() }}>
-						{(()=>{ const HelpDoc = (astroHelpVisible || astroHelpMounted) ? getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)) : null; if(HelpDoc && HelpDoc.book){ return null; } return HelpDoc ? <HelpDoc /> : (
-							<>
-								<p>左侧为排盘输入与显示设置，中间为盘面绘制，右侧分页查看信息、相位、行星与判读。</p>
-								<p>底部快捷功能跳转到对应技法或抽屉；切换任一设置即时全组合重算。</p>
-							</>
-						); })()}
-					</div>
+					{(astroHelpVisible || astroHelpMounted) ? (
+						<TechniqueHelpModalBody currentTab={props.currentTab} currentSubTab={props.currentSubTab} compact={helpModalWidth() < 760} bodyClassName={styles.astroHelpBody} />
+					) : null}
 				</XQModal>
 				<XQModal
 					title="AI导出设置"

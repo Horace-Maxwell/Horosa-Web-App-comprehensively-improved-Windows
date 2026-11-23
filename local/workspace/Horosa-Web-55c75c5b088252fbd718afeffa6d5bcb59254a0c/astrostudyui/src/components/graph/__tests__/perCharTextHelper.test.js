@@ -5,6 +5,7 @@
 // 每个节点必须带整词属性(展开 scriptWordAttrs(整词, 位次) / tianJiangShortAttrs(...),或直接写 data-hant-word)。
 import fs from 'fs';
 import path from 'path';
+import { readSource } from '../../../utils/__tests__/helpers/sourceSet';
 import * as d3 from 'd3';
 import { appendPerCharText, drawTextH } from '../GraphHelper';
 import { toHant } from '../../../utils/scriptConvert/hantConverter';
@@ -281,7 +282,7 @@ describe('静态守卫:逐字出图只走 appendPerCharText', ()=>{
 	});
 	test('扫描面不塌缩:原先的逐字画字点都已改走助手', ()=>{
 		['components/graph/D3Circle.js', 'components/szdunjia/SZDunJiaChartCircle.js', 'components/sztaiyi/SZTaiYiChartCircle.js', 'components/astro/AstroChartCircle.js', 'components/guolao/GuoLaoNatalChart.js'].forEach((f)=>{
-			expect(fs.readFileSync(path.join(SRC, f), 'utf8')).toMatch(/appendPerCharText\(/);
+			expect(readSource(path.join(SRC, f))).toMatch(/appendPerCharText\(/);   // 门面按全集读(星盘圆盘的画法方法拆在 chartCircle/ 下)
 		});
 	});
 });
@@ -314,7 +315,7 @@ describe('静态守卫:逐字画字带整词(截取后画 / JSX 逐字)', ()=>{
 	});
 	test('七政两张轮盘的逐字弧形文字已挂整词属性', ()=>{
 		['components/guolao/GuoLaoMoiraWheel.js', 'components/guolao/GuoLaoMoiraPickWheel.js'].forEach((f)=>{
-			expect(fs.readFileSync(path.join(SRC, f), 'utf8')).toMatch(/\{\.\.\.perCharTextProps\(word, k, ch\)\}/);
+			expect(readSource(path.join(SRC, f))).toMatch(/\{\.\.\.perCharTextProps\(word, k, ch\)\}/);   // 盘面拆成子模块:按全集读(弧形字画法在 moiraWheel/text.js)
 		});
 	});
 });

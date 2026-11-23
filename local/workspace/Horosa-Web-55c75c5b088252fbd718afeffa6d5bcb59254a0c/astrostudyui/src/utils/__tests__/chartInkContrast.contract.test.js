@@ -20,6 +20,7 @@
 // 页面上真画出来的颜色(组件里现算、静态求不出的那部分)另由真浏览器内核逐页量测复核。
 import fs from 'fs';
 import path from 'path';
+const { readSource, facadeOf, sourceSetFiles, mixinGroupsOf } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import * as AstroConst from '../../constants/AstroConst';
 import * as ZWConst from '../../constants/ZWConst';
 import { chartColorThemeFor, DARK_CHART_COLOR_THEME } from '../appearance';
@@ -121,7 +122,7 @@ HOUSES.forEach((k)=>{ ROLE[k] = 'line'; });            // 宫环描边色
 ['Relation1', 'Relation2', 'Relation3'].forEach((k)=>{ ROLE[k] = 'line'; });   // 关系线色(当前无绘制站点读它)
 
 // 绘制时的填充透明度:暗盘(盘面底亮度 < 80/255)星座环 / 宫环填色按 AstroChartCircle 的常量压淡
-const CIRCLE_SRC = read('components/astro/AstroChartCircle.js');
+const CIRCLE_SRC = readSource(path.join(SRC, 'components/astro/AstroChartCircle.js'));
 const DARK_SIGN_FILL_OPACITY = +((CIRCLE_SRC.match(/const DARK_SIGN_FILL_OPACITY = ([\d.]+);/) || [])[1]);
 const DARK_HOUSE_FILL_OPACITY = +((CIRCLE_SRC.match(/const DARK_HOUSE_FILL_OPACITY = ([\d.]+);/) || [])[1]);
 const isDarkPalette = (P)=>{ const c = parseColor(P.ChartBackgroud); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b < 80; };
@@ -230,11 +231,13 @@ describe('② 盘面主题变量 · 紫微四化徽标', ()=>{
 // 定色底:[文件, 命中行里的一段原文, 底色, 理由] —— 字按登记的底算,仍须 ≥ 3:1
 const FIXED_BG = [
 	['components/astro3d/AstroPDSphere.js', '', '#141720', '主限天球 3D 场景与它的时间轴 / 图例 / 浮层是定色暗夜底(#05080f / #070b14,按钮 rgba(255,255,255,.07) 压上去 ≈ #141720),不随界面主题;按最亮的那层算'],
-	['components/planetarium/babylon/PlanetariumRenderer.js', "ctx.fillStyle = color || '#fff'", '#1e2e4f', '天文馆网格 / 星名标签画进纹理,贴在定色夜空里(最亮的片 ≈ #1e2e4f),不随界面主题'],
+	['components/planetarium/babylon/rendererStars.js', "ctx.fillStyle = color || '#fff'", '#1e2e4f', '天文馆网格 / 星名标签画进纹理,贴在定色夜空里(最亮的片 ≈ #1e2e4f),不随界面主题'],
 ];
 // 其余:[文件, 命中行里的一段原文, 理由]
 const ALLOW = [
-	['components/fengshui/fengshuiEngine.js', '', '风水画布只在用户户型图 / 罗盘皮肤之上作画、导出卡是定色卡底(深色题头 + 浅色正文卡),墨色按照片 / 卡底成对定,不随界面主题(盘面随主题合同的风水豁免同一理由)'],
+	// 风水纳气盘引擎的方法按职责拆在 fengshui/engine/ 下:画盘在 draw.js、导出卡在 exportCards.js(同一条理由)
+	['components/fengshui/engine/draw.js', '', '风水画布只在用户户型图 / 罗盘皮肤之上作画,墨色按照片 / 盘面皮肤成对定,不随界面主题(盘面随主题合同的风水豁免同一理由)'],
+	['components/fengshui/engine/exportCards.js', '', '风水导出卡是定色卡底(深色题头 + 浅色正文卡),墨色按卡底成对定,不随界面主题(盘面随主题合同的风水豁免同一理由)'],
 	['components/ziwei/ZWHouse.js', "starsvg.selectAll('text').attr('fill', coloropt.color)", '飞化星名徽:字压在 ZWConst.ZWColor 的徽标实底上(同一调用的 drawTextV 已把它当底画出,那一处由绘制助手成对算),字 × 徽标底由 ② 成对算 ≥ 4.5:1'],
 	['components/ziwei/ZWHouseSangHe.js', "starsvg.selectAll('text').attr('fill', coloropt.color)", '飞化星名徽:字压在 ZWConst.ZWColor 的徽标实底上(同一调用的 drawTextV 已把它当底画出,那一处由绘制助手成对算),字 × 徽标底由 ② 成对算 ≥ 4.5:1'],
 	['components/ziwei/ZWCommHouse.js', "huasvg.selectAll('text')", '运限 / 自化四化徽标字压在 ZWConst.ZWColor 的徽标实底上(不是盘面底),字 × 徽标底由 ② 逐个成对算 ≥ 4.5:1'],
@@ -256,6 +259,20 @@ function resolveImport(fromFile, spec){
 	if(!/^\./.test(spec)){ return null; }
 	const base = path.resolve(path.dirname(fromFile), spec);
 	return [base, `${base}.js`, path.join(base, 'index.js')].find((c)=>fs.existsSync(c) && fs.statSync(c).isFile()) || null;
+}
+// 模块导出名 → 初值:本文件顶层没有就跟 `export { 名 } from './子模块'` 转出链找(拆成子模块的门面只剩转出)
+function exportedInit(m, name, hops = 0){
+	if(!m || !m.ast || hops > 4){ return null; }
+	const init = topLevelInit(m.ast, name);
+	if(init){ return { init, m }; }
+	for(const st of m.ast.program.body){
+		if(st.type !== 'ExportNamedDeclaration' || !st.source){ continue; }
+		const sp = (st.specifiers || []).find((x)=>(x.exported.name || x.exported.value) === name);
+		if(!sp){ continue; }
+		const file = resolveImport(m.file, st.source.value);
+		return file ? exportedInit(moduleCtx(file), sp.local.name, hops + 1) : null;
+	}
+	return null;
 }
 const MOD = new Map();
 function moduleCtx(abs, srcOverride){
@@ -312,7 +329,7 @@ function evalInk(node, ctx, scope, themes = ALL_THEMES, depth = 0){
 	default: return [];
 	}
 }
-const isPaletteModule = (abs)=>/[\\/]constants[\\/]AstroConst\.js$/.test(abs);
+const isPaletteModule = (abs)=>/[\\/]constants[\\/]AstroConst(?:\.js|[\\/]colors\.js)$/.test(abs);   // 常量表门面或调色板所在子模块
 function evalObj(node, ctx, scope, depth){
 	if(!node || depth > 7){ return []; }
 	if(node.type === 'StringLiteral'){ return [{ str: node.value }]; }
@@ -331,13 +348,13 @@ function evalObj(node, ctx, scope, depth){
 		if(init){ return evalObj(init, ctx, null, depth + 1); }
 		const imp = ctx.imports[node.name];
 		if(imp && imp.kind === 'named' && isPaletteModule(imp.file) && imp.name === 'AstroColor'){ return []; }
-		if(imp && imp.kind === 'named'){ const m = moduleCtx(imp.file); const i2 = m && m.ast && topLevelInit(m.ast, imp.name); return i2 ? evalObj(i2, m, null, depth + 1) : []; }
+		if(imp && imp.kind === 'named'){ const hit = exportedInit(moduleCtx(imp.file), imp.name); return hit ? evalObj(hit.init, hit.m, null, depth + 1) : []; }
 		if(imp && imp.kind === 'ns'){ return [{ ns: imp.file }]; }
 		return [];
 	}
 	// 实例字段 this.<名>:同文件里所有 `this.<名> = 值` 的赋值,加上同名 getter 的返回值(构造期写死色存进实例字段、再在画字时读出 —— 不求它就静默放过)
 	if((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') && node.object.type === 'ThisExpression' && !node.computed && node.property.type === 'Identifier'){
-		return thisFieldValues(ctx, node.property.name).map((n)=>({ expr: n, ctx, scope: null }));
+		return thisFieldValues(ctx, node.property.name).map(({ n, c })=>({ expr: n, ctx: c, scope: null }));
 	}
 	if(node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'){
 		const out = [];
@@ -345,8 +362,8 @@ function evalObj(node, ctx, scope, depth){
 			if(b.ns){
 				if(node.computed){ return; }
 				if(isPaletteModule(b.ns) && node.property.name === 'AstroColor'){ return; }   // 盘面调色板:按主题整套切换,由 ① 逐套算
-				const m = moduleCtx(b.ns); const i2 = m && m.ast && topLevelInit(m.ast, node.property.name);
-				if(i2){ out.push(...evalObj(i2, m, null, depth + 1)); }
+				const hit = exportedInit(moduleCtx(b.ns), node.property.name);
+				if(hit){ out.push(...evalObj(hit.init, hit.m, null, depth + 1)); }
 				return;
 			}
 			if(!b.node){ return; }
@@ -362,19 +379,31 @@ function evalObj(node, ctx, scope, depth){
 	return [];
 }
 const THIS_FIELDS = new WeakMap();
+// this.x 的取值:按整个类收(类方法按职责拆在子文件里时,赋值 / getter 常在别的文件)—— 子模块折回门面全集,
+// 每处取值带着它自己那个文件的上下文(导入按那个文件解析);方法对象里的 getter 只认门面 mixinMethods 挂回的那几个对象
 function thisFieldValues(ctx, name){
 	if(!THIS_FIELDS.has(ctx)){
 		const m = {};
-		const add = (k, n)=>{ (m[k] = m[k] || []).push(n); };
-		traverse(ctx.ast, {
-			AssignmentExpression(p){
-				const l = p.node.left;
-				if(p.node.operator === '=' && l.type === 'MemberExpression' && !l.computed && l.object.type === 'ThisExpression' && l.property.type === 'Identifier'){ add(l.property.name, p.node.right); }
-			},
-			ClassMethod(p){
-				if(p.node.kind !== 'get' || p.node.computed || p.node.key.type !== 'Identifier'){ return; }
-				p.traverse({ Function(q){ q.skip(); }, ReturnStatement(q){ if(q.node.argument){ add(p.node.key.name, q.node.argument); } } });
-			},
+		const add = (k, n, c)=>{ (m[k] = m[k] || []).push({ n, c }); };
+		const unit = ctx.file ? (facadeOf(ctx.file) || ctx.file) : null;
+		const files = unit ? sourceSetFiles(unit) : [];
+		const ctxs = files.length > 1 ? files.map((f)=>(f === ctx.file ? ctx : moduleCtx(f))).filter((c)=>c && c.ast) : [ctx];
+		const groups = files.length > 1 ? mixinGroupsOf(readSource(unit)) : new Map();
+		ctxs.forEach((c)=>{
+			traverse(c.ast, {
+				AssignmentExpression(p){
+					const l = p.node.left;
+					if(p.node.operator === '=' && l.type === 'MemberExpression' && !l.computed && l.object.type === 'ThisExpression' && l.property.type === 'Identifier'){ add(l.property.name, p.node.right, c); }
+				},
+				'ClassMethod|ObjectMethod'(p){
+					if(p.node.kind !== 'get' || p.node.computed || p.node.key.type !== 'Identifier'){ return; }
+					if(p.isObjectMethod()){
+						const decl = p.parentPath.parentPath;
+						if(!decl || !decl.isVariableDeclarator() || decl.node.id.type !== 'Identifier' || !groups.has(decl.node.id.name)){ return; }
+					}
+					p.traverse({ Function(q){ q.skip(); }, ReturnStatement(q){ if(q.node.argument){ add(p.node.key.name, q.node.argument, c); } } });
+				},
+			});
 		});
 		THIS_FIELDS.set(ctx, m);
 	}
@@ -425,6 +454,9 @@ function scanFile(abs, srcOverride){
 	const lines = src.split('\n');
 	const sites = [];
 	const strokeOnly = [];
+	// 「类里有统一补字色的后处理 solidifyText」按整个类判:类方法拆在子文件里时读门面全集(子文件自己不定义它)
+	const facade = srcOverride === undefined ? facadeOf(abs) : null;
+	const unitSrc = facade ? readSource(facade) : src;
 	// 盘面绘制助手 GraphHelper.drawTextH / drawTextV(svg, data, x, y, w, h, margin, 字色, 字重, 底色 …):第 8 个参数是字色;
 	// 给了底色(第 10 个)就是「字压实底」,字 × 底成对算(两者都能静态求出时)
 	const drawTextSite = (p)=>{
@@ -466,7 +498,7 @@ function scanFile(abs, srcOverride){
 					if(nm === 'call' && a0 && a0.type === 'Identifier' && a0.name === 'fillTextFromStroke'){ filled = true; }
 					n = n.callee.object;
 				}
-				if(text && attrs.includes('stroke') && !attrs.includes('fill') && !filled && !/solidifyText\(/.test(src)){
+				if(text && attrs.includes('stroke') && !attrs.includes('fill') && !filled && !/solidifyText\(/.test(unitSrc)){
 					strokeOnly.push(`${rel}:${p.node.loc.start.line} 文字链只写 stroke 不写 fill(缺省填色黑)—— 链尾 .call(fillTextFromStroke)`);
 				}
 			}

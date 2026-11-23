@@ -1,12 +1,12 @@
 import { Component } from 'react';
-import { Spin } from 'antd';
+import { XQSpin } from '../xq-ui';
 import { withLabelCell } from '../../utils/labelCell';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import { unwrapResult, astroSymbol, astroSymbolList, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, gridStyle, SmallTable } from './AstroExtraCommon';
 import { buildPatternOverview } from '../../utils/astroPatternOverview';
-import { classicalGlobalValue, fixedStarOrbParamsFor } from '../../utils/classicalChartGlobals';   // 恒星轨随全局仓,与导出/挂载三方同口径
+import { fixedStarOrbParamsFor } from '../../utils/classicalChartGlobals';   // 恒星轨随全局仓,与导出/挂载三方同口径
 import { SIGNS } from '../../divination/data/signs';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
@@ -560,7 +560,7 @@ class AstroAnalysisLab extends Component{
 		this.ensureLoaded();
 		const result = this.shownResult() || {};
 		return (
-			<Spin spinning={this.state.loading}>
+			<XQSpin spinning={this.state.loading}>
 				<div style={{height: this.props.height || 560, overflow: 'auto', paddingRight: 8, paddingBottom: 28}}>
 					{this.state.failedKey && this.state.failedKey === this.buildRequestKey() ? (
 						<div style={cardStyle}>
@@ -587,7 +587,7 @@ class AstroAnalysisLab extends Component{
 					{this.renderFixedStars(result.fixedStarHits)}
 					{this.renderBabylonian(result.babylonianStars)}
 				</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

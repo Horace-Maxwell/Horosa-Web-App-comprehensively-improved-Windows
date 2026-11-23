@@ -5,14 +5,14 @@ const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的�
 const UI = path.join(__dirname, '..', '..');
 const read = (rel)=>readSource(path.join(UI, rel));
 
-it('F-19 数算三页构参带 zone(此前缺 → 真太阳时按 +08:00 校正)', ()=>{
+it('数算三页构参带 zone(此前缺 → 真太阳时按 +08:00 校正)', ()=>{
 	['components/shusuan/HeLuoMain.js', 'components/shusuan/CanPingMain.js', 'components/shusuan/ZhengChuanMain.js'].forEach((f)=>{
 		const src = read(f);
 		expect(src).toContain("zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',");
 	});
 });
 
-it('F-23 太玄/荆诀 seed=0 合法(不再当未设改走时间派生)', ()=>{
+it('太玄/荆诀 seed=0 合法(不再当未设改走时间派生)', ()=>{
 	['components/taixuan/TaiXuanMain.js', 'components/jingjue/JingJueMain.js'].forEach((f)=>{
 		const src = read(f);
 		expect(src).toContain('const seed = (Number.isFinite(optSeed) && optSeed >= 0)');
@@ -20,13 +20,13 @@ it('F-23 太玄/荆诀 seed=0 合法(不再当未设改走时间派生)', ()=>{
 	});
 });
 
-it('F-20 正传心易性别按记录归一(0/1/女/Female 皆认)', ()=>{
+it('正传心易性别按记录归一(0/1/女/Female 皆认)', ()=>{
 	const src = read('utils/aiAnalysisContext.js');
 	expect(src).toContain("gender: kinGenderOverride(record).gender === '0' ? 0 : 1,");
 	expect(src).not.toContain("gender: (record && record.gender === 'Female') ? 0 : 1,");
 });
 
-it('F-14 七政无头先换位再出快照;F-08 宿度制缺席回退全局', ()=>{
+it('七政无头先换位再出快照;宿度制缺席回退全局', ()=>{
 	const gl = read('components/guolao/GuoLaoChartMain.js');
 	const i = gl.indexOf('const display = applyGuolaoNodeMode(result, fields) || result;');
 	// 快照正文在覆盖作用域的同步段内出(AI 挂载覆盖重算时 await 之后重入作用域)
@@ -37,7 +37,7 @@ it('F-14 七政无头先换位再出快照;F-08 宿度制缺席回退全局', ()
 	expect(ctx).toContain("return await buildGuolaoSnapshotForFields(resolveGuolaoFields(record));");
 });
 
-it('F-40 演禽:演法五段段头独占一行(段头正则只认整行);calendarMode 值与页面/后端同键', ()=>{
+it('演禽:演法五段段头独占一行(段头正则只认整行);calendarMode 值与页面/后端同键', ()=>{
 	const yq = read('components/yanqin/yanqinSnapshot.js');
 	['[演法·流派]', '[演法·起禽]', '[演法·择日]', '[演法·占卜]', '[演法·投胎]'].forEach((h)=>{
 		expect(yq).toContain('`' + h + '\\n');
@@ -47,6 +47,6 @@ it('F-40 演禽:演法五段段头独占一行(段头正则只认整行);calenda
 	expect(tms).not.toContain("value: 'solarNumeric'");
 });
 
-it('F-41 一掌经页构参带 zone', ()=>{
+it('一掌经页构参带 zone', ()=>{
 	expect(read('components/yizhangjing/YiZhangJingMain.js')).toContain("zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',");
 });

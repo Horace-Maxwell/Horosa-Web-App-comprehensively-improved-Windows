@@ -198,6 +198,8 @@ const CONTEXT = {
 	// 晚子时·时柱进次日 只在「日界=24 点换日」下才有独立语义(23 点换日时次日干=当日干,两档同果)
 	'*.lateZiHourUseNextDay': ()=>({ after23NewDay: 0 }),
 	'germany.showEastPoint': { showHouseFrames: 0 },
+	// 图形星历起止要成对给才出段:各自带上另一端(相隔 ≤366 天)
+	'germany.ephemStart': { ephemEnd: '2032-06-30' }, 'germany.ephemEnd': { ephemStart: '2031-07-01' },
 	'indiachart.indiaVarshaLat': { indiaVarshaLon: '0w07', indiaTajakaYear: 2026 }, 'indiachart.indiaVarshaLon': { indiaVarshaLat: '51n30', indiaTajakaYear: 2026 },
 	'shenyishu.manualHour': { hourSource: 'manual' }, 'shenyishu.manualSeason': { seasonSource: 'manual' },
 	'wuzhao.manualSplits': { mode: 'day', manual: 1 }, 'wuzhao.gender': { mingZhi: '子' }, 'wuzhao.mingZhi': { gender: 'male' },
@@ -224,9 +226,14 @@ const CONTEXT = {
 };
 // 观测到无差分但成文豁免(每项带理由;新增=显式决策):`技法.字段` → 理由
 const DEAD_EXEMPT = {
-	// 敦煌校录揲筮口径只对 mode=dunhuang 生效,而随机揲筮兆无头不复现(WuZhaoMain MOUNT_DETERMINISTIC_MODES 强制回落干支起例,F-29 拍板项):
-	// 在挂载链上该档位到不了引擎是设计取舍,不是接线断;拍板放开随机兆复用后此豁免即撤。
-	'wuzhao.shifaVariant': 'F-29:敦煌校录筮法口径只作用于「策数→五行」的现场揲筮;无头对存档按六位兆数直输复现(兆数已固化)、无存档兆数时回落干支起例,两路都不再揲策,筮法口径无处生效(成文)',
+	// 值是另一张命盘档案的 id,差分仪器的数据里没有可引用的命盘档案(候选只能是不存在的 id → 按「无本命」判,正文自然不变)。
+	// 消费另有专测:electionScanAndNatal「本命合参」用例(注入命盘档案,断言本命盘以择日盘同一宫制起盘、runElection 拿到本命事实)+ 无头实跑「本命合参」段出现。
+	'election.natalRecordId': '取值是命盘档案 id,差分仪器无可引用档案;消费由 electionScanAndNatal 专测覆盖',
+	'qimen.relatedRecordIds': '取值是命盘档案 id,差分仪器无可引用档案;消费由 qimenRelatedRecords 专测覆盖',
+	'sanshiunited.relatedRecordIds': '同奇门(三式合一的奇门子组复用同一重算 computeQimenPanForCase);取值是命盘档案 id,仪器无可引用档案',
+	// 敦煌校录揲筮口径只对 mode=dunhuang 生效,而随机揲筮兆无头不复现(WuZhaoMain MOUNT_DETERMINISTIC_MODES 强制回落干支起例):
+	// 在挂载链上该档位到不了引擎是设计取舍,不是接线断。
+	'wuzhao.shifaVariant': '敦煌校录筮法口径只作用于「策数→五行」的现场揲筮;无头对存档按六位兆数直输复现(兆数已固化)、无存档兆数时回落干支起例,两路都不再揲策,筮法口径无处生效',
 };
 // 自由文本字段的有意义替代值(垃圾值被 builder 忽略=假死)
 const TEXT_ALT = { qianThrows: '1,2,3,3,3,4', zhaoNums: '1,2,3,4,5,1', yanShuNum: '37', indiaVargaSet: '1,9', indiaVarshaLat: '51n30', indiaVarshaLon: '0w07',

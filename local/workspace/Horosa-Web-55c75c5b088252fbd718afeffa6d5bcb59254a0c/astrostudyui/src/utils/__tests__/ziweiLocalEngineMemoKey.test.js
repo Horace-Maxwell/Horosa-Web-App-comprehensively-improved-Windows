@@ -1,6 +1,7 @@
 // 紫微本地引擎记忆键带四化流派与生效中的四化表:切流派 / 换自定义表后不再命中旧流派算出的星曜四化与格局。
 import { localEngineMemoKey } from '../../components/ziwei/ZiWeiMain';
 import * as ZWConst from '../../constants/ZWConst';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const BIRTH = { date: '1990/05/18', time: '12:00:00', zone: '+08:00', lon: '121e28', lat: '31n14', ad: 1, gender: 1 };
 const OPTS = { timeAlg: 0, lateZi: 'next', yearBoundary: 'lichun' };
@@ -37,7 +38,7 @@ describe('紫微本地引擎记忆键', ()=>{
 
 	test('排盘记忆走这把键', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '../../components/ziwei/ZiWeiMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../components/ziwei/ZiWeiMain.js'));
 		expect(src).toMatch(/const memoKey = localEngineMemoKey\(birth, opts, ZWEngineOptions\.sanPan \|\| 'tian'\);/);
 		expect(src).not.toMatch(/const memoKey = stableSignature\(birth, opts/);
 	});

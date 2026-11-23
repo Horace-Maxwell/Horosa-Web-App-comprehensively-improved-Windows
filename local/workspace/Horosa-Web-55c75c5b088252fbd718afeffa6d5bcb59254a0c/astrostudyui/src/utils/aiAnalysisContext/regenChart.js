@@ -15,7 +15,7 @@ import { buildFirdariaSnapshotText, buildPrimaryDirectSnapshotText } from '../..
 import { buildDistributionsSnapshotText } from '../../components/astro/AstroDistributions';
 import { buildAgePointSnapshotText } from '../../components/astro/AstroAgePoint';
 // 星运·星历 / 回归轴 / 产前朔望 三页上线为技法键(能算即能挂)。
-import { buildEphemerisSnapshotText } from '../../components/astro/AstroEphemeris';
+import { buildEphemerisSnapshotText, ephemerisWindowFromOptions } from '../../components/astro/AstroEphemeris';
 import { buildReturnTimelineSnapshotText } from '../../components/astro/AstroReturnTimeline';
 import { buildPrenatalSyzygySnapshotText } from '../../components/astro/AstroPrenatalSyzygy';
 import { buildPlanetaryAgesSnapshotText } from '../planetaryAges';
@@ -54,7 +54,7 @@ import { buildPrimaryDirChartSnapshotText } from './primaryDirection';
 import { buildPredictivePeriodSnapshot, runBuilderScan, annotateCaseTimeAsChartBase } from './regenPredictive';
 import { normalizeTechniqueKey } from './techniqueKey';
 import { isCacheSnapshotConfidentMatch } from './snapshotMatch';
-import { toSlashDate, datePartOf } from '../dateStrSafe';
+import { toSlashDate, parseDateParts, formatSignedDate } from '../dateStrSafe';
 
 // opts.throwOnError:默认路径重算遇后端不可达此前一律 catch → '' 静默成 missing(只有覆盖路径给 error);调用方传 true 即可拿到真因
 // 七政无头构参:宿度制缺席回退全局现值(与页面 guolaoSu28ModeFromFields 同口径;导出供合同测试锁)。
@@ -62,7 +62,7 @@ import { toSlashDate, datePartOf } from '../dateStrSafe';
 // 记录平铺键(齿轮 merge 写入)再覆盖 —— 此前事盘拨任一齿轮走 A 路重算只读 record.*,四键恒退默认与存档盘不同口径。
 // 派生盘聚合键读取的模块快照名(辅盘页 saveDerivedAstroSnapshot 出盘即存;占星地图 ACG 不存模块快照,暂不含)。
 export const ASTRO_LIKE_DERIVED_MODULES = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'transformchart', 'zodiacsystems'];
-const ASTRO_LIKE_DERIVED_LABELS = { hellenastro: '十三分盘', dwadasamsa: '十二分盘', harmonic: '调波盘', draconic: '龙盘', relocation: '重置盘', transformchart: '变换盘', zodiacsystems: '黄道制' };
+export const ASTRO_LIKE_DERIVED_LABELS = { hellenastro: '十三分盘', dwadasamsa: '十二分盘', harmonic: '调波盘', draconic: '龙盘', relocation: '重置盘', transformchart: '变换盘', zodiacsystems: '黄道制' };
 export function buildAstroLikeContext(source, key, label){
 	const parts = [];
 	const matched = [];
@@ -94,14 +94,18 @@ export function buildAstroLikeContext(source, key, label){
 }
 
 // 派生盘单键上下文:只读本键模块快照,签名不匹配=missing(不回落本命盘、不混别盘)。
-export function buildAstroLikeSingleContext(source, key, label){
+// paramsMatch(meta):可选,页面快照出图时的参数(meta.derivedParams)是否就是此刻要的那组;不是 = 不用这份(调用方按参数现算)
+export function buildAstroLikeSingleContext(source, key, label, paramsMatch){
 	const m = loadFreshModuleAISnapshot(key);
 	const content = m && m.content ? `${m.content}`.trim() : '';
 	const name = ASTRO_LIKE_DERIVED_LABELS[key] || label || key;
-	const matched = !!content && isCacheSnapshotConfidentMatch(m.meta, source);
-	const hint = matched ? '' : (content
-		? `辅盘页所存${name}不属本命主,请在辅盘页以本命主重新出盘`
-		: `请先在辅盘页出${name}(出盘即自动存快照)`);
+	const sameSubject = !!content && isCacheSnapshotConfidentMatch(m.meta, source);
+	const matched = sameSubject && (typeof paramsMatch !== 'function' || paramsMatch(m.meta || {}));
+	const hint = matched ? '' : (sameSubject
+		? `辅盘页所存${name}的参数与这次要的不同`
+		: (content
+			? `辅盘页所存${name}不属本命主,请在辅盘页以本命主重新出盘`
+			: `请先在辅盘页出${name}(出盘即自动存快照)`));
 	return {
 		key,
 		title: label,
@@ -148,6 +152,13 @@ export function resolveGuolaoFields(record){
 	const raw = record ? record.doubingSu28 : undefined;
 	if(raw === undefined || raw === null || raw === ''){
 		fields.doubingSu28 = { value: GUOLAO_DEFAULT_SU28_MODE };
+	}
+	// 挂载指定的流年时刻(guolaoTransitDate / guolaoTransitTime;没给日期 = 此刻):交给七政页同一个构参函数(paramsWithMoiraTransit)
+	const tDate = parseDateParts(record && record.guolaoTransitDate);
+	if(tDate && tDate.year >= 1){
+		const p2 = (n)=>`${n}`.padStart(2, '0');
+		const tTime = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(`${(record && record.guolaoTransitTime) || ''}`.trim());
+		fields.moiraTransitAt = { value: { date: toSlashDate(formatSignedDate(tDate.year, tDate.month, tDate.day)), time: tTime ? `${p2(tTime[1])}:${tTime[2]}:${tTime[3] || '00'}` : '12:00:00' } };
 	}
 	return fields;
 }
@@ -202,13 +213,19 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 		}
 		case 'ephemeris': {
 			// 星历：今日起 90 天入座/留逆/朔望弦/食相 + 行运触发本命。内部 fetch /astroextra/ephemeris。
+			// 挂载齿轮 / 外部智能体可指定区间(record.ephStartDate / ephEndDate);都没给 = 今日起 90 天(页面缺省)
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (await buildEphemerisSnapshotText(chartObj) || '') : '';
+			const ephWin = ephemerisWindowFromOptions(record.ephStartDate, record.ephEndDate);
+			return chartObj ? (await buildEphemerisSnapshotText(chartObj, Object.keys(ephWin).length ? ephWin : undefined) || '') : '';
 		}
 		case 'returntimeline': {
 			// 回归轴：今年起 12 年太阳/月亮返照时间轴。内部 fetch /astroextra/returns。
+			// 挂载齿轮 / 外部智能体可指定起始年与年数(record.rtStartYear / rtCount);没给 = 今年起 12 年(页面缺省)
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (await buildReturnTimelineSnapshotText(chartObj) || '') : '';
+			const rtOpts = {};
+			if(record.rtStartYear !== undefined && record.rtStartYear !== null && `${record.rtStartYear}` !== '' && Number.isFinite(Number(record.rtStartYear))){ rtOpts.startYear = Math.max(-12999, Math.min(16799, Math.trunc(Number(record.rtStartYear)))); }
+			if(Number.isFinite(Number(record.rtCount)) && Number(record.rtCount) >= 1){ rtOpts.count = Math.max(1, Math.min(40, Math.trunc(Number(record.rtCount)))); }
+			return chartObj ? (await buildReturnTimelineSnapshotText(chartObj, Object.keys(rtOpts).length ? rtOpts : undefined) || '') : '';
 		}
 		case 'prenatalsyzygy': {
 			// 产前朔望：回溯最近朔/望 + 以该时刻排盘。内部 fetch /astroextra/prenatal_syzygy + /chart。
@@ -278,8 +295,9 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 		}
 		case 'extrareturns': {
 			// 多重回归：土/木/月交返照，请求型(内部拉 /astroextra/planetreturn)。
+			// 挂载齿轮 / 外部智能体可指定星体与回数(record.erBodies / erCount);没给 = 土 / 木 / 月交三体各 5 回
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (await buildExtraReturnsSnapshotText(chartObj) || '') : '';
+			return chartObj ? (await buildExtraReturnsSnapshotText(chartObj, { bodies: record.erBodies, count: record.erCount }) || '') : '';
 		}
 		case 'yearsystem129': {
 			// 129 年系统：七政小年序列，纯前端引擎(utils/yearSystem129)读本命盘。
@@ -466,6 +484,14 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 				if(v !== undefined && v !== null && v !== ''){ gOv[k] = (v === 1 || v === '1' || v === true); }
 			});
 			if(['lon', 'ra', 'decl'].indexOf(record.mpCoord) >= 0){ gOv.mpCoord = record.mpCoord; }
+			// 时间层:行运时刻 / 差值表开关与目标年龄 / 太阳弧换算 / 盘基(空 = 随全局显示口径)
+			if(record.transitAt !== undefined && record.transitAt !== null && `${record.transitAt}`.trim() !== ''){ gOv.transitAt = `${record.transitAt}`.trim(); }
+			if(record.showDiffList !== undefined && record.showDiffList !== null && record.showDiffList !== ''){ gOv.showDiffList = (record.showDiffList === 1 || record.showDiffList === '1' || record.showDiffList === true); }
+			if(record.diffTargetAge !== undefined && record.diffTargetAge !== null && record.diffTargetAge !== '' && Number.isFinite(Number(record.diffTargetAge))){ gOv.diffTargetAge = Number(record.diffTargetAge); }
+			if(['naibod', 'oneDeg', 'cardan'].indexOf(record.saKey) >= 0){ gOv.saKey = record.saKey; }
+			if([90, 45, 22.5, 11.25].indexOf(Number(record.dialBase)) >= 0 && record.dialBase !== '' && record.dialBase !== null){ gOv.dialBase = Number(record.dialBase); }
+			// 图形星历区间(起止都给才出段;合法性在构建器里判)
+			['ephemStart', 'ephemEnd'].forEach((k)=>{ if(record[k] !== undefined && record[k] !== null && `${record[k]}`.trim() !== ''){ gOv[k] = `${record[k]}`.trim(); } });
 			return await buildGermanySnapshotForFields(buildFieldObject(record), Object.keys(gOv).length ? gOv : undefined);
 		}
 		case 'babylon': {
@@ -591,7 +617,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			});
 		}
 		// 邵子/铁板/鬼谷/北极/南极/蠢子六技法:页面 buildPayload 恒带 日界/晚子时 两键(读全局),无头此前不带 → 后端缺省 1/1,
-		// 全局设 24 点换日时 23 点档页面 ≠ 挂载(七政 F-44 已补,本族同集下发;两键随档 record.* 优先、缺读全局 = 与页面同源)。
+		// 全局设 24 点换日时 23 点档页面 ≠ 挂载(七政已补,本族同集下发;两键随档 record.* 优先、缺读全局 = 与页面同源)。
 		case 'shaozi':
 			return await buildKinAstroSnapshotForFields(buildFieldObject(record), 'shaozi',
 				{ ...kinGenderOverride(record), ...kinDayBoundary(record), ...pickKin(record, ['ke', 'useKey']) });

@@ -16,6 +16,7 @@ import math
 import swisseph
 
 from astrostudy.pd_engine import ecl_to_eq, eq_to_ecl, ascensional_difference, solar_arc_for_years, key_placidus_true_solar_arc
+from astrostudy.stable_order import TIE_EPS, snap_mod, tie_sorted
 
 TROPICAL_YEAR = 365.2422
 
@@ -224,7 +225,8 @@ def bezza_point_rows(points, armc, phi, eps, arc):
         hp0 = fn(0.0)
         hp1 = fn(arc)
         lon = points[name]['lon'] if name in points else ecliptic_point_at_hours(hp0, armc, phi, eps)
-        rows.append({'id': name, 'lon': lon, 'hp0': hp0, 'hp1': hp1,
+        # 时位恰在 0 时(≡ 24 时)上的吸到 0:天顶的本命时位数学上正是 0,浮点上可能是 23.999999999999996 → 显示成 24.000
+        rows.append({'id': name, 'lon': lon, 'hp0': snap_mod(hp0, 24.0), 'hp1': snap_mod(hp1, 24.0),
                      'dp': ecliptic_point_at_hours(hp1, armc, phi, eps)})
     return rows, movers
 
@@ -285,8 +287,8 @@ def bezza_contacts(movers, points, armc, phi, eps, lo_arc, hi_arc, promissors=SE
                     tgt = hp0[pid]
                     for a in _arc_roots(lambda x: signed12(mundane_hours_eq(ara, adec, norm360(armc + x), phi) - tgt), lo_arc, hi_arc):
                         out.append({'kind': 'zod', 'pid': pid, 'prm': prm, 'asp': asp, 'arc': a})
-    out.sort(key=lambda c: (c['arc'], c['kind'], c['pid'], c['prm'], c['asp']))
-    return out
+    # 弧相等的(差不到 1e-9)按种类 / 点名 / 相位排,不由浮点末位定
+    return tie_sorted(out, lambda c: c['arc'], lambda c: c['kind'], lambda c: c['pid'], lambda c: c['prm'], lambda c: c['asp'])
 
 
 # ===========================================================================
@@ -312,7 +314,11 @@ def house_of(lon, cusps):
     """黄经落在第几宫(cusps = 12 个宫头黄经,第 1 宫起)。"""
     for i in range(12):
         a, b = cusps[i], cusps[(i + 1) % 12]
-        if norm360(lon - a) < norm360(b - a):
+        # 恰在宫头上的点(十二年一周的小限上升回到本命上升 = 第 1 宫头)算进这一宫:
+        # 差值被浮点末位带到 359.99… 时按 0 计;恰在下一宫头上的不算本宫
+        d = snap_mod(lon - a, 360.0)
+        width = norm360(b - a)
+        if d < width and width - d > TIE_EPS:
             return i + 1
     return 1
 
@@ -439,8 +445,8 @@ def _natal_from_request(data):
     if data.get('targetDate'):
         target_jd = Datetime(str(data['targetDate']), str(data.get('targetTime') or '12:00:00'), zone).jd
     else:
-        import time
-        target_jd = 2440587.5 + time.time() / 86400.0
+        from astrostudy import clock
+        target_jd = clock.now_jd(data)   # 没给目标日期 = 此刻(经唯一入口取:批量验证钉住时钟时用带来的那一刻)
     frame['targetJd'] = target_jd
     frame['age'] = age_years(frame['jd'], target_jd)
     frame['zone'] = zone
@@ -536,8 +542,7 @@ def neroman_angle_events(frame, k, t0, max_age, aspects=(0, 90, 180)):
                             out.append({'mover': mover, 'target': target, 'asp': asp, 'arc': a, 'age': age,
                                         'date': frame['dateOf'](jd_at_age(frame['jd'], age))})
                         a += 360.0
-    out.sort(key=lambda e: (e['age'], e['mover'], e['target'], e['asp']))
-    return out
+    return tie_sorted(out, lambda e: e['age'], lambda e: e['mover'], lambda e: e['target'], lambda e: e['asp'])
 
 
 def build_neroman(data):
@@ -563,7 +568,7 @@ def build_neroman(data):
                 dev = ang_dist(pa['lon'], pb['lon']) - asp
                 if abs(dev) <= orb:
                     contacts.append({'evolved': a, 'natal': b, 'asp': asp, 'orb': dev})
-    contacts.sort(key=lambda c: abs(c['orb']))
+    contacts = tie_sorted(contacts, lambda c: abs(c['orb']))   # 容许度相等的保持生成时的先后
     out = _common_head(frame)
     out.update({'technique': 'neroman', 'k': k, 't0': t0, 'keepDeclination': keep, 'orb': orb, 'arc': arc,
                 'natal': _natal_rows(frame), 'natalCusps': frame['cusps'],

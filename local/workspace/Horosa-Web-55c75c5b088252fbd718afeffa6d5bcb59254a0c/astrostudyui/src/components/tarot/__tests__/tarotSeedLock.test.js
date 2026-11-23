@@ -2,9 +2,10 @@
 // 手动种子用文本框(此前数字框装不下字符串种子,一碰就改)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import { resolveSeed } from '../TarotMain';
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'TarotMain.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'TarotMain.js'));
 
 describe('塔罗种子锁定复现', () => {
 	test('手动种子原样:字符串种子不被改写(含首尾空格);数字与旧口径同串;空 / 纯空白回落 0', () => {

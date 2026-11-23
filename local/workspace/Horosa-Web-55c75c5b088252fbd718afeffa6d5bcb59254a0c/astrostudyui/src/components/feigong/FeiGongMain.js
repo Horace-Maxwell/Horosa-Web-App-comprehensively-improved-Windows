@@ -4,9 +4,9 @@
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSelect as Select } from '../xq-ui';
-import { Tabs, Tag } from 'antd';
+import { Tabs } from 'antd';
 import { resolveQiZhi, buildJu, mingGong, liuNian, liuYue } from './core/feigongJu';
-import { zhuKe, gongDuan, menDuan, shenDuan, xingDuan, tuiDuanText, wuXingOf, shengKeRel, xingShenSunYi, yingQi, shiXiangKey } from './core/feigongDuan';
+import { zhuKe, gongDuan, menDuan, shenDuan, xingDuan, wuXingOf, shengKeRel, xingShenSunYi, yingQi, shiXiangKey } from './core/feigongDuan';
 import {
 	ZHI, GAN, GONG_GUA, FANG_WEI_RING,
 	BA_MEN_JI_XIONG, YUAN_SHEN_JI_XIONG, TUI_DUAN, LIU_YUE_MONTH_NAMES,
@@ -16,7 +16,7 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
 import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';

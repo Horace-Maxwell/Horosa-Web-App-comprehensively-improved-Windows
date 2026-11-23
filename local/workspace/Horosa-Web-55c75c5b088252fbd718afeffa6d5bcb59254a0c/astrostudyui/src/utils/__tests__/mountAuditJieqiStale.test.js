@@ -1,8 +1,8 @@
 // 节气盘:jieqi_current 非盘页签真清槽;整年 charts 合并时按种子参数丢弃其它节气旧盘。
 import { saveModuleAISnapshot, loadModuleAISnapshot, clearModuleAISnapshot } from '../moduleAiSnapshot';
 import { mergeJieQiCharts, isJieQiChartCompatible } from '../../components/jieqi/JieQiChartsMain';
-import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 beforeEach(()=>{ window.localStorage.clear(); });
 
@@ -28,7 +28,7 @@ it('🔴 mergeJieQiCharts:改年份后其它节气的旧盘被丢,同种子的�
 });
 
 it('接线锚:总览页签清槽;合并走 mergeJieQiCharts', ()=>{
-	const src = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'jieqi', 'JieQiChartsMain.js'), 'utf8');
+	const src = readSource(path.join(__dirname, '..', '..', 'components', 'jieqi', 'JieQiChartsMain.js'));
 	expect(src).toContain("clearModuleAISnapshot('jieqi_current');");
 	expect(src).toContain('charts: mergeJieQiCharts(prevResult.charts, title, chartObj, reqParams),');
 });

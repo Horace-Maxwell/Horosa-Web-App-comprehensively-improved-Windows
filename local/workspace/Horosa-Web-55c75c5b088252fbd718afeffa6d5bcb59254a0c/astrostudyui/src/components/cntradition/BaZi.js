@@ -18,6 +18,7 @@ import GanHeCong from './GanHeCong';
 import ZiHeCong from './ZiHeCong';
 import BaZiZhangSheng from './BaZiZhangSheng';
 import FourZhuGuaDesc from './FourZhuGuaDesc';
+import { Gua64 } from '../gua/GuaConst';
 import BaZiLuckFlowPanel from './BaZiLuckFlowPanel';
 import BaZiAppInfoPanel from './BaZiAppInfoPanel';
 import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
@@ -570,6 +571,23 @@ function buildBaziSnapshotText(params, result){
 		lines.push('');
 		lines.push('[干支合冲]');
 		lines.push(...heCongLines);
+	}
+
+	// [卦释]:legacy「卦释」页签逐柱卦象(干配上卦、支配下卦为本卦;互卦取爻 234 / 345;旁通取全爻反转),快照曾恒缺。
+	// 卦名按六爻自下而上对 64 卦表取全名(取不到用上下卦名);各柱都没有卦数据不产段。
+	const guaFull = (g)=>{
+		if(!g){ return ''; }
+		const yao = Array.isArray(g.yao) ? g.yao.join('') : '';
+		const hit = yao ? Gua64.find((x)=>Array.isArray(x.value) && x.value.join('') === yao) : null;
+		return (hit && hit.name) || `${g.name || ''}`;
+	};
+	const guaLines = [['胎元', four.tai], ['年柱', four.year], ['月柱', four.month], ['日柱', four.day], ['时柱', four.time]]
+		.filter(([, zhu])=>zhu && zhu.gua64)
+		.map(([label, zhu])=>`${label} ${zhu.ganzi || ''}:本卦 ${guaFull(zhu.gua64)} · 互卦 ${guaFull(zhu.huGua)} · 旁通 ${guaFull(zhu.tongGua)}`);
+	if(guaLines.length){
+		lines.push('');
+		lines.push('[卦释]');
+		lines.push(...guaLines);
 	}
 
 	// 小运(legacy 小运 tab,快照曾恒缺):逐年小运/流年并列,字段与 SmallDirection 同源(d.direct/d.yearGanzi)。

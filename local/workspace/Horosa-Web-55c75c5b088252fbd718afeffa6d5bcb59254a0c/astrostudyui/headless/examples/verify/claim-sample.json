@@ -1,0 +1,16 @@
+{
+  "title": "示例:八字的乾造 / 坤造与性别;日主属阳的比例",
+  "cases": { "file": "cases-sample.csv" },
+  "clock": { "now": "2030-06-01 12:00", "tz": "Asia/Shanghai" },
+  "define": {
+    "男": { "field": "gender", "eq": "male" },
+    "乾造": { "technique": "bazi", "section": "起盘信息", "contains": "命造：乾造" },
+    "阳干日主": { "technique": "bazi", "section": "四柱与三元", "regex": "\\| 日柱 \\| [甲丙戊庚壬]" }
+  },
+  "statements": [
+    { "id": "男命即乾造", "title": "排盘口径的自检:男命一律排成乾造", "kind": "implication", "if": "男", "then": "乾造" },
+    { "id": "乾造与性别相关", "kind": "association", "feature": "男", "label": "乾造", "alpha": "0.001", "minCases": 30 },
+    { "id": "阳干日主约占一半", "title": "十天干里阳干五个:日主属阳的比例与 1/2 没有显著差别才对 —— 这条预期「证据不足以支持」", "kind": "rate", "feature": "阳干日主", "p0": "1/2", "alpha": "0.01" }
+  ],
+  "correction": "bonferroni"
+}

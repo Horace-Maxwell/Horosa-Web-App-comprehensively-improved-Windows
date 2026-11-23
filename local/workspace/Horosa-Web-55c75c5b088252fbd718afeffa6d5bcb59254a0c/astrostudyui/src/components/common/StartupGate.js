@@ -170,7 +170,7 @@ export default function StartupGate() {
   // early_nav 本身不动(关掉会把启动拉回 10 秒)。
   const BRAND = '#0f6e56';
   const overlay = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 4000,
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 'var(--horosa-z-startup)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     background: 'linear-gradient(145deg, #0e1414 0%, #101717 100%)',
     color: '#fff',

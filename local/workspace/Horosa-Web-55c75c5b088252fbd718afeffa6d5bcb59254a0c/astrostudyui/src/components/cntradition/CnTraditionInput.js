@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Checkbox } from 'antd';
-import { XQSelect as Select, XQSideSection } from '../xq-ui';
+
+import { XQSelect as Select, XQSideSection, XQCheckbox } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
@@ -21,7 +21,6 @@ class CnTraditionInput extends Component{
         }
 
 		this.onTimeChanged = this.onTimeChanged.bind(this);
-		this.onZoneChanged = this.onZoneChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 
 		this.onTimeAlgChange = this.onTimeAlgChange.bind(this);
@@ -326,30 +325,6 @@ class CnTraditionInput extends Component{
 				zone:{
 					value: dt.zone,
 				},
-			});
-		}
-	}
-
-	onZoneChanged(val){
-		if(this.props.onFieldsChange){
-			let dt = this.tmHook.getValue().value;
-			this.props.onFieldsChange({
-				zone: {
-					value: val,
-				},
-				date: {
-					value: dt.clone(),
-				},
-				time:{
-					value: dt.clone(),
-				},
-				ad:{
-					value: dt.ad,
-				},
-				zone:{
-					value: dt.zone,
-				},
-
 			});
 		}
 	}
@@ -718,16 +693,16 @@ class CnTraditionInput extends Component{
 						</div>
 					</div>
 					<div className="horosa-bazi-option-card">
-						<Checkbox checked={this.props.baziOpt.onlyZiGanShen} onChange={this.onOnlyZiganChange}>只显示地支藏干十神</Checkbox>
+						<XQCheckbox checked={this.props.baziOpt.onlyZiGanShen} onChange={this.onOnlyZiganChange}>只显示地支藏干十神</XQCheckbox>
 					</div>
 					{this.props.baziOpt.showShenSha === false ? null : (
 						<div className="horosa-bazi-shensha-groups">
 							<div className="horosa-field-label">神煞分组（关组即隐藏该组）</div>
 							{/* 紫微左栏同款卡片式勾选(共享 ziwei-option-card 描金小卡规则族),每组独立开关。 */}
 							{[['ji', '吉神'], ['xiong', '凶煞'], ['yue', '月令系'], ['ri', '日柱系']].map(([k, label]) => (
-								<Checkbox key={k}
+								<XQCheckbox key={k}
 									checked={!((this.props.baziOpt.shenshaGroups || {})[k] === false)}
-									onChange={(e)=>this.onShenshaGroupToggle(k, e.target.checked)}>{label}</Checkbox>
+									onChange={(e)=>this.onShenshaGroupToggle(k, e.target.checked)}>{label}</XQCheckbox>
 							))}
 						</div>
 					)}

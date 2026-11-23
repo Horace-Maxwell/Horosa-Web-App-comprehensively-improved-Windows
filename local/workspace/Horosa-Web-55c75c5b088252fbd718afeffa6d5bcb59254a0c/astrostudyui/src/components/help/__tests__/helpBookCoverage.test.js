@@ -3,7 +3,6 @@
 // 判据:① 注册表里每份手册都是 HelpBook(Doc.book 存在);② 每个技法栏页签都能按运行时键解析到「它自己的那一章」
 // (章节键 = 运行时键,或别名里有它,或「父键.子键」);③ 技法栏的每章正文不少于 MIN_CHARS 字(详细,不是一句话)。
 import React from 'react';
-import fs from 'fs';
 
 // 手册文件只 import { Component }(生产构建是自动 JSX runtime);jest 走 classic runtime,章节渲染要作用域里有 React —— 与 helpDocsGuard 同法在测试侧补全局
 global.React = React;
@@ -15,11 +14,12 @@ import { XUANSHI_SUBPAGES } from '../../../utils/xuanshiState';
 import { TECHNIQUE_HELP_DOCS } from '../techniqueHelpRegistry';
 import { bookChapters, resolveChapterKey } from '../HelpBook';
 import { helpElementToText } from '../../../utils/aiTools/helpText';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const helpChapterToText = (chapter)=>helpElementToText(chapter.render());   // 单章纯文本(按章量篇幅)
 
 const SRC = path.resolve(__dirname, '..', '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>readSource(path.join(SRC, rel));
 const MIN_CHARS = 700;
 
 const tabPaneKeys = (rel)=>[...read(rel).matchAll(/TabPane[^>]*key="([A-Za-z0-9]+)"/g)].map((m)=>m[1]);

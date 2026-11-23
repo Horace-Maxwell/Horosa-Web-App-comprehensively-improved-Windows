@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shusuan/HeLuoMain.js b/astrostudyui/src/components/shusuan/HeLuoMain.js
-index a2157c9b..b516265b 100644
+index 49d8d47a..8c7a61af 100644
 --- a/astrostudyui/src/components/shusuan/HeLuoMain.js
 +++ b/astrostudyui/src/components/shusuan/HeLuoMain.js
-@@ -42,6 +42,7 @@ function heluoSnapshotDetail(m) {
+@@ -43,6 +43,7 @@ function heluoSnapshotDetail(m) {
  const sharedModelMemo = createSignatureMemo(4);
  
  class HeLuoMain extends Component {

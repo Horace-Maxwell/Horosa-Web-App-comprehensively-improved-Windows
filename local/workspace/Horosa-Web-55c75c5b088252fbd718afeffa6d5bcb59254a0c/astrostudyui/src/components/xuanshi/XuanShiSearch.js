@@ -1,8 +1,10 @@
 import React from 'react';
 import { celestialDateWithCalendar } from './xuanshiDate';   // 天象副标题按来源标历法
-import { Spin, Empty, Input } from 'antd';
-import { fetchEvents, fetchSearch, fetchCelestial, fetchFigures, fetchStories, fetchTechniques, fetchDynasties, fetchCelestialTerms } from '../../services/xuanshi';
+import { Input } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
+import { fetchEvents, fetchCelestial, fetchFigures, fetchStories, fetchTechniques, fetchDynasties, fetchCelestialTerms } from '../../services/xuanshi';
 import { matchesUserQuery } from '../../utils/scriptMode';
+import { pressable } from '../../utils/pressable';
 
 // 统一搜索 / 多维检索结果 —— 承接首页「检索」faceted 面板(ui.search 带 传统/朝代/术数/史书/证据 + q)。
 // 玄学事件走 faceted fetchEvents(后端 filter_events 多维),其余来源(天象/人物/故事/术数·朝代·天象词条)按关键词补齐。
@@ -123,11 +125,11 @@ export default class XuanShiSearch extends React.Component {
 			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', margin: '10px 0 4px' }}>
 				<span className="xuanshi-stat-sub" style={{ marginRight: 2 }}>已选</span>
 				{pills.map((p) => (
-					<span key={p.dim + p.val} className="xuanshi-chip is-vermilion" style={{ cursor: 'pointer' }} onClick={() => this.removeFacet(p.dim, p.val)} title="移除">
+					<span key={p.dim + p.val} className="xuanshi-chip is-vermilion" style={{ cursor: 'pointer' }} {...pressable(() => this.removeFacet(p.dim, p.val))} title="移除">
 						{p.label} <span style={{ opacity: 0.7, marginLeft: 2 }}>×</span>
 					</span>
 				))}
-				<span className="xuanshi-link" style={{ fontSize: 12 }} onClick={() => this.clearAll()}>清空所有</span>
+				<span className="xuanshi-link" style={{ fontSize: 12 }} {...pressable(() => this.clearAll())}>清空所有</span>
 			</div>
 		);
 	}
@@ -139,7 +141,7 @@ export default class XuanShiSearch extends React.Component {
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span>
 					<span>检索结果</span>
 				</div>
@@ -149,12 +151,12 @@ export default class XuanShiSearch extends React.Component {
 					<Input.Search placeholder="再叠加关键词:人名 / 朝代 / 术法 / 天象 / 原文" allowClear enterButton size="large" style={{ maxWidth: 560 }} defaultValue={q} onSearch={(v) => this.setKeyword(v)} />
 				</div>
 				{this.renderPills()}
-				{loading ? <div className="xuanshi-center"><Spin tip="检索中…" /></div> : err ? (
-					<div className="xuanshi-center"><Empty description={`检索失败:${err}`} /></div>
+				{loading ? <div className="xuanshi-center"><XQSpin tip="检索中…" /></div> : err ? (
+					<div className="xuanshi-center"><XQEmpty description={`检索失败:${err}`} /></div>
 				) : !groups ? (
 					<div className="xuanshi-hint">从首页「检索」勾选 传统 / 朝代 / 术数 / 史书 / 证据，或在此输入关键词 —— 跨「玄学事件 / 天象 / 人物列传 / 故事 / 词条」全库检索。</div>
 				) : !total ? (
-					<div className="xuanshi-center"><Empty description="无匹配,试试放宽条件或换关键词" /></div>
+					<div className="xuanshi-center"><XQEmpty description="无匹配,试试放宽条件或换关键词" /></div>
 				) : (
 					<div>
 						<div className="xuanshi-section-sub" style={{ marginTop: 6 }}>
@@ -167,7 +169,7 @@ export default class XuanShiSearch extends React.Component {
 								<div className="xuanshi-stat-label" style={{ textAlign: 'left', marginBottom: 8 }}>{g.label}（{groupHit(g).toLocaleString()}{groupHit(g) > groupShown(g) ? `,列前 ${groupShown(g)}` : ''}）</div>
 								<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
 									{g.items.slice(0, GROUP_SHOW_MAX(g.key)).map((it, i) => (
-										<div className={`xuanshi-card${it.id ? ' is-link' : ''}`} key={it.id || i} onClick={() => { if (it.id && this.props.onOpenEvent) { this.props.onOpenEvent(it.id); } }}>
+										<div className={`xuanshi-card${it.id ? ' is-link' : ''}`} key={it.id || i} {...pressable(() => { if (it.id && this.props.onOpenEvent) { this.props.onOpenEvent(it.id); } })}>
 											<div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5, flexWrap: 'wrap' }}>
 												<span className="xuanshi-display is-h2" style={{ fontSize: 15 }}>{it.title}</span>
 												{it.sub ? <span className="xuanshi-chip is-ink">{it.sub}</span> : null}

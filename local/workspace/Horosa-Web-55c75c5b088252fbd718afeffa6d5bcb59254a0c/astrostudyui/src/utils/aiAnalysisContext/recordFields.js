@@ -7,7 +7,7 @@ import { chartDayBoundary } from '../dayBoundaryResolve';
 import { recordMissingOr } from '../recordFieldsRestore';
 import { recordPlaceGroupOrDefault } from '../kentangCaseSave';
 import { newChartSeedRecordMissingValue } from '../newChartSeeds';
-import { classicalGlobalValue, classicalBackendOverridesFromFields, CLASSICAL_GLOBAL_DEFAULTS, chartOrbOverridesFromFields, chartOrbSignature } from '../classicalChartGlobals';
+import { classicalGlobalValue, classicalBackendOverridesFromFields, chartOrbOverridesFromFields, chartOrbSignature } from '../classicalChartGlobals';
 // 埃及历七轴随盘键(egypt_*):挂载/存盘 record → fields 透传,astroAiSnapshot.egyptSchoolFromFields 优先消费。
 import { EGYPT_RECORD_KEYS } from '../../divination/data/egyptianSchools';
 // 「列挂载源」及其纯函数助手抽至轻模块 aiAnalysisSources —— 个别页面只需
@@ -76,6 +76,14 @@ function guolaoRecordMissing(record, key){
 // drop 档(页面撤出)= undefined 不下发;旧记录 = legacy(各键既有回落,不变)
 const missing = (record, key, legacy)=>recordMissingOr(record, key, legacy, undefined);
 const has = (v)=>v !== undefined && v !== null;
+
+// 主限法相位集:记录(或挂载齿轮)给了合法档就用(去重、升序),否则恒发托勒密五相(与此前逐字节同)
+const PD_ASPECT_SET = new Set([0, 30, 45, 60, 90, 120, 135, 150, 180]);
+export function recordPdAspects(record){
+	const raw = record && Array.isArray(record.pdaspects) ? record.pdaspects : null;
+	const list = raw ? [...new Set(raw.map((v)=>Number(v)).filter((v)=>PD_ASPECT_SET.has(v)))].sort((a, b)=>a - b) : [];
+	return list.length ? list : DEFAULT_PD_ASPECTS.slice(0);
+}
 
 export function buildFieldObject(record){
 	// 起课时间合成的 timepoint record 用 divTime 不用 birth(参 AIAnalysisMain.js:1029),
@@ -210,7 +218,7 @@ export function buildFieldObject(record){
 		...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, {
 			value: record[key] !== undefined && record[key] !== null ? record[key] : missing(record, key, undefined),
 		}])),
-		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },
+		pdaspects: { value: recordPdAspects(record) },
 		// 时间算法(0=真太阳时按经度校正 / 1=直接时间用钟表时)+ 晚子时口径须从存盘读取,
 		// 否则 canping/heluo 等八字类快照会对「直接时间」盘错用真太阳时校正、忽略晚子时设置(口径与显示不一致)。
 		timeAlg: { value: (record.timeAlg !== undefined && record.timeAlg !== null) ? record.timeAlg : missing(record, 'timeAlg', 0) },

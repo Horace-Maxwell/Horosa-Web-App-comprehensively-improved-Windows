@@ -2,7 +2,7 @@
 // 逐流派/用制写清「怎么算 + 差在哪」;中性表述,纯展示零后端。规则与排盘置宿、七政数据表一致。
 import { Component } from 'react';
 import HelpBook from '../help/HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from '../help/helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from '../help/helpDocStyle';
 
 
 export const HELP_BOOK = {

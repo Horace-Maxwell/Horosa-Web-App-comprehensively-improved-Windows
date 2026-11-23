@@ -107,7 +107,7 @@ describe('温启快照的页签 = 上次停留(切页签也重落快照)', ()=>{
 	test('pages/index.js:出盘 chartId 换代 与 切页签 两个效果都调用 saveBootChartSnapshot,后者依赖 [currentTab, currentSubTab] 且未出盘不写', ()=>{
 		const fs = require('fs');
 		const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '..', '..', 'pages', 'index.js'), 'utf8');
+		const src = require('./helpers/sourceSet').readSource(path.join(__dirname, '..', '..', 'pages', 'index.js'));   // 门面 + 子模块全集
 		const calls = src.split('saveBootChartSnapshot(fields, currentTab, currentSubTab, { dayBoundaryPinned: !!_dayBoundaryRecordPinned, dayBoundaryUserOverride: { after23: !!_after23BoundaryUserOverrode, lateZi: !!_lateZiHourUserOverrode } })').length - 1;
 		expect(calls).toBeGreaterThanOrEqual(2);
 		const depsAt = src.indexOf('}, [currentTab, currentSubTab]);');

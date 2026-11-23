@@ -16,6 +16,7 @@ export const AGENT_TOOL_LABELS = {
 	propose_record_edit: '提议修改档案', propose_record_archive: '提议归档档案', list_proposals: '查看档案提案',
 	list_zeri_conditions: '各派择日条件类', search_zeri: '各派择日搜索', explain_zeri: '各派择日判读',
 	search_celebrities: '检索名人库', list_celebrity_categories: '名人库分类', get_celebrity: '读取名人资料', create_celebrity_chart: '名人存成命盘',
+	list_techniques: '技法清单', check_new_version: '查新版本', scan_election_moments: '择日盘逐时择优', get_lunar_month: '农历月历', list_record_revisions: '查看历史版本', copy_record: '另存副本', find_duplicate_records: '查重复档案', list_zeri_schemes: '择日方案', browse_xuanshi: '浏览玄学史', search_rizi: '日子馆择日', cast_fengshui: '风水理气起局', get_diagnostics: '运行诊断', get_reference: '参考表', sky_at: '天象取数', cast_acg: '占星地图', rectify_india: '印占校时', propose_record_unlink: '提议解除关联', propose_record_recover: '提议恢复档案', control_task: '暂停 / 取消任务', add_material_note: '新建资料笔记', propose_memory: '提议记忆', list_memories: '查看记忆', propose_template: '提议新建模版', propose_skill_pack: '提议新建技能包', propose_persona_text: '提议改个人口径', save_document: '存成文件', cast_random_case: '软件代摇', list_models: '模型清单', chat_in_conversation: '在对话里续问',
 };
 
 export function toolLabel(name){

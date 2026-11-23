@@ -10,12 +10,13 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 describe('择日方案库本命存取', () => {
 	['BaziZeriWorkbench', 'LiurengZeriWorkbench', 'ZiweiZeriWorkbench', 'SanshiZeriWorkbench'].forEach((wb) => {
 		it(`${wb}:保存带 natal+natalInput;载入回灌 natalInput 与 natal`, () => {
-			const src = read(`${wb}.js`);
-			// 六壬 / 三式的工作台参数由宿主给出(含内嵌页的页面口径键,见 zeriPageCalibreStaleAndScheme)
-			expect(src).toMatch(/saveScheme\(schemeName, \{ cfg, geo, options(: schemeOptionsOf\(getSchemeOptions, options\))?, natal, natalInput \}, tree\)/);
+			// 本家派描述带本命区;存取都在共用壳(真渲染的存 / 取行为见 zeriWorkbenchShellBehaviour)
+			expect(read(`${wb}.js`)).toMatch(/natal: \{\s*label:/);
+			const src = read(`${wb}.js`) + read('ZeriWorkbenchShell.js');
+			expect(src).toContain('if(school.natal){ conf.natal = natal; conf.natalInput = natalInput; }');
 			// 本命与输入框同一校验(zeriNatal,与载入存案同):坏形本命 = 没有;输入框叠在构造缺省上
-			expect(src).toContain("if((rec.config.natalInput || Object.prototype.hasOwnProperty.call(rec.config, 'natal')) && typeof onNatalInputChange === 'function'){ onNatalInputChange(restoredNatalInput(rec.config.natalInput)); }");
-			expect(src).toContain("if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(normalizeSavedNatal(rec.config.natal)); }");
+			expect(src).toContain("if(school.natal && (rec.config.natalInput || Object.prototype.hasOwnProperty.call(rec.config, 'natal')) && typeof onNatalInputChange === 'function'){ onNatalInputChange(restoredNatalInput(rec.config.natalInput)); }");
+			expect(src).toContain("if(school.natal && Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(normalizeSavedNatal(rec.config.natal)); }");
 			expect(src).toMatch(/natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,/);
 		});
 	});

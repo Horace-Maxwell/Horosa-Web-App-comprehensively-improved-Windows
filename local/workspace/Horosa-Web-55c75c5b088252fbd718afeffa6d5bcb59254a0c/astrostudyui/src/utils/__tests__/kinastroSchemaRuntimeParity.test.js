@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { getTechniqueSettingsSchema } from '../techniqueMountSettings';
 import * as KIN_OPTIONS from '../../components/kinastro/kinastroOptions';
+import { sourceSetFiles } from './helpers/sourceSet';   // 拆成子模块的大文件:门面 + 子模块逐个文件
 
 const parser = require('@babel/parser');
 const TECHS = ['shaozi', 'beiji', 'nanji', 'chunzi'];
@@ -19,8 +20,19 @@ const KNOWN_SPREADS = {
 const optSeq = (opts)=>(Array.isArray(opts) ? opts.map((o)=>`${JSON.stringify(o.value)}=${o.label}`) : null);
 
 function staticFields(){
-	const src = fs.readFileSync(path.join(__dirname, '..', 'techniqueMountSettings.js'), 'utf8');
-	const ast = parser.parse(src, { sourceType: 'module', plugins: ['jsx', 'classProperties', 'objectRestSpread', 'optionalChaining', 'nullishCoalescingOperator', 'dynamicImport'] });
+	// 门面 + 子模块全集里逐个文件解析(拼起来的全集是文本,不能当一个模块解析),总表声明只在其中一份
+	let src = '';
+	let ast = null;
+	sourceSetFiles(path.join(__dirname, '..', 'techniqueMountSettings.js')).forEach((f)=>{
+		const text = fs.readFileSync(f, 'utf8');
+		const tree = parser.parse(text, { sourceType: 'module', plugins: ['jsx', 'classProperties', 'objectRestSpread', 'optionalChaining', 'nullishCoalescingOperator', 'dynamicImport'] });
+		const declares = tree.program.body.some((st)=>{
+			const decl = st.type === 'ExportNamedDeclaration' ? st.declaration : st;
+			return decl && decl.type === 'VariableDeclaration' && decl.declarations.some((d)=>d.id && d.id.name === 'TECHNIQUE_SETTINGS_SCHEMA');
+		});
+		if(declares){ expect(ast).toBe(null); src = text; ast = tree; }
+	});
+	expect(ast).not.toBe(null);
 	const keyName = (k)=>(k ? (k.name !== undefined ? k.name : k.value) : undefined);
 	const lastProp = (obj, k)=>{ let hit = null; obj.properties.forEach((p)=>{ if(p.type === 'ObjectProperty' && !p.computed && keyName(p.key) === k){ hit = p; } }); return hit; };
 	let schema = null;

@@ -4,7 +4,7 @@
 // 不写章节号「§」与软件名;书名只写公版古籍名,不写现代来源;专名(Davison / Placidus 等)与界面 label 一致,可用。
 import { Component } from 'react';
 import HelpBook from './HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 
 
 export const HELP_BOOK = {

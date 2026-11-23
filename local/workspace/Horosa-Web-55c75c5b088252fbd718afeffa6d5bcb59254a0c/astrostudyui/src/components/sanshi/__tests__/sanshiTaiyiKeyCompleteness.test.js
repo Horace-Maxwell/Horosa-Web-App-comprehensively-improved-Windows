@@ -2,8 +2,9 @@
 // 曾漏 taiyiTimeBasis:签名不变 → 去重不重算、缓存也命中旧盘 → 三式「时间基准」切真太阳时纹丝不动(死开关)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'SanShiUnitedMain.js'));
 
 function blockAfter(marker, endMarker){
 	const i = SRC.indexOf(marker);

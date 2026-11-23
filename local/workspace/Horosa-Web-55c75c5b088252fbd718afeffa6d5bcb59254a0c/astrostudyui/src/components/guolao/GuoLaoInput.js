@@ -8,9 +8,9 @@ import DateTime from '../comp/DateTime';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from '../suzhan/SZConst';
 import * as AstroConst from '../../constants/AstroConst';
-import { Checkbox, InputNumber, Radio } from 'antd';
+
 import { zeriLockProps } from '../../divination/zeri/zeriPageCalibre';
-import { XQSelect as Select, XQToggle, XQModal, XQSideSection } from '../xq-ui';
+import { XQSelect as Select, XQToggle, XQModal, XQSideSection, XQCheckbox, XQInputNumber, XQRadio } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { MOIRA_PLANET_DEFS, MOIRA_ASPECT_DEFS, MOIRA_BIRTH_GOD_ORDER, MOIRA_TRANSIT_GOD_ORDER } from './GuoLaoMoiraWheel';
 import { parseMagneticDms, formatMagneticDms } from './electionGeomag';
@@ -31,7 +31,7 @@ function guolaoAyanamsaLabel(v){
 	return o ? o.label : `${v}`;
 }
 import XQIcon from '../xq-icons';
-import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, resolveGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_DEFAULT_SU28_MODE, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
+import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, resolveGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_DEFAULT_SU28_MODE, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
 import { SU28_MODE_GROUPS, TUIBIAN_METHOD_OPTIONS, GUFA_PRECESS_OPTIONS, EQ_TROPICAL_ANCHOR_OPTIONS, TRUE_SOLAR_TIME_OPTIONS, NODE_TYPE_OPTIONS, LILITH_TYPE_OPTIONS, BODY_MODE_OPTIONS, LIFE_MODE_OPTIONS, LIFE_MASTER_MODE_OPTIONS, MINOR_LIMIT_TYPE_OPTIONS, TONGXIAN_BASE_OPTIONS, SCHOOL_PRESET_OPTIONS, LIFE_CUSTOM_ZHI_OPTIONS, BODY_CUSTOM_ZHI_OPTIONS, HSYS_OPTIONS } from './guolaoData';
 import IsoDateTimeField from '../comp/IsoDateTimeField';   // 日期 / 时刻走全站时间组件(不用系统原生日期框)
 
@@ -464,13 +464,13 @@ class GuoLaoInput extends Component{
 						<a onClick={()=>this.setGodsVisible(listKey, order, order.filter((g)=>(listKey === 'hiddenGodsBirth' ? MOIRA_BIRTH_GOD_ORDER : MOIRA_TRANSIT_GOD_ORDER).indexOf(g) >= 0))} style={{fontSize: 12}}>恢复默认</a>
 						<span style={{fontSize: 12, color: 'var(--horosa-muted, #8c8c8c)'}}>{visible.length}/{order.length}</span>
 					</div>
-					<Checkbox.Group
+					<XQCheckbox.Group
 						value={visible}
 						onChange={(list)=>this.setGodsVisible(listKey, order, list)}
 						style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(68px, 1fr))', gap: '2px 8px'}}
 					>
-						{order.map((god)=>(<Checkbox key={god} value={god} style={{fontSize: 12, marginLeft: 0}}>{god}</Checkbox>))}
-					</Checkbox.Group>
+						{order.map((god)=>(<XQCheckbox key={god} value={god} style={{fontSize: 12, marginLeft: 0}}>{god}</XQCheckbox>))}
+					</XQCheckbox.Group>
 				</div>
 			);
 		};
@@ -496,13 +496,13 @@ class GuoLaoInput extends Component{
 				})()}
 				<div style={{marginBottom: 14}}>
 					<div style={{marginBottom: 6}}><strong style={{fontSize: 13}}>十神选择</strong><span style={{fontSize: 12, color: 'var(--horosa-muted, #8c8c8c)', marginLeft: 8}}>年曜十神的称谓体系（对照 Moira）</span></div>
-					<Radio.Group
+					<XQRadio.Group
 						value={display.tenGodSeq === 'alt' ? 'alt' : 'org'}
 						onChange={(e)=>this.props.onGuolaoDisplayChange && this.props.onGuolaoDisplayChange({ tenGodSeq: e.target.value })}
 					>
-						<Radio value="org" style={{display: 'block', fontSize: 12, marginBottom: 2}}>天禄, 天暗, 天福, 天耗, 天荫, 天贵, 天嗣, 天刑, 天印, 天囚, 天权</Radio>
-						<Radio value="alt" style={{display: 'block', fontSize: 12}}>比肩, 劫财, 食神, 伤官, 偏财, 正财, 七杀, 正官, 偏印, 正印</Radio>
-					</Radio.Group>
+						<XQRadio value="org" style={{display: 'block', fontSize: 12, marginBottom: 2}}>天禄, 天暗, 天福, 天耗, 天荫, 天贵, 天嗣, 天刑, 天印, 天囚, 天权</XQRadio>
+						<XQRadio value="alt" style={{display: 'block', fontSize: 12}}>比肩, 劫财, 食神, 伤官, 偏财, 正财, 七杀, 正官, 偏印, 正印</XQRadio>
+					</XQRadio.Group>
 				</div>
 				<div>
 					<div style={{marginBottom: 6}}><strong style={{fontSize: 13}}>相位容许度(度)</strong><span style={{fontSize: 12, color: 'var(--horosa-muted, #8c8c8c)', marginLeft: 8}}>清空=用默认</span></div>
@@ -510,7 +510,7 @@ class GuoLaoInput extends Component{
 						{MOIRA_ASPECT_DEFS.map((sp)=>(
 							<label key={sp.key} style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12}}>
 								<span style={{minWidth: 30}}>{sp.key}</span>
-								<InputNumber
+								<XQInputNumber
 									size="small"
 									min={0}
 									max={30}
@@ -688,13 +688,14 @@ class GuoLaoInput extends Component{
 						) : null}
 						<label className="horosa-guolao-select-field">
 							<span>推运年份</span>
-							<input
+							<XQInputNumber
 								className="horosa-guolao-mini-input"
-								type="number"
-								min="1"
-								max="9999"
-								value={kinCurrentYear}
-								onChange={(event)=>this.onKinastroOptionChange('currentYear', event.currentTarget.value)}
+								size="small"
+								min={1}
+								max={9999}
+								precision={0}
+								value={kinCurrentYear === '' || kinCurrentYear === null || kinCurrentYear === undefined ? null : Number(kinCurrentYear)}
+								onChange={(v)=>this.onKinastroOptionChange('currentYear', v === null || v === undefined ? '' : String(v))}
 							/>
 						</label>
 						<div className="horosa-guolao-select-field">
@@ -714,13 +715,14 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>择日天数</span>
-							<input
+							<XQInputNumber
 								className="horosa-guolao-mini-input"
-								type="number"
-								min="1"
-								max="60"
-								value={kinElectionalDays}
-								onChange={(event)=>this.onKinastroOptionChange('electionalDays', event.currentTarget.value)}
+								size="small"
+								min={1}
+								max={60}
+								precision={0}
+								value={kinElectionalDays === '' || kinElectionalDays === null || kinElectionalDays === undefined ? null : Number(kinElectionalDays)}
+								onChange={(v)=>this.onKinastroOptionChange('electionalDays', v === null || v === undefined ? '' : String(v))}
 							/>
 						</label>
 						<label className="horosa-guolao-select-field">
@@ -983,7 +985,7 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>座山度数</span>
-							<InputNumber size="small" min={0} max={359.99} step={0.5} value={ele.zuoShanDeg} onChange={(v)=>this.onElectionChange({ zuoShanDeg: Number(v) || 0 })} />
+							<XQInputNumber size="small" min={0} max={359.99} step={0.5} value={ele.zuoShanDeg} onChange={(v)=>this.onElectionChange({ zuoShanDeg: Number(v) || 0 })} />
 						</label>
 						</div>
 						<div className="horosa-guolao-toggle-grid">

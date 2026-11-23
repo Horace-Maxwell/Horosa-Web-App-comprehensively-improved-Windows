@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { setGlobalStore } = require('../../../utils/storageutil');
 const { zeriLockProps, INDIA_ZERI_LOCKED, LIURENG_ZERI_LOCKED, TAIYI_ZERI_LOCKED, SANSHI_ZERI_LOCKED, QIZHENG_ZERI_LOCKED } = require('../zeriPageCalibre');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = path.join(__dirname, '..', '..', '..');
 const flush = async ()=>{ for(let i = 0; i < 10; i += 1){ await Promise.resolve(); } };
@@ -121,7 +122,7 @@ describe('六壬 / 太乙 / 三式内嵌页:存案标记只由载入存案置、
 		jest.dontMock('../../../utils/kentangCaseSave');
 	});
 	test('源码:三式页同一做法(载入存案置标记、回写清标记,三个锁定控件都带第四参)', ()=>{
-		const t = fs.readFileSync(path.join(SRC, 'components', 'sanshi', 'SanShiUnitedMain.js'), 'utf8');
+		const t = readSource(path.join(SRC, 'components', 'sanshi', 'SanShiUnitedMain.js'));
 		expect(t).toMatch(/this\._zeriRestoredLocks = zeriRestoredLockMarks\(this\.props\.zeriLocked, normalizedOptions\)/);
 		expect(t).toMatch(/this\._zeriRestoredLocks = clearZeriLockMarks\(this\._zeriRestoredLocks, partial\)/);
 		// horosa_win_slice_form_v1(Windows 侧移植适配):合一页左栏在我方渲染切片里是子组件 SanShiInputPanel(见 SanShiUnitedMain 的
@@ -149,7 +150,7 @@ test('全仓 zeriLockProps 调用都带第四参(显式存案标记),不再按�
 	walk(path.join(SRC, 'components'));
 	const calls = [];
 	files.forEach((f)=>{
-		const t = fs.readFileSync(f, 'utf8');
+		const t = readSource(f);
 		for(const m of t.matchAll(/zeriLockProps\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)){
 			calls.push([path.relative(SRC, f), m[1].split(',').length]);
 		}

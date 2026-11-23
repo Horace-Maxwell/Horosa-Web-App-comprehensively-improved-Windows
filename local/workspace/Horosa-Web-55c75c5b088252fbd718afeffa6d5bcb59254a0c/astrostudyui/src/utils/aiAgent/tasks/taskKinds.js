@@ -91,13 +91,16 @@ export async function runScheduledTask(task, ctx){
 		if(cur && cur.status === 'waiting'){ await patchTask(task.id, { status: 'running' }); }
 		return ok;
 	};
-	const elicit = typeof c.requestElicitation === 'function' ? c.requestElicitation : async (q)=>{
+	// 无人值守:不给反问通道(ask_user 回「没有反问通道」,模型自行假设继续);审批由调用方给(全拒)
+	const elicit = c.unattended ? undefined : typeof c.requestElicitation === 'function' ? c.requestElicitation : async (q)=>{
 		await (deps.pushNotice || pushNotice)({ level: 'action', title: '定时任务向你提问', body: `${task.title}:${q.question}`, taskId: task.id }, { desktop: true });
 		return (deps.requestElicitation || requestElicitation)(`task:${task.id}`, q);
 	};
 	const r = await (deps.runHeadlessTurn || runHeadlessTurn)({
-		profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText: buildScheduledPrompt(spec, now, { hasSource: !!source }), source,   // 无挂载 / 档案已删 → 无命盘文案 techniqueKeys: Array.isArray(spec.techniques) ? spec.techniques : [],
+		profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText: buildScheduledPrompt(spec, now, { hasSource: !!source }), source,   // 无挂载 / 档案已删 → 无命盘文案
+		techniqueKeys: Array.isArray(spec.techniques) ? spec.techniques : [],   // 任务选的技法照挂(此前被上一行注释吞掉,定时任务只挂整盘、不挂所选技法)
 		systemPrompt: '', origin: 'scheduled', taskId: task.id, signal: c.signal, requestApproval: approve, requestElicitation: elicit, deps,
+		...(c.registry ? { registry: c.registry } : {}),   // 无人值守:只读 + 提议件的注册表视图
 		techniqueOptionOverrides: spec.techniqueOptionOverrides,   // 定时任务有快照就用(无=同类默认)
 	});
 	if(!r || r.error){ return { ok: false, error: (r && r.error) || '生成失败', conversationId: conv.id }; }

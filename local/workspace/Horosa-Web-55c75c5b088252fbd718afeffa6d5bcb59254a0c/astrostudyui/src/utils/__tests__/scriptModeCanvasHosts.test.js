@@ -15,12 +15,15 @@ const SUBSCRIBE_RE = /\bwatchChartScript\s*\(/;
 
 // 画字的库文件 → [宿主文件, 宿主里必须调用的重画入口] 列表
 const LIBS = {
-	'components/fengshui/fengshuiEngine.js': [['components/fengshui/FengShuiMain.js', /engine\.drawAll\(\)/]],
+	// 风水纳气盘引擎的方法按职责拆在 fengshui/engine/ 下:画盘在 draw.js、导出卡在 exportCards.js,宿主同一个
+	'components/fengshui/engine/draw.js': [['components/fengshui/FengShuiMain.js', /engine\.drawAll\(\)/]],
+	'components/fengshui/engine/exportCards.js': [['components/fengshui/FengShuiMain.js', /engine\.drawAll\(\)/]],
 	'components/astro3d/labelSprite.js': [
 		['components/astro3d/AstroChart3D.js', /repaintTextSprites\(\)/],
 		['components/astro3d/AstroPDSphere.js', /repaintTextSprites\(\)/],
 	],
-	'components/planetarium/babylon/PlanetariumRenderer.js': [['components/planetarium/PlanetariumBabylon.js', /repaintTextLabels\(\)/]],
+	// 天文馆渲染器的方法按职责拆在同目录各文件里:画字的文字面板(createTextPlane)在 rendererStars.js
+	'components/planetarium/babylon/rendererStars.js': [['components/planetarium/PlanetariumBabylon.js', /repaintTextLabels\(\)/]],
 };
 // 只在导出时临时画、画完即丢的(不在屏幕上停留),不必订阅
 const EXEMPT = {

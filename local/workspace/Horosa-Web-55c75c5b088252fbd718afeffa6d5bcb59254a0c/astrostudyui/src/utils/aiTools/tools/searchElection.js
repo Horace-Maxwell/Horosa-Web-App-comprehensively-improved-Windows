@@ -2,11 +2,12 @@
 // 与择日页「征象搜索」同一条件注册表(divination/zeri/conditionTypes)、同一编译(compileTree)与同一扫描编排(runScan:
 // 按自然月切段顺序请求、可取消、每段回报进度);盘面口径 = 全局古典设置(与择日页 / 主排盘同律)。只读、不写任何记录。
 import { CONDITION_TYPES, GROUP_TYPES, compileTree, auditTreeAgainstRegistry } from '../../../divination/zeri/conditionTypes';
-import { runScan, MAX_SPAN_DAYS_TOTAL } from '../../../divination/zeri/scanOrchestrator';
+import { runScan } from '../../../divination/zeri/scanOrchestrator';
 import { buildZeriRowExplainLines } from '../../../divination/zeri/zeriExplainText';
 import { fetchElectionExplain } from '../../../services/electionScan';
 import { getClassicalChartGlobals } from '../../classicalChartGlobals';
 import { natalClassicalParams } from '../../../components/astro/AstroExtraCommon';
+import { INDIA_AYANAMSA_OPTIONS } from '../../../constants/AstroConst';
 import { resolvePlaceOffline } from '../normalize/place';
 import { resolveZone } from '../normalize/zone';
 import { GUIDE } from './_shared';
@@ -29,6 +30,13 @@ export function listConditionSpecsOf(registry, filterType){
 		return { type, label: spec.label || type, category: spec.category || '', defaults: JSON.parse(JSON.stringify(spec.defaults || {})), fields: (spec.fields || []).map(fieldSpec) };
 	});
 }
+// 目录缺省回简表(类键 / 中文名 / 分类 / 参数名),完整取值表按 type 取或 fields:'full'(全量一次几十 KB,外部客户端单次输出有上限)
+export const CATALOG_FIELDS_SCHEMA = { type: 'string', enum: ['brief', 'full'], default: 'brief', description: "brief(缺省)= 每类只回类键 / 中文名 / 分类 / 参数名;full = 连各参数取值范围一并回。给了 type 恒回该类全量" };
+export function catalogView(types, args){
+	if((args && args.type) || (args && args.fields === 'full')){ return types; }
+	return types.map((t)=>({ type: t.type, label: t.label, category: t.category, params: Object.keys(t.defaults || {}) }));
+}
+export const CATALOG_BRIEF_HINT = '简表:各参数的取值范围按 type 单查或 fields:"full"';
 export function listElectionConditionSpecs(filterType){
 	return listConditionSpecsOf(CONDITION_TYPES, filterType);
 }
@@ -68,7 +76,17 @@ const WHERE_SCHEMA = {
 	zone: { type: 'string', pattern: '^[+-]\\d{2}:\\d{2}$', description: '缺省按地点与日期推算' },
 	hsys: { type: 'integer', minimum: 0, maximum: 30, description: '宫制编号(缺省 0,与择日页缺省同)' },
 	zodiacal: { type: 'integer', minimum: 0, maximum: 1, description: '0=回归黄道 / 1=恒星黄道' },
+	// 恒星黄道时用哪套岁差制(与天星择日页同一套;缺省 Lahiri;user = 设置里的自定义历元)
+	siderealAyanamsa: { type: 'string', enum: INDIA_AYANAMSA_OPTIONS.map((o)=>o.value).concat(['user']), description: 'zodiacal=1 时的岁差制(缺省 lahiri;user = 设置里的自定义历元)' },
 };
+
+// 截断时说清怎么取后面的:回包未列完 → 带 offset=nextOffset 再调;引擎自己截断(区间内命中过多)→ 缩小时间段
+export function pagingHints(more, nextOffset, engineTruncated){
+	const a = [];
+	if(more){ a.push(`还有更多区间:带 offset=${nextOffset} 再调一次取下一页`); }
+	if(engineTruncated){ a.push('引擎在这个时间段里命中过多已截断:缩小时间段分几次搜,才能拿全'); }
+	return a.length ? { assumptions: a } : {};
+}
 
 export function splitDateTime(s, fallbackTime){
 	const m = /^(-?\d{1,4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(`${s || ''}`.trim());
@@ -92,7 +110,9 @@ function scanBaseOf(start, end, geo, zone, args){
 		startDate: start.date, startTime: start.time, endDate: end.date, endTime: end.time,
 		zone, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon,
 		hsys: Number(args.hsys || 0), zodiacal: Number(args.zodiacal || 0),
-		...natalClassicalParams({ ...getClassicalChartGlobals() }),
+		// 与天星择日页 scanBase 同:岁差制进请求体,且并入古典口径(user 档的历元两键由 natalClassicalParams 按它补)
+		...(args.siderealAyanamsa ? { siderealAyanamsa: `${args.siderealAyanamsa}` } : {}),
+		...natalClassicalParams({ ...getClassicalChartGlobals(), ...(args.siderealAyanamsa ? { siderealAyanamsa: `${args.siderealAyanamsa}` } : {}) }),
 		ad: 1, precision: 'minute',
 	};
 }
@@ -104,13 +124,15 @@ export const listElectionConditionsTool = {
 	undoKind: 'none',
 	origins: ['in-app', 'mcp'],
 	cacheable: true,
-	description: `天星择日(西洋占星择时)可用的征象条件类:每类的中文名、缺省参数、各参数的取值范围。写 search_election 的条件树前先查这里;只关心一类时给 type。${GUIDE}:用户要求择日 / 择时、需要写条件树时调用。`,
-	inputSchema: { type: 'object', additionalProperties: false, properties: { type: { type: 'string', maxLength: 40 } } },
-	outputSchema: { type: 'object', required: ['types'], properties: { types: { type: 'array', items: { type: 'object', required: ['type', 'label', 'fields'] } }, joiners: { type: 'array', items: { type: 'string' } } } },
+	description: `天星择日(西洋占星择时)可用的征象条件类:每类的中文名、缺省参数、各参数的取值范围。写 search_election 的条件树前先查这里;只关心一类时给 type。缺省回简表(类键 / 中文名 / 分类 / 参数名),各参数取值范围按 type 单查或 fields:'full'。${GUIDE}:用户要求择日 / 择时、需要写条件树时调用。`,
+	inputSchema: { type: 'object', additionalProperties: false, properties: { type: { type: 'string', maxLength: 40 }, fields: CATALOG_FIELDS_SCHEMA } },
+	outputSchema: { type: 'object', required: ['types'], properties: { types: { type: 'array', items: { type: 'object', required: ['type', 'label'] } }, joiners: { type: 'array', items: { type: 'string' } }, view: { type: 'string' } } },
 	async run(args){
 		const types = listElectionConditionSpecs(args.type);
 		if(args.type && !types.length){ return { ok: false, code: 'E_ARGS_INVALID', message: `没有这个条件类:${`${args.type}`.slice(0, 40)}`, data: { available: Object.keys(CONDITION_TYPES) } }; }
-		return { ok: true, data: { types, joiners: JOINERS }, summary: `条件类 ${types.length} 种` };
+		const view = catalogView(types, args);
+		const brief = view !== types;
+		return { ok: true, data: { types: view, joiners: JOINERS, view: brief ? 'brief' : 'full' }, summary: `条件类 ${types.length} 种${brief ? `(${CATALOG_BRIEF_HINT})` : ''}` };
 	},
 };
 
@@ -130,11 +152,12 @@ export const searchElectionTool = {
 			conditions: TREE_SCHEMA,
 			...WHERE_SCHEMA,
 			limit: { type: 'integer', minimum: 1, maximum: ELECTION_RESULT_MAX, default: 50 },
+			offset: { type: 'integer', minimum: 0, maximum: 100000, default: 0, description: '从第几个区间起回(翻页用;上一次回包的 nextOffset)' },
 		},
 	},
 	outputSchema: {
 		type: 'object', required: ['intervals', 'total', 'truncated'],
-		properties: { intervals: { type: 'array', items: { type: 'object', required: ['start', 'end'] } }, total: { type: 'integer' }, truncated: { type: 'boolean' }, engineTruncated: { type: 'boolean' }, place: { type: 'string' }, zone: { type: 'string' } },
+		properties: { intervals: { type: 'array', items: { type: 'object', required: ['start', 'end'] } }, total: { type: 'integer' }, truncated: { type: 'boolean' }, nextOffset: { type: 'integer' }, offset: { type: 'integer' }, engineTruncated: { type: 'boolean' }, place: { type: 'string' }, zone: { type: 'string' } },
 	},
 	async run(args, ctx){
 		const report = ctx && typeof ctx.progress === 'function' ? ctx.progress : null;
@@ -158,8 +181,11 @@ export const searchElectionTool = {
 		}
 		const all = Array.isArray(out.intervals) ? out.intervals : [];
 		const limit = args.limit || 50;
-		const intervals = all.slice(0, limit).map((iv)=>({ start: iv.start, end: iv.end, ...(iv.pick ? { pick: iv.pick } : {}), ...(iv.pickEnd ? { pickEnd: iv.pickEnd } : {}) }));
-		return { ok: true, data: { intervals, total: all.length, truncated: all.length > limit, engineTruncated: !!out.truncated, place: geo.pos || '', zone }, summary: `命中 ${all.length} 个区间${out.truncated ? '(引擎已截断)' : ''}` };
+		const offset = args.offset || 0;
+		const intervals = all.slice(offset, offset + limit).map((iv)=>({ start: iv.start, end: iv.end, ...(iv.pick ? { pick: iv.pick } : {}), ...(iv.pickEnd ? { pickEnd: iv.pickEnd } : {}) }));
+		const more = all.length > offset + limit;
+		return { ok: true, data: { intervals, total: all.length, truncated: more, ...(more ? { nextOffset: offset + limit } : {}), ...(offset ? { offset } : {}), engineTruncated: !!out.truncated, place: geo.pos || '', zone },
+			summary: `命中 ${all.length} 个区间${out.truncated ? '(引擎已截断)' : ''}`, ...(pagingHints(more, offset + limit, !!out.truncated)) };
 	},
 };
 

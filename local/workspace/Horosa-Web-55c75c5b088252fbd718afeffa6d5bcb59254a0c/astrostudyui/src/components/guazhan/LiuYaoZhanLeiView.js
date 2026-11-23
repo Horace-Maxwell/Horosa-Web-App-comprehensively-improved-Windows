@@ -9,6 +9,7 @@ import { guaLoreOf } from '../gua/data/tianjiGuaLore';
 import { LiuYaoXunWu } from './LiuYaoCastPad';
 import { Card } from './LiuYaoDuanJueView';
 import { loadDoctrine, ASK_TO_DOCTRINE } from '../gua/data/liuyaoDoctrineCache'; // 共享单一真值源(UI+AI 快照)
+import { pressable } from '../../utils/pressable';
 
 const C = { text: 'var(--horosa-astro-text, #efe4d2)', muted: 'var(--horosa-astro-muted, #928b82)', label: 'var(--horosa-astro-label, #d6c7b0)', line: 'var(--horosa-astro-line, rgba(215,173,105,0.18))', accent: 'var(--horosa-accent, #e7bd75)', accentSoft: 'var(--horosa-accent-soft, rgba(231,189,117,0.14))', danger: 'var(--horosa-danger, #ff756c)' };
 // askType → 占类门(辨爻法键 + 专用卡集)
@@ -27,7 +28,7 @@ function DoctrineMen({ men, rows, defaultOpen }){
 	let lastSrc = null;
 	return (
 		<div style={{ marginBottom: 6 }}>
-			<div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.label, padding: '3px 0', userSelect: 'none' }}>
+			<div {...pressable(() => setOpen(!open))} style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.label, padding: '3px 0', userSelect: 'none' }}>
 				{open ? '▾' : '▸'} {men} <span style={{ color: C.muted, fontWeight: 400 }}>({rows.length} 条)</span>
 			</div>
 			{open ? (

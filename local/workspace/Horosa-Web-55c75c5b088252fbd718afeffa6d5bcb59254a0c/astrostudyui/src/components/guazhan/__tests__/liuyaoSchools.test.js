@@ -149,14 +149,14 @@ describe('三新键默认值+源码接线守卫', ()=>{
 		expect(DEFAULT_LIUYAO_SETTINGS.defaultYaoState).toBe('shaoyang');
 	});
 	test('🔴 G2 分派器:rollYao 按档取源;5 处随机消费全走 rollYao(禁直连 randYao 回潮)', ()=>{
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
 		expect(/rollYao\(\)\{[\s\S]{0,220}yarrow[\s\S]{0,80}yarrowYao\(\)[\s\S]{0,40}randYao\(\)/.test(src)).toBe(true);
 		const direct = (src.match(/randYao\(\)/g) || []).length;
 		expect(direct).toBe(1);   // 仅分派器内 1 处
 		expect((src.match(/this\.rollYao\(\)/g) || []).length).toBe(5);
 	});
 	test('🔴 G3 守卫:randomConfirm 开+手动来源才弹;time/空盘直滚;停止恒放行', ()=>{
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
 		expect(/confirmRandomThen\(run\)\{[\s\S]{0,240}!s\.randomConfirm \|\| !origin \|\| origin === 'time'[\s\S]{0,20}run\(\)/.test(src)).toBe(true);
 		expect(/genGua\(\)\{[\s\S]{0,560}if\(!stopAct\)\{[\s\S]{0,120}confirmRandomThen/.test(src)).toBe(true);
 		expect(/genYao\(idx\)\{[\s\S]{0,700}confirmRandomThen/.test(src)).toBe(true);
@@ -166,7 +166,7 @@ describe('三新键默认值+源码接线守卫', ()=>{
 		expect(pad.includes("props.defaultYaoState === 'shaoyin'")).toBe(true);
 		expect(pad.includes('tosses: [0, 1, 2, 3, 4, 5].map(() => backsOf(yin))')).toBe(true);   // 背面数按 coinFace 口径取
 		expect(pad.includes('yin ? [8, 8, 8, 8, 8, 8]')).toBe(true);
-		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'GuaZhanMain.js'));
 		expect(src.includes('defaultYaoState={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState}')).toBe(true);
 		expect(src.includes('key={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState}')).toBe(true);
 	});

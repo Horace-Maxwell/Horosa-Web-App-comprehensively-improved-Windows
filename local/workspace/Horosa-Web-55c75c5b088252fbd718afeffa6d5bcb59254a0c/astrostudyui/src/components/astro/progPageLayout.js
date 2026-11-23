@@ -9,6 +9,7 @@
 import React, { Component } from 'react';
 import { Row, Col, Divider, Tooltip } from 'antd';
 import UpdatingBadge from '../common/UpdatingBadge';
+import { XQState } from '../xq-ui';
 import CompactTimeField, { dateTimeOf } from '../comp/CompactTimeField';
 import DateTime from '../comp/DateTime';
 import { cardStyle, SmallTable, symbolWithMeaning } from './AstroExtraCommon';
@@ -398,21 +399,13 @@ export function FillCard({ title, extra, note, grow, style, children }){
 }
 
 // 取不到结果(接口报错 / 本机服务没有这个接口 / 断网)时的说明;有旧结果时不显示(旧结果原样留着)
+// 取不到结果 / 还没有盘:走三态件(文案与外观同全站一处)
 export function LoadFailNote(){
-	return (
-		<div style={{ ...cardStyle, marginBottom: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, textAlign: 'center' }}>
-			<div style={{ color: 'var(--horosa-text)', fontWeight: 600 }}>没有取到计算结果</div>
-			<div style={{ ...MUTED, fontSize: 12, maxWidth: 420, lineHeight: 1.7 }}>
-				本机计算服务没有返回这个技法的结果。刚更新过程序时多半是计算服务还是旧版本,重启本机服务即可;本页每隔十几秒会自动重试。
-			</div>
-		</div>
-	);
+	return <XQState status="offline" card />;
 }
 
 export function EmptyWheel({ text }){
-	return (
-		<div style={{ ...cardStyle, marginBottom: 0, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...MUTED }}>{text}</div>
-	);
+	return <XQState status="empty" title={text} card />;
 }
 
 // 推运盘对本命的相位表(太阳弧 / 返照 / 流年 / 小限 / 行星弧共用;与推运图族各页同一写法):

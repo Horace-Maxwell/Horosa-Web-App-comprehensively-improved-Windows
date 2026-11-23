@@ -7,6 +7,7 @@ import { guardAdditive } from '../guardAdditive';
 import { findCelebrityChart, buildCelebrityChartValues } from '../../astrodata/celebrityDedupe';
 import { ctxDispatch, GUIDE, aiOriginOf } from './_shared';
 import { searchCelebrities, listCelebrityCategories, getCelebrity, CELEBRITY_ATTRIBUTION } from '../../astrodata/celebrityDb';
+import { genderLabelOf } from '../normalize/gender';
 
 const RODDEN = ['AA', 'A', 'B', 'C', 'DD', 'X', 'XX'];
 const SIGN_ARG = { type: 'string', maxLength: 12, description: '星座:白羊 / Aries / ari 均可' };
@@ -147,7 +148,7 @@ export const createCelebrityChartTool = {
 		try{ if(dispatch){ dispatch({ type: 'user/fetchCharts', payload: {} }); } }catch(e){ /* noop */ }
 		return {
 			ok: true,
-			data: { cid: saved.cid, created: true, duplicate: false, persisted, record: { name: saved.name, birth: saved.birth, zone: saved.zone, pos: saved.pos, gender: saved.gender } },
+			data: { cid: saved.cid, created: true, duplicate: false, persisted, record: { name: saved.name, birth: saved.birth, zone: saved.zone, pos: saved.pos, gender: saved.gender, ...(genderLabelOf(saved.gender) ? { genderLabel: genderLabelOf(saved.gender) } : {}) } },
 			message: `已按名人库资料新建命盘「${saved.name}」${saved.birth} ${saved.pos || ''}`,
 			summary: `名人建档 ${saved.name}`,
 			assumptions: [...(bd.hasTime ? [] : ['出生时辰未知,按正午 12:00 建档']), ...(persisted ? [] : [STORE_SESSION_ONLY_ASSUMPTION])],

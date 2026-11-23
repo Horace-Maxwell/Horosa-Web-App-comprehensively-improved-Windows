@@ -3,6 +3,7 @@
 import { leapPrefix } from '../lunarText';
 import { normalizeBackendPan } from '../../components/taiyi/TaiYiCalc';
 import buildLocalBaziResult from '../baziLunarLocal';
+import { readSource } from './helpers/sourceSet';
 
 test('单源:month 自带「闰」不再补;历法服务形态照补;非闰月不补', ()=>{
 	expect(leapPrefix({ leap: true, month: '闰六月' })).toBe('');
@@ -30,7 +31,7 @@ test('各处农历行都走单源(不再就地拼「leap ? 闰」+ 中文月名)
 		'components/taiyi/core/TaiYiCore.js', 'utils/aiTools/normalize/birthText.js', 'components/calendar/NongLiDate.js',
 		'components/sanshi/SanshiUnitedBoard.js', 'components/sanshi/SanShiUnitedMain.js', 'divination/zeri/baziZeriConditionTypes.js'];
 	files.forEach((rel)=>{
-		const src = fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+		const src = readSource(path.join(__dirname, '..', '..', rel));   // 拆成子模块的门面按全集读(就地拼法搬进子模块也逃不掉)
 		// 三种就地拼法都不许:三元式、if 里赋值前缀「闰」、月名后再补「(闰)」
 		expect([rel, /\.leap \? '闰' : ''/.test(src), /'闰' ?\+ ?\w|`闰\$\{/.test(src), /\(闰\)/.test(src)]).toEqual([rel, false, false, false]);
 	});

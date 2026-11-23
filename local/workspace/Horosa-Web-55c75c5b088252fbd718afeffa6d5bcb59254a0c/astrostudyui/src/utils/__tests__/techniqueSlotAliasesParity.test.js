@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { getModuleAliasList, AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
 import { getTechniqueAliasList } from '../aiAnalysisContext';
+import { getTechniqueSnapshotFromCache } from '../aiAnalysisContext/snapshotMatch';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../moduleAiSnapshot';
 import { SHARED_SNAPSHOT_SLOTS, TECHNIQUE_SLOT_GROUPS, TECHNIQUE_SLOT_FAMILIES, KINASTRO_SERVICE_KEYS } from '../techniqueSlotAliases';
 
 const allKeys = ()=>{
@@ -28,13 +30,32 @@ describe('技法槽名别名表四路同源', ()=>{
 	it('所问的名排第一;同组任一名展开成整组;母键展开到子槽、子槽不串兄弟', ()=>{
 		expect(getTechniqueAliasList('guazhan')).toEqual(['guazhan', 'sixyao', 'liuyao']);
 		expect(getTechniqueAliasList('sixyao')).toEqual(['sixyao', 'guazhan', 'liuyao']);
-		expect(getTechniqueAliasList('primarydirchart')).toEqual(['primarydirchart', 'direction', 'primarydirect']);
+		expect(getTechniqueAliasList('primarydirect')).toEqual(['primarydirect', 'direction']);
+		expect(getTechniqueAliasList('direction')).toEqual(['direction', 'primarydirect']);
 		expect(getTechniqueAliasList('jieqi_current')).toEqual(['jieqi_current', 'jieqi']);
 		expect(getTechniqueAliasList('jieqi_chunfen')).toEqual(['jieqi_chunfen', 'jieqi', 'jieqi_current']);
 		expect(getTechniqueAliasList('calendar-huangli')).toEqual(['calendar-huangli']);
 		expect(getTechniqueAliasList('calendar')).toEqual(['calendar', 'calendar-huangli', 'calendar-tongshu', 'calendar-rizi']);
 		expect(getTechniqueAliasList('xianqin')).toEqual(['xianqin', 'kinastro-xianqin']);
 		expect(getTechniqueAliasList('kinastro-shaozi')).toEqual(['kinastro-shaozi', 'shaozi']);
+	});
+	it('🔴 主限法(表格)与主限法盘不互为别名:只存了表格的槽时,问主限法盘拿不到表格的正文(反之亦然)', ()=>{
+		expect(getTechniqueAliasList('primarydirchart')).toEqual(['primarydirchart']);
+		expect(getTechniqueAliasList('primarydirect')).not.toContain('primarydirchart');
+		const meta = { date: '1990-01-01', time: '12:00', zone: '+08:00', lon: '116e24', lat: '39n54' };
+		const source = { sourceType: 'chart', record: { birth: '1990-01-01 12:00:00', zone: '+08:00', lon: '116e24', lat: '39n54' } };
+		const wipe = ()=>['primarydirect', 'primarydirchart', 'direction'].forEach((k)=>clearModuleAISnapshot(k));
+		wipe();
+		saveModuleAISnapshot('primarydirect', '[主限法表格]\n| Arc | 迫星 | 应星 | 日期 |', meta);
+		const table = getTechniqueSnapshotFromCache('primarydirect', source);
+		expect(table && table.content).toMatch(/主限法表格/);                    // 表格自己读得到(签名认得出这位命主)
+		expect(getTechniqueSnapshotFromCache('direction', source).content).toMatch(/主限法表格/);   // 旧槽名仍指表格
+		expect(getTechniqueSnapshotFromCache('primarydirchart', source)).toBe(null);
+		wipe();
+		saveModuleAISnapshot('primarydirchart', '[主限法盘设置]\n当前Arc：0度0分', meta);
+		expect(getTechniqueSnapshotFromCache('primarydirchart', source).content).toMatch(/主限法盘设置/);
+		expect(getTechniqueSnapshotFromCache('primarydirect', source)).toBe(null);
+		wipe();
 	});
 	it('🔴 导出刷新按整张别名表请页面重存(与挂载 refreshModuleSnapshotSlots 同一张表)', ()=>{
 		const src = fs.readFileSync(path.join(__dirname, '../aiExport/settingsModel.js'), 'utf8');

@@ -8,9 +8,30 @@ const protocol = require('./protocol');
 
 async function runStdio(opts){
 	const o = opts || {};
-	const toErr = (...a)=>process.stderr.write(`${util.format(...a)}\n`);
-	console.log = toErr; console.info = toErr; console.debug = toErr;   // eslint-disable-line no-console
 	const write = (m)=>{ process.stdout.write(`${JSON.stringify(m)}\n`); };
+	// 日志:控制台输出照旧进标准错误;客户端用 logging/setLevel 选了级别后,同一条也按级别发 notifications/message
+	//   (没选级别 = 不发,只进标准错误)。只在握手完成后发;正文截断防刷屏。
+	let logMin = -1;
+	let ready = false;
+	const sevOf = (lv)=>protocol.LOG_LEVELS.indexOf(lv);
+	const logTo = (level)=>(...a)=>{
+		const text = util.format(...a);
+		process.stderr.write(`${text}\n`);
+		if(ready && logMin >= 0 && sevOf(level) >= logMin){
+			try{ write({ jsonrpc: '2.0', method: 'notifications/message', params: { level, logger: 'horosa', data: text.length > 4000 ? `${text.slice(0, 4000)}…` : text } }); }catch(e){ /* noop */ }
+		}
+	};
+	/* eslint-disable no-console */
+	console.debug = logTo('debug'); console.log = logTo('info'); console.info = logTo('info');
+	console.warn = logTo('warning'); console.error = logTo('error');
+	/* eslint-enable no-console */
+	let unwatch = null;
+	const onInitialized = ()=>{
+		if(ready){ return; }
+		ready = true;
+		// 目录变化 → notifications/<tools|resources|prompts>/list_changed(开关翻转 / 建档 / 撤销 / 模版写入;与桌面同一套信号源与去抖)
+		rtPromise.then((rt)=>{ if(typeof rt.watchCatalog === 'function' && !unwatch){ unwatch = rt.watchCatalog((kind)=>write({ jsonrpc: '2.0', method: `notifications/${kind}/list_changed` })); } }).catch(()=>{});
+	};
 	const { createRuntime } = require('./runtime');
 	const { appVersion } = require('./server');
 	const rtPromise = createRuntime({ ...o, quiet: true });
@@ -28,7 +49,7 @@ async function runStdio(opts){
 			if(msg.method === 'notifications/cancelled'){
 				const ac = inflight.get(JSON.stringify(msg.params && msg.params.requestId));
 				if(ac){ ac.abort(); }
-			}
+			}else if(msg.method === 'notifications/initialized'){ onInitialized(); }
 			return;
 		}
 		const reported = protocol.initializeClientName(msg);
@@ -36,7 +57,7 @@ async function runStdio(opts){
 		const ac = new AbortController();
 		const k = JSON.stringify(msg && msg.id);
 		inflight.set(k, ac);
-		const job = rtPromise.then((rt)=>protocol.handleMessage(msg, { rt, clientName: 'stdio', sessionClient, sessionId: 'stdio', version, signal: ac.signal, onNotification: write }))
+		const job = rtPromise.then((rt)=>protocol.handleMessage(msg, { rt, clientName: 'stdio', sessionClient, sessionId: 'stdio', version, signal: ac.signal, onNotification: write, listChanged: true, logging: true, onSetLevel: (lv)=>{ logMin = sevOf(lv); } }))
 			.then((out)=>{ if(out){ write(out); } })
 			.catch((e)=>{ write(protocol.errorOf(msg && msg.id, protocol.ERR.INTERNAL, e && e.message ? e.message : `${e}`)); })
 			.finally(()=>{ inflight.delete(k); pending.delete(job); });
@@ -44,6 +65,7 @@ async function runStdio(opts){
 	});
 	await new Promise((resolve)=>rl.on('close', resolve));
 	await Promise.allSettled(Array.from(pending));
+	if(unwatch){ try{ unwatch(); }catch(e){ /* noop */ } }
 	try{ (await rtPromise).close(); }catch(e){ /* noop */ }
 	return 0;
 }

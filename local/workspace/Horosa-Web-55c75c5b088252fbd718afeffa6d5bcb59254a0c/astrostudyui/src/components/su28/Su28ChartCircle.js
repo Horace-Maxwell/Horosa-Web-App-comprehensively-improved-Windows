@@ -5,7 +5,7 @@ import * as Su28Helper from './Su28Helper';
 import * as SZConst from '../suzhan/SZConst';
 import {splitDegree} from '../astro/AstroHelper';
 import {randomStr, detectOS, distanceInCircleAbs, creatTooltip, positionFloatingTooltip, setupFloatingTooltip} from '../../utils/helper';
-import { fillTextFromStroke, drawTextV, drawTextH} from '../graph/GraphHelper';
+import { fillTextFromStroke, drawTextV} from '../graph/GraphHelper';
 import {ZiSign,} from '../suzhan/SZConst';
 import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 

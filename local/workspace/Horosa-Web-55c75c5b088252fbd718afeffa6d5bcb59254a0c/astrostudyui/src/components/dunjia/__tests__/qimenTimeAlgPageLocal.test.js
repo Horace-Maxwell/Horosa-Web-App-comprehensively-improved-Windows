@@ -2,6 +2,7 @@
 // 此前写进共用字段,紫微 / 七政本次会话跟着变,重开又回到新盘缺省。本页自己的计算照常按所选档。
 require('../../../models/astro');
 const { fieldsSchemaBaseline } = require('../../../utils/recordFieldsRestore');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 function stubbed(Cls, props){
 	const inst = new Cls(props);
@@ -55,7 +56,7 @@ describe('三式合一同口径:时间算法只作用于本页', ()=>{
 		inst.clickPlot();
 		const writes = dispatch.mock.calls.map((c)=>c[0]).filter((a)=>a.type === 'astro/save' || a.type === 'astro/fetchByFields');
 		writes.forEach((a)=>{ const f = a.payload.fields || a.payload; expect(f.timeAlg === undefined || `${f.timeAlg.value}` === `${before}`).toBe(true); });
-		const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'sanshi', 'SanShiUnitedMain.js'), 'utf8');
+		const src = readSource(require('path').join(__dirname, '..', '..', 'sanshi', 'SanShiUnitedMain.js'));
 		expect(src).toContain('delete sharedPatch.timeAlg;');
 	});
 });

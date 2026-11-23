@@ -5,6 +5,9 @@
 const fs = require('fs');
 const path = require('path');
 const parser = require('@babel/parser');
+// 拆成子模块的大文件按一个单位查(门面读「子模块 + 门面」全集、子模块跳过):缓存声明在一个子模块、运行期写入在另一个子模块时
+// 逐文件看两头都不成立(拼起来的全集是文本,这里本就容错解析)
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');
 
 const SRC = path.join(__dirname, '..', '..');
 
@@ -76,9 +79,9 @@ function scanText(text, rel){
 describe('模块级缓存要有上限(全 src)', ()=>{
 	it('运行期不断写入的模块级 Map / Set 都有淘汰手段或登记了有限键域', ()=>{
 		const bad = [];
-		listJs(SRC, []).forEach((abs)=>{
+		listJs(SRC, []).filter((abs)=>!isSourceSetPart(abs)).forEach((abs)=>{
 			const rel = path.relative(SRC, abs).split(path.sep).join('/');
-			bad.push(...scanText(fs.readFileSync(abs, 'utf8'), rel));
+			bad.push(...scanText(readSource(abs), rel));
 		});
 		expect(bad).toEqual([]);
 	});
@@ -89,7 +92,7 @@ describe('模块级缓存要有上限(全 src)', ()=>{
 			if(!fs.existsSync(abs)){ return true; }
 			const save = EXEMPT[id];
 			delete EXEMPT[id];
-			const hits = scanText(fs.readFileSync(abs, 'utf8'), rel);
+			const hits = scanText(readSource(abs), rel);
 			EXEMPT[id] = save;
 			return !hits.includes(id);
 		});

@@ -14,12 +14,13 @@ import path from 'path';
 import { TECHNIQUE_ONBOARDING_CONTRACT } from '../techniqueOnboardingContract';
 import { AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
 import { classifyStorageKey } from '../storageKeyRegistry';
+import { readSource } from './helpers/sourceSet';   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const UI_ROOT = path.join(__dirname, '..', '..');
 const CONTRACT_FIELDS = ['help', 'aiExport', 'mount', 'archive', 'storageKeys'];
 
 function parseNavigationKeys(){
-	const text = fs.readFileSync(path.join(UI_ROOT, 'pages', 'index.js'), 'utf8');
+	const text = readSource(path.join(UI_ROOT, 'pages', 'index.js'));   // 门面 + 子模块全集
 	const block = text.match(/const navigationPages = \[([\s\S]*?)\n\];/);
 	expect(block).toBeTruthy();
 	const keys = [...block[1].matchAll(/key:\s*'([A-Za-z0-9_]+)'/g)].map((m)=>m[1]);
@@ -35,7 +36,7 @@ function parseHelpRegistryKeys(){
 }
 
 function parseMountSchemaKeys(){
-	const text = fs.readFileSync(path.join(UI_ROOT, 'utils', 'techniqueMountSettings.js'), 'utf8');
+	const text = readSource(path.join(UI_ROOT, 'utils', 'techniqueMountSettings.js'));   // 门面 + 子模块全集(总表在 techniqueMountSettings/schema.js)
 	const block = text.match(/TECHNIQUE_SETTINGS_SCHEMA = \{([\s\S]*?)\n\};/);
 	expect(block).toBeTruthy();
 	return new Set([...block[1].matchAll(/^\t([A-Za-z0-9_]+):/gm)].map((m)=>m[1]));

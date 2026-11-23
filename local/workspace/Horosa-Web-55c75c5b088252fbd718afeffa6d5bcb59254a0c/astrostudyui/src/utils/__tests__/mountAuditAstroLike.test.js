@@ -48,11 +48,11 @@ it('聚合键 schema 改只读(57 占星齿轮对它是本命请求,已撤);派�
 // 派生盘五键独立技法键:各读本键模块快照(只认本命主),聚合键照旧并挂全部。
 describe('派生盘五键独立技法键', ()=>{
 	const { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_TECHNIQUE_LABELS } = require('../aiAnalysisContext');
-	it('🔴 五键登记为命盘技法(有标签、schema=sectionsOnly)', ()=>{
+	it('🔴 五键登记为命盘技法(有标签;十三分 / 十二分无可调设置,调波 / 龙盘 / 重置盘可按参数现算)', ()=>{
 		['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation'].forEach((k)=>{
 			expect(ANALYSIS_CHART_TECHNIQUES).toContain(k);
 			expect(ANALYSIS_TECHNIQUE_LABELS[k]).toBeTruthy();
-			expect(getTechniqueSettingsSchema(k)).toMatchObject({ kind: 'sectionsOnly' });
+			expect(getTechniqueSettingsSchema(k)).toMatchObject({ kind: ['harmonic', 'draconic', 'relocation'].indexOf(k) >= 0 ? 'record' : 'sectionsOnly' });
 		});
 		expect(ANALYSIS_TECHNIQUE_LABELS.locastro).toBeUndefined();   // 无快照生产者,不设死键
 	});

@@ -1,0 +1,23 @@
+diff --git a/astrostudyui/src/components/tarot/main/caseState.js b/astrostudyui/src/components/tarot/main/caseState.js
+index 3f4e5c96..0399da4a 100644
+--- a/astrostudyui/src/components/tarot/main/caseState.js
++++ b/astrostudyui/src/components/tarot/main/caseState.js
+@@ -15,6 +15,7 @@ import { cardElement } from '../engine/cardSchema';
+ import { settingsFromState, statePatchFromSavedSettings } from '../engine/settingsMap';
+ import { resolveSeed, deckDefaults, TAROT_PAGE_SETTINGS } from './settings';
+ import { seedDisplayText } from '../../../utils/trueRandom';
++import { markPanelReady } from '../../../utils/perfMark';
+ 
+ export const caseStateMethods = {
+ 	handleSnapshotRefreshRequest(evt){
+@@ -36,6 +37,10 @@ export const caseStateMethods = {
+ 		if(seed === undefined || seed === null || seed === ''){ return; }
+ 		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
+ 		this.setState({ reading, lastSeed: `${seed}` }, () => {
++			// horosa_panel_ready_v1:reading 落定 = 牌阵(中栏)与释义(右栏)画完的那一次 setState。
++			// v3.9.3 塔罗升「卜」一级导航 ⇒ 归属键随迁 'cnyibu' → 'tarot'(#75 归属键契约:
++			// 键错配会把塔罗的交互记到聚合页名下,P5 观测门按 navigationPages 键索引也会漏)。
++			markPanelReady('tarot');
+ 			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question, { clarifier: !!this.state.clarifierShown }));
+ 		});
+ 	},

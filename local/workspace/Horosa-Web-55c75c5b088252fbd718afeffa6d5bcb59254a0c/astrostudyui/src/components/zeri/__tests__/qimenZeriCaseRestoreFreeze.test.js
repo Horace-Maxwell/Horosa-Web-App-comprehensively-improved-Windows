@@ -94,7 +94,7 @@ test('载入存案:扫描代次换代;内嵌遁甲页还原这条存案的盘面
 	h.onBoardOptionsChange({ a: 'hand' });
 	expect(h.state.draftOptions).toEqual({ a: 'hand' });
 	// 遁甲页那一侧:还原存案的那次 onOptionsChange 带标记,命盘还原 / 亲手改不带
-	const dj = require('fs').readFileSync(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'), 'utf8');
+	const dj = require('../../../utils/__tests__/helpers/sourceSet').readSource(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'));
 	expect((dj.match(/onOptionsChange\(\{ \.\.\.nextOptions \}, \{ source: 'case', caseVersion \}\)/g) || []).length).toBe(1);
 	const restoreBody = dj.slice(dj.indexOf('\trestoreOptionsFromCurrentCase(force){'), dj.indexOf('\trestoreOptionsFromCurrentCase(force){') + 6000);
 	expect(restoreBody.startsWith('\trestoreOptionsFromCurrentCase(force){')).toBe(true);
@@ -138,7 +138,7 @@ test('存案没带工作台参数 / 地点(没开过工作台就存):载入清�
 });
 
 test('遁甲页还原回调按提交后的最终选项重排(同批外部性别同步叠上的 sex 已在里面)(源码锚)', ()=>{
-	const src = require('fs').readFileSync(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'), 'utf8');
+	const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'));
 	expect((src.match(/const finalOptions = this\.state\.options \|\| nextOptions;/g) || []).length).toBe(2);
 	expect(src).not.toContain('this.state.nongli, nextOptions, this.state.displaySolarTime');
 });
@@ -185,7 +185,7 @@ describe('遁甲页:外部性别同步叠在同一批的还原之上(载入性�
 		expect(d.state.options).toEqual({ school: '转盘', sex: 0 });
 	});
 	test('componentDidUpdate 的性别同步走函数式那一路(源码锚)', ()=>{
-		const src = require('fs').readFileSync(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require('path').join(__dirname, '../../dunjia/DunJiaMain.js'));
 		const du = src.slice(src.indexOf('\tcomponentDidUpdate(prevProps){'), src.indexOf('\tcomponentWillUnmount(){'));
 		expect(du).toContain('this.syncSexFromFields(nextG);');
 		expect(du).not.toContain("this.onOptionChange('sex'");

@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const parser = require('@babel/parser');
+const { readSource, isSourceSetPart, mixinGroupsOf } = require('./helpers/sourceSet');
 
 const SRC = path.join(__dirname, '..', '..');
 
@@ -56,14 +57,27 @@ function incrementedProp(n){
 
 function scanText(text, rel){
 	const classes = [];
+	// 按职责拆进子文件的类方法(方法对象 + 门面 mixinMethods(类, …) 挂回原型)认回同一个类:同名类合成一个
+	const groups = mixinGroupsOf(text);
+	const byName = new Map();
+	const classOf = (name)=>{
+		if(name !== '(anonymous)' && byName.has(name)){ return byName.get(name); }
+		const c = { name, inc: {}, cmp: {} };
+		classes.push(c);
+		if(name !== '(anonymous)'){ byName.set(name, c); }
+		return c;
+	};
 	const walk = (n, cls, meth)=>{
 		if(!n || typeof n.type !== 'string'){ return; }
 		if(n.type === 'ClassDeclaration' || n.type === 'ClassExpression'){
-			cls = { name: (n.id && n.id.name) || '(anonymous)', inc: {}, cmp: {} };
-			classes.push(cls);
+			cls = classOf((n.id && n.id.name) || '(anonymous)');
 			meth = null;
 		}
-		if(cls && (n.type === 'ClassMethod' || (n.type === 'ClassProperty' && n.value && /Function/.test(n.value.type)))){
+		if(n.type === 'VariableDeclarator' && n.id && n.id.type === 'Identifier' && groups.has(n.id.name) && n.init && n.init.type === 'ObjectExpression'){
+			cls = classOf(groups.get(n.id.name));
+			meth = null;
+		}
+		if(cls && (n.type === 'ClassMethod' || n.type === 'ObjectMethod' || (n.type === 'ClassProperty' && n.value && /Function/.test(n.value.type)))){
 			meth = (n.key && (n.key.name || n.key.value)) || '?';
 		}
 		if(cls && meth){
@@ -95,9 +109,10 @@ describe('请求代次号一条路径一个(全 src 类组件)', ()=>{
 	it('没有两条请求路径共用同一个代次号', ()=>{
 		const bad = [];
 		const seen = new Set();
-		listJs(SRC, []).forEach((abs)=>{
+		// 子模块折回门面:门面按全集读(类方法拆在子文件里时,同一个类的方法分在几处)
+		listJs(SRC, []).filter((abs)=>!isSourceSetPart(abs)).forEach((abs)=>{
 			const rel = path.relative(SRC, abs).split(path.sep).join('/');
-			scanText(fs.readFileSync(abs, 'utf8'), rel).forEach((h)=>{
+			scanText(readSource(abs), rel).forEach((h)=>{
 				seen.add(h.id);
 				if(!EXEMPT[h.id]){ bad.push(`${h.id} ← ${h.owners.join(' / ')}`); }
 			});
@@ -120,5 +135,15 @@ describe('请求代次号一条路径一个(全 src 类组件)', ()=>{
 			componentWillUnmount(){ this.requestSeq += 1; }
 		}`;
 		expect(scanText(cancelOnly, 'x.js')).toEqual([]);
+		// 类方法拆在子文件的方法对象里(门面 mixinMethods 挂回):全集文本里认回同一个类,共用代次照样红
+		const mixed = `export const loadMethods = {
+			async loadDynastyOptions(){ const s = (this._loadSeq = (this._loadSeq || 0) + 1); const r = await g(); if(s !== this._loadSeq){ return; } this.setState({ d: r }); },
+		};
+		class S extends C {
+			async load(){ const s = (this._loadSeq = (this._loadSeq || 0) + 1); const r = await f(); if(s !== this._loadSeq){ return; } this.setState({ r }); }
+		}
+		mixinMethods(S, loadMethods);`;
+		expect(scanText(mixed, 'x.js').map((h)=>h.id)).toEqual(['x.js|S|_loadSeq']);
+		expect(scanText(mixed.replace('mixinMethods(S, loadMethods);', ''), 'x.js')).toEqual([]);   // 没挂回的方法对象不算这个类
 	});
 });

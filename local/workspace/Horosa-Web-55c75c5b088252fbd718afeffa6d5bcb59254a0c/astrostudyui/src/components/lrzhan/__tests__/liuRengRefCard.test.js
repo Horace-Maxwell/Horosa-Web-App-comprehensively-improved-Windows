@@ -4,7 +4,7 @@ import path from 'path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import LiuRengRefCard, { parseLiuRengRefText, LiuRengRefFacts, LiuRengRefDoc } from '../LiuRengRefCard';
-import { buildReferenceDocumentText, buildOverviewReferenceText } from '../main/referenceMatch';
+import { buildReferenceDocumentText, buildOverviewReferenceText } from '../main/referenceOverview';
 
 const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');
 const { jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
@@ -100,11 +100,14 @@ describe('六壬参考条目卡 · 渲染', ()=>{
 describe('六壬参考条目卡 · 单一来源', ()=>{
 	const liureng = read('components/lrzhan/LiuRengMain.js');
 	const sanshi = read('components/sanshi/SanShiUnitedMain.js');
-	const less = read('layouts/app/08-india-sanshi.less');
+	const less = require('../../../utils/__tests__/helpers/sourceSet').readAppSection('08-india-sanshi.less');   // 区段按编号拆成一组,按组读
 
 	test('大六壬页与三式合一页都走共享组件', ()=>{
-		expect(liureng).toContain("from './LiuRengRefCard'");
-		expect(sanshi).toContain("from '../lrzhan/LiuRengRefCard'");
+		// 按组件全集判引入(类方法拆在 main/ 下时,引入跟着用它的方法走、相对路径随之变)
+		const { importedFrom } = require('../../../utils/__tests__/helpers/sourceSet');
+		const CARD = path.join(SRC, 'components/lrzhan/LiuRengRefCard');
+		expect(importedFrom(path.join(SRC, 'components/lrzhan/LiuRengMain.js'), CARD).size).toBeGreaterThan(0);
+		expect(importedFrom(path.join(SRC, 'components/sanshi/SanShiUnitedMain.js'), CARD).size).toBeGreaterThan(0);
 		const keysIn = (rel)=>jsxNodesInFile(path.join(SRC, rel), 'LiuRengRefCard').map((n)=>`${n.attrs.key || ''}`);
 		const liurengKeys = keysIn('components/lrzhan/LiuRengMain.js');
 		const sanshiKeys = keysIn('components/sanshi/SanShiUnitedMain.js');

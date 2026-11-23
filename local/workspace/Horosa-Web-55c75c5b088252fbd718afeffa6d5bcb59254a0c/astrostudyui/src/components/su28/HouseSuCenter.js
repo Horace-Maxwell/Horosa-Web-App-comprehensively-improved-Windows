@@ -3,7 +3,7 @@ import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Su28Helper from './Su28Helper';
 import HouseSu from './HouseSu';
-import { fillTextFromStroke, drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { fillTextFromStroke, drawPath} from '../graph/GraphHelper';
 import {randomStr, genHtml} from '../../utils/helper';
 import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 

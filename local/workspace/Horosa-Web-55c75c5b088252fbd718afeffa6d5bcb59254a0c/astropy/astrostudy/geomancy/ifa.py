@@ -18,6 +18,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 
 from .figures import FIG_BY_INT, name as fig_name
+from ..truerandom import system_random
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
@@ -54,7 +55,7 @@ def cast_ifa_opele(rng: Optional[random.Random] = None) -> Tuple[int, int]:
 
     自右向左读、资深列在右 —— 故先落者为右列。每枚凹凸对应单/双,与地占同一比特约定。
     """
-    r = rng or random
+    r = rng or system_random()
     bits = [r.randint(0, 1) for _ in range(8)]
     right = 0
     left = 0
@@ -67,7 +68,7 @@ def cast_ifa_opele(rng: Optional[random.Random] = None) -> Tuple[int, int]:
 def cast_ifa_ikin(rng: Optional[random.Random] = None) -> Tuple[int, int]:
     """圣果起卦:抓取十六果取余数,余二记单线、余一记双线(此约定与直觉相反,为其内部规矩);
     重复八次成一形。与占链同为八记号,仅取记方式不同。"""
-    r = rng or random
+    r = rng or system_random()
     marks = []
     for _ in range(8):
         # 双手相抓后余数只可能为 1 或 2

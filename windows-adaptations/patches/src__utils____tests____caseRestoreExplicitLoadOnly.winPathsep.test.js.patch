@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js b/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
-index c6782153..62c97a91 100644
+index 2711ff26..fc83b82f 100644
 --- a/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
 +++ b/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
 @@ -82,6 +82,13 @@ const ENTRIES = {
@@ -25,7 +25,7 @@ index c6782153..62c97a91 100644
  		const src = fs.readFileSync(f, 'utf8');
  		const re = /restoreZeriWorkbenchFromCase\(\s*this\s*,\s*([A-Z_]+|'[a-z]+')\s*\)/g;
  		let m;
-@@ -464,7 +471,7 @@ describe('records-changed 广播点登记', ()=>{
+@@ -468,7 +475,7 @@ describe('records-changed 广播点登记', ()=>{
  				const args = end >= 0 ? call.slice(0, end + 2) : call;
  				if(/\bfields(ByCid)?\s*:/.test(args)){ return; }
  				const m = args.match(/source:\s*'([a-z-]+)'/);
@@ -34,12 +34,12 @@ index c6782153..62c97a91 100644
  				seen.add(site);
  				if(!WHOLE_RECORD_EMITS[site]){ bad.push(`${site}: 不带 fields / fieldsByCid 也没登记整条替换`); }
  			});
-@@ -524,7 +531,7 @@ function setCurrentCaseSites(){
- 				const m = lines[j].match(/^\s*(?:function\s*\*\s*|\*)([A-Za-z0-9_]+)\s*\(/);
+@@ -530,7 +537,7 @@ function setCurrentCaseSites(){
  				if(m){ fn = m[1]; break; }
  			}
--			out.push({ site: `${path.relative(UI_SRC, f)}::${fn}`, file: f, fn });
-+			out.push({ site: `${relPosix(UI_SRC, f)}::${fn}`, file: f, fn });
+ 			// 拆成子模块的门面:位点记在门面名下(拆分不改登记键;判据按「同一个模型」成立)
+-			out.push({ site: `${path.relative(UI_SRC, facadeOf(f) || f)}::${fn}`, file: f, fn });
++			out.push({ site: `${relPosix(UI_SRC, facadeOf(f) || f)}::${fn}`, file: f, fn });
  		});
  	});
  	return out;

@@ -3,7 +3,8 @@
 // 整宽表格:表头行 + display:contents 行,卡身 <880px(ResizeObserver 量)退化为逐槽堆叠;已显式设置的格带金线(跟随 ≠ 覆盖);
 //        行末「恢复跟随」一键清这一槽五项;具名方案(另存 / 切换 / 删除)迁到头部工具条。
 import React from 'react';
-import { Select, Button, InputNumber, Input, message } from 'antd';
+import { Select, Button, Input, message } from 'antd';
+import { XQInputNumber } from '../../xq-ui';
 import XQIcon from '../../xq-icons';
 import { ROUTE_SLOTS, ROUTE_SLOT_META, readModelRoutes, writeModelRoutes, clearModelRoutes, subscribeModelRoutes, hasAnyRoute, readRouteOptions, writeRouteOptions, clearRouteOptions, subscribeRouteOptions, hasAnyRouteOption, ROUTE_EFFORTS, ROUTE_TEMPERATURE_MAX, ROUTE_MAX_TOKENS_MAX, readRouteProfiles, subscribeRouteProfiles, saveRouteProfile, applyRouteProfile, removeRouteProfile, clearActiveRouteProfile, isRouteProfileDirty, ROUTE_PROFILE_NAME_MAX } from '../../../utils/aiModelRouting';
 import { encodeModelSelection, THINKING_LEVELS } from '../../../utils/aiAnalysisProviders';
@@ -97,11 +98,11 @@ export default function ChatModelRoutesPanel({ providerProfiles }){
 									onChange={(v)=>writeRouteOptions({ [slot]: { reasoningEffort: v || '' } })} />
 							</div>
 							<div className={styles.routeCell} data-route-cell={has(ro.temperature) ? 'set' : 'inherit'} data-route-col="temperature">
-								<InputNumber size="small" min={0} max={ROUTE_TEMPERATURE_MAX} step={0.1} placeholder="跟随" value={has(ro.temperature) ? ro.temperature : undefined} data-route-temperature={slot} title="这一槽的 temperature(推理模型不发);留空=跟随"
+								<XQInputNumber size="small" min={0} max={ROUTE_TEMPERATURE_MAX} step={0.1} placeholder="跟随" value={has(ro.temperature) ? ro.temperature : undefined} data-route-temperature={slot} title="这一槽的 temperature(推理模型不发);留空=跟随"
 									onChange={(v)=>writeRouteOptions({ [slot]: { temperature: Number.isFinite(v) ? v : '' } })} />
 							</div>
 							<div className={styles.routeCell} data-route-cell={has(ro.maxTokens) ? 'set' : 'inherit'} data-route-col="maxTokens">
-								<InputNumber size="small" min={1} max={ROUTE_MAX_TOKENS_MAX} step={256} placeholder="跟随" value={has(ro.maxTokens) ? ro.maxTokens : undefined} data-route-max-tokens={slot} title="这一槽的输出上限 max_tokens;留空=跟随"
+								<XQInputNumber size="small" min={1} max={ROUTE_MAX_TOKENS_MAX} step={256} placeholder="跟随" value={has(ro.maxTokens) ? ro.maxTokens : undefined} data-route-max-tokens={slot} title="这一槽的输出上限 max_tokens;留空=跟随"
 									onChange={(v)=>writeRouteOptions({ [slot]: { maxTokens: Number.isFinite(v) ? v : '' } })} />
 							</div>
 							<div className={styles.routeCell} data-route-col="reset">

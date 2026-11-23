@@ -37,7 +37,10 @@ function fakeRt(over){
 	const rt = {
 		calls,
 		admin: {
-			cfg: { approval: 'auto', 'headless-analysis': 'off', 'private-read': 'off' },
+			cfg: { approval: 'auto', 'headless-analysis': 'off', 'private-read': 'off', 'calls-per-minute': '60', scheduler: 'off', 'goal-tasks': 'off' },
+			taskLog: [],
+			async taskOp(id, op){ this.taskLog.push([id, op]); return op === 'start' ? { ok: true, started: true } : { ok: true, status: op === 'resume' ? 'scheduled' : op, nextRunAt: op === 'resume' ? '2026-11-21T00:00:00.000Z' : null, resident: false }; },
+			schedulerStatus(){ return { running: false, reason: 'no-data-lock', intervalMs: 60000, enabled: false, goalTasks: false, headlessAnalysis: false, lastTickAt: null }; },
 			getConfig(){ return { ...this.cfg }; },
 			setConfig(k, v){ if(!(k in this.cfg)){ throw new Error(`没有这个设置 ${k}`); } this.cfg[k] = v; return this.getConfig(); },
 			listProposals(){ return [{ id: 'prop-1', status: 'pending' }]; },
@@ -63,7 +66,7 @@ function fakeRt(over){
 			}
 			if(method === 'resources/list'){ return { ok: true, result: { resources: [{ uri: 'horosa://chart/local-1', name: '张三' }], nextCursor: 'o64' } }; }
 			if(method === 'resources/templates/list'){ return { ok: true, result: { resourceTemplates: [{ uriTemplate: 'horosa://chart/{cid}', name: '命盘' }] } }; }
-			if(method === 'resources/read'){ return { ok: true, result: { contents: [{ uri: params.uri, text: 'snapshot' }] } }; }
+			if(method === 'resources/read'){ return params.uri === 'horosa://chart/nope' ? { ok: false, error: { code: -32602, message: 'resource not found' } } : { ok: true, result: { contents: [{ uri: params.uri, text: 'snapshot' }] } }; }
 			if(method === 'prompts/list'){ return { ok: true, result: { prompts: [{ name: 'guide:horosa', description: '指南' }] } }; }
 			if(method === 'prompts/get'){ return { ok: true, result: { messages: [{ role: 'user', content: { type: 'text', text: 'x' } }] } }; }
 			return { ok: false, error: { code: -32601, message: 'nope' } };
@@ -99,7 +102,9 @@ describe('① HTTP 服务', ()=>{
 
 	it('🔴 门:健康探针不要令牌;无令牌 401;外来 Origin 403;外来 Host 403;不认得的协议版本 400', async ()=>{
 		expect((await (await fetch(`${base()}/healthz`)).json()).mode).toBe('headless');
-		expect((await fetch(`${base()}/mcp`, { method: 'POST', body: '{}' })).status).toBe(401);
+		const noTok = await fetch(`${base()}/mcp`, { method: 'POST', body: '{}' });
+		expect(noTok.status).toBe(401);
+		expect(noTok.headers.get('www-authenticate')).toBe('Bearer realm="horosa"');
 		expect((await mcp({ jsonrpc: '2.0', id: 1, method: 'ping' }, { Origin: 'https://evil.example' })).status).toBe(403);
 		expect((await mcp({ jsonrpc: '2.0', id: 1, method: 'ping' }, { Origin: 'http://localhost:3000' })).status).toBe(200);
 		expect((await mcp({ jsonrpc: '2.0', id: 1, method: 'ping' }, { 'MCP-Protocol-Version': '1999-01-01' })).status).toBe(400);
@@ -122,6 +127,9 @@ describe('① HTTP 服务', ()=>{
 	it('🔴 /mcp:握手 / 清单 / 调用;要进度且收事件流 → 进度帧 + 回包;通知回 202', async ()=>{
 		const init = await (await mcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })).json();
 		expect(init.result.serverInfo.name).toBe('horosa');
+		// HTTP 没有服务器主动推送的流:能力位如实报 false、不报 logging(stdio 报 true,见 runtime.test ⑥)
+		expect(init.result.capabilities.tools.listChanged).toBe(false);
+		expect(init.result.capabilities.logging).toBe(undefined);
 		expect((await (await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' })).json()).result.tools.length).toBe(2);
 		const sse = await mcp({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_records', arguments: {}, _meta: { progressToken: 'p' } } }, { Accept: 'application/json, text/event-stream' });
 		expect(sse.headers.get('content-type')).toContain('text/event-stream');
@@ -130,6 +138,20 @@ describe('① HTTP 服务', ()=>{
 		expect(msgs[0].method).toBe('notifications/progress');
 		expect(msgs[msgs.length - 1].id).toBe(3);
 		expect((await mcp({ jsonrpc: '2.0', method: 'notifications/initialized' })).status).toBe(202);
+	});
+	it('🔴 普通(非事件流)POST:客户端断开 = 取消在途调用;MCP 与 REST 同', async ()=>{
+		const hang = (path, body)=>new Promise((resolve)=>{
+			const req = require('http').request({ host: '127.0.0.1', port: srv.port, path, method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' } });
+			req.on('error', ()=>resolve());
+			req.end(JSON.stringify(body));
+			setTimeout(()=>{ req.destroy(); setTimeout(resolve, 120); }, 150);
+		});
+		slow.aborted = false;
+		await hang('/mcp', { jsonrpc: '2.0', id: 'slow-plain', method: 'tools/call', params: { name: 'search_zeri', arguments: {} } });
+		expect(slow.aborted).toBe(true);
+		slow.aborted = false;
+		await hang('/api/v1/tools/search_zeri', {});
+		expect(slow.aborted).toBe(true);
 	});
 	it('🔴 notifications/cancelled 按请求 id 中止在途调用', async ()=>{
 		slow.aborted = false;
@@ -166,6 +188,16 @@ describe('① HTTP 服务', ()=>{
 		expect(r405.headers.get('allow')).toBe('POST');
 		expect((await get('/nope')).status).toBe(404);
 		expect((await post('/tools/list_records', '{oops')).status).toBe(400);
+		// 没有的资源 = 404 NOT_FOUND(字符串码,原数字码在 rpcCode);text=0 去掉与 data 重复的正文且不当工具参数;超时请求头进 _meta
+		const nf = await get('/resources/read?uri=horosa%3A%2F%2Fchart%2Fnope');
+		expect(nf.status).toBe(404);
+		const nfe = (await nf.json()).error;
+		expect([nfe.code, nfe.rpcCode]).toEqual(['NOT_FOUND', -32602]);
+		const lean = await (await get('/records?query=%E5%BC%A0&text=0')).json();
+		expect(typeof lean.text).toBe('string');   // 这件桩工具没有结构化结果 → 正文照留(有 data 才去,见 headlessApi 单测)
+		expect(rt.calls.filter((c)=>c.method === 'tools/call').pop().params.arguments).toEqual({ query: '张' });   // text 是保留键,不当工具参数
+		await fetch(`${base()}/api/v1/tools/list_records`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json', 'X-Horosa-Timeout-Ms': '30000' }, body: '{}' });
+		expect(rt.calls.filter((c)=>c.method === 'tools/call').pop().params._meta.timeoutMs).toBe(30000);
 		const failed = await post('/tools/create_chart_record', '{}');
 		expect(failed.status).toBe(422);
 		expect((await failed.json()).error).toEqual({ code: 'E_X', message: '坏了', retryable: false });
@@ -223,6 +255,19 @@ describe('① HTTP 服务 · 会话与边界', ()=>{
 		const req = require('http').request({ host: '127.0.0.1', port: srv.port, ...opts }, (res)=>{ res.resume(); resolve(res.statusCode); });
 		req.on('error', (e)=>resolve(`ERR ${e.code}`));
 		req.end(body);
+	});
+
+	it('🔴 只认本服务握手发过的会话:编造的会话头回 404(不再白得一份限流额度);不带会话头照常;DELETE 摘会话', async ()=>{
+		const fake = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { 'Mcp-Session-Id': 'made-up-session' });
+		expect(fake.status).toBe(404);
+		const bare = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+		expect(bare.status).toBe(200);
+		const init = await mcp({ jsonrpc: '2.0', id: 3, method: 'initialize', params: { protocolVersion: '2025-11-25' } });
+		const sid = init.headers.get('mcp-session-id');
+		expect((await mcp({ jsonrpc: '2.0', id: 4, method: 'tools/list', params: {} }, { 'Mcp-Session-Id': sid })).status).toBe(200);
+		const del = await fetch(`http://127.0.0.1:${srv.port}/mcp`, { method: 'DELETE', headers: { ...auth, 'Mcp-Session-Id': sid } });
+		expect(del.status).toBe(204);
+		expect((await mcp({ jsonrpc: '2.0', id: 5, method: 'tools/list', params: {} }, { 'Mcp-Session-Id': sid })).status).toBe(404);
 	});
 
 	it('🔴 握手发 Mcp-Session-Id;两个会话用同一个请求 id:取消只中止本会话那条,另一条照常完成', async ()=>{
@@ -363,16 +408,60 @@ describe('② 终端命令', ()=>{
 			expect(readAdminToken(process.pid + 1)).toBe('');
 			expect(JSON.stringify(JSON.parse(fs.readFileSync(endpointFile(), 'utf8'))).includes(srv.adminToken)).toBe(false);
 		});
+		it('🔴 tasks:列出带调度状态;放行(resume / start / run)是人工操作,收紧(pause / cancel)不拦;两个任务开关放宽同样要人工', async ()=>{
+			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
+			cli.__resetInterruptForTests();   // 上面 Ctrl-C 用例留下的「已取消」标记
+			rt.admin.taskLog.length = 0;
+			expect(await cli.main(['tasks'])).toBe(0);
+			expect(outBuf).toContain('调度没在跑');
+			expect(outBuf).toContain('called list_tasks');   // 列表仍是 list_tasks 工具
+			outBuf = '';
+			expect(await cli.main(['tasks', '--json'])).toBe(0);
+			expect(outBuf.includes('调度没在跑')).toBe(false);   // 结构化输出不掺状态行
+			const adm = { Authorization: `Bearer ${srv.adminToken}` };
+			const sc = await (await fetch(`${srv.url.replace(/\/mcp$/, '')}/admin/scheduler`, { headers: adm })).json();
+			expect(sc.scheduler.reason).toBe('no-data-lock');
+			for(const op of ['resume', 'start', 'run']){
+				errBuf = '';
+				expect(await cli.main(['tasks', op, 'task-1', '--yes'])).toBe(6);
+				expect(errBuf).toContain(`要用户本人在终端执行:./horosa tasks ${op} task-1`);
+			}
+			expect(rt.admin.taskLog).toEqual([]);
+			expect(await cli.main(['tasks', 'pause', 'task-1'])).toBe(0);
+			expect(await cli.main(['tasks', 'cancel', 'task-1'])).toBe(0);
+			expect(rt.admin.taskLog).toEqual([['task-1', 'pause'], ['task-1', 'cancel']]);
+			expect(await cli.main(['tasks', 'nope', 'task-1'])).toBe(2);
+			expect(await cli.main(['tasks', 'resume'])).toBe(2);
+			expect(await cli.main(['config', 'scheduler', 'on', '--yes'])).toBe(6);
+			expect(await cli.main(['config', 'goal-tasks', 'on', '--yes'])).toBe(6);
+			expect(rt.admin.cfg.scheduler).toBe('off');
+			expect(await cli.main(['config', 'scheduler', 'off'])).toBe(0);   // 收紧不拦
+			process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL = '1';
+			outBuf = '';
+			expect(await cli.main(['tasks', 'resume', 'task-1', '--yes'])).toBe(0);
+			expect(outBuf).toContain('常驻服务没开');
+			expect(await cli.main(['tasks', 'start', 'task-1', '--yes'])).toBe(0);
+			expect(rt.admin.taskLog.slice(-2)).toEqual([['task-1', 'resume'], ['task-1', 'start']]);
+			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
+		});
 		it('🔴 config / ai(列 / 加 / 换密钥 / 选用 / 删 / 测)/ export / import:密钥只从环境变量名或标准输入读,命令行里给密钥直接拒', async ()=>{
 			expect(await cli.main(['config', 'approval', 'read-only'])).toBe(0);   // 收紧不拦
 			expect(outBuf).toContain('approval = read-only');
 			// 放宽(写入全自动)是人工操作:非交互只有 --yes 不放行,还要显式环境变量
 			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
-			expect(await cli.main(['config', 'approval', 'auto'])).toBe(2);
-			expect(await cli.main(['config', 'approval', 'auto', '--yes'])).toBe(2);
-			expect(errBuf).toContain('HOROSA_ALLOW_UNATTENDED_APPROVAL=1');
-			expect(await cli.main(['config', 'private-read', 'on', '--yes'])).toBe(2);
+			expect(await cli.main(['config', 'approval', 'auto'])).toBe(6);   // 没得到本人确认 = 6(不再混用「用法错」2)
+			errBuf = '';
+			expect(await cli.main(['config', 'approval', 'auto', '--yes'])).toBe(6);
+			expect(errBuf).toContain('要用户本人在终端执行:./horosa config approval auto');   // 回显该跑的命令(去掉 --yes)
+			expect(errBuf.includes('HOROSA_ALLOW_UNATTENDED_APPROVAL')).toBe(false);   // 报错不递绕过配方(只在文档里)
+			expect(await cli.main(['config', 'private-read', 'on', '--yes'])).toBe(6);
+			// 限流额度:调低不拦,调高(比现值大)= 放宽,同样要人工
+			expect(await cli.main(['config', 'calls-per-minute', '30'])).toBe(0);
+			expect(rt.admin.cfg['calls-per-minute']).toBe('30');
+			expect(await cli.main(['config', 'calls-per-minute', '300', '--yes'])).toBe(6);
+			expect(rt.admin.cfg['calls-per-minute']).toBe('30');
 			process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL = '1';
+			expect(await cli.main(['config', 'calls-per-minute', '60', '--yes'])).toBe(0);
 			expect(await cli.main(['config', 'approval', 'auto', '--yes'])).toBe(0);
 			expect(await cli.main(['config', 'approval', 'read-only'])).toBe(0);
 			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
@@ -391,10 +480,10 @@ describe('② 终端命令', ()=>{
 			expect(await cli.main(['ai', 'add', 'openai', '--key-env', 'XTEST_NO_SUCH_VAR'])).toBe(2);
 			expect(await cli.main(['ai', 'use', 'p1', 'm2'])).toBe(0);
 			expect(rt.admin.aiLog.find((x)=>x[0] === 'use')[1]).toEqual({ profileId: 'p1', model: 'm2' });
-			expect(await cli.main(['ai', 'remove', 'p1'])).toBe(2);   // 非交互要 --yes
-			expect(await cli.main(['ai', 'remove', 'p1', '--yes'])).toBe(2);   // …且要显式环境变量(挡住代理替人批准)
-			expect(await cli.main(['proposals', 'accept', 'px1', '--yes'])).toBe(2);
-			expect(await cli.main(['undo', 'a1', '--yes'])).toBe(2);
+			expect(await cli.main(['ai', 'remove', 'p1'])).toBe(6);   // 非交互要 --yes
+			expect(await cli.main(['ai', 'remove', 'p1', '--yes'])).toBe(6);   // …且要显式环境变量(挡住代理替人批准)
+			expect(await cli.main(['proposals', 'accept', 'px1', '--yes'])).toBe(6);
+			expect(await cli.main(['undo', 'a1', '--yes'])).toBe(6);
 			process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL = '1';
 			expect(await cli.main(['ai', 'remove', 'p1', '--yes'])).toBe(0);
 			outBuf = '';
@@ -407,14 +496,66 @@ describe('② 终端命令', ()=>{
 			outBuf = '';
 			expect(await cli.main(['import', path.join(home, 'b.zip'), '--dry-run'])).toBe(0);
 			expect(outBuf).toContain('命盘:新增 1 条');
-			expect(await cli.main(['import', path.join(home, 'b.zip')])).toBe(2);   // 非交互要 --yes
+			expect(await cli.main(['import', path.join(home, 'b.zip')])).toBe(6);   // 非交互要 --yes
 			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
-			expect(await cli.main(['import', path.join(home, 'b.zip'), '--yes'])).toBe(2);   // …且要显式环境变量
+			expect(await cli.main(['import', path.join(home, 'b.zip'), '--yes'])).toBe(6);   // …且要显式环境变量
 			process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL = '1';
 			outBuf = '';
 			expect(await cli.main(['import', path.join(home, 'b.zip'), '--yes'])).toBe(0);
 			expect(outBuf).toContain('✅ charts');
 			delete process.env.HOROSA_ALLOW_UNATTENDED_APPROVAL;
 		});
+	});
+});
+
+// 常驻服务的任务调度外壳(假 lib):不持数据锁不起;起了先对账、按间隔调一跳(执行体 = 无人值守版)、stop 后不再跳
+describe('任务调度外壳 makeTaskScheduler', ()=>{
+	const { makeTaskScheduler } = require('../runtime');
+	const prevHome = process.env.HOROSA_HOME;
+	let home;
+	before(()=>{ home = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-sched-')); process.env.HOROSA_HOME = home; });
+	after(()=>{ if(prevHome === undefined){ delete process.env.HOROSA_HOME; }else{ process.env.HOROSA_HOME = prevHome; } });
+	function fakeLib(){
+		const log = [];
+		const runner = async ()=>({ ok: true });
+		return {
+			log, runner,
+			SCHEDULER_TICK_INTERVAL_MS: 60000,
+			runUnattendedScheduledTask: runner,
+			async reconcileTasksOnBoot(){ log.push('reconcile'); return { interrupted: 0 }; },
+			async runSchedulerTick(o){ log.push(['tick', o.runner === runner]); return { enabled: true, due: 0, ran: 0, skipped: 0 }; },
+			isAgentEnabled: ()=>true, isSchedulerEnabled: ()=>true, isGoalEnabled: ()=>false, isHeadlessEnabled: ()=>false, readLastTickAt: ()=>null,
+		};
+	}
+	it('🔴 数据锁不是本进程持有 → 不起(同一数据目录只有一个调度者)', async ()=>{
+		const lib = fakeLib();
+		const sc = makeTaskScheduler(lib, ()=>{});
+		expect(await sc.start({ role: 'serve' })).toBe(false);
+		expect(sc.status().reason).toBe('no-data-lock');
+		expect(lib.log).toEqual([]);
+		const { dataDir } = require('../runtime');
+		fs.mkdirSync(dataDir(), { recursive: true });
+		fs.writeFileSync(path.join(dataDir(), '.lock'), `${process.pid}\n`);
+		expect(await sc.start({ role: 'serve', firstDelayMs: 0 })).toBe(true);
+		sc.stop();
+		fs.unlinkSync(path.join(dataDir(), '.lock'));
+	});
+	it('起 → 先对账 → 第一跳(执行体是无人值守版)→ 按间隔再跳;stop 后不再跳', async ()=>{
+		const lib = fakeLib();
+		let flushed = 0;
+		const sc = makeTaskScheduler(lib, ()=>{ flushed += 1; }, { intervalMs: 30 });
+		expect(await sc.start({ requireLock: false, firstDelayMs: 0, role: 'serve' })).toBe(true);
+		expect(lib.log[0]).toBe('reconcile');
+		await new Promise((r)=>setTimeout(r, 100));
+		const ticks = lib.log.filter((x)=>Array.isArray(x));
+		expect(ticks.length >= 2).toBe(true);
+		expect(ticks.every((x)=>x[1] === true)).toBe(true);
+		expect(sc.status().running).toBe(true);
+		expect(flushed >= 2).toBe(true);
+		sc.stop();
+		const n = lib.log.length;
+		await new Promise((r)=>setTimeout(r, 80));
+		expect(lib.log.length).toBe(n);
+		expect(sc.status().running).toBe(false);
 	});
 });

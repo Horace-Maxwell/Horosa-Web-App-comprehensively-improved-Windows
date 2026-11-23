@@ -4,9 +4,10 @@
 import { ZWEngineOptions, ZW_ENGINE_FORWARD_KEYS } from '../ziweiOptions';
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiInput.js'), 'utf8');
-const MAIN = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
+const MAIN = readSource(path.resolve(__dirname, '..', 'ZiWeiMain.js'));
 const strip = (s)=>s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 // 类方法窗口法提取(缩进恰一层 \t;嵌套回调缩进更深不误配)。

@@ -4,6 +4,7 @@ import { GUIDE, RECORD_ID_PATTERN } from './_shared';
 import { isGoalEnabled } from '../../aiAgent/prefs';
 // 🔴 不得静态 import goalRunner:goalRunner → runtime → aiTools/index → 本文件 成环,目录数组会拿到未初始化的 default(注册即炸);run 时惰性载入
 import { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES } from '../../aiAnalysisContext';
+import { switchHintText, taskReleaseHint } from '../switchHints';
 
 export default {
 	name: 'create_goal_task',
@@ -11,6 +12,7 @@ export default {
 	category: 'tasks',
 	undoKind: 'cancel-task',
 	enabled: ()=>isGoalEnabled(),
+	disabledHint: ()=>switchHintText('goal'),
 	timeoutMs: 15000,
 	description: `新建一个目标任务:给定一句话目标(可带完成判据/预算/挂载命盘/技法),任务中心会一轮一轮自动推进直到达成、卡住或预算用完,每轮结束自检。适合「把名单里的人都建档并各起一份快照」这类多步长活;本轮对话内能一步做完的事不要建任务。${GUIDE}:用户明确要求「交给后台/自动完成/做完通知我」时调用。`,
 	inputSchema: {
@@ -41,9 +43,9 @@ export default {
 			data: { taskId: task.id, status: task.status, title: task.title, budget: task.budget, autoStart, ...(external ? { awaitingUserStart: true } : {}) },
 			undo: { kind: 'cancel-task', payload: { taskId: task.id } },
 			summary: `目标任务「${task.title}」已${autoStart ? '开始' : '排队'}(预算 ${task.budget.maxTurns} 轮/${task.budget.maxCalls} 次/$${task.budget.maxCostUsd}/${task.budget.maxWallMinutes} 分钟)`,
-			...(external ? { message: `目标任务「${task.title}」已排队:外部客户端建的任务不会自动开跑,需用户在星阙任务中心点「开始」;开始前可撤销` } : {}),
+			...(external ? { message: `目标任务「${task.title}」已排队:外部客户端建的任务不会自动开跑,${taskReleaseHint('start', task.id)};开始前可撤销` } : {}),
 			assumptions: external
-				? ['外部客户端建的任务只排队、不自动开跑,需用户在任务中心点「开始」;开始前可在动作记录里撤销']
+				? [`外部客户端建的任务只排队、不自动开跑,${taskReleaseHint('start', task.id)};开始前可在动作记录里撤销`]
 				: ['任务在后台逐轮推进,进度与结果在任务中心;撤销只对还没开始跑的任务有效'],
 		};
 	},

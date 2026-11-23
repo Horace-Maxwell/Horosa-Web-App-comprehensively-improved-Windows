@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroReturnTimeline.js b/astrostudyui/src/components/astro/AstroReturnTimeline.js
-index 144796a2..efa8d50c 100644
+index a471b084..7f746484 100644
 --- a/astrostudyui/src/components/astro/AstroReturnTimeline.js
 +++ b/astrostudyui/src/components/astro/AstroReturnTimeline.js
 @@ -43,6 +43,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){

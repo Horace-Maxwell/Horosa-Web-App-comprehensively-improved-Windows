@@ -41,10 +41,8 @@ def _eq(obj, eps):
 
 
 def _near_midpoint(a, b):
-    mid = (a + b) / 2.0
-    if abs(mid - a) > 90:
-        mid = (mid + 180.0) % 360.0
-    return mid % 360.0
+    from astrostudy.germany.midpoint import near_midpoint   # 正对的两点(南北交点的赤经也差恰 180°)取哪个中点:同一条规则
+    return near_midpoint(a, b) % 360.0
 
 
 def coord_midpoints(objects, coord, orb, jd_ut):

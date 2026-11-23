@@ -135,7 +135,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	xiaochengtu: '小成图',
 	feigong: '飞宫小奇门',
 	astrochart: '星盘',
-	astrochart_like: '十三分盘 / 派生盘（十二分盘·调波盘·龙盘·重置盘）',   // 占星地图不在聚合键内(F-27 定谳:只取五个派生盘快照)
+	astrochart_like: '十三分盘 / 派生盘（十二分盘·调波盘·龙盘·重置盘）',   // 占星地图不在聚合键内(只取五个派生盘快照)
 	// 派生盘五键独立技法键:各读辅盘页「出盘即存」的本键模块快照(只认本命主签名),
 	// 内容勾选走各键既有导出 preset;聚合键 astrochart_like 仍并挂全部(零回归)。占星地图(locastro)
 	// 无文本快照生产者(ACG 页为地图/线表,导出走本命盘回落)→ 不设独立键(设了=恒 missing 的死项)。
@@ -325,6 +325,12 @@ export const ANALYSIS_CHART_TECHNIQUES = [
 	'relative',
 ];
 
+// 命盘类里「只能读页面做完的那一份」的技法(无法由一条命盘记录现算):合盘要两张盘(取数另有 cast_relative)、
+// 其余要页面里的一整套操作。技法清单工具(list_techniques)据此如实标注;与 techniqueContext 里各自的特判同一组键。
+export const PAGE_SNAPSHOT_ONLY_TECHNIQUES = [
+	'relative',
+];
+
 export const ANALYSIS_CASE_TECHNIQUES = [
 	'sixyao',
 	// 皇极轨策：起卦所得为冻结值 → case 分支按 payload.snapshot 出正文，不重算
@@ -374,3 +380,9 @@ export const TIME_CASTABLE_SET = new Set(TIME_CASTABLE_DIVINATION);
 // 也排除 rizi(日子馆:builder 需 {year,persons,result} 页面级查询态,非单时刻可推)与
 // jieqipan(无独立模块快照的 profile;分至内容走 jieqi_* 系列键)——二者标签只作取名用。
 export const TIMEPOINT_CASTABLE_SET = new Set([...TIME_CASTABLE_DIVINATION, 'sixyao', 'huangji', 'taixuan', 'jingjue', 'wuzhao', 'shenyishu', 'xiaoliuren', 'feigong', 'xiaochengtu', 'huangli', 'tongshu']); // 小六壬/飞宫按占时(农历月日时支)可起;小成图按梅花时间卦(年支序+月+日为上数,加时支序为下数)走既有两数式起
+// 世俗盘:按起课时间定事件现算(入宫盘 / 新满月 / 日月食;aiAnalysisContext/regenMundane)
+TIMEPOINT_CASTABLE_SET.add('mundane');
+// 皇极轨策:起课时间源按「年月日时起例」起卦(缺省起法,确定可复算;已存事盘的卦绝不重起)
+TIMEPOINT_CASTABLE_SET.add('guice');
+// 分至:起课时间源,年份 = 时点那一年,整年四盘(此前注释里的「最小可行设计」,取数与正文复用分至页)
+TIMEPOINT_CASTABLE_SET.add('jieqi');

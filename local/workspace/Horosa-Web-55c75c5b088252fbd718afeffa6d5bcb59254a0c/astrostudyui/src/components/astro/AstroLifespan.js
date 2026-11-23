@@ -11,6 +11,7 @@ import { PLANETARY_YEARS } from '../../divination/lifespan/lifespanData';
 import { SIGNS } from '../../divination/data/signs';
 import { chartIdOfKey } from '../../divination/engine/utils';
 import { astroSymbol, fmtNum, cardStyle, SmallTable } from './AstroExtraCommon';
+import { pressable } from '../../utils/pressable';
 
 const METHODS = [
 	{ value: 'ptolemy', label: '托勒密', en: 'Ptolemy', desc: '释放位限 10/1/11/7/9（权重降序）；地平下及 8/12 宫排除' },
@@ -117,7 +118,7 @@ class AstroLifespan extends Component {
 							<span
 								key={m.value}
 								role="radio" aria-checked={this.state.method === m.value}
-								onClick={() => { this.setState({ method: m.value }); safeLocalStorageSet('horosa.lifespan.method', m.value); }}
+								{...pressable(() => { this.setState({ method: m.value }); safeLocalStorageSet('horosa.lifespan.method', m.value); }, { role: false })}
 								style={{
 									cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
 									border: '1px solid var(--horosa-border)',
@@ -246,7 +247,7 @@ class AstroLifespan extends Component {
 		const head = (
 			<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
 				role="button" aria-expanded={open}
-				onClick={() => this.setState({ timelineOpen: !open })}>
+				{...pressable(() => this.setState({ timelineOpen: !open }), { role: false })}>
 				<span style={{ fontWeight: 700 }}>向运至杀星 · 寿命时间轴 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Direction to Anareta</span></span>
 				<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起' : '展开'}<XQToggleCaret open={open} /></span>
 			</div>

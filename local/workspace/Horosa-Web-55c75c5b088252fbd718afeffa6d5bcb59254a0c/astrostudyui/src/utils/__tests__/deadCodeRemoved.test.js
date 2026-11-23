@@ -2,9 +2,10 @@
 // 删的都是「没有任何调用方」的东西,功能面零变化;留下的同模块接口照常可用(末尾抽查)。
 import fs from 'fs';
 import path from 'path';
+import { readSource } from './helpers/sourceSet';
 
 const SRC = path.join(__dirname, '..', '..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读,其余文件原样读
 const exportRe = (name) => new RegExp(`export\\s+(?:async\\s+)?(?:function|const|let|class)\\s+${name}\\b`);
 const declRe = (name) => new RegExp(`(?:^|\\n)\\s*(?:async\\s+)?(?:function|const|let|var)\\s+${name}\\b`);
 

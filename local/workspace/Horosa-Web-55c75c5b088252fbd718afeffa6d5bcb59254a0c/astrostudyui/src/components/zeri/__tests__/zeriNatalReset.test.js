@@ -83,7 +83,8 @@ describe('方案库载入:四个工作台与载入存案同一校验', ()=>{
 		expect(restoredNatalInput({ date: 'x' })).toEqual({ ...zeriNatalInputDefault(), date: 'x' });
 	});
 	test.each(['BaziZeriWorkbench.js', 'ZiweiZeriWorkbench.js', 'SanshiZeriWorkbench.js', 'LiurengZeriWorkbench.js'])('%s', (f)=>{
-		const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+		expect(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).toMatch(/natal: \{\s*label:/);   // 本家派描述带本命区
+		const src = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench(f);   // 派文件 + 共用壳(方案回灌在壳里)
 		expect(src).toContain('onRestoreNatal(normalizeSavedNatal(rec.config.natal))');
 		expect(src).toContain('onNatalInputChange(restoredNatalInput(rec.config.natalInput))');
 		expect(src).not.toContain('rec.config.natal || null');

@@ -18,7 +18,7 @@ import { matchBiFa } from '../liureng/LRBiFaDoc';
 import DateTime from '../comp/DateTime';
 
 const SRC = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>require('../../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, rel));   // 拆成子模块的门面按全集读,其余文件原样
 
 function inst(Comp, props){
 	const c = new Comp(props);

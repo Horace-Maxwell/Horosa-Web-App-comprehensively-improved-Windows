@@ -2,8 +2,8 @@
 //
 // 🔴 死控件一律隐藏、不留「勾了不生效」之惑（schoolNeeds 声明式）。
 import React, { Component } from 'react';
-import { Input, InputNumber, Select, Collapse, Checkbox } from 'antd';
-import { XQSideSection, XQButton as Button } from '../xq-ui';
+import { Input, Select, Collapse } from 'antd';
+import { XQSideSection, XQButton as Button, XQCheckbox, XQInputNumber } from '../xq-ui';
 import {
 	GUICE_OPTION_META, GUICE_SCHOOL_OPTIONS, applyPreset, setOption, schoolNeeds, qiguaFaInputs,
 } from './guiceSchools';
@@ -67,10 +67,10 @@ class GuiceControls extends Component {
 				'报一数：其数为上卦、时数为下卦；报二数：先数为上、后数为下'));
 		}
 		if (need.indexOf('wuShu') >= 0) {
-			out.push(this.field('物数', <InputNumber min={1} max={9999} value={inp.wuShu} onChange={(v) => this.setInput('wuShu', v)} />));
+			out.push(this.field('物数', <XQInputNumber min={1} max={9999} value={inp.wuShu} onChange={(v) => this.setInput('wuShu', v)} />));
 		}
 		if (need.indexOf('shengShu') >= 0) {
-			out.push(this.field('声数', <InputNumber min={1} max={9999} value={inp.shengShu} onChange={(v) => this.setInput('shengShu', v)} />));
+			out.push(this.field('声数', <XQInputNumber min={1} max={9999} value={inp.shengShu} onChange={(v) => this.setInput('shengShu', v)} />));
 		}
 		if (need.indexOf('text') >= 0) {
 			out.push(this.field('所占之字',
@@ -82,8 +82,8 @@ class GuiceControls extends Component {
 				</Select>));
 			const n = `${inp.text || ''}`.replace(/\s/g, '').length;
 			if (n === 1 && (inp.shu || 'kai') === 'kai') {
-				out.push(this.field('左之阳画', <InputNumber min={1} max={99} value={(inp.tones || {}).leftStrokes} onChange={(v) => this.setInput('tones', { ...(inp.tones || {}), leftStrokes: v })} />, '彳、丿之属为左'));
-				out.push(this.field('右之阴画', <InputNumber min={1} max={99} value={(inp.tones || {}).rightStrokes} onChange={(v) => this.setInput('tones', { ...(inp.tones || {}), rightStrokes: v })} />, '一、乙、丶之属为右'));
+				out.push(this.field('左之阳画', <XQInputNumber min={1} max={99} value={(inp.tones || {}).leftStrokes} onChange={(v) => this.setInput('tones', { ...(inp.tones || {}), leftStrokes: v })} />, '彳、丿之属为左'));
+				out.push(this.field('右之阴画', <XQInputNumber min={1} max={99} value={(inp.tones || {}).rightStrokes} onChange={(v) => this.setInput('tones', { ...(inp.tones || {}), rightStrokes: v })} />, '一、乙、丶之属为右'));
 			} else if (n >= 4 && n <= 10) {
 				out.push(this.field(`平仄声调（${n} 字，逗号分）`,
 					<Input value={inp.tonesText || ''} placeholder="如 平,去,平,上"
@@ -92,11 +92,11 @@ class GuiceControls extends Component {
 			}
 		}
 		if (need.indexOf('zhang') >= 0) {
-			out.push(this.field('丈数', <InputNumber min={1} max={999} value={inp.zhang} onChange={(v) => this.setInput('zhang', v)} />));
-			out.push(this.field('尺数', <InputNumber min={1} max={999} value={inp.chi} onChange={(v) => this.setInput('chi', v)} />, '本法不加时；寸数不用'));
+			out.push(this.field('丈数', <XQInputNumber min={1} max={999} value={inp.zhang} onChange={(v) => this.setInput('zhang', v)} />));
+			out.push(this.field('尺数', <XQInputNumber min={1} max={999} value={inp.chi} onChange={(v) => this.setInput('chi', v)} />, '本法不加时；寸数不用'));
 		} else if (need.indexOf('chi') >= 0) {
-			out.push(this.field('尺数', <InputNumber min={1} max={999} value={inp.chi} onChange={(v) => this.setInput('chi', v)} />));
-			out.push(this.field('寸数', <InputNumber min={1} max={999} value={inp.cun} onChange={(v) => this.setInput('cun', v)} />, '本法加时；分数不用'));
+			out.push(this.field('尺数', <XQInputNumber min={1} max={999} value={inp.chi} onChange={(v) => this.setInput('chi', v)} />));
+			out.push(this.field('寸数', <XQInputNumber min={1} max={999} value={inp.cun} onChange={(v) => this.setInput('cun', v)} />, '本法加时；分数不用'));
 		}
 		if (need.indexOf('wuGuaNum') >= 0) {
 			out.push(this.field('物之卦',
@@ -121,7 +121,7 @@ class GuiceControls extends Component {
 				<Select value={inp.qu || 'yusheng'} onChange={(v) => this.setInput('qu', v)}>
 					{WEIREN_QU.map((q) => <Option key={q.key} value={q.key}>{q.label}</Option>)}
 				</Select>, '语多则只用初听一句或末后一句'));
-			out.push(this.field('其数', <InputNumber min={1} max={9999} value={inp.shu2} onChange={(v) => this.setInput('shu2', v)} />));
+			out.push(this.field('其数', <XQInputNumber min={1} max={9999} value={inp.shu2} onChange={(v) => this.setInput('shu2', v)} />));
 		}
 		return out;
 	}
@@ -142,9 +142,9 @@ class GuiceControls extends Component {
 				: (need.disabled && need.disabled[m.key]);
 			if (m.type === 'switch') {
 				return { isSwitch: true, chip: (
-					<Checkbox key={m.key} checked={!!s[m.key]} disabled={!!dis}
+					<XQCheckbox key={m.key} checked={!!s[m.key]} disabled={!!dis}
 						title={typeof dis === 'string' && dis ? dis : m.label}
-						onChange={(e) => this.set(m.key, e.target.checked)}>{m.label}</Checkbox>
+						onChange={(e) => this.set(m.key, e.target.checked)}>{m.label}</XQCheckbox>
 				) };
 			}
 			return { isSwitch: false, node: this.field(m.label,

@@ -376,7 +376,7 @@ export default function TaiyiBoardSvg(props){
 								mark(pan.se, 'var(--horosa-text-soft, #6c6c6c)', '定', 'dm', r4 + 40);       // 定目(次要)
 								mark(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', '主', 'hg', r4 + 62);   // 主大将(金·外环)
 								mark(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', '客', 'ag', r4 + 62);     // 客大将(蓝·外环)
-								// P1-5 格局连线:太乙↔文昌/始击/主客大将,凶色虚线(掩=同宫描圈,对=长虚线,击=大将连线);「关」为数理关系无落点、不连线。
+								// 格局连线:太乙↔文昌/始击/主客大将,凶色虚线(掩=同宫描圈,对=长虚线,击=大将连线);「关」为数理关系无落点、不连线。
 								const POS_OF = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace, 客大将: pan.awayGeneralPalace };
 								const boardAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
 								gejuList.forEach((g, gi) => {
@@ -405,7 +405,7 @@ export default function TaiyiBoardSvg(props){
 								return els;
 							})()}
 
-							{/* P1-5 宫位点击(由「盘面标注」开关控制):16 透明命中扇区 + 信息面板(驻神/正间/门州气/格局/主事) */}
+							{/* 宫位点击(由「盘面标注」开关控制):16 透明命中扇区 + 信息面板(驻神/正间/门州气/格局/主事) */}
 							{pan && props.showBoardMark && (() => {
 								const els = [];
 								const ZN = { 午: 2, 坤: 7, 酉: 6, 乾: 1, 子: 8, 艮: 3, 卯: 4, 巽: 9 };

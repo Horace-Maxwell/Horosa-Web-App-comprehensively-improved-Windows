@@ -2,7 +2,7 @@ import { Component } from 'react';
 import { Row, Col } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
 import * as AstroText from '../../constants/AstroText';
-import { randomStr, isNumber} from '../../utils/helper';
+import { isNumber} from '../../utils/helper';
 import styles from '../../css/styles.less';
 import { formatZoneLabel } from '../../utils/zoneText';   // 时区一律 UTC±HH:MM
 

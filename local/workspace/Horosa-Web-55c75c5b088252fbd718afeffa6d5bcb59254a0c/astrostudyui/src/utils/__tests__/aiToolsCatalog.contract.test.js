@@ -22,7 +22,13 @@ const EXPECTED = ['resolve_place', 'list_records', 'get_current_context', 'descr
 	// 各流派择日搜索
 	'list_zeri_conditions', 'search_zeri', 'explain_zeri',
 	// 名人库(检索 / 分类 / 详情 只读 + 存成命盘 只增)
-	'search_celebrities', 'list_celebrity_categories', 'get_celebrity', 'create_celebrity_chart'];
+	'search_celebrities', 'list_celebrity_categories', 'get_celebrity', 'create_celebrity_chart',
+	// 技法清单(键 / 中文名 / 适用来源 / 现算还是只读已存)
+	'list_techniques',
+	// 玄学史目录与统计视图
+	'browse_xuanshi',
+	// 日子馆个性化择日
+	'search_rizi', 'cast_fengshui', 'get_diagnostics', 'get_reference', 'sky_at', 'cast_acg', 'rectify_india', 'propose_record_unlink', 'propose_record_recover', 'control_task', 'add_material_note', 'propose_memory', 'list_memories', 'propose_template', 'propose_skill_pack', 'propose_persona_text', 'save_document', 'cast_random_case', 'list_models', 'chat_in_conversation', 'check_new_version', 'scan_election_moments', 'get_lunar_month', 'list_record_revisions', 'copy_record', 'find_duplicate_records', 'list_zeri_schemes'];
 const TOOLS_DIR = path.resolve(__dirname, '..', 'aiTools');
 
 function walk(dir, out){
@@ -61,10 +67,10 @@ function forbiddenSchemaHits(d){
 beforeEach(()=>{ __resetToolsForTests(); });
 
 describe('目录形状', ()=>{
-	it('内置五十一件恰好注册,名字集合精确', ()=>{
+	it('内置八十件恰好注册,名字集合精确', ()=>{
 		const names = registerBuiltinTools().map((t)=>t.name).sort();
 		expect(names).toEqual([...EXPECTED].sort());
-		expect(BUILTIN_TOOL_DEFS.length).toBe(51);
+		expect(BUILTIN_TOOL_DEFS.length).toBe(80);
 	});
 	it('每件:命名正则/level 正向集合/undoKind 集合/描述含引导句/顶层 additionalProperties:false', ()=>{
 		BUILTIN_TOOL_DEFS.forEach((d)=>{

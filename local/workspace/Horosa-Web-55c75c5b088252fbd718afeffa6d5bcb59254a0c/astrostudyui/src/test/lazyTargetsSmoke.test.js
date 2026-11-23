@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = path.resolve(__dirname, '..');
-const indexSource = fs.readFileSync(path.join(SRC, 'pages', 'index.js'), 'utf8');
+const indexSource = require('../utils/__tests__/helpers/sourceSet').readSource(path.join(SRC, 'pages', 'index.js'));   // 门面 + 子模块全集
 
 // jsdom 下无真 canvas/WebGL:个别重可视化组件顶层探测环境属实,豁免须注明理由。
 const REQUIRE_WHITELIST = new Set([

@@ -160,7 +160,7 @@ describe('④ 命中触摸(真 store 内存径 + 真 getAnalysisSourceContext)',
 	test('未命中(meta 模式纯本地构建)写入后 schedulePruneContextCache 被调用', async ()=>{
 		const store = require('../aiAnalysisStore');
 		const { getAnalysisSourceContext } = require('../aiAnalysisContext');
-		const spy = jest.spyOn(store, 'schedulePruneContextCache');
+		const spy = jest.spyOn(require('../aiAnalysisStore/conversation'), 'schedulePruneContextCache');   // 门面的转出是只读访问器、spyOn 不了:替身装在函数的住处(子模块),经门面调用照样走到替身
 		await store.clearStore(store.AI_ANALYSIS_STORES.contextCache);
 		const ctx = await getAnalysisSourceContext({ id: 'meta-1', sourceType: 'chart', title: '甲', updatedAt: 'u1', record: { name: '甲', birth: '1990-01-01 08:00:00', gender: 1 } }, { mode: 'meta', preferCache: false });
 		expect(ctx && typeof ctx.content).toBe('string');

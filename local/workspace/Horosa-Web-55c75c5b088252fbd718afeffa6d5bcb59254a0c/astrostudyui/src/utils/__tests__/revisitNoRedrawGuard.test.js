@@ -1,9 +1,9 @@
 // 切走再切回(回访)不白白重建盘面:三处接线锁。
 // 紫微回访曾整盘重建(近四千次 DOM 改动),七政轮盘回访一帧连排四遍;病根都是「内容没变、对象换了」。
-import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const read = (rel)=>fs.readFileSync(path.resolve(__dirname, '..', '..', rel), 'utf8');
+const read = (rel)=>readSource(path.resolve(__dirname, '..', '..', rel));
 
 describe('回访不重建', ()=>{
 	test('紫微:同内容沿用手上的盘对象;盘面按内容判', ()=>{

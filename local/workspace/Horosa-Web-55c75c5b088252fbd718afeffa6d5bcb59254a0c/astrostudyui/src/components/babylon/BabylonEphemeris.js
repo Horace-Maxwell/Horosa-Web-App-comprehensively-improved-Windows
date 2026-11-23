@@ -5,10 +5,10 @@ import { Component } from 'react';
 import { XQSegmented, XQSelect } from '../xq-ui';
 import {
 	jupiterSeriesA, saturnSeriesA, marsSeriesA, mercurySeriesA, venusSeriesA, jupiterSeriesB,
-	lunarPhiSeq, lunarBSeq, dayLengthC, cPrime, lunarFSeqA, LUNAR_F_A, LUNAR_PHI,
+	lunarPhiSeq, lunarBSeq, dayLengthC, cPrime, lunarFSeqA, LUNAR_PHI,
 	sarosPattern, TRAPEZOID,
 } from '../../divination/babylon/mathAstro';
-import { SYSTEM_A, SYSTEM_B, LUNAR, PERIOD_RELATIONS, DATE_CONSTANTS, SAROS } from '../../divination/data/babylonianData';
+import { SYSTEM_A, SYSTEM_B, PERIOD_RELATIONS, DATE_CONSTANTS } from '../../divination/data/babylonianData';
 import { sexFormat, sexParse, lonToSignDeg } from '../../divination/babylon/units';
 import { BABYLON_SIGNS } from '../../divination/data/babylonianData';
 

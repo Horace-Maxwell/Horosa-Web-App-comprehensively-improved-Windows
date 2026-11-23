@@ -1,7 +1,7 @@
 // 罗盘工具 —— 分金择优器 · 立向向导 · 判向向导 · 磁偏角换算。
 // 🔴 additive：不改 liqiCore 的 fenjinAt/chuanshanAt 本判，只在其上做「可用性筛选与排序」。
 import { SHAN_ORDER, SHAN_24, SHAN_CENTER_DEG, FENJIN_GAN_JX } from './fengshuiData';
-import { fenjinAt, chuanshanAt, toudiAt } from './liqiCore';
+import { chuanshanAt, toudiAt } from './liqiCore';
 import { declinationOf, trueToMagnetic, DECLINATION_SIGN_NOTE, DECLINATION_EPOCH_NOTE } from './fengshuiDeclinationData';
 
 const norm360 = (d)=>((d % 360) + 360) % 360;

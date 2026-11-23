@@ -99,7 +99,7 @@
 	color: #dce8ff;
 	border-radius: 7px;
 	cursor: pointer;
-	font-size: 16px;
+	font-size: var(--horosa-fs-title-sm);
 	transition: transform 0.18s ease, border-color 0.18s, background 0.18s;
 }
 
@@ -125,13 +125,13 @@
 }
 
 .planetarium-time > div:first-child {
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 	font-weight: 600;
 }
 
 // 可点击编辑的时间显示(block + fit-content:让下方时区·地点行另起一行,不被时间挤在同行)
 .planetarium-time-display {
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 	font-weight: 600;
 	cursor: pointer;
 	display: block;
@@ -153,7 +153,7 @@
 	position: fixed;       // 挂在 body 下(不在左栏里,左栏的滚动层会按栏宽把它裁掉);坐标由 JS 按时间显示元素实时算
 	// 层级:压过页面里的左右栏(个位数),但必须低于 antd 浮层 —— 面板里年月日时分 / 时区下拉的选项列表也挂在 body,
 	// 默认 z-index 1050;面板若 1200,展开的列表与面板重叠的那截被面板盖住、看不见也点不到。
-	z-index: 1040;
+	z-index: var(--horosa-z-floating-panel);
 	width: 360px;
 	max-width: calc(94 * var(--horosa-lvw, 1vw));
 	padding: 12px 14px;
@@ -230,13 +230,13 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 
 .planetarium-observer-line span {
 	color: #edf4ff;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	font-weight: 600;
 }
 
 .planetarium-observer-line em {
 	color: #8fa2c1;
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	font-style: normal;
 }
 
@@ -258,7 +258,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 
 .planetarium-section-title {
 	margin-bottom: 10px;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	font-weight: 700;
 	text-transform: uppercase;
 }
@@ -298,7 +298,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	background: rgba(18, 27, 47, 0.9);
 	color: #cfe0ff;
 	border-radius: 6px;
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	cursor: pointer;
 	transition: border-color 0.16s, background 0.16s;
 }
@@ -330,7 +330,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	background: none;
 	border: none;
 	color: #b6c4dd;
-	font-size: 11px;
+	font-size: var(--horosa-fs-caption);
 	font-weight: 600;
 	letter-spacing: 0.04em;
 	cursor: pointer;
@@ -341,7 +341,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 }
 .planetarium-subgroup-header .chevron {
 	display: inline-block;
-	font-size: 10px;
+	font-size: var(--horosa-fs-micro);
 	opacity: 0.7;
 	transition: transform 0.18s;
 }
@@ -448,7 +448,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 .planetarium-hint {
 	margin-top: 7px;
 	color: #9fb0ca;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 }
 
 .planetarium-speed-grid button.is-active,
@@ -591,7 +591,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 
 .planetarium-detail h3 {
 	margin: 0 0 6px;
-	font-size: 20px;
+	font-size: var(--horosa-fs-title-lg);
 	font-weight: 500;
 	color: #eaf1fb;
 }
@@ -599,7 +599,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 .planetarium-detail p {
 	margin: -2px 0 4px;
 	color: #8fa2c0;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	line-height: 1.5;
 	word-break: break-word;
 }
@@ -624,20 +624,18 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	align-items: baseline;
 	justify-content: space-between;
 	color: #9fb0ca;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	margin-bottom: 6px;
 }
 .planetarium-mag-head b {
 	color: #e6eefc;
-	font-size: 14px;
+	font-size: var(--horosa-fs-body-lg);
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 }
 .planetarium-mag-slider {
 	width: 100%;
 	margin: 2px 0 4px;
-	accent-color: #71c6ff;
-	cursor: pointer;
 }
 .planetarium-mag-scale {
 	display: flex;
@@ -662,7 +660,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 .planetarium-measure h4,
 .planetarium-sky-readout h4 {
 	margin: 0 0 8px;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	font-weight: 650;
 	color: #dff0ff;
 }
@@ -688,13 +686,13 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 }
 .planetarium-measure-result strong {
 	color: #6df0c0;
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 }
 .planetarium-measure p,
 .planetarium-sky-readout p {
 	margin: 8px 0 0;
 	color: #8fa2c0;
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	line-height: 1.5;
 }
 
@@ -729,7 +727,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	-webkit-backdrop-filter: blur(8px);
 	backdrop-filter: blur(8px);
 	color: #dce8ff;
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	cursor: pointer;
 	opacity: 0;
 	transform: translateY(-6px);
@@ -749,7 +747,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 }
 
 .planetarium-immersive-exit .xq-icon {
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 }
 
 @keyframes planetarium-exit-in {

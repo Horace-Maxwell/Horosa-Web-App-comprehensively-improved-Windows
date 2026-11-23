@@ -217,7 +217,7 @@ describe('moment(串) 不许把字符串交给引擎解析', ()=>{
 
 // 文件 → 允许的命中数(只许减)。
 const MOMENT_FORMAT_BASELINE = {
-	'components/astro/IndiaChartMain.js': 2,	// 行运日期选择器(日期控件只出四位年)
+	'components/astro/indiaMain/tajakaPanels.js': 2,	// 行运日期选择器(日期控件只出四位年;印占页行运面板)
 	'components/aianalysis/TechniqueSettingsFields.js': 1,	// 设置项的日期控件草稿值(日期控件只出四位年)
 };
 

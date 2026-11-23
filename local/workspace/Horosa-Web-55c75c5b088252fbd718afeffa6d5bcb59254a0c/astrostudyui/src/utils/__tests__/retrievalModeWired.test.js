@@ -94,7 +94,7 @@ describe('🔴 默认检索策略 · 消费链层(源码级,防被静默摘线)'
 	});
 
 	it('该字段仍在存储侧被归一(旧组合无此键时回落 auto)', ()=>{
-		const store = fs.readFileSync(path.join(SRC_ROOT, 'utils', 'aiAnalysisStore.js'), 'utf8');
+		const store = require('./helpers/sourceSet').readSource(path.join(SRC_ROOT, 'utils', 'aiAnalysisStore.js'));   // 门面 + 子模块全集
 		expect(store).toMatch(/defaultRetrievalMode\s*=\s*\S*defaultRetrievalMode\s*\|\|\s*'auto'/);
 	});
 

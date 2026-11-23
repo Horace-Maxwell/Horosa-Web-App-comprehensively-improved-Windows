@@ -10,10 +10,10 @@ import { calcShaozi } from '../../../utils/zhengchuanShaoziLocal';
 import { deriveDadingYearPillars } from '../ZhengChuanMain';
 import { buildLocalBaziResult } from '../../../utils/baziLunarLocal';
 import { xianTianMingGua } from '../../../utils/zhengchuanShaoziLocal';
-import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const HOST = fs.readFileSync(path.join(__dirname, '..', '..', 'kinastro', 'KinAstroMain.js'), 'utf8');
+const HOST = readSource(path.join(__dirname, '..', '..', 'kinastro', 'KinAstroMain.js'));
 
 describe('神数正传 · 十七开关一个不落地汇入 opts（漏一个 = 那项永不生效）', () => {
 	const body = (HOST.match(/buildZhengChuanOpts\(\)\{[\s\S]*?\n\t\}/) || [''])[0];

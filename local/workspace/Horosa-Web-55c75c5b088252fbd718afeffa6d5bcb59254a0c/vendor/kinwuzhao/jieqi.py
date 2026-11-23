@@ -355,6 +355,13 @@ def gangzhi(year, month, day, hour, minute):
                 mTG1 = tiangan[_prev.getMonthGZ().tg] + dizhi[_prev.getMonthGZ().dz]
                 if jqmc[_sd.getJieQi()] == '立春':
                     yTG = tiangan[_prev.getYearGZ().tg] + dizhi[_prev.getYearGZ().dz]
+        # 23 时取年月柱用的是次日:次日交节(含立春)则提前算进新月 / 新年 → 按钟面那一刻取(共享件单源)
+        if hour == 23:
+            try:
+                from kin_year_domain import jie_exact_year_month as _jie_exact
+                yTG, mTG1 = _jie_exact(year, month, day, hour, minute, yTG, mTG1)
+            except ImportError:
+                pass
     hTG1 = find_lunar_hour(dTG).get(hTG[1])
     zi = gangzhi1(year, month, day, 0, 0)[3]
     if minute < 10 and minute >=0:

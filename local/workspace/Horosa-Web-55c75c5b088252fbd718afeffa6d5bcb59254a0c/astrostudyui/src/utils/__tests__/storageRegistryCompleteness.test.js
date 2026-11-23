@@ -19,6 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { classifyStorageKey, collectBackupKeys, STORAGE_KEY_REGISTRY } from '../storageKeyRegistry';
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC_ROOT = path.join(__dirname, '..', '..');
 
@@ -50,7 +51,7 @@ function extractConstKeys(files, found){
 	const global = new Map();
 	const texts = new Map();
 	files.forEach((f)=>{
-		const text = fs.readFileSync(f, 'utf8');
+		const text = readSource(f);
 		texts.set(f, text);
 		const defs = new Map();
 		let m = null;
@@ -88,7 +89,7 @@ function extractMapKeys(files, found){
 	const reCallAny = new RegExp(`(?:${STORAGE_CALLS})\\(`);
 	let n = 0;
 	files.forEach((f)=>{
-		const text = fs.readFileSync(f, 'utf8');
+		const text = readSource(f);
 		if(!reCallAny.test(text)){ return; }
 		let m = null;
 		while((m = reMap.exec(text)) !== null){
@@ -114,7 +115,7 @@ function extractWrapperKeys(files, found){
 	const local = new Map();
 	const global = new Map();
 	files.forEach((f)=>{
-		const text = fs.readFileSync(f, 'utf8');
+		const text = readSource(f);
 		texts.set(f, text);
 		const defs = new Map();
 		let m = null;
@@ -163,7 +164,8 @@ function extractWrapperKeys(files, found){
 }
 
 function extractKeys(){
-	const files = listSourceFiles(SRC_ROOT, []);
+	// 拆成子模块的门面按「子模块 + 门面」全集读(= 拆分前那份文件)、子模块本身不单独扫:常量 / 对象映射 / 包装函数与它们的使用点可能分在两个文件
+	const files = listSourceFiles(SRC_ROOT, []).filter((f)=>!isSourceSetPart(f));
 	expect(files.length).toBeGreaterThan(300);   // 扫描面塌缩守卫(路径错/过滤过宽即红)
 	const found = new Map();   // key → 首个来源文件(报错定位用)
 	const reHorosa = /['"](horosa\.[A-Za-z0-9._:-]+)['"]/g;
@@ -174,7 +176,7 @@ function extractKeys(){
 	expect(w.wrappers).toBeGreaterThan(10);   // 包装函数识别面塌缩守卫(现有十几个本地包装)
 	expect(w.resolved).toBeGreaterThan(5);    // 包装调用点解析面塌缩守卫
 	files.forEach((f)=>{
-		const text = fs.readFileSync(f, 'utf8');
+		const text = readSource(f);
 		let m = null;
 		while((m = reHorosa.exec(text)) !== null){
 			if(!found.has(m[1])){
@@ -300,7 +302,8 @@ describe('记录迁移链 hash 锁', ()=>{
 		// eslint-disable-next-line global-require
 		const crypto = require('crypto');
 		// eslint-disable-next-line global-require
-		const src = fs.readFileSync(path.join(SRC_ROOT, 'utils', 'localRecordStore.js'), 'utf8');
+		const { readSource } = require('./helpers/sourceSet');
+		const src = readSource(path.join(SRC_ROOT, 'utils', 'localRecordStore.js'));   // 门面 + 子文件全集(迁移表在 recordShape.js)
 		// 兼容空链单行 `= [];` 与未来多行步骤(非贪婪到最近的 `];`)。
 		const block = src.match(/const RECORD_MIGRATIONS = \[([\s\S]*?)\];/);
 		expect(block).toBeTruthy();

@@ -1,0 +1,807 @@
+// AI 分析页 · 页面骨架、顶栏、对话区与气泡输入、挂载状态条、资料拖拽、抽屉表格、挂载设置抽屉分区
+// 从 AIAnalysisMain.less 按区段拆出(规则原样、次序不变;读源码的检查经登记表读全集)。
+.root {
+	height: 100%;
+	min-height: 0;
+	color: var(--horosa-text);
+}
+
+.root :global(.ant-spin-nested-loading),
+.root :global(.ant-spin-container) {
+	height: 100%;
+	min-height: 0;
+}
+
+.root :global(.ant-modal-body),
+.root :global(.ant-drawer-body) {
+	max-height: calc(78 * var(--horosa-lvh, 1vh) - 88px);
+	overflow: auto;
+}
+
+.workspaceTabs {
+	height: 100%;
+	min-height: 0;
+}
+
+.workspaceTabs :global(.ant-tabs-content-holder),
+.workspaceTabs :global(.ant-tabs-content),
+.workspaceTabs :global(.ant-tabs-tabpane),
+.workspaceTabs :global(.ant-tabs-tabpane-active) {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.workspaceTabs :global(.ant-tabs-nav) {
+	margin: 0;
+}
+
+.pane {
+	height: 100%;
+	/* 左侧安全距离:曾左 padding=0,历史表格/资料卡/模版卡/分析顶栏全贴视口左缘 */
+	padding: 8px 12px 8px 12px;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.paneShell,
+.analysisLayout {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: 100%;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.paneHeader {
+	flex: 0 0 auto;
+	min-height: 0;
+}
+
+.paneBody {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.paneScroll {
+	height: 100%;
+	min-height: 0;
+	overflow: auto;
+	padding-right: 4px;
+}
+
+.toolbarCard,
+.uploadCard,
+.tagGroupCard,
+.chatCard,
+.contextCard,
+.historyTable :global(.ant-card),
+.settingsGrid :global(.ant-card),
+.templateGrid :global(.ant-card),
+.materialGrid :global(.ant-card) {
+	box-shadow: none;
+	border-radius: 8px;
+}
+
+.toolbarRow {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.toolbarField {
+	min-width: 0;
+}
+
+.toolbarLabel {
+	margin-bottom: 6px;
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-muted);
+}
+
+.toolbarLabelInline {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.quickApiButton {
+	height: 22px !important;
+	padding: 0 8px !important;
+	font-size: var(--horosa-fs-small) !important;
+	border-radius: 6px !important;
+	border-color: rgba(136, 154, 184, 0.28) !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	color: var(--horosa-accent-strong) !important;
+}
+
+.quickApiButton:hover,
+.quickApiButton:focus {
+	border-color: var(--horosa-accent) !important;
+	background: var(--horosa-accent-soft) !important;
+}
+
+.quickApiButton[disabled],
+.quickApiButton[disabled]:hover,
+.quickApiButton[disabled]:focus {
+	border-color: rgba(136, 154, 184, 0.18) !important;
+	background: transparent !important;
+	color: var(--horosa-muted) !important;
+	opacity: 0.52;
+}
+
+.providerAdvancedToggle {
+	margin: 8px 0 14px;
+}
+
+.providerAdvancedButton {
+	height: 36px !important;
+	padding: 0 16px !important;
+	font-size: var(--horosa-fs-body-lg) !important;
+	font-weight: 600 !important;
+	border-radius: 8px !important;
+}
+
+.providerAdvancedPanel {
+	padding: 12px 12px 2px;
+	margin-bottom: 12px;
+	border: 1px solid var(--horosa-border);
+	border-radius: 8px;
+	background: var(--horosa-panel-soft);
+}
+
+.providerSwitchList {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.providerSwitchItem {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--horosa-border);
+	border-radius: 8px;
+	background: var(--horosa-panel-soft);
+}
+
+.providerSwitchItemActive {
+	border-color: var(--horosa-accent);
+	background: var(--horosa-accent-soft);
+}
+
+.providerSwitchMain {
+	min-width: 0;
+}
+
+.providerSwitchTitle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	color: var(--horosa-text);
+}
+
+.providerSwitchMeta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-muted);
+}
+
+.providerSwitchUrl {
+	margin-top: 6px;
+	overflow: hidden;
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.toolbarActions {
+	margin-top: 10px;
+}
+
+.chatSplit {
+	display: grid;
+	grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.95fr);
+	gap: 12px;
+	height: 100%;
+	min-height: 0;
+}
+
+/* —— 面向用户的新版顶栏：① 配置 → ② 测试连接 → ③ 对话 —— */
+.topBar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	padding: 2px 2px 10px;
+	border-bottom: 1px solid var(--horosa-border);
+	flex: 0 0 auto;
+}
+
+.topGroup {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.topDivider {
+	width: 1px;
+	height: 20px;
+	background: var(--horosa-border);
+	flex: 0 0 auto;
+}
+
+.topBtn {
+	flex: 0 0 auto;
+}
+
+.modelSelect {
+	min-width: 200px;
+}
+
+.sourceSelect {
+	min-width: 220px;
+
+	// 暗黑适配:antd 多选标签(ant-select-selection-item)默认亮灰底(#f5f5f5),
+	// 暗黑下亮底浅字几乎看不清(实测标签 bg rgb(245,245,245)+ 字 rgb(185,199,201))。
+	// 改用 --horosa 令牌(随明亮/暗黑自适配),与 .connChip 等 chip 同口径。
+	// 🔴 仅作用多选(ant-select-multiple)标签;单选 case 选择器的值不套 chip 底(否则值文字罩层底色)。
+	&:global(.ant-select-multiple) {
+		:global(.ant-select-selection-item) {
+			background: var(--horosa-panel-soft);
+			border-color: var(--horosa-border);
+			color: var(--horosa-text-soft);
+		}
+
+		:global(.ant-select-selection-item-remove) {
+			color: var(--horosa-text-secondary);
+
+			&:hover {
+				opacity: 1;
+				color: var(--horosa-text);
+			}
+		}
+	}
+}
+
+.connChip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 12px;
+	border-radius: 999px;
+	border: 1px solid var(--horosa-border);
+	background: var(--horosa-panel-soft);
+	color: var(--horosa-text-soft);
+	font-size: var(--horosa-fs-body);
+	line-height: 1;
+	cursor: pointer;
+	transition: border-color 0.15s, background 0.15s;
+	flex: 0 0 auto;
+}
+
+.connChip:hover {
+	border-color: var(--horosa-accent);
+}
+
+.connDot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+	flex: 0 0 auto;
+}
+
+.connOk {
+	color: var(--horosa-jade, #2e7d5b);
+}
+
+.connOk:hover {
+	border-color: var(--horosa-jade, #2e7d5b);
+}
+
+.connErr {
+	color: var(--horosa-danger, #cf1322);
+}
+
+.connErr:hover {
+	border-color: var(--horosa-danger, #cf1322);
+}
+
+.connIdle {
+	color: var(--horosa-muted);
+}
+
+/* 对话区：主流 Chat 式——占满竖向空间；空态居中气泡输入，出文后展开为消息流 + 底部停靠输入，消息居中限宽便于阅读 */
+.chatStage {
+	height: 100%;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+/* 空态：垂直居中的问候 + 气泡输入（仿主流 Chat landing） */
+.chatLanding {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px 16px;
+	overflow: auto;
+}
+
+.chatLandingInner {
+	width: 100%;
+	max-width: 720px;
+	text-align: center;
+}
+
+.chatLandingTitle {
+	/* 空态问候用宋体:与全站无衬线正文区分开,只此一处 */
+	font-family: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif SC", serif;
+	font-size: 30px;
+	font-weight: 600;
+	line-height: 1.3;
+	letter-spacing: 0.02em;
+	color: var(--horosa-text);
+	margin-bottom: 6px;
+	text-wrap: balance;
+}
+
+.chatLandingHint {
+	font-size: var(--horosa-fs-body);
+	color: var(--horosa-muted);
+	margin-bottom: 22px;
+}
+
+/* 空态三步引导(只在没有可用接口时出现) */
+.landingSetup {
+	display: grid;
+	/* 按容器宽自适应(放大档下可用宽变窄时自动换成两列 / 单列);不用视口媒体查询 —— 它不随壳缩放变 */
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 10px;
+	margin: 0 0 14px;
+	text-align: left;
+}
+.landingSetupCard {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-width: 0;
+	padding: 12px 14px;
+	border: 1px solid var(--horosa-border);
+	border-radius: 14px;
+	background: var(--horosa-surface-raised, var(--horosa-panel-bg));
+}
+.landingSetupStep {
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-muted);
+	font-variant-numeric: tabular-nums;
+}
+.landingSetupTitle {
+	margin: 2px 0;
+	font-size: var(--horosa-fs-subtitle);
+	font-weight: 600;
+	color: var(--horosa-text);
+}
+.landingSetupDesc {
+	max-width: 100%;
+	margin-bottom: 10px;
+	font-size: var(--horosa-fs-small);
+	line-height: 1.5;
+	color: var(--horosa-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.landingSetupGo {
+	appearance: none;
+	margin-top: auto;
+	height: 28px;
+	padding: 0 12px;
+	border: 1px solid var(--horosa-border-strong, var(--horosa-accent));
+	border-radius: 8px;
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent);
+	font-size: var(--horosa-fs-body);
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+.landingSetupGo:hover {
+	background: var(--horosa-accent);
+	color: var(--horosa-on-accent, #fff);
+}
+.landingSetupGo:focus-visible {
+	outline: var(--horosa-focus-outline);
+	outline-offset: var(--horosa-focus-offset);
+}
+.composerPick:focus-visible {
+	outline: var(--horosa-focus-outline);
+	outline-offset: var(--horosa-focus-offset);
+}
+.composerStatusToggle:focus-visible {
+	outline: var(--horosa-focus-outline);
+	outline-offset: var(--horosa-focus-offset);
+}
+
+.chatLanding .composerBubble {
+	text-align: left;
+}
+
+/* 活动态：消息流（居中列）+ 底部停靠输入 */
+.chatThread {
+	width: 100%;
+	max-width: 768px;
+	margin: 0 auto;
+}
+
+.chatThreadHead {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 2px 2px 12px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--horosa-border);
+}
+
+.chatThreadTitle {
+	font-weight: 600;
+	color: var(--horosa-text);
+}
+
+.composerDock {
+	flex: 0 0 auto;
+	padding: 10px 12px 6px;
+}
+
+/* 主流 Chat 式圆角气泡输入框 */
+.composerBubble {
+	border: 1px solid var(--horosa-border);
+	border-radius: 16px;
+	background: var(--horosa-surface-raised, var(--horosa-panel-bg));
+	padding: 6px 10px 6px;
+	box-shadow: 0 2px 14px rgba(15, 28, 53, 0.06);
+	transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.composerBubble:focus-within {
+	border-color: var(--horosa-accent);
+	box-shadow: 0 4px 18px rgba(var(--horosa-accent-rgb, 154, 106, 37), 0.12);
+}
+
+// 拖拽图片高亮：虚线 + 强调色，提示用户「放手即上传」。
+.composerBubbleDragOver {
+	border: 2px dashed var(--horosa-accent, #9a6a25) !important;
+	background: var(--horosa-accent-soft, rgba(154, 106, 37, 0.12));
+}
+
+/* 空态输入框:比停靠态松一档;顶行是案例 / 模型 / 挂载入口 */
+.composerBubbleLanding {
+	padding: 10px 12px 8px;
+	border-radius: 18px;
+}
+.composerContextRow {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 0 0 4px;
+}
+.composerPick {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+	height: 28px;
+	padding: 0 10px 0 12px;
+	border: 1px solid var(--horosa-border);
+	border-radius: 999px;
+	background: var(--horosa-surface-sunken, transparent);
+	color: var(--horosa-text);
+	font-size: var(--horosa-fs-body);
+	line-height: 1;
+	cursor: pointer;
+	transition: border-color 0.15s;
+}
+.composerPick:hover {
+	border-color: var(--horosa-accent);
+}
+.composerPick :global(.xq-icon) {
+	flex: 0 0 auto;
+	color: var(--horosa-muted);
+}
+.composerPickLabel {
+	flex: 0 0 auto;
+	color: var(--horosa-muted);
+}
+.composerPickValue {
+	max-width: 240px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.composerPickUnset {
+	border-color: var(--horosa-border-strong, var(--horosa-accent));
+}
+.composerPickUnset .composerPickValue {
+	color: var(--horosa-accent);
+}
+.composerStatusToggle {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+	height: 26px;
+	padding: 0 8px 0 10px;
+	border: 1px solid var(--horosa-border-soft, var(--horosa-border));
+	border-radius: 8px;
+	background: transparent;
+	color: var(--horosa-text-soft);
+	font-size: var(--horosa-fs-small);
+	line-height: 1;
+	cursor: pointer;
+}
+.composerStatusToggle:hover {
+	border-color: var(--horosa-accent);
+	color: var(--horosa-text);
+}
+.composerStatusToggle[aria-expanded='true'] :global(.xq-icon) {
+	transform: rotate(180deg);
+}
+.composerStatusCollapsed {
+	display: none;
+}
+
+// 挂载状态条：紧贴 composer 上方。
+.contextBanner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 6px;
+	padding: 6px 10px;
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-text-soft, #8a8f99);
+	background: var(--horosa-panel-soft, rgba(255, 255, 255, 0.04));
+	border: 1px solid var(--horosa-border, rgba(255, 255, 255, 0.08));
+	border-radius: 6px;
+}
+.contextBannerEmpty {
+	color: var(--horosa-text-soft, #8a8f99);
+	font-style: italic;
+}
+.contextBannerLabel {
+	color: var(--horosa-text-soft, #8a8f99);
+}
+.contextBannerItem {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	background: var(--horosa-bg, rgba(0, 0, 0, 0.2));
+	border-radius: 4px;
+	color: var(--horosa-text, #d0d3da);
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+// 事盘挂载的存档时刻角注:比正文淡一档,提示「挂载=保存时刻真值」。
+.contextBannerSavedAt {
+	color: var(--horosa-text-secondary, rgba(160, 165, 180, 0.75));
+	font-size: var(--horosa-fs-caption);
+	white-space: nowrap;
+}
+.contextBannerEdit {
+	margin-left: auto;
+	cursor: pointer;
+	color: var(--horosa-accent, #5b8def);
+}
+.contextBannerEdit:hover { text-decoration: underline; }
+
+// 落地页示例提问 chip：可点击填入 prompt。
+.landingExamples {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+	margin: 16px 0 0;   /* 示例在输入框下方 */
+}
+.landingExampleChip {
+	cursor: pointer;
+	margin: 0 !important;
+	padding: 5px 14px !important;
+	font-size: var(--horosa-fs-body);
+	border-radius: 999px !important;
+	background: transparent !important;
+	border: 1px solid var(--horosa-border, rgba(107, 92, 66, 0.2)) !important;
+	color: var(--horosa-text-soft, #5f584c) !important;
+	transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.landingExampleChip:hover {
+	background: var(--horosa-accent-soft, rgba(154, 106, 37, 0.12)) !important;
+	color: var(--horosa-accent, #9a6a25) !important;
+	border-color: var(--horosa-accent, #9a6a25) !important;
+}
+.landingExamplesHint {
+	font-size: var(--horosa-fs-caption);
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-left: 4px;
+	align-self: center;
+}
+
+.chatThreadExportBtn {
+	margin-left: auto !important;
+	font-size: var(--horosa-fs-small) !important;
+}
+
+.messageErrorAlert {
+	margin-top: 8px;
+	font-size: var(--horosa-fs-small);
+}
+
+.messageUsage {
+	font-size: var(--horosa-fs-caption);
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-left: auto;
+	padding-right: 6px;
+	cursor: default;
+	white-space: nowrap;
+}
+
+// 资料 pane 全区拖拽：浮层 + 提示。
+.materialHint {
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-text-soft, #8a8f99);
+	margin: 4px 0 8px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.materialIngestBar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px;
+	background: var(--horosa-panel-soft, rgba(255,255,255,0.04));
+	border-radius: 6px;
+	margin-bottom: 8px;
+}
+.materialDropOverlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(91, 141, 239, 0.10);
+	border: 3px dashed var(--horosa-accent, #5b8def);
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 50;
+	pointer-events: none;
+}
+.materialDropOverlayInner {
+	text-align: center;
+	color: var(--horosa-accent-strong, #4070d0);
+	background: var(--horosa-surface-raised, rgba(255,255,255,0.95));
+	padding: 24px 36px;
+	border-radius: 12px;
+	box-shadow: 0 10px 36px rgba(0,0,0,0.25);
+}
+.materialDropOverlayHint {
+	font-size: var(--horosa-fs-small);
+	color: var(--horosa-text-soft, #8a8f99);
+	margin-top: 6px;
+}
+// 给 paneShell 加 relative 以承载 overlay 绝对定位。
+.paneShell { position: relative; }
+
+// folder drawer 列表 + provider 紧凑表格 + 模板变量侧栏 + 版本 diff
+.folderRow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+}
+.folderRow:hover { background: var(--horosa-panel-soft, rgba(255,255,255,0.04)); }
+.folderRowName { flex: 1; }
+
+.providerDenseTable :global(.ant-table-tbody > tr > td),
+.providerDenseTable :global(.ant-table-thead > tr > th) {
+	padding: 6px 10px !important;
+}
+
+.templateVarSidebar {
+	border: 1px solid var(--horosa-border, rgba(255,255,255,0.08));
+	border-radius: 6px;
+	padding: 10px 12px;
+	background: var(--horosa-panel-soft, rgba(255,255,255,0.03));
+	max-height: 280px;
+	overflow: auto;
+}
+.templateVarItem {
+	display: flex;
+	gap: 8px;
+	padding: 3px 0;
+	font-family: var(--horosa-mono, monospace);
+	font-size: var(--horosa-fs-small);
+	align-items: center;
+}
+.templateVarItemMissing { color: var(--horosa-warn, #faad14); }
+
+.templateDiffWrap {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+.templateDiffCol h4 { margin: 0 0 6px; font-size: var(--horosa-fs-small); color: var(--horosa-text-soft); }
+.templateDiffBox {
+	border: 1px solid var(--horosa-border, rgba(255,255,255,0.08));
+	border-radius: 6px;
+	padding: 8px;
+	max-height: 420px;
+	overflow: auto;
+	font-family: var(--horosa-mono, monospace);
+	font-size: var(--horosa-fs-small);
+	line-height: 1.55;
+	white-space: pre-wrap;
+	background: var(--horosa-panel-soft, rgba(0,0,0,0.18));
+}
+.templateDiffAdd { background: rgba(82, 196, 26, 0.18); }
+.templateDiffDel { background: rgba(255, 77, 79, 0.18); text-decoration: line-through; }
+
+.composerInput.composerInput {
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	padding: 6px 6px !important;
+	resize: none;
+}
+
+.composerBar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 2px;
+}
+
+.composerHint {
+	font-size: var(--horosa-fs-small);
+}
+
+@media (max-width: 560px) {
+	.composerHint { display: none; }
+}
+
+/* 挂载设置抽屉分区 */
+.mountSection {
+	margin-bottom: 18px;
+}
+
+.mountSectionLabel {
+	margin-bottom: 6px;
+	font-size: var(--horosa-fs-body);
+	font-weight: 500;
+	color: var(--horosa-text-soft);
+}
+

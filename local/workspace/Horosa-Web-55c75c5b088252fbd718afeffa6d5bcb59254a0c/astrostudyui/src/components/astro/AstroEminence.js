@@ -8,6 +8,7 @@ import { XQToggleCaret } from '../xq-icons';
 import { SmallTable, astroSymbol } from './AstroExtraCommon';
 import { computeEminence, computePredominator, computeSevenRays, RAY_NAMES_CN } from '../../utils/astroClassicalDerived';
 import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { pressable } from '../../utils/pressable';
 
 const MUTED = 'var(--horosa-muted, #999)';
 const GOLD = 'var(--horosa-gold, #b8860b)';
@@ -57,7 +58,7 @@ class AstroEminence extends Component{
 			<div className="horosa-info-card horosa-classical-card">
 				<div className="horosa-classical-card-title" style={{ cursor: 'pointer', justifyContent: 'space-between' }}
 					role="button" aria-expanded={open}
-					onClick={() => this.setState({ open: !open })}>
+					{...pressable(() => this.setState({ open: !open }), { role: false })}>
 					<span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
 						<span className="horosa-classical-zh">显赫程度</span>
 						<span className="horosa-classical-en">Eminence</span>

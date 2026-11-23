@@ -1,0 +1,59 @@
+diff --git a/astrostudyui/src/components/kinastro/main/subTechniques.js b/astrostudyui/src/components/kinastro/main/subTechniques.js
+index 6ff03175..75b4e61b 100644
+--- a/astrostudyui/src/components/kinastro/main/subTechniques.js
++++ b/astrostudyui/src/components/kinastro/main/subTechniques.js
+@@ -12,7 +12,7 @@ import { ZhengChuanMain } from './lazyPanels';
+ 
+ export const subTechniqueMethods = {
+ 	buildHeluoOpts(){
+-		return {
++		return this.memoOpts('heluo', {
+ 			ziShuMode: this.state.heluoZiShu,
+ 			jiGongMode: this.state.heluoJiGong,
+ 			zhiZunEnabled: this.state.heluoZhiZun,
+@@ -21,7 +21,7 @@ export const subTechniqueMethods = {
+ 			liuYueMode: this.state.heluoLiuYueMode,
+ 			huangdiOffset: Number.isFinite(parseInt(this.state.heluoHuangdiOffset, 10)) ? parseInt(this.state.heluoHuangdiOffset, 10) : 2697,   // 0 可达
+ 			showLiuRi: this.state.heluoShowLiuRi,
+-		};
++		});
+ 	},
+ 
+ 	/**
+@@ -105,7 +105,8 @@ export const subTechniqueMethods = {
+ 
+ 	buildZhengChuanOpts(){
+ 		// 汇总全部开关 → 单一 opts 下传;任一变则中/右栏重算 + AI 快照刷新(禁止只监听单项)。
+-		return {
++		// memoOpts 只稳定【引用】:任一项值变 → 新对象 → 子组件照常重算,契约逐字不变。
++		return this.memoOpts('zhengchuan', {
+ 			school: this.state.zhengchuanSchool,
+ 			askGz: this.state.zhengchuanAskGz,
+ 			fatherAge: this.state.zhengchuanFatherAge,
+@@ -124,7 +125,7 @@ export const subTechniqueMethods = {
+ 			gong: this.state.zhengchuanGong,
+ 			xqZhi: this.state.zhengchuanXqZhi,
+ 			xqYushu: this.state.zhengchuanXqYushu,
+-		};
++		});
+ 	},
+ 
+ 	// 用户亲手改控件的统一入口:落盘(只收 schema 里的键,输入类键自动忽略)+ setState。
+@@ -152,7 +153,7 @@ export const subTechniqueMethods = {
+ 	},
+ 
+ 	buildYizhangjingOpts(){
+-		return {
++		return this.memoOpts('yizhangjing', {
+ 			shunniRule: this.state.yizhangjingShunni,
+ 			mingGongMethod: this.state.yizhangjingMingGong,
+ 			dayunLength: parseInt(this.state.yizhangjingDayunLen, 10) || 7,
+@@ -172,7 +173,7 @@ export const subTechniqueMethods = {
+ 			// 显示层：预设名（题头徽）与童限显示开关；供 UI 标注，不改盘算
+ 			yizhangjingPresetName: this.yzjDeviationCount() > 0 ? '自定义' : (YZJ_PRESET_LABELS[this.state.yizhangjingPreset] || '自定义'),
+ 			tongxianShow: this.state.yizhangjingTongxian,
+-		};
++		});
+ 	},
+ 
+ 	renderCenter(){

@@ -228,9 +228,12 @@ class Qimen:
                                   option).get("坤") != "符":
                     a = list(map(earth.get, rotate))
                     return dict(zip(gong_reorder, config.new_list(a, self.pan_earth(option).get("坤"))))
+                # horosa_qimen_tianpan_fuyin_v1:時干即中五宮之干、值符星本宮就是坤宮(值符天芮)時,星未動,
+                # 天盤干與地盤干逐宮相同(伏吟)。此處原從圈上最後一干排起,九星 / 八門 / 八神皆伏吟而天盤干錯轉兩三宮,
+                # 與本庫自己排出的星盤矛盾;天盤干由九星帶本宮地盤干而行,故改為自坤宮之干排起。
                 if earth.get("坤") == gan_head:
                     a = list(map(earth.get, rotate))
-                    return dict(zip(gong_reorder, config.new_list(a, list(reversed(a))[0])))
+                    return dict(zip(gong_reorder, config.new_list(a, earth.get("坤"))))
                 else:
                     try:
                         return dict(zip(gong_reorder, config.new_list(a, gan_head)))

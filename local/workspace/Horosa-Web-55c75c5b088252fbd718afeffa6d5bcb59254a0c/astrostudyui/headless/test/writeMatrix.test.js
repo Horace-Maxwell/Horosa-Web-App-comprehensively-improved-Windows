@@ -167,8 +167,9 @@ async function readTool(srv, name, args){
 }
 async function ledgerTotal(srv){ return (await readTool(srv, 'list_actions', { limit: 1, includeUndone: true })).total; }
 async function ledgerItem(srv, actionId){ return ((await readTool(srv, 'list_actions', { limit: 50, includeUndone: true })).items || []).find((x)=>x.actionId === actionId) || null; }
-// 盘上指纹:本机存储 + 存储区文件;剔掉账本 / 提案 / 回收站 / 限额计数等「记账」类键与记录里的时间戳(撤销后这些合理地不同)
-const BOOKKEEPING = /ledger|proposal|trash|recycle|external\.(rate|writes|bucket)|ratelimit|lastWrite|notice|undo|^horosaLocalServerRoot/i;
+// 盘上指纹:本机存储 + 存储区文件;剔掉账本 / 提案 / 回收站 / 删除记录 / 限额计数等「记账」类键与记录里的时间戳(撤销后这些合理地不同)
+//   删除记录(horosa.lc.lifeEvents.deleted.v1、删除日志 horosa.deleted.log.v1)与回收站同类:撤销写入 = 删掉那条,留痕是设计(恢复备份时不把删过的带回)
+const BOOKKEEPING = /ledger|proposal|trash|recycle|(^|\.)deleted\.|external\.(rate|writes|bucket)|ratelimit|lastWrite|notice|undo|^horosaLocalServerRoot/i;
 // 「空」一律当「没有」:null / 空串 / 空数组 / 空对象 / 存成字符串的 "[]"(撤销把缺省字段还原成空值是等价的)
 const isEmptyish = (v)=>v === null || v === undefined || v === '' || v === '[]' || v === '{}' || (Array.isArray(v) && v.length === 0) || (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
 function stripTimes(v){
@@ -250,6 +251,43 @@ const FIXTURES = {
 	propose_record_edit: { proposal: true, prep: async (s)=>({ a: await freshChart(s, '改') }), args: (c, v)=>({ recordId: c.a, changes: { memo: v ? '矩阵备注乙' : '矩阵备注甲' } }) },
 	propose_record_archive: { proposal: true, prep: async (s)=>({ a: await freshChart(s, '归') }), args: (c, v)=>({ recordId: c.a, ...(v ? { reason: '换个理由' } : {}) }) },
 	create_celebrity_chart: { prep: async (s, n)=>({ id: CELEB_IDS[(2 * n) % CELEB_IDS.length], id2: CELEB_IDS[(2 * n + 1) % CELEB_IDS.length] }), args: (c, v)=>({ id: v ? c.id2 : c.id }) },
+	add_material_note: { args: (c, v)=>({ title: `矩阵资料${c.n}`, text: v ? '正文乙' : '正文甲' }) },
+	copy_record: { prep: async (s)=>({ a: await freshChart(s, '副'), b: await freshChart(s, '副') }), args: (c, v)=>({ recordId: v ? c.b : c.a }) },
+	// 内容类提案(模版 / 技能包 / 个人口径)与档案类提案同一个提案库:拒绝即作废
+	propose_template: { proposal: true, args: (c, v)=>({ name: `矩阵模版${c.n}`, instructionText: v ? '分三段' : '分四段' }) },
+	propose_skill_pack: { proposal: true, args: (c, v)=>({ name: `矩阵技能${c.n}`, triggers: [`/矩阵${c.n}`], promptTemplate: v ? '看乙' : '看甲' }) },
+	propose_persona_text: { proposal: true, args: (c, v)=>({ text: v ? '说话再简洁些' : '说话简洁' }) },
+	// 恢复提案要一张在回收站里的档案:建档后撤销(撤销建档 = 移入回收站)
+	propose_record_recover: {
+		proposal: true,
+		prep: async (s)=>{
+			const w = await ENTRIES.mcp.call(s, 'create_chart_record', { name: `矩阵回收${(seq += 1)}`, birth: '1971-03-04 05:06', place: '北京', gender: 'female', allowDuplicate: true });
+			assert.ok(w.ok && w.actionId, `建回收目标失败:${w.code}`);
+			assert.ok((await undoVia(s, 'mcp', w.actionId)).ok, '撤销建档(移入回收站)失败');
+			return { a: w.data.cid };
+		},
+		args: (c, v)=>({ recordId: c.a, ...(v ? { reason: '换个理由' } : {}) }),
+	},
+	propose_record_unlink: {
+		proposal: true,
+		prep: async (s)=>{
+			const a = await freshChart(s, '链'); const b = await freshChart(s, '链');
+			assert.ok((await ENTRIES.mcp.call(s, 'link_records', { recordId: a, otherRecordId: b, relation: 'friend' })).ok, '建关联失败');
+			return { a, b };
+		},
+		args: (c, v)=>({ recordId: c.a, otherRecordId: c.b, ...(v ? { reason: '换个理由' } : {}) }),
+	},
+	// 撤销豁免类(UNDO_EXEMPT 登记了理由):写入照常记账、幂等照常,只是没有「一键撤销」;landed = 怎么确认真写了
+	propose_memory: { exempt: true, landed: 'disk', args: (c, v)=>({ text: v ? `矩阵记忆乙${c.n}` : `矩阵记忆甲${c.n}` }) },
+	save_document: {
+		exempt: true,
+		landed: (srv, r1)=>{ assert.ok(r1.data && r1.data.path && fs.existsSync(r1.data.path), `导出文件不在:${r1.data && r1.data.path}`); },
+		prep: async (s)=>({ a: await freshChart(s, '存') }),
+		args: (c, v)=>({ kind: 'technique', format: v ? 'docx' : 'md', technique: 'bazi', source: { kind: 'record', recordId: c.a } }),
+	},
+	// 这个环境里无法成功的(如实拒绝:不记账、不动盘;三入口同码)—— 写明为什么
+	//   control_task:无头里会建任务的动作要无头分析出口 + 模型接口;矩阵目录在出口关着时生成
+	control_task: { refusal: 'E_TASK_NOT_FOUND', args: (c, v)=>({ taskId: `task-matrix-${c.n}`, action: v ? 'cancel' : 'pause' }) },
 };
 let CELEB_IDS = [];
 
@@ -347,6 +385,16 @@ describe('无头写入面三入口矩阵', ()=>{
 					const key = `matrix-${tool}-${entry}-${n}`;
 					const f0 = await diskPrint(srv.home);   // eslint-disable-line no-await-in-loop
 					const t0 = await ledgerTotal(srv);   // eslint-disable-line no-await-in-loop
+					if(f.refusal){
+						// 这个环境里成功不了:如实拒绝(固定码)、不记账、不动盘;带幂等键再来一次同样拒
+						for(const k of [key, key]){
+							const r = await E.call(srv, tool, args, k);   // eslint-disable-line no-await-in-loop
+							assert.deepEqual([r.ok, r.code], [false, f.refusal], `应如实拒绝:${r.code} ${r.message}`);
+						}
+						assert.equal(await ledgerTotal(srv), t0, '拒绝了却记了账');   // eslint-disable-line no-await-in-loop
+						assert.equal(await diskPrint(srv.home), f0, '拒绝了却动了盘');   // eslint-disable-line no-await-in-loop
+						continue;
+					}
 					// ① 写入
 					const r1 = await E.call(srv, tool, args, key);   // eslint-disable-line no-await-in-loop
 					assert.ok(r1.ok, `写入失败 ${r1.code} ${r1.message}`);
@@ -360,6 +408,8 @@ describe('无头写入面三入口矩阵', ()=>{
 						assert.equal(f1, f0, `提案不该改档案(变了:${diffKeys(f0, f1).join(' ; ')})`);
 						assert.ok(r1.data && r1.data.proposalId, '提案回包没带提案 id');
 						assert.equal(await proposalStatus(srv, r1.data.proposalId), 'pending');   // eslint-disable-line no-await-in-loop
+					}else if(f.exempt && typeof f.landed === 'function'){
+						f.landed(srv, r1);
 					}else{
 						assert.notEqual(f1, f0, '写入回包成功,盘上数据却没变');
 					}
@@ -376,7 +426,9 @@ describe('无头写入面三入口矩阵', ()=>{
 					assert.equal(await ledgerTotal(srv), t0 + 1, '同键换参让账本 +1');   // eslint-disable-line no-await-in-loop
 					//      (同键换参若偷偷写了盘,下面「撤销 / 拒绝后 == 写入前」必不等,不另读一次盘)
 					// ③ 撤销
-					if(f.proposal){
+					if(f.exempt){
+						assert.equal(r1.undoKind, 'none', '撤销豁免类的撤销类别应是 none(理由登记在 UNDO_EXEMPT)');
+					}else if(f.proposal){
 						assert.equal(r1.undoKind, 'none', '提案类的撤销应走拒绝');
 						const rj = await proposalVia(srv, entry, 'reject', r1.data.proposalId);   // eslint-disable-line no-await-in-loop
 						assert.ok(rj && rj.ok, `拒绝提案失败 ${rj && rj.code}`);
@@ -409,16 +461,31 @@ describe('无头写入面三入口矩阵', ()=>{
 			for(const entry of Object.keys(ENTRIES)){
 				const r = await ENTRIES[entry].call(srv, 'set_settings', { facet, values }, `ui-${facet}-${entry}`);   // eslint-disable-line no-await-in-loop
 				if(r.ok || r.code !== 'E_BRIDGE_UNAVAILABLE'){ fails.push(`${facet} × ${entry}:${r.ok ? '回了成功' : r.code}`); }
-				// 描述与写入同一判据:整面标只读,原因就是写入时那句拒绝
+				// 描述与写入同一判据:当前盘整面标只读、原因就是写入时那句拒绝;全局显示里纯界面项逐项只读(原因同句),
+				//   起盘 / 快照会读的几项(日界 / 晚子时 / 空亡古典义 / 择日快照行数…)照常可写(直写全局设置)
 				const d = await ENTRIES[entry].call(srv, 'describe_settings', { facet });   // eslint-disable-line no-await-in-loop
 				const items = (d.data && d.data.items) || [];
-				if(!d.ok || !d.data || d.data.writable !== false || d.data.readOnlyReason !== r.message || !items.length || items.some((it)=>it.settable !== false)){
-					fails.push(`${facet} × ${entry}:描述没标只读或原因与写入拒绝不一致(${JSON.stringify(d.data && { writable: d.data.writable, readOnlyReason: d.data.readOnlyReason })})`);
+				const bad = facet === 'chart'
+					? (!d.ok || !d.data || d.data.writable !== false || d.data.readOnlyReason !== r.message || !items.length || items.some((it)=>it.settable !== false))
+					: (!d.ok || !d.data || d.data.writable === false || !items.some((it)=>it.key === 'wheelArt' && it.settable === false && it.hint === r.message) || !items.some((it)=>it.key === 'dayBoundary' && it.settable === true));
+				if(bad){
+					fails.push(`${facet} × ${entry}:描述与写入拒绝不一致(${JSON.stringify(d.data && { writable: d.data.writable, readOnlyReason: d.data.readOnlyReason })})`);
 				}
 			}
 		}
 		assert.deepEqual(fails, []);
 		assert.equal(await ledgerTotal(srv), t0, '如实拒绝的写入不该记账本');
+		// 起盘会读的全局项照常可写、可撤销(三入口各一次:写 → 盘上变 → 撤销 → 回到写前)
+		for(const entry of Object.keys(ENTRIES)){
+			const f0 = await diskPrint(srv.home);   // eslint-disable-line no-await-in-loop
+			const w = await ENTRIES[entry].call(srv, 'set_settings', { facet: 'app', values: { dayBoundary: 'after24' } }, `app-direct-${entry}`);   // eslint-disable-line no-await-in-loop
+			if(!w.ok){ fails.push(`app 直写 × ${entry}:${w.code} ${w.message}`); continue; }
+			if(await diskPrint(srv.home) === f0){ fails.push(`app 直写 × ${entry}:回了成功,盘上没变`); }   // eslint-disable-line no-await-in-loop
+			const u = await undoVia(srv, entry, w.actionId);   // eslint-disable-line no-await-in-loop
+			if(!u || !u.ok){ fails.push(`app 直写撤销 × ${entry}:${u && u.code}`); continue; }
+			if(await diskPrint(srv.home) !== f0){ fails.push(`app 直写撤销 × ${entry}:没回到写前`); }   // eslint-disable-line no-await-in-loop
+		}
+		assert.deepEqual(fails, []);
 		const c = await ENTRIES.rest.call(srv, 'create_chart_record', { name: '矩阵载入', birth: '1990-01-01 08:00', place: '北京', loadIntoWorkspace: true, allowDuplicate: true });
 		assert.ok(c.ok);
 		assert.equal(c.data.loaded, false, '无头没有工作区,不能回「已载入」');
@@ -454,14 +521,14 @@ describe('无头写入面三入口矩阵', ()=>{
 		assert.deepEqual([acc2.ok, acc2.code], [false, 'E_PROPOSAL_NOT_PENDING']);
 		const acc3 = await proposalVia(srv, 'cli', 'accept', pa.data.proposalId);
 		assert.deepEqual([acc3.ok, acc3.code], [false, 'E_PROPOSAL_NOT_PENDING']);
-		// 非交互放行闸:只有 --yes 不够(退出码 2、提案仍待定);带放行变量才采纳,归档真落盘,HTTP 撤销采纳改回
+		// 非交互放行闸:只有 --yes 不够(退出码 6、提案仍待定);带放行变量才采纳,归档真落盘,HTTP 撤销采纳改回
 		const c = await freshChart(srv, '闸');
 		const h0 = await diskPrint(srv.home);
 		const pc = await ENTRIES.cli.call(srv, 'propose_record_archive', { recordId: c });
 		assert.ok(pc.ok);
 		const blocked = await runCli(srv, ['proposals', 'accept', pc.data.proposalId, '--yes', '--json'], '');
-		assert.equal(blocked.code, 2, `没放行变量应拒绝:${blocked.code} ${blocked.err.slice(0, 200)}`);
-		assert.match(blocked.err, /HOROSA_ALLOW_UNATTENDED_APPROVAL/);
+		assert.equal(blocked.code, 6, `没放行变量应拒绝:${blocked.code} ${blocked.err.slice(0, 200)}`);
+		assert.match(blocked.err, /要用户本人在终端执行/);
 		assert.equal(await proposalStatus(srv, pc.data.proposalId), 'pending');
 		const okc = await proposalVia(srv, 'cli', 'accept', pc.data.proposalId);
 		assert.equal(okc.ok, true);
@@ -473,7 +540,7 @@ describe('无头写入面三入口矩阵', ()=>{
 		// 终端 undo 同样要放行变量
 		const s = await ENTRIES.mcp.call(srv, 'star_record', { recordId: c });
 		const ub = await runCli(srv, ['undo', s.actionId, '--yes'], '');
-		assert.equal(ub.code, 2);
+		assert.equal(ub.code, 6);
 		assert.equal((await ledgerItem(srv, s.actionId)).undone, false, '没放行的 undo 不该生效');
 		assert.equal((await undoVia(srv, 'cli', s.actionId)).ok, true);
 	});

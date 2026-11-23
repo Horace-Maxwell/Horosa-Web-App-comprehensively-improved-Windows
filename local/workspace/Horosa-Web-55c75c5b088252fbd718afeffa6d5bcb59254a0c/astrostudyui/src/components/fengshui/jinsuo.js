@@ -1,7 +1,7 @@
 // 金锁玉关（过路阴阳）· 八方砂水 + 得位/失位 + 断语。
 // 核心原则:后天 1234(坎坤震巽)要砂主丁、6789(乾兑艮离)要水主财(7.A.1);48 细断逐卦含义(7.A.5)。
 // 注:与现有「纳气盘 6789=气位」是不同体系,不可混用。
-import { HOUTIAN_POS, POS_NAME, ZIBAI_STAR, YUN_YEARS } from './fengshuiData';
+import { POS_NAME, ZIBAI_STAR, YUN_YEARS } from './fengshuiData';
 import { zibaiYearCenter } from './liqiCore';
 import { JINSUO_SHAN_DUAN, JINSUO_GONG_QUAN, JINSUO_KUA_GONG, JINSUO_XING, JINSUO_DUANJUE_NOTE } from './fengshuiJinsuoDuanjue';
 

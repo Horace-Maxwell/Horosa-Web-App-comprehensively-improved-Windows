@@ -1,4 +1,4 @@
-// 天文馆 · 场景常量与配色:半径 / 视场、天体标签 / 颜色 / 视觉参数、图层缺省与分组、页面设置、二十八宿与星官配色。
+// 天文馆 · 场景常量与配色:半径 / 视场、天体标签 / 颜色 / 视觉参数、图层缺省与分组、页面设置、二十八宿与星官配色、星官分片建造的每帧时长。
 // 只被 components/planetarium/PlanetariumBabylon.js 与同目录 babylon/ 下的兄弟模块引用。
 import { definePageSettings } from '../../../utils/pageSettingsStore';
 
@@ -189,3 +189,6 @@ export function asterismColor(item){
 	if(item && item.symbol && ASTERISM_SYMBOL_COLORS[item.symbol]){ return ASTERISM_SYMBOL_COLORS[item.symbol]; }
 	return ASTERISM_DEFAULT_COLOR;
 }
+
+// 星官分片建造:每帧最多占这么多毫秒(一帧 16.7ms 里留足渲染 + 重投影的余量)。
+export const ASTERISM_BUILD_SLICE_MS = 6;

@@ -14,7 +14,7 @@ function literal(src, name){
 }
 
 describe('地占流派预设:后端独有档的全名', ()=>{
-	const src = fs.readFileSync(SRC, 'utf8');
+	const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(SRC);   // 门面 + 子模块全集
 	const extra = literal(src, 'TRADITION_EXTRA_LABELS');
 	const shorts = literal(src, 'TRADITION_SHORT_EXTRA');
 	const profiles = JSON.parse(fs.readFileSync(PROFILES, 'utf8'));

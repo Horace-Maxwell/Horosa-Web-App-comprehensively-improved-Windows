@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Spin } from 'antd';
+import { XQSpin } from '../xq-ui';
 import { ProgPageShell, WheelSplit, SidePanelHead, FillCard } from './progPageLayout';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
@@ -261,7 +261,7 @@ class AstroPrenatalSyzygy extends Component{
 		const shown = !!this.shownChart();
 		// 与星运其它带盘页同一套(progPageLayout):左整列是盘,右栏标题行 + 卡片(高度按内容分配);keep-stale
 		return (
-			<Spin spinning={this.state.loading && !shown}>
+			<XQSpin spinning={this.state.loading && !shown}>
 				<ProgPageShell height={height - 10} updating={this.state.loading && shown}>
 					<WheelSplit
 						head={<SidePanelHead title="产前朔望" sub={s && s.type ? `${SYZYGY_TYPE_CN[s.type] || s.type} · ${s.datetime || ''}` : ''} desc="出生前最近的一次朔(新月)或望(满月);左图为那一刻的完整星盘。朔取日月合相度,望取当时在地平之上的发光体所在度,作为取度。" />}
@@ -272,7 +272,7 @@ class AstroPrenatalSyzygy extends Component{
 						{this.renderPositions()}
 					</WheelSplit>
 				</ProgPageShell>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

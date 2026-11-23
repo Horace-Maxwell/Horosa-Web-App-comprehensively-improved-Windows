@@ -8,7 +8,8 @@ export const PLAN_MAX_STEPS = 12;
 export const PLAN_STEP_TEXT_MAX = 200;
 export const PLAN_SUMMARY_MAX = 300;
 export const PLAN_GOAL_MAX = 2000;
-export const PLAN_MANIFEST_MAX = 64;
+// 规划目录件数上限:须 ≥ 页面内可见工具总数(超了会静默截掉末尾的工具,规划时看不到它们)。目录过 64 件后抬到 128(每件约 80 字,目录约一万字以内)
+export const PLAN_MANIFEST_MAX = 128;
 export const PLAN_APPROVED_HEAD = '【已批准计划】';
 
 export const ACTION_PLAN_SCHEMA = Object.freeze({

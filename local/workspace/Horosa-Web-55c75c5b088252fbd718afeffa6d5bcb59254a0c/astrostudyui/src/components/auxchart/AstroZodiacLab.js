@@ -1,11 +1,10 @@
 // 黄道制:同一张盘的星体落在各版本不等分黄道、13 / 14 星座、88 星座与银河黄道的哪一段。后端 /astroextra/zodiacsystems。
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQSegmented, XQSelect as Select } from '../xq-ui';
-import request from '../../utils/request';
+
+import { XQSegmented, XQSelect as Select, XQSpin } from '../xq-ui';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
-import { unwrapResult, fmtNum, chartParams, chartRequestKey, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS } from '../astro/AstroExtraCommon';
+import { unwrapResult, fmtNum, chartParams, chartRequestKey, SmallTable, parkLoadFailure, clearLoadFailure, loadParked, LOAD_RETRY_PARK_MS, requestDerived } from '../astro/AstroExtraCommon';
 import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, ControlCol, ControlGrid, FillCard, LoadFailNote, EmptyWheel } from '../astro/progPageLayout';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
@@ -51,7 +50,7 @@ class AstroZodiacLab extends Component {
 		const { fields } = this.props;   // 快照 meta 要和这次请求的盘对应,不能等回包时再读
 		this.setState({ loading: true });
 		try{
-			const data = await request(`${Constants.ServerRoot}/astroextra/zodiacsystems`, {
+			const data = await requestDerived(`${Constants.ServerRoot}/astroextra/zodiacsystems`, {
 				body: JSON.stringify({ ...chartParams(this.props.value), zodiacVersion: this.state.version }),
 				timeoutMs: 30000,
 				silent: true,
@@ -167,13 +166,13 @@ class AstroZodiacLab extends Component {
 		const failed = !!this.state.loadError && this.state.requestKey !== this.requestKey();
 		return (
 			<div style={FILL_PANE}>
-				<Spin spinning={this.state.loading && !shown}>
+				<XQSpin spinning={this.state.loading && !shown}>
 					<ProgPageShell height={height} updating={this.state.loading && !!shown}>
 						<WheelSplit head={this.renderHead()} renderWheel={(size)=>(failed ? <LoadFailNote /> : this.renderWheel(shown, size))}>
 							{!failed && shown ? this.renderTables(shown) : null}
 						</WheelSplit>
 					</ProgPageShell>
-				</Spin>
+				</XQSpin>
 			</div>
 		);
 	}

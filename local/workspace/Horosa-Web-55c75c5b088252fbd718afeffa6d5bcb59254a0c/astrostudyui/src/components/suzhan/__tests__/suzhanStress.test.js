@@ -4,7 +4,7 @@
 //   · buildSuzhanSnapshotText(chartObj, fields, planetDisplay)  —— 主输出构建器(整合全部选项分支)
 //   · buildHouseObjectLines(chart)                              —— 宫内星体表构建器
 // 二者内部串联 buildHouseSuLines / computeAscSignIndex / resolveHouseStartMode /
-// foldHouseSuLinesToTable / signFromLon / splitDegree / houseFullLabel 等全部派生逻辑,
+// foldHouseSuLinesToTable / palaceLabel / splitDegree 等全部派生逻辑,
 // 恰好覆盖 4 个用户可选项(外盘型/盘型/宿法/人事十二宫起盘)的所有取值分支。
 //
 // 穷举:每个选项每种取值 × ≥30 组合成时间/种子/边界输入(空/极端/闰月/子时/跨年/缺 bazi/

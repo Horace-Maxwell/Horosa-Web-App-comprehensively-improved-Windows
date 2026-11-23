@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
-index c63f9cfe..e83f2175 100644
+index 4e51485d..4be0a5d5 100644
 --- a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
 +++ b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
-@@ -252,10 +252,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+@@ -253,10 +253,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
  		'components/astro/AstroZR.js',
  	]);
  
@@ -21,7 +21,7 @@ index c63f9cfe..e83f2175 100644
  			const src = fs.readFileSync(full, 'utf8');
  			let idx = 0;
  			for(;;){
-@@ -287,7 +294,7 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+@@ -288,7 +295,7 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
  			}
  			const m = src.match(/const\s+\w*_SCU_KEYS\s*=\s*\[([\s\S]*?)\]/);
  			if(m && !m[1].includes("'wheelArt'")){
@@ -30,7 +30,7 @@ index c63f9cfe..e83f2175 100644
  			}
  		});
  		expect(offenders).toEqual([]);
-@@ -428,7 +435,9 @@ describe('WP-9 盘式变体包接线锁', ()=>{
+@@ -429,7 +436,9 @@ describe('WP-9 盘式变体包接线锁', ()=>{
  		expect(ap.includes("this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly'")).toBe(true);
  		// 宿主接线:AstroChartMain 给 AstroPlanet 与 ChartDisplaySelector 都传了 prop
  		const main = read('../AstroChartMain.js');

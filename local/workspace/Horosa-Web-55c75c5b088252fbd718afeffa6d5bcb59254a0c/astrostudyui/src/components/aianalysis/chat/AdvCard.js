@@ -3,7 +3,8 @@
 // 新增:id(分区锚,导轨/胶囊跳转目标)· tone="danger"(危险区外观)· reset(头部统一「恢复默认」动作,缺省态隐藏)
 //        · toolbar(头与正文之间的工具条)· AdvStatus tone=warn|danger · AdvSubHead(折叠面板头:标题/说明/状态/计数,自带分区锚)。
 import React from 'react';
-import { Switch, Button } from 'antd';
+import { Button } from 'antd';
+import { XQSwitch } from '../../xq-ui';
 import XQIcon from '../../xq-icons';
 import styles from './advanced.less';
 
@@ -72,7 +73,7 @@ export function AdvSwitchRow({ title, desc, checked, onChange, switchProps, cont
 				{desc ? <div className={styles.switchDesc}>{desc}</div> : null}
 				{children}
 			</div>
-			{control || <Switch checked={!!checked} onChange={onChange} checkedChildren="开" unCheckedChildren="关" {...(switchProps || {})} />}
+			{control || <XQSwitch checked={!!checked} onChange={onChange} checkedChildren="开" unCheckedChildren="关" {...(switchProps || {})} />}
 		</div>
 	);
 }

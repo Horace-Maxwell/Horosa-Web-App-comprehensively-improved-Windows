@@ -113,7 +113,7 @@ describe.each(HOSTS)('$name', (H)=>{
 	});
 
 	test('工作台载入方案经单源打底(源码锚)', ()=>{
-		const src = read(`${H.wb}.js`);
+		const src = require('../../../utils/__tests__/helpers/zeriWorkbenchSource').readWorkbench(`${H.wb}.js`);   // 派文件 + 共用壳(applyScheme 在壳里)
 		expect(src).toContain("onOptionsChange(withFullDefaults(optionDefaults, rec.config.options), { source: 'scheme' })");
 		expect(src).toMatch(/options, onOptionsChange, optionDefaults,/);
 	});

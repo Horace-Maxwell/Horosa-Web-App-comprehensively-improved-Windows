@@ -1,25 +1,28 @@
 import React from 'react';
-import { Button, Card, DatePicker, TimePicker, Drawer, Input, InputNumber, Modal, Pagination, Radio, Select, Switch, Table, Tabs, Tooltip, message } from 'antd';
+import { Button, Card, Checkbox, DatePicker, TimePicker, Drawer, Empty, Input, InputNumber, Modal, Pagination, Radio, Select, Slider, Spin, Switch, Table, Tabs, Tooltip, message } from 'antd';
 import moment from 'moment';
 import XQIcon from '../xq-icons';
 import { scriptFilterBy } from '../../utils/scriptMode';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import { parseQuickDigitsForFormat, pickerDigitsLength, QUICK_DIGITS_ERROR_PREFIX } from '../../utils/quickDateTimeDigits';
 import { pointerLocalRatio } from '../../utils/zoomDomain';
+import { pressable } from '../../utils/pressable';
 
-export function XQButton({children, iconName, className = '', variant = 'default', ...rest}){
+// 统一件一律转 ref(原件收得下 ref 的):页面往统一件上挂 ref(量宽度、聚焦…)不会静默失效。合同:xqRefForwarding.test.js
+export const XQButton = React.forwardRef(function XQButton({children, iconName, className = '', variant = 'default', ...rest}, ref){
 	const icon = iconName ? <XQIcon name={iconName} /> : rest.icon;
 	const visualVariant = variant === 'default' && rest.type === 'primary' ? 'primary' : variant;
 	return (
 		<Button
 			{...rest}
+			ref={ref}
 			icon={icon}
 			className={`xq-button xq-button-${visualVariant} ${className}`.trim()}
 		>
 			{children}
 		</Button>
 	);
-}
+});
 
 export function XQIconButton({label, iconName, tooltip, className = '', ...rest}){
 	const btn = (
@@ -48,14 +51,78 @@ export function XQToggle({active, children, iconName, className = '', ...rest}){
 	);
 }
 
-export function XQSwitch({className = '', ...rest}){
+export const XQSwitch = React.forwardRef(function XQSwitch({className = '', ...rest}, ref){
 	// 轨道里不带「开 / 关」字的开关挂 xq-switch-plain:亮色关态用浅灰轨道(带字的要托住白字,走全站深色轨道)。
 	const plain = rest.checkedChildren == null && rest.unCheckedChildren == null;
 	return (
 		<Switch
 			{...rest}
+			ref={ref}
 			className={`xq-switch ${plain ? 'xq-switch-plain ' : ''}${className}`.trim()}
 		/>
+	);
+});
+
+// ── 基础控件统一入口:复选 / 单选 / 滑块 / 加载 / 空态 ──
+// 页面一律从这里取,不直接从 antd 引入(可维护性棘轮 rawAntd 看守):外观由全站规则 + xq-* 类名统一管,
+// 以后要换皮、加行为(键盘、缩放修正、主题)只改这里一处。API 与 antd 原件逐项相同(属性透传、静态成员照挂、ref 照转)。
+export const XQCheckbox = React.forwardRef(function XQCheckbox({className = '', ...rest}, ref){
+	return <Checkbox ref={ref} {...rest} className={`xq-checkbox ${className}`.trim()} />;
+});
+XQCheckbox.Group = React.forwardRef(function XQCheckboxGroup({className = '', ...rest}, ref){
+	return <Checkbox.Group ref={ref} {...rest} className={`xq-checkbox-group ${className}`.trim()} />;
+});
+
+export const XQRadio = React.forwardRef(function XQRadio({className = '', ...rest}, ref){
+	return <Radio ref={ref} {...rest} className={`xq-radio ${className}`.trim()} />;
+});
+XQRadio.Group = React.forwardRef(function XQRadioGroup({className = '', ...rest}, ref){
+	return <Radio.Group ref={ref} {...rest} className={`xq-radio-group ${className}`.trim()} />;
+});
+XQRadio.Button = React.forwardRef(function XQRadioButton({className = '', ...rest}, ref){
+	return <Radio.Button ref={ref} {...rest} className={`xq-radio-button ${className}`.trim()} />;
+});
+
+export const XQSlider = React.forwardRef(function XQSlider({className = '', ...rest}, ref){
+	return <Slider ref={ref} {...rest} className={`xq-slider ${className}`.trim()} />;
+});
+
+// 加载:与 antd Spin 同 API(spinning / tip / size / 包住子树时的 wrapperClassName)
+export function XQSpin({className = '', ...rest}){
+	return <Spin {...rest} className={`xq-spin ${className}`.trim()} />;
+}
+
+// 空态:与 antd Empty 同 API;两张预设图照挂
+export function XQEmpty({className = '', ...rest}){
+	return <Empty {...rest} className={`xq-empty ${className}`.trim()} />;
+}
+XQEmpty.PRESENTED_IMAGE_SIMPLE = Empty.PRESENTED_IMAGE_SIMPLE;
+XQEmpty.PRESENTED_IMAGE_DEFAULT = Empty.PRESENTED_IMAGE_DEFAULT;
+
+// ── 三态件:加载 / 出错可重试 / 空 / 计算服务没回结果 ──
+// 页面不再各写「XX计算中… / XX计算失败:… / 暂无XX数据 + 重试」:同一套文案口径、同一套外观(只用主题变量与尺度令牌)。
+//   status   'loading' | 'error' | 'empty' | 'offline'
+//   subject  拼默认文案用的对象名(「龙盘」→ 龙盘计算中… / 龙盘计算失败 / 暂无龙盘数据);不给 = 不带对象名
+//   error    出错时的具体原因;title / description 可覆盖默认文案
+//   onRetry  给了才出「重试」钮(retryLabel 改钮字);layout 'inline'(一行,放在状态栏里)| 'fill'(占满居中,放在盘位上);card 带卡片底
+export const XQ_STATE_OFFLINE_TEXT = '本机计算服务没有返回这个技法的结果。刚更新过程序时多半是计算服务还是旧版本,重启本机服务即可;本页每隔十几秒会自动重试。';
+export function XQState({ status = 'empty', subject = '', error = '', title, description, onRetry, retryLabel = '重试', layout = 'fill', card = false, className = '', children }){
+	const t = title !== undefined ? title : ({
+		loading: `${subject}计算中…`,
+		error: `${subject}计算失败`,
+		empty: `暂无${subject}数据`,
+		offline: '没有取到计算结果',
+	}[status] || '');
+	const d = description !== undefined ? description : (status === 'error' ? `${error || ''}` : (status === 'offline' ? XQ_STATE_OFFLINE_TEXT : ''));
+	const cls = `xq-state xq-state-${status} xq-state-${layout === 'inline' ? 'inline' : 'fill'}${card ? ' xq-state-card' : ''} ${className}`.trim();
+	return (
+		<div className={cls} role={status === 'error' || status === 'offline' ? 'alert' : 'status'}>
+			{status === 'loading' ? <Spin size="small" className="xq-spin xq-state-spin" /> : null}
+			<span className="xq-state-title">{layout === 'inline' && d ? `${t}：${d}` : t}</span>
+			{layout !== 'inline' && d ? <span className="xq-state-desc">{d}</span> : null}
+			{onRetry && status !== 'loading' && status !== 'empty' ? <XQButton size="small" className="xq-state-retry" onClick={onRetry}>{retryLabel}</XQButton> : null}
+			{children}
+		</div>
 	);
 }
 
@@ -314,14 +381,15 @@ export function XQCard({children, className = '', ...rest}){
 	);
 }
 
-export function XQTable({className = '', ...rest}){
+export const XQTable = React.forwardRef(function XQTable({className = '', ...rest}, ref){
 	return (
 		<Table
 			{...rest}
+			ref={ref}
 			className={`xq-table ${className}`.trim()}
 		/>
 	);
-}
+});
 
 export function XQPagination({className = '', ...rest}){
 	return (
@@ -413,9 +481,10 @@ export function XQSettingRow({label, hint, badge, control, children, disabled = 
 	);
 }
 
-export function XQSelect({className = '', popupClassName = '', dropdownClassName = '', ...rest}){
+export const XQSelect = React.forwardRef(function XQSelect({className = '', popupClassName = '', dropdownClassName = '', ...rest}, ref){
 	return (
 		<Select
+			ref={ref}
 			// 🔴 下拉面板默认按内容宽(不与窄选框等宽)→ 长选项文字在展开时完整可见(用户:选框可截断,
 			//    但下拉栏展开必须显示完整)。放在 {...rest} 前=仍可被单点显式覆盖。
 			dropdownMatchSelectWidth={false}
@@ -426,7 +495,7 @@ export function XQSelect({className = '', popupClassName = '', dropdownClassName
 			popupClassName={`xq-select-popup ${popupClassName || dropdownClassName}`.trim()}
 		/>
 	);
-}
+});
 
 XQSelect.Option = Select.Option;
 XQSelect.OptGroup = Select.OptGroup;
@@ -441,35 +510,38 @@ export const XQInput = React.forwardRef(function XQInput({className = '', ...res
 	);
 });
 
-export function XQTextArea({className = '', ...rest}){
+export const XQTextArea = React.forwardRef(function XQTextArea({className = '', ...rest}, ref){
 	return (
 		<Input.TextArea
 			{...rest}
+			ref={ref}
 			className={`xq-input xq-textarea ${className}`.trim()}
 		/>
 	);
-}
+});
 
-export function XQSearch({className = '', ...rest}){
+export const XQSearch = React.forwardRef(function XQSearch({className = '', ...rest}, ref){
 	return (
 		<Input.Search
 			{...rest}
+			ref={ref}
 			className={`xq-input xq-search ${className}`.trim()}
 		/>
 	);
-}
+});
 
 XQInput.TextArea = XQTextArea;
 XQInput.Search = XQSearch;
 
-export function XQInputNumber({className = '', ...rest}){
+export const XQInputNumber = React.forwardRef(function XQInputNumber({className = '', ...rest}, ref){
 	return (
 		<InputNumber
+			ref={ref}
 			{...rest}
 			className={`xq-input-number ${className}`.trim()}
 		/>
 	);
-}
+});
 
 // ===== 日期/时间选择框「数字快输」宿主 =====
 // 用户在选择框里连续键入数字(不带分隔符),按选择框的 format 切成年月日时分秒:输满即换算、回车/失焦亦换算;
@@ -583,42 +655,45 @@ export function QuickDigitsHost({ format, picker, showTime, value, onChange, onI
 	);
 }
 
-export function XQDatePicker({className = '', popupClassName = '', ...rest}){
+export const XQDatePicker = React.forwardRef(function XQDatePicker({className = '', popupClassName = '', ...rest}, ref){
 	return (
 		<QuickDigitsHost format={rest.format} picker={rest.picker} showTime={rest.showTime} value={rest.value} onChange={rest.onChange}>
 			<DatePicker
 				{...rest}
+				ref={ref}
 				className={`xq-date-picker ${className}`.trim()}
 				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
 			/>
 		</QuickDigitsHost>
 	);
-}
+});
 
-XQDatePicker.RangePicker = function XQRangePicker({className = '', popupClassName = '', ...rest}){
+XQDatePicker.RangePicker = React.forwardRef(function XQRangePicker({className = '', popupClassName = '', ...rest}, ref){
 	const RangePicker = DatePicker.RangePicker;
 	return (
 		<QuickDigitsHost range format={rest.format} picker={rest.picker} showTime={rest.showTime} value={rest.value} onChange={rest.onChange}>
 			<RangePicker
 				{...rest}
+				ref={ref}
 				className={`xq-date-picker xq-range-picker ${className}`.trim()}
 				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
 			/>
 		</QuickDigitsHost>
 	);
-};
+});
 
-export function XQTimePicker({className = '', popupClassName = '', ...rest}){
+export const XQTimePicker = React.forwardRef(function XQTimePicker({className = '', popupClassName = '', ...rest}, ref){
 	return (
 		<QuickDigitsHost picker="time" format={rest.format} value={rest.value} onChange={rest.onChange}>
 			<TimePicker
 				{...rest}
+				ref={ref}
 				className={`xq-date-picker xq-time-picker ${className}`.trim()}
 				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
 			/>
 		</QuickDigitsHost>
 	);
-}
+});
 
 // 竖排页签(rail)单一来源:tabPosition 为 right / left 的 XQTabs 一律走这条自绘页签条。
 // antd 的页签条在页签比页面长时只做「平移 + 省略号菜单」:拦滚轮、聚焦时把滚动位置归零,省略号还压在最后一项上。
@@ -634,8 +709,88 @@ function collectRailTabs(children, out){
 	return out;
 }
 
+// 竖排页签条在工作区横向滚动时钉在可见边上(纯函数,jest 直测):
+//   natural = 页签条没位移时的左右边(屏幕 px),visible = 滚动容器可见区左右边(屏幕 px),k = 布局 px / 屏幕 px(整页缩放下 ≠ 1)
+//   → 位移量(布局 px;负 = 往左挪):右边越出可见区就往左挪回来,左边越出就往右挪;都没越出 = 0(不动)
+export function railPinShift(natural, visible, k = 1){
+	if(!natural || !visible){ return 0; }
+	const overRight = natural.right - visible.right;
+	if(overRight > 0.5){ return -Math.round(overRight * k); }
+	const overLeft = visible.left - natural.left;
+	if(overLeft > 0.5){ return Math.round(overLeft * k); }
+	return 0;
+}
+// 最近的横向可滚祖先(工作区外层):盘面最小字下限 / 工作区宽下限让工作区加宽、外层横滚时,页签条可能落在可见区外
+function horizontalScrollParent(el){
+	let p = el && el.parentElement;
+	while(p && p !== document.body){
+		const ox = window.getComputedStyle(p).overflowX;
+		if((ox === 'auto' || ox === 'scroll') && p.scrollWidth > p.clientWidth + 1){ return p; }
+		p = p.parentElement;
+	}
+	return null;
+}
+// 页签条钉边:外层横滚时页签条不被推出窗口(放大档宿盘这类页曾整条在窗口外,要横滚才找得到别的子技法)。
+// 不横滚时什么都不做;钉住时挂 is-pinned(实底 + 边影),滚到尽头自然回位、不盖内容。
+function useRailPin(navRef){
+	React.useEffect(()=>{
+		const nav = navRef.current;
+		if(!nav || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function'){ return undefined; }
+		let shift = 0;
+		let raf = 0;
+		let scroller = null;
+		const apply = ()=>{
+			raf = 0;
+			const sc = horizontalScrollParent(nav);
+			if(sc !== scroller){ if(scroller){ scroller.removeEventListener('scroll', schedule); } scroller = sc; if(sc){ sc.addEventListener('scroll', schedule, { passive: true }); } }
+			let next = 0;
+			if(sc){
+				// 全程在滚动容器的布局域里算(本地 px,原点 = 容器可见区左缘):rect 读数只取差值、乘比值换进来,
+				// 容器自己的 clientWidth / scrollLeft / scrollWidth 本来就是布局域,原样用
+				const k = pointerLocalRatio(nav).kx || 1;
+				const r = nav.getBoundingClientRect();
+				const c = sc.getBoundingClientRect();
+				const natLeft = (r.left - c.left) * k - sc.clientLeft - shift;
+				const natural = { left: natLeft, right: natLeft + (r.right - r.left) * k };
+				// 钉住的目标位置 = 页签条在滚动尽头时自然停下的位置(与可见边之间留着同样的间隙),
+				// 这样滚到尽头解除钉住时不会跳一下(此前钉在可见边上,尽头处页签条还隔着内边距,一解钉往里跳 10px)
+				const viewW = sc.clientWidth;
+				const inContentL = natural.left + sc.scrollLeft;
+				const inContentR = natural.right + sc.scrollLeft;
+				// 间隙只在页签条真会停靠的那一侧算:滚到最左时它在视口里 = 靠左停(左间隙);滚到最右时它在视口里 = 靠右停(右间隙)
+				const gapL = inContentR <= viewW ? Math.max(0, inContentL) : 0;
+				const gapR = sc.scrollWidth - inContentL <= viewW ? Math.max(0, sc.scrollWidth - inContentR) : 0;
+				next = railPinShift(natural, { left: gapL, right: viewW - gapR });
+			}
+			if(next !== shift){
+				shift = next;
+				nav.style.transform = shift ? `translateX(${shift}px)` : '';
+				nav.classList.toggle('is-pinned', !!shift);
+				// 钉在哪一边(右缘页签条往左挪 = 钉在右边):边影投向内容那一侧
+				if(shift){ nav.setAttribute('data-pin', shift < 0 ? 'right' : 'left'); }else{ nav.removeAttribute('data-pin'); }
+			}
+		};
+		function schedule(){ if(!raf){ raf = window.requestAnimationFrame ? window.requestAnimationFrame(apply) : setTimeout(apply, 16); } }
+		schedule();
+		window.addEventListener('resize', schedule);
+		let ro = null;
+		if(typeof ResizeObserver !== 'undefined'){ ro = new ResizeObserver(schedule); ro.observe(nav); if(nav.parentElement){ ro.observe(nav.parentElement); } }
+		return ()=>{
+			if(raf && window.cancelAnimationFrame){ window.cancelAnimationFrame(raf); }
+			window.removeEventListener('resize', schedule);
+			if(scroller){ scroller.removeEventListener('scroll', schedule); }
+			if(ro){ ro.disconnect(); }
+			nav.style.transform = '';
+			nav.classList.remove('is-pinned');
+			nav.removeAttribute('data-pin');
+		};
+	}, [navRef]);
+}
+
 function XQTabRailBar({ tabs, activeKey, onSelect, tabsId, extra, style }){
 	const wrapRef = React.useRef(null);
+	const navRef = React.useRef(null);
+	useRailPin(navRef);
 	const [more, setMore] = React.useState('none');
 	const sync = React.useCallback(()=>{
 		const el = wrapRef.current;
@@ -694,13 +849,15 @@ function XQTabRailBar({ tabs, activeKey, onSelect, tabsId, extra, style }){
 		onSelect(tab.key, e);
 	};
 	return (
-		<div className="ant-tabs-nav xq-tab-rail" role="tablist" aria-orientation="vertical" style={style}>
+		<div ref={navRef} className="ant-tabs-nav xq-tab-rail" role="tablist" aria-orientation="vertical" style={style}>
 			<div className="ant-tabs-nav-wrap xq-tab-rail-wrap" data-more={more} ref={wrapRef} onScroll={sync}>
 				<div className="ant-tabs-nav-list">
 					{tabs.map((tab)=>{
 						const active = tab.key === activeKey;
 						return (
-							<div key={tab.key} data-node-key={tab.key} className={`ant-tabs-tab${active ? ' ant-tabs-tab-active' : ''}${tab.disabled ? ' ant-tabs-tab-disabled' : ''}`} onClick={pick(tab)}>
+							// 外层只收鼠标点击(点到页签边距也能切换);键盘停靠点只有内层 role=tab 一个
+							// (此前外层也是 role=button 可聚焦:每个页签按两次 Tab,tablist 里还套着 button)
+							<div key={tab.key} data-node-key={tab.key} className={`ant-tabs-tab${active ? ' ant-tabs-tab-active' : ''}${tab.disabled ? ' ant-tabs-tab-disabled' : ''}`} {...pressable(pick(tab), { role: 'presentation', tabIndex: false })}>
 								<div
 									className="ant-tabs-tab-btn" role="tab" tabIndex={tab.disabled ? -1 : 0}
 									aria-selected={active} aria-disabled={tab.disabled || undefined}
@@ -808,13 +965,17 @@ export function XQSideSection({iconName, title, extra, collapsible = true, defau
 	return (
 		<section className={`xq-side-section ${expanded ? '' : 'xq-side-section-collapsed'} ${className}`.trim()}>
 			{/* 整行可点(含箭头);extra 内是独立控件,stopPropagation 防误触折叠 */}
+			{/* 键盘停靠点只有这一行本身(回车 / 空格折叠);里面那颗标题按钮不再单独停一次 ——
+			    桌面壳打开「Tab 走到按钮」后,原生按钮都够得着了,不摘掉它每个分节标题就要按两次 Tab 才过得去 */}
 			<div
 				className={`xq-side-section-header ${collapsible ? 'xq-side-section-header-collapsible' : ''}`.trim()}
-				onClick={collapsible ? toggle : undefined}
+				{...pressable(collapsible ? toggle : undefined)}
+				aria-expanded={collapsible ? expanded : undefined}
 			>
 				<button
 					type="button"
 					className="xq-side-section-toggle"
+					tabIndex={-1}
 					aria-expanded={collapsible ? expanded : undefined}
 				>
 					{iconName ? <XQIcon name={iconName} className="xq-side-section-icon" /> : null}
@@ -822,7 +983,7 @@ export function XQSideSection({iconName, title, extra, collapsible = true, defau
 					<span className="xq-side-section-title" title={typeof title === 'string' ? title : undefined}>{title}</span>
 				</button>
 				{extra ? (
-					<span className="xq-side-section-extra" onClick={(e)=>e.stopPropagation()}>{extra}</span>
+					<span className="xq-side-section-extra" onClick={(e)=>e.stopPropagation()} role="presentation">{extra}</span>
 				) : null}
 				{collapsible ? <XQIcon name="chevronDown" className="xq-side-section-arrow" /> : null}
 			</div>

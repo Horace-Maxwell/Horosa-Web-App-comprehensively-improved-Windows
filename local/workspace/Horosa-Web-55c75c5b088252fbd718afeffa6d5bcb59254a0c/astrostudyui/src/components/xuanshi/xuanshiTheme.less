@@ -50,7 +50,7 @@
 				padding: 8px 13px;
 				margin-bottom: 2px;
 				border-radius: 8px;
-				font-size: 14px;
+				font-size: var(--horosa-fs-body-lg);
 				color: var(--ink-soft);
 				cursor: pointer;
 				letter-spacing: .04em;
@@ -114,13 +114,13 @@
 		user-select: none;
 	}
 
-	.xuanshi-brand-name { font-family: var(--xs-serif); font-size: 18px; font-weight: 600; color: var(--ink); letter-spacing: .14em; }
+	.xuanshi-brand-name { font-family: var(--xs-serif); font-size: var(--horosa-fs-title); font-weight: 600; color: var(--ink); letter-spacing: .14em; }
 
-	.xuanshi-eyebrow { font-size: 11px; letter-spacing: .34em; color: var(--vermilion); text-transform: uppercase; font-weight: 500; }
+	.xuanshi-eyebrow { font-size: var(--horosa-fs-caption); letter-spacing: .34em; color: var(--vermilion); text-transform: uppercase; font-weight: 500; }
 
 	.xuanshi-display { font-family: var(--xs-serif); font-weight: 300; color: var(--ink); line-height: 1.18; letter-spacing: -0.004em; margin: 0; }
 	.xuanshi-display.is-hero { font-size: clamp(30px, calc(4 * var(--horosa-lvw, 1vw)), 46px); }
-	.xuanshi-display.is-h2 { font-size: 24px; font-weight: 400; }
+	.xuanshi-display.is-h2 { font-size: var(--horosa-fs-display); font-weight: 400; }
 
 	.xuanshi-card {
 		background: var(--paper-card);
@@ -135,7 +135,7 @@
 
 	.xuanshi-chip {
 		display: inline-flex; align-items: center; gap: 4px;
-		padding: 1px 9px; border-radius: 999px; font-size: 11px; line-height: 1.7;
+		padding: 1px 9px; border-radius: 999px; font-size: var(--horosa-fs-caption); line-height: 1.7;
 		border: 1px solid var(--line); color: var(--ink-muted); background: transparent; white-space: nowrap;
 	}
 	.xuanshi-chip.is-vermilion { color: var(--vermilion); border-color: var(--vermilion); background: var(--vermilion-soft); }
@@ -146,12 +146,12 @@
 	.xuanshi-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
 	.xuanshi-stat { text-align: center; padding: 4px 0; }
 	.xuanshi-stat-num { font-family: var(--xs-serif); font-size: 30px; font-weight: 600; color: var(--ink); line-height: 1.05; font-variant-numeric: tabular-nums; }
-	.xuanshi-stat-label { margin-top: 5px; font-size: 12px; letter-spacing: .14em; color: var(--ink-muted); }
-	.xuanshi-stat-sub { margin-top: 3px; font-size: 11px; color: var(--ink-muted); opacity: .8; }
+	.xuanshi-stat-label { margin-top: 5px; font-size: var(--horosa-fs-small); letter-spacing: .14em; color: var(--ink-muted); }
+	.xuanshi-stat-sub { margin-top: 3px; font-size: var(--horosa-fs-caption); color: var(--ink-muted); opacity: .8; }
 
 	.xuanshi-btn {
 		display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px;
-		border: 1px solid var(--line); background: var(--paper-card); color: var(--ink-soft); font-size: 13px; cursor: pointer;
+		border: 1px solid var(--line); background: var(--paper-card); color: var(--ink-soft); font-size: var(--horosa-fs-body); cursor: pointer;
 		transition: border-color .15s, color .15s, background .15s;
 		&:hover { border-color: var(--ink-muted); color: var(--ink); }
 	}
@@ -159,8 +159,8 @@
 
 	.xuanshi-deco-line { height: 1px; background: linear-gradient(90deg, transparent, var(--line) 18%, var(--line) 82%, transparent); margin: 30px 0; }
 
-	.xuanshi-section-sub { font-size: 13px; color: var(--ink-muted); margin: 4px 0 18px; line-height: 1.7; }
-	.xuanshi-hint { margin-top: 20px; font-size: 13px; line-height: 1.85; color: var(--ink-muted); }
+	.xuanshi-section-sub { font-size: var(--horosa-fs-body); color: var(--ink-muted); margin: 4px 0 18px; line-height: 1.7; }
+	.xuanshi-hint { margin-top: 20px; font-size: var(--horosa-fs-body); line-height: 1.85; color: var(--ink-muted); }
 	.xuanshi-center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 340px; gap: 12px; color: var(--ink-muted); }
 	.xuanshi-link { color: var(--vermilion); cursor: pointer; }
 
@@ -196,7 +196,7 @@
 
 	// —— prose:markdown → HTML 内容(列传/故事/词条 body_html)成熟排印 ——
 	.xuanshi-prose {
-		color: var(--ink-soft); line-height: 1.85; font-size: 18px;
+		color: var(--ink-soft); line-height: 1.85; font-size: var(--horosa-fs-title);
 		h1, h2, h3, h4 { font-family: var(--xs-serif); color: var(--ink); margin: 1.2em 0 .5em; font-weight: 700; line-height: 1.35; }
 		h1 { font-size: 30px; } h2 { font-size: 25px; } h3 { font-size: 21px; } h4 { font-size: 19px; }
 		h1:first-child, h2:first-child, h3:first-child { margin-top: 0.2em; }
@@ -224,13 +224,13 @@
 	// ===== 事件/人物详情：对齐开源标准版的描边框 / 钩子卡 / 事件脉络 =====
 	// 段落框：原文(ink)/白话(gold)/解读(vermilion) 左色条 + 浅底,清晰分区。
 	.xuanshi-field { margin-bottom: 18px; }
-	.xuanshi-field-label { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 6px; }
+	.xuanshi-field-label { font-size: var(--horosa-fs-micro); letter-spacing: .18em; text-transform: uppercase; margin-bottom: 6px; }
 	.xuanshi-field-body {
 		border-left: 3px solid var(--ink);
 		padding: .55rem .95rem;
 		background: rgba(40, 30, 20, .025);
 		border-radius: 0 6px 6px 0;
-		font-size: 15px; line-height: 1.85; color: var(--ink);
+		font-size: var(--horosa-fs-subtitle); line-height: 1.85; color: var(--ink);
 	}
 	.xuanshi-field.is-original .xuanshi-field-label { color: var(--ink-muted); }
 	.xuanshi-field.is-modern { .xuanshi-field-label { color: var(--jade); } .xuanshi-field-body { border-left-color: var(--gold); background: var(--gold-soft); } }
@@ -246,12 +246,12 @@
 		margin-bottom: 18px;
 		.xuanshi-hook-row { margin-bottom: 12px; &:last-child { margin-bottom: 0; } }
 		.xuanshi-hook-tag {
-			display: inline-block; font-size: 11px; letter-spacing: .12em;
+			display: inline-block; font-size: var(--horosa-fs-caption); letter-spacing: .12em;
 			border-radius: 4px; padding: 1px 7px; margin-right: .5rem; vertical-align: .1em;
 		}
 		.xuanshi-hook-tag.is-dianjing { color: var(--gold); border: 1px solid rgba(180, 138, 60, .5); }
 		.xuanshi-hook-tag.is-mifa { color: var(--jade); border: 1px solid rgba(60, 120, 90, .5); }
-		.xuanshi-hook-text { font-size: 15px; line-height: 1.85; color: var(--ink); }
+		.xuanshi-hook-text { font-size: var(--horosa-fs-subtitle); line-height: 1.85; color: var(--ink); }
 	}
 
 	// 事件脉络：起因 ▸ 过程 ▸ 应验 横向流,窄屏回落纵向。
@@ -260,7 +260,7 @@
 		flex: 1 1 180px; min-width: 0; position: relative;
 		border: 1px solid var(--line); border-radius: 8px; padding: .55rem .8rem;
 		background: var(--paper-card);
-		.xuanshi-flow-label { font-size: 10px; letter-spacing: .14em; color: var(--ink-muted); margin-bottom: 4px; }
+		.xuanshi-flow-label { font-size: var(--horosa-fs-micro); letter-spacing: .14em; color: var(--ink-muted); margin-bottom: 4px; }
 		.xuanshi-flow-text { font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); }
 	}
 	.xuanshi-flow-step.is-trigger { border-left: 3px solid var(--jade); }
@@ -270,8 +270,8 @@
 	// 人物相关事件富卡片内的「史书原文 ∥ 白话译文」双栏
 	.xuanshi-ev-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
 	@media (max-width: 720px) { .xuanshi-ev-cols { grid-template-columns: 1fr; } }
-	.xuanshi-ev-col-label { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 4px; }
-	.xuanshi-ev-col-body { font-size: 14px; line-height: 1.8; padding-left: .9rem; white-space: pre-line; }
+	.xuanshi-ev-col-label { font-size: var(--horosa-fs-micro); letter-spacing: .2em; text-transform: uppercase; margin-bottom: 4px; }
+	.xuanshi-ev-col-body { font-size: var(--horosa-fs-body-lg); line-height: 1.8; padding-left: .9rem; white-space: pre-line; }
 	.xuanshi-ev-col.is-original { .xuanshi-ev-col-label { color: var(--vermilion); } .xuanshi-ev-col-body { border-left: 3px solid var(--vermilion); color: var(--ink); } }
 	.xuanshi-ev-col.is-modern { .xuanshi-ev-col-label { color: var(--jade); } .xuanshi-ev-col-body { border-left: 3px solid var(--jade); color: var(--ink-soft); } }
 
@@ -279,11 +279,11 @@
 	.xuanshi-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; margin: 10px 0; }
 	@media (max-width: 720px) { .xuanshi-facts { grid-template-columns: 1fr; } }
 	.xuanshi-facts .is-wide { grid-column-start: 1; grid-column-end: -1; }   /* 起止分写:`1 / -1` 会被 LESS 算成 -1 */
-	.xuanshi-facts dt { font-size: 11px; color: var(--ink-muted); }
+	.xuanshi-facts dt { font-size: var(--horosa-fs-caption); color: var(--ink-muted); }
 	.xuanshi-facts dd { font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 2px; }
 
 	// 详情面包屑
-	.xuanshi-crumbs { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+	.xuanshi-crumbs { font-size: var(--horosa-fs-small); color: var(--ink-muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
 		.xuanshi-crumb { cursor: pointer; &:hover { color: var(--ink); } }
 		.xuanshi-crumb-sep { color: var(--ink-muted); }
 	}
@@ -294,7 +294,7 @@
 	.xuanshi-meta-card {
 		border: 1px solid var(--line); border-radius: 10px; background: var(--paper-card);
 		padding: 14px 16px; margin-bottom: 14px;
-		.xuanshi-meta-label { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 8px; }
+		.xuanshi-meta-label { font-size: var(--horosa-fs-micro); letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 8px; }
 		.xuanshi-meta-row { font-size: 12.5px; line-height: 1.7; color: var(--ink-soft); margin-bottom: 3px;
 			.k { color: var(--ink-muted); margin-right: 4px; }
 		}
@@ -310,16 +310,16 @@
 		border-radius: 10px; transition: border-color .15s, box-shadow .15s;
 		&:focus-within { border-color: var(--vermilion); box-shadow: 0 0 0 3px var(--vermilion-soft); }
 	}
-	.xuanshi-search-icon { display: grid; place-items: center; width: 50px; color: var(--ink-muted); font-size: 18px; }
+	.xuanshi-search-icon { display: grid; place-items: center; width: 50px; color: var(--ink-muted); font-size: var(--horosa-fs-title); }
 	.xuanshi-search-input {
 		flex: 1; min-width: 0; background: transparent; border: none; outline: none;
-		padding: 15px 10px; font-size: 15px; color: var(--ink);
+		padding: 15px 10px; font-size: var(--horosa-fs-subtitle); color: var(--ink);
 		font-family: var(--xs-serif); letter-spacing: .03em;
 		&::placeholder { color: var(--ink-muted); opacity: .7; }
 	}
 	.xuanshi-search-go {
 		padding: 0 24px; background: var(--ink); color: var(--paper);
-		border: none; cursor: pointer; font-size: 14px; letter-spacing: .12em;
+		border: none; cursor: pointer; font-size: var(--horosa-fs-body-lg); letter-spacing: .12em;
 		border-radius: 0 9px 9px 0; transition: background .15s;
 		&:hover { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 	}
@@ -327,7 +327,7 @@
 	.xuanshi-facets { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
 	.xuanshi-facet-row { display: grid; grid-template-columns: 54px 1fr; gap: 14px; align-items: start; }
 	.xuanshi-facet-key {
-		font-family: var(--xs-serif); font-size: 13px; letter-spacing: .2em;
+		font-family: var(--xs-serif); font-size: var(--horosa-fs-body); letter-spacing: .2em;
 		color: var(--ink-muted); padding-top: 7px; text-align: right;
 	}
 	.xuanshi-facet-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -369,9 +369,9 @@
 	}
 
 	.xuanshi-examples { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-top: 13px; padding-left: 8px; }
-	.xuanshi-examples-label { font-size: 11px; letter-spacing: .22em; color: var(--ink-muted); }
+	.xuanshi-examples-label { font-size: var(--horosa-fs-caption); letter-spacing: .22em; color: var(--ink-muted); }
 	.xuanshi-example {
-		background: none; border: none; color: var(--ink-soft); font-size: 13px;
+		background: none; border: none; color: var(--ink-soft); font-size: var(--horosa-fs-body);
 		cursor: pointer; padding: 2px 0; border-bottom: 1px dashed var(--line); font-family: inherit;
 		&:hover { color: var(--vermilion); border-bottom-color: var(--vermilion); }
 	}
@@ -393,8 +393,8 @@
 		&:hover { color: var(--ink); }
 	}
 	.xuanshi-trad-tab.is-active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
-	.xuanshi-trad-tab .xuanshi-trad-n { font-size: 12px; opacity: .8; font-variant-numeric: tabular-nums; }
-	.xuanshi-trad-note { margin-left: 6px; font-size: 11px; color: var(--ink-muted); }
+	.xuanshi-trad-tab .xuanshi-trad-n { font-size: var(--horosa-fs-small); opacity: .8; font-variant-numeric: tabular-nums; }
+	.xuanshi-trad-note { margin-left: 6px; font-size: var(--horosa-fs-caption); color: var(--ink-muted); }
 
 	.xuanshi-evbar {
 		display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
@@ -423,15 +423,15 @@
 		&:hover { background: var(--paper-soft); }
 	}
 	.xuanshi-evrow-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
-	.xuanshi-evrow-id { margin-left: auto; font-size: 10px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+	.xuanshi-evrow-id { margin-left: auto; font-size: var(--horosa-fs-micro); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 	.xuanshi-evrow-title {
-		font-family: var(--xs-serif); font-size: 15px; color: var(--ink); line-height: 1.5;
+		font-family: var(--xs-serif); font-size: var(--horosa-fs-subtitle); color: var(--ink); line-height: 1.5;
 		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 	}
 	.xuanshi-evrow-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vermilion); margin-right: 8px; vertical-align: middle; opacity: .55; }
-	.xuanshi-evrow-src { font-size: 11px; color: var(--ink-muted); margin-left: 8px; font-family: "Noto Sans SC", sans-serif; }
+	.xuanshi-evrow-src { font-size: var(--horosa-fs-caption); color: var(--ink-muted); margin-left: 8px; font-family: "Noto Sans SC", sans-serif; }
 	.xuanshi-evrow-sum {
-		margin: 6px 0 0; font-size: 13px; line-height: 1.7; color: var(--ink-soft);
+		margin: 6px 0 0; font-size: var(--horosa-fs-body); line-height: 1.7; color: var(--ink-soft);
 		display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
 	}
 	// 密度:密=仅标题、中=2 行摘要、摘=完整展开
@@ -457,7 +457,7 @@
 	.xuanshi-quicklink {
 		display: flex; align-items: center; justify-content: center; text-align: center;
 		padding: 14px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-card);
-		font-family: var(--xs-serif); font-size: 13px; color: var(--ink-soft); cursor: pointer;
+		font-family: var(--xs-serif); font-size: var(--horosa-fs-body); color: var(--ink-soft); cursor: pointer;
 		transition: border-color .15s, color .15s;
 		&:hover { border-color: var(--ink-muted); color: var(--vermilion); }
 	}
@@ -478,7 +478,7 @@
 	.xuanshi-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0; }
 	@media (max-width: 720px) { .xuanshi-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 	.xuanshi-kpi-card { border: 1px solid var(--line); border-radius: 12px; background: var(--paper-card); padding: 16px 18px; box-shadow: var(--xs-shadow-sm); }
-	.xuanshi-kpi-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
+	.xuanshi-kpi-label { font-size: var(--horosa-fs-caption); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); }
 	.xuanshi-kpi-num { font-family: var(--xs-serif); font-size: 30px; font-weight: 300; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
 	.xuanshi-celfilter {
@@ -495,13 +495,13 @@
 	.xuanshi-celcol-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
 	.xuanshi-celcol-row {
 		display: flex; align-items: center; justify-content: space-between; gap: 10px;
-		padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--ink-soft);
+		padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: var(--horosa-fs-body); color: var(--ink-soft);
 		&:hover { background: var(--paper-soft); color: var(--ink); }
 	}
 	.xuanshi-celcol-row.is-active { background: var(--vermilion-soft); color: var(--vermilion); }
 	/* 名字放不下一行时折行(不再省略):文档缩放下内核常画不出省略号(全站退成硬裁),放大档名字被截却看不出被截 */
 	.xuanshi-celcol-name { font-family: var(--xs-serif); min-width: 0; overflow-wrap: break-word; }
-	.xuanshi-celcol-n { font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+	.xuanshi-celcol-n { font-size: var(--horosa-fs-small); color: var(--ink-muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 
 	// 星象大典中段:十年期堆叠面积图(echarts)+ 原始条目·史书 双列(对齐标准版 1.4fr/1fr)
 	.xuanshi-cel-mid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin: 18px 0; align-items: start; }
@@ -532,14 +532,14 @@
 	.xuanshi-micro-grid { display: grid; grid-template-columns: 280px 1fr; gap: 18px; align-items: start; }
 	@media (max-width: 900px) { .xuanshi-micro-grid { grid-template-columns: 1fr; } }
 	.xuanshi-micro-hover {
-		position: fixed; z-index: 1300; width: 360px; max-width: calc(92 * var(--horosa-lvw, 1vw));
+		position: fixed; z-index: var(--horosa-z-hovercard); width: 360px; max-width: calc(92 * var(--horosa-lvw, 1vw));
 		padding: 14px 16px; background: var(--paper-card); border: 1px solid var(--line);
 		border-radius: 10px; box-shadow: var(--xs-shadow); pointer-events: none;
 	}
 	.xuanshi-mh-field { margin-bottom: 9px; }
-	.xuanshi-mh-field .k { font-size: 10px; letter-spacing: .18em; color: var(--ink-muted); text-transform: uppercase; margin-bottom: 3px; }
-	.xuanshi-mh-field .v { font-size: 13px; line-height: 1.7; color: var(--ink-soft); max-height: 130px; overflow-y: auto; }
-	.xuanshi-mh-meta { font-size: 11px; color: var(--ink-muted); margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+	.xuanshi-mh-field .k { font-size: var(--horosa-fs-micro); letter-spacing: .18em; color: var(--ink-muted); text-transform: uppercase; margin-bottom: 3px; }
+	.xuanshi-mh-field .v { font-size: var(--horosa-fs-body); line-height: 1.7; color: var(--ink-soft); max-height: 130px; overflow-y: auto; }
+	.xuanshi-mh-meta { font-size: var(--horosa-fs-caption); color: var(--ink-muted); margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 
 	// ===== 总览(对齐标准版首页)hero / 玄典甄选+名家 / 图谱工具 / 馆藏 =====
 	.xuanshi-hero-rule { width: 60px; height: 2px; background: var(--vermilion); margin-top: 18px; opacity: .85; }
@@ -556,7 +556,7 @@
 		&:hover { transform: translateY(-2px); border-color: var(--accent, var(--vermilion)); box-shadow: var(--xs-shadow); }
 		&:hover::before { opacity: .85; }
 	}
-	.xuanshi-tool-name { font-family: var(--xs-serif); font-size: 16px; color: var(--ink); font-weight: 500; transition: color .15s; }
+	.xuanshi-tool-name { font-family: var(--xs-serif); font-size: var(--horosa-fs-title-sm); color: var(--ink); font-weight: 500; transition: color .15s; }
 	.xuanshi-tool-card:hover .xuanshi-tool-name { color: var(--accent, var(--vermilion)); }
 	.xuanshi-tool-sub { font-size: 11.5px; color: var(--ink-muted); margin-top: 5px; }
 
@@ -564,7 +564,7 @@
 	@media (max-width: 720px) { .xuanshi-collection { grid-template-columns: repeat(2, 1fr); } }
 	.xuanshi-coll-cell { background: var(--paper); padding: 20px 18px; }
 	.xuanshi-coll-num { font-family: var(--xs-serif); font-weight: 300; font-size: clamp(26px, calc(3 * var(--horosa-lvw, 1vw)), 36px); color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
-	.xuanshi-coll-label { font-size: 11px; letter-spacing: .2em; color: var(--ink-muted); margin-top: 10px; }
+	.xuanshi-coll-label { font-size: var(--horosa-fs-caption); letter-spacing: .2em; color: var(--ink-muted); margin-top: 10px; }
 
 	// ============================================================
 	// 设计系统底座 —— 原样照搬参考 参考设计系统 的组件类(scope 到 .xuanshi-app)。
@@ -612,13 +612,13 @@
 		.btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); }
 		.btn-ghost:hover { background: var(--paper-soft); border-color: var(--line-soft); color: var(--ink); }
 
-		.view-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper-card); font-size: 12px; }
+		.view-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper-card); font-size: var(--horosa-fs-small); }
 		.view-switch button { padding: .35rem .7rem; color: var(--ink-muted); border-right: 1px solid var(--line-soft); cursor: pointer; background: transparent; transition: background .1s ease, color .1s ease; }
 		.view-switch button:last-child { border-right: none; }
 		.view-switch button:hover { color: var(--ink); background: var(--paper-soft); }
 		.view-switch button.active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 
-		.mobile-tile { display: flex; align-items: center; padding: .55rem .7rem; font-size: 13px; color: var(--ink-soft); background: var(--paper-card); border: 1px solid var(--line-soft); border-radius: 8px; cursor: pointer; transition: background .1s ease, border-color .1s ease; }
+		.mobile-tile { display: flex; align-items: center; padding: .55rem .7rem; font-size: var(--horosa-fs-body); color: var(--ink-soft); background: var(--paper-card); border: 1px solid var(--line-soft); border-radius: 8px; cursor: pointer; transition: background .1s ease, border-color .1s ease; }
 		.mobile-tile:hover { background: var(--paper-soft); border-color: var(--vermilion-soft); color: var(--ink); }
 		.link { color: var(--vermilion); cursor: pointer; &:hover { text-decoration: underline; } }
 	}
@@ -639,7 +639,7 @@
 	.xuanshi-star {
 		display: inline-flex; align-items: center; justify-content: center;
 		width: 32px; height: 32px; border-radius: 8px; cursor: pointer; flex: 0 0 auto;
-		font-size: 18px; line-height: 1; color: var(--ink-muted);
+		font-size: var(--horosa-fs-title); line-height: 1; color: var(--ink-muted);
 		border: 1px solid var(--line); background: var(--paper-card);
 		transition: color .12s, border-color .12s, background .12s;
 		&:hover { color: var(--gold); border-color: var(--gold); }

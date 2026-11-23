@@ -6,10 +6,10 @@
 import React, { Component, createRef } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQSideSection, XQSegmented, XQInput as Input, XQInputNumber as InputNumber, XQButton as Button, XQSelect as Select } from '../xq-ui';
-import { Tabs, Tag, Collapse } from 'antd';
+import { Tabs, Collapse } from 'antd';
 import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, qiGuaByYaoQian, trigramByName } from './core/xiaochengtuQiGua';
-import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, yingQiTui, suggestGong, klineYongGong } from './core/xiaochengtuPan';
-import { YONG_GONG_OPTIONS, DI_PAN, GUA_GONG, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
+import { buildPan, zhengTuiText, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, yingQiTui, suggestGong, klineYongGong } from './core/xiaochengtuPan';
+import { YONG_GONG_OPTIONS, DI_PAN, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
 import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
@@ -258,16 +258,16 @@ class XiaoChengTuMain extends Component {
 			qi = qiGuaManual({ up: inputs.up, lo: inputs.lo, dongYaos: ds });
 			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '本卦上下卦非法', qi: null }); }
 		}else if(settings.qiguaFa === 'dayan'){
-			// 大衍蓍草:手录六爻(6/7/8/9)优先;否则以种子派生(未录则用当下时刻作种,一经起出即冻结可复现)。
+			// 大衍蓍草:手录六爻(6/7/8/9)优先;填了种子按种子派生;都没给 = 每爻取系统真随机数(一经起出即冻结进存档)。
 			const cs = `${inputs.countsText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>[6, 7, 8, 9].indexOf(x) >= 0);
 			const useManual = cs.length === 6;
-			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : Date.now();
+			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : undefined;
 			qi = qiGuaByDaYan({ seed, manualCounts: useManual ? cs : undefined });
 			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '大衍起卦失败', qi: null }); }
 		}else if(settings.qiguaFa === 'yaoqian'){
-			// 摇钱三变:手录六爻(6/7/8/9)优先;否则以种子派生(同大衍之冻结可复现口径)。
+			// 摇钱三变:手录六爻(6/7/8/9)优先;填了种子按种子派生;都没给 = 每枚钱取系统真随机数(同大衍之冻结口径)。
 			const cs = `${inputs.countsText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>[6, 7, 8, 9].indexOf(x) >= 0);
-			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : Date.now();
+			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : undefined;
 			qi = qiGuaByYaoQian({ seed, manualCounts: cs.length === 6 ? cs : undefined });
 			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '摇钱起卦失败', qi: null }); }
 		}else if(settings.qiguaFa === 'number'){
@@ -403,9 +403,9 @@ class XiaoChengTuMain extends Component {
 					options={[{ value: 'manual', label: '手动本卦' }, { value: 'dayan', label: '大衍蓍草' }, { value: 'yaoqian', label: '摇钱三变' }, { value: 'number', label: '两数配卦' }, { value: 'stock', label: '股价起卦' }]}/>)}
 				{(settings.qiguaFa === 'dayan' || settings.qiguaFa === 'yaoqian') ? (
 					<>
-						{this.field('起卦种子', <InputNumber size="small" style={{ width: '100%' }} placeholder="整数种子(空=当下时刻)" value={inputs.seed} onChange={(v)=>this.setState({ inputs: { ...inputs, seed: v } })}/>, '一经起出即冻结,可复现')}
+						{this.field('起卦种子', <InputNumber size="small" style={{ width: '100%' }} placeholder="整数种子(空=真随机)" value={inputs.seed} onChange={(v)=>this.setState({ inputs: { ...inputs, seed: v } })}/>, '一经起出即冻结,可复现')}
 						{this.field('手录六爻', this.renderDayanYao(),
-							settings.qiguaFa === 'yaoqian' ? '选填:六爻全填才按摇钱手录(三背老阳9/三字老阴6),否则用种子派生' : '选填:六爻全填才按蓍草手录,否则用种子派生')}
+							settings.qiguaFa === 'yaoqian' ? '选填:六爻全填才按摇钱手录(三背老阳9/三字老阴6),否则按种子或真随机起' : '选填:六爻全填才按蓍草手录,否则按种子或真随机起')}
 					</>
 				) : null}
 				{settings.qiguaFa === 'manual' ? this.field('本卦', (

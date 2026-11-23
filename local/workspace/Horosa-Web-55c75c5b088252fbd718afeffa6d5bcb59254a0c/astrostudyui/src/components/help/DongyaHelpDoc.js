@@ -2,7 +2,7 @@
 // 手册格式见 HelpBook:一页签一章(藏历藏占 / 蒙古 / 算命学 / 九星 / 洛书 / 易卦),另有总览一章。中性表述,纯展示零后端。
 import React, { Component } from 'react';
 import HelpBook from './HelpBook';
-import { p, ul, li, card, ct, kv, Lead, Section, Tip, Steps, OptionTable } from './helpDocStyle';
+import { p, ul, li, kv, Lead, Section, Tip, Steps, OptionTable } from './helpDocStyle';
 import { EAST_ASIA_TABS, EAST_ASIA_PAGE_SETTINGS } from '../../utils/eastAsiaSnapshot';
 
 // 当前子页签:调用方显式给的(ctx.innerTab)优先,否则读本页记住的页签;都没有回总览

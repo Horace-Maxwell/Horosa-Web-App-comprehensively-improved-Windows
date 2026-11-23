@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
-index 3e23a845..7015e744 100644
+index dacdf857..24ef0e48 100644
 --- a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
 +++ b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
 @@ -1,4 +1,5 @@

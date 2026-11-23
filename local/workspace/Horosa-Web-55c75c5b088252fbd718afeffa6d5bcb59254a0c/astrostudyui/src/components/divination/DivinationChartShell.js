@@ -10,7 +10,7 @@ import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
 import { casePlaceGroup, caseDivTimeUsable, parseCaseDivTimeInto } from '../../utils/kentangCaseSave';
 import { getHousesOption } from '../comp/CompHelper';
-import { XQButton, XQSegmented, XQSelect, XQTabs, XQSideSection } from '../xq-ui';
+import { XQButton, XQSelect, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';

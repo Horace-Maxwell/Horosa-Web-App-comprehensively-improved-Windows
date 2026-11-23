@@ -1,6 +1,7 @@
 // AI 助手·工具共用小件(不含任何写入)。
 import { getStore } from '../../storageutil';
 import { getWorkspaceBridge, getWorkspaceUi } from '../workspaceBridge';
+import { toDateOrNull } from '../../dateTimeParse';
 
 export function nowStr(){
 	const d = new Date();
@@ -62,4 +63,10 @@ export function aiOriginOf(ctx, tool, extra){
 	const origin = c.origin || 'in-app';
 	const client = origin === 'mcp' && c.clientName ? `${c.clientName}`.slice(0, 80) : '';
 	return { actionId: c.actionId, tool, at: new Date().toISOString(), origin, ...(client ? { client } : {}), ...(extra || {}) };
+}
+
+// 档案时刻(updateTime 等)存的是本机时间、不带时区;回包另给一份 ISO(UTC)便于外部程序比较(加键不改键)。认不出 = undefined
+export function localTimeIso(v){
+	const d = v ? toDateOrNull(v, { local: true }) : null;
+	return d ? d.toISOString() : undefined;
 }

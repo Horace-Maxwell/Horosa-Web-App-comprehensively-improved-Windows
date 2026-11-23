@@ -307,11 +307,13 @@ def get_bingzhan_jixiong(shensha, active_gua):
 
 
 class Shenyishu():
-    def __init__(self, year, month, day, hour, after23_new_day=1, late_zi_next_day=1):
+    def __init__(self, year, month, day, hour, after23_new_day=1, late_zi_next_day=1, minute=0):
         self.year = year
         self.month = month
         self.day = day
         self.hour = hour
+        # 起课分钟:只用于交节当日判断是否已过精确交节(缺省 0 = 整点)
+        self.minute = minute or 0
         self.after23_new_day = after23_new_day
         # [X1] 晚子时起干开关(全局 lateZiHourUseNextDay 透传):1=晚子时按次日日干起子时(旧行为,默认);
         # 0=仍按当日日干起。此前前端传了、事盘存了,后端不读、此处写死 —— 开关对本技法恒死。
@@ -348,6 +350,12 @@ class Shenyishu():
             return {"年": _y, "月": _m, "日": _d, "時": _h}
         yTG = Gan[self.cdate.getYearGZ().tg] + Zhi[self.cdate.getYearGZ().dz]
         mTG = Gan[self.cdate.getMonthGZ().tg] + Zhi[self.cdate.getMonthGZ().dz]
+        # 交节当日按精确交节时刻校正年 / 月柱(sxtwl 日级)。23 时日柱进位次日不影响年月柱:按钟面日期判
+        try:
+            from kin_year_domain import jie_exact_year_month as _jie_exact
+            yTG, mTG = _jie_exact(self.year, self.month, self.day, self.hour, self.minute, yTG, mTG)
+        except ImportError:
+            pass
         dTG = Gan[self.cdate.getDayGZ().tg] + Zhi[self.cdate.getDayGZ().dz]
         # 時柱跨日:23 时时柱改走全域权威 extreme_pillars(after23/hour_gan_next 四组合口径与八字/主链一致)。
         #   旧路径先把「起时所用日」换成次日再调 sxtwl getHourGZ(23),而该库对 23 点本身已按次日干起子 → 进位两次

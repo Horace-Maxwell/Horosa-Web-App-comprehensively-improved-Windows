@@ -1,20 +1,21 @@
-// 把已存命盘/事盘置顶或置底(只增:改一个排序标记;撤销=恢复写入前的层级,写后被手工改过则拒撤)。
+// 把已存命盘/事盘置顶、置底,或 position:none 取消置顶 / 置底(改一个排序标记;撤销=恢复写入前的层级,写后被手工改过则拒撤)。
 import { GUIDE, RECORD_ID_PATTERN } from './_shared';
 import { findRecord, readFlag, writeFlag, flagUndo, withPersistNote } from '../recordFlags';
 
-const POSITIONS = { top: 1, bottom: -1 };
+const POSITIONS = { top: 1, bottom: -1, none: 0 };
 
 // 无变化(已在该位置)的回包:无变化预检(审批前)与执行同一份
 function unchanged(args, f){
 	if(!f){ return null; }
 	const tier = POSITIONS[args.position || 'top'];
 	if(readFlag(f.store, f.rec, 'pinTier') !== tier){ return null; }
-	return { ok: true, data: { cid: args.recordId, pinTier: tier, changed: false }, summary: `${f.title} 已${tier === 1 ? '置顶' : '置底'}`, message: '该记录已在该位置,无需重复' };
+	return { ok: true, data: { cid: args.recordId, pinTier: tier, changed: false }, summary: `${f.title} ${tier === 1 ? '已置顶' : (tier === -1 ? '已置底' : '本来就没有置顶 / 置底')}`, message: '该记录已在该位置,无需重复' };
 }
 
 export default {
 	name: 'pin_record',
 	level: 'additive',
+	idempotent: true,   // 同参重复调用状态不再变(noChange 判过即回 changed:false)
 	category: 'records',
 	// 输出结构(外部客户端据此校验 structuredContent)
 	outputSchema: {
@@ -23,8 +24,8 @@ export default {
 	},
 	undoKind: 'restore-record-flag',
 	origins: ['in-app', 'mcp'],
-	description: `把一条已存命盘/事盘置顶(缺省)或置底(档案列表排序标记;不改其它字段,可撤销)。${GUIDE}:仅当用户说「把 X 置顶/放最前/放最后」时调用;记录 id 先用 list_records 取。`,
-	inputSchema: { type: 'object', additionalProperties: false, required: ['recordId'], properties: { recordId: { type: 'string', pattern: RECORD_ID_PATTERN, description: '记录 id' }, position: { type: 'string', enum: ['top', 'bottom'], description: 'top=置顶(缺省) / bottom=置底' } } },
+	description: `把一条已存命盘/事盘置顶(缺省)、置底,或 position:none 取消置顶 / 置底(档案列表排序标记;不改其它字段,可撤销)。${GUIDE}:仅当用户说「把 X 置顶/放最前/放最后/取消置顶」时调用;记录 id 先用 list_records 取。`,
+	inputSchema: { type: 'object', additionalProperties: false, required: ['recordId'], properties: { recordId: { type: 'string', pattern: RECORD_ID_PATTERN, description: '记录 id' }, position: { type: 'string', enum: ['top', 'bottom', 'none'], description: 'top=置顶(缺省) / bottom=置底 / none=取消置顶或置底' } } },
 	preview(args){
 		const f = findRecord(args.recordId);
 		if(!f){ return null; }
@@ -41,6 +42,6 @@ export default {
 		const nc = unchanged(args, f);
 		if(nc){ return nc; }
 		try{ writeFlag(f.store, args.recordId, 'pinTier', tier); }catch(e){ return { ok: false, code: 'E_STORE_QUOTA', message: e && e.message ? e.message : `${e}` }; }
-		return withPersistNote(f.store, { ok: true, data: { cid: args.recordId, pinTier: tier, changed: true }, summary: `${tier === 1 ? '置顶' : '置底'} ${f.title}`, message: `已把「${f.title}」${tier === 1 ? '置顶' : '置底'}(可撤销)`, undo: flagUndo(f.store, args.recordId, 'pinTier', before, tier) });
+		return withPersistNote(f.store, { ok: true, data: { cid: args.recordId, pinTier: tier, changed: true }, summary: `${tier === 1 ? '置顶' : (tier === -1 ? '置底' : '取消置顶')} ${f.title}`, message: tier ? `已把「${f.title}」${tier === 1 ? '置顶' : '置底'}(可撤销)` : `已取消「${f.title}」的置顶 / 置底(可撤销)`, undo: flagUndo(f.store, args.recordId, 'pinTier', before, tier) });
 	},
 };

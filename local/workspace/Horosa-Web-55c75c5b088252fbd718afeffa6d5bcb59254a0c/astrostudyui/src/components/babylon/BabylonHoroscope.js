@@ -7,9 +7,9 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {
 	BABYLON_SIGNS, BABYLON_NORMAL_STARS, BABYLON_PLANETS, NOTES,
-	exaltationOf, babylonSign,
+	exaltationOf,
 } from '../../divination/data/babylonianData';
-import { PLANET_ORDER, kiVerdict } from '../../divination/babylon/horoscope';
+import { kiVerdict } from '../../divination/babylon/horoscope';
 
 const GLYPH_KEY = {
 	moon: AstroConst.MOON, sun: AstroConst.SUN, jupiter: AstroConst.JUPITER, venus: AstroConst.VENUS,

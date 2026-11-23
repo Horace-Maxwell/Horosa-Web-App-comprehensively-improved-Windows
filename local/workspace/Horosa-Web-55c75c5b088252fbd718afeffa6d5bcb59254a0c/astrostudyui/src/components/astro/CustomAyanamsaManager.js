@@ -3,8 +3,8 @@
 // 「恒星黄道·自定义」档即用该槽(fields 下发 siderealAyanamsa='user'+userAyanT0/userAyanDeg,
 // 后端 SIDM_USER 三参;参数缺失后端回落 Lahiri 不炸盘)。换算器按 50.29″/年 近似仅供参考。
 import React from 'react';
-import { InputNumber, Input, message } from 'antd';
-import { XQModal, XQButton } from '../xq-ui';
+import { Input, message } from 'antd';
+import { XQModal, XQButton, XQInputNumber } from '../xq-ui';
 import { AYAN_MAX_SLOTS, loadCustomAyanamsa, saveCustomAyanamsa, approxAyanAt } from '../../utils/customCalibreStores';
 
 const J2000 = 2451545.0;
@@ -64,10 +64,10 @@ export default class CustomAyanamsaManager extends React.Component {
 							<Input size="small" style={{ width: 120 }} value={s.name}
 								onChange={(e) => this.setSlot(i, 'name', e.target.value)} />
 							<span style={{ fontSize: 12, opacity: 0.75 }}>历元 JD</span>
-							<InputNumber size="small" style={{ width: 120 }} value={s.t0} precision={1}
+							<XQInputNumber size="small" style={{ width: 120 }} value={s.t0} precision={1}
 								onChange={(v) => this.setSlot(i, 't0', v)} />
 							<span style={{ fontSize: 12, opacity: 0.75 }}>ayanamsa(°)</span>
-							<InputNumber size="small" style={{ width: 100 }} value={s.deg} precision={4} step={0.01}
+							<XQInputNumber size="small" style={{ width: 100 }} value={s.deg} precision={4} step={0.01}
 								onChange={(v) => this.setSlot(i, 'deg', v)} />
 							<span style={{ flex: 1 }} />
 							<XQButton size="small" type={current === i ? 'primary' : 'default'}
@@ -91,7 +91,7 @@ export default class CustomAyanamsaManager extends React.Component {
 						<div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: 'var(--horosa-panel-soft)' }}>
 							<div style={{ fontSize: 12, marginBottom: 4 }}>换算器（近似 · 50.29″/年;排盘走 Swiss Ephemeris 精确模型）</div>
 							<span style={{ fontSize: 12, opacity: 0.75, marginRight: 6 }}>目标 JD</span>
-							<InputNumber size="small" style={{ width: 130 }} value={calcJd} precision={1}
+							<XQInputNumber size="small" style={{ width: 130 }} value={calcJd} precision={1}
 								onChange={(v) => this.setState({ calcJd: Number(v) || J2000 })} />
 							<span style={{ fontSize: 12, marginLeft: 10 }}>
 								≈ {(approxAyanAt(cur, calcJd) || 0).toFixed(4)}°

@@ -5,6 +5,7 @@ from flatlib.ephem import eph
 from astrostudy.india.yoga_engine import safe_get
 from astrostudy.india.primitives import chara_karakas, KARAKA_PLANETS, SIGN_CN, segment_index
 from astrostudy.nakshatra import nakshatra_from_lon
+from astrostudy.stable_order import tie_sorted
 from astrostudy.india.jyotish_parts.tables import (
     JYOTISH_PLANETS, DASHA_SEQUENCE, YOGINI_SEQUENCE, YOGINI_TOTAL, ASHTOTTARI_SEQUENCE, ASHTOTTARI_TOTAL,
     ASHTOTTARI_NAK_LORD, ASHTOTTARI_ARC, ASHTOTTARI_ARC_KRITTIKADI, ASHTOTTARI_NAK_LORD_KRITTIKADI,
@@ -498,8 +499,10 @@ class DashasMixin:
                         'own_sign': 3, 'neutral': 2, 'debilitation': 1}
             ordered = []
             for g in groups:
-                ordered.extend(sorted([e for e in ents if e['house'] in g],
-                                      key=lambda en: (-DIG_RANK.get(en['dignity'], 2), -en['signlon'])))
+                # 度数相等的(罗 / 计正对,宫内度数相同)按上面收集时的固定次序,不由浮点末位定 —— 次序定了才有各期的起止
+                ordered.extend(tie_sorted([e for e in ents if e['house'] in g],
+                                          lambda en: -DIG_RANK.get(en['dignity'], 2),
+                                          {'of': lambda en: en['signlon'], 'desc': True}))
             maha = []
             cum = [0.0]
             YEAR = self.dasha_year_days

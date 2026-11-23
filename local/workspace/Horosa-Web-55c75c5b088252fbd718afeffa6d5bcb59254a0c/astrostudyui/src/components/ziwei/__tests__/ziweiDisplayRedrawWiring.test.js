@@ -10,11 +10,11 @@
 //
 // 修法:显示层改走「写仓 + 广播」(同 divinationJudgeGlobals 范式),ZiWeiMain 监听事件递增
 // zwDisplayRev 并透传给 ZiWeiChart,该版本号进签名。此测试锁住这条链的每一环。
-import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const SRC = path.resolve(__dirname, '../../..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
 // 剥注释:注释里出现键名不等于代码消费了它(本仓踩过三次「grep 被自写注释骗」)。
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 

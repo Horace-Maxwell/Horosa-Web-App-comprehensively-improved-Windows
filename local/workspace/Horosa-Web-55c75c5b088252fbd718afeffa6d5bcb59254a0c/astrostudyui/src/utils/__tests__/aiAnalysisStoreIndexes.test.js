@@ -12,7 +12,7 @@ if(typeof window.indexedDB !== 'undefined'){
 require('fake-indexeddb/auto');   // 装 window.indexedDB / IDBKeyRange 等全局;各用例再换成独立 IDBFactory
 const FIDB = require('fake-indexeddb');
 
-const STORE_SRC = fs.readFileSync(path.resolve(__dirname, '..', 'aiAnalysisStore.js'), 'utf8');
+const STORE_SRC = require('./helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'aiAnalysisStore.js'));   // 存储层拆成子模块:按「门面 + 子模块」全集读
 const DB_NAME = 'horosa.ai.analysis.v1';
 const ALL_STORE_NAMES = [
 	'provider_profiles', 'materials', 'material_folders', 'tag_groups', 'material_chunks', 'material_embeddings',

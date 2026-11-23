@@ -1,0 +1,74 @@
+diff --git a/astrostudyui/src/components/sanshi/main/recalc.js b/astrostudyui/src/components/sanshi/main/recalc.js
+index a6035048..ea7e34c4 100644
+--- a/astrostudyui/src/components/sanshi/main/recalc.js
++++ b/astrostudyui/src/components/sanshi/main/recalc.js
+@@ -16,6 +16,7 @@ import { normalizeTimeAlg, timeoutResolve, getFieldKey, getQimenOptionsKey, getC
+ import { pickSanshiLiurengCastOpts, buildSanshiLiuRengCastOverride, buildLiuRengLayout, buildLrNongli, buildKeData, buildSanChuan } from './liureng';
+ import { buildOuterData } from './outerRing';
+ import { buildSanShiUnitedSnapshotText } from './snapshot';
++import { markPanelReady } from '../../../utils/perfMark';
+ 
+ export const recalcMethods = {
+ 	// 结掉队列里此刻全部的调用方(取消 / 卸载用);某一次重算只结它自己开跑时取走的那一批(settleRecalcResolvers)
+@@ -185,7 +186,8 @@ export const recalcMethods = {
+ 		}
+ 		// commitPatch:调用方要与盘结果【同帧】提交的 state 补丁(loading:false/
+ 		// displaySolarTime)。防抖窗内 payload 被覆盖时合并保留旧补丁(refined/seed 补算不带补丁,
+-		// 不得把主链的 loading:false 冲掉)。
++		// 不得把主链的 loading:false 冲掉)。(v3.7.1 收敛注:取代我方 S5 提交期内折形态 —— 同一
++		// 消闪帧目标,上游穿线形对防抖窗覆盖更精确,#49 换形。)
+ 		this.pendingRecalcPayload = {
+ 			fields: flds,
+ 			nongli,
+@@ -466,6 +468,8 @@ export const recalcMethods = {
+ 		this.clearCastChartWait();
+ 		// 双提交合一:盘结果与调用方补丁(loading:false/displaySolarTime)同一次
+ 		// setState 落地 —— 旧形态先渲「新盘 + loading 还挂着」一帧再渲去转圈一帧,肉眼即闪帧。
++		// (horosa_sanshi_render_slice_v1 S5 收敛注:同目标,提交期内折形态换上游 commitPatch
++		//  穿线形 #49;refreshAll 尾部兜底现按 !changed 门控,常态零第二次提交。)
+ 		this.setState({
+ 			nongli,
+ 			liureng,
+@@ -480,6 +484,11 @@ export const recalcMethods = {
+ 			sanChuan: lrBundle.sanChuan,
+ 			...(commitPatch || null),
+ 		}, ()=>{
++			// horosa_panel_ready_v1:三式合一的中栏(六壬/遁甲/太乙三盘)与右栏 5 页签全部派生自本次
++			// setState 的这一组字段,故这里 = 「中栏+右栏画完」。本行已在 recalcByNongli 的
++			// SANSHI_RECALC_DEFER_MS 去抖与 refreshSeq 竞态守卫【之后】(陈旧轮次在上游即已 return),
++			// 故不会给作废的那一轮记点;markPanelReady 自身另有 generation 去重兜底。
++			markPanelReady('sanshiunited');
+ 			this.scheduleSnapshotSave(snapshotPayload, snapshotMeta);
+ 		});
+ 		return true;
+@@ -555,7 +564,7 @@ export const recalcMethods = {
+ 				const missingSeed = waitSeed && seedYears.some((yy)=>!this.jieqiYearSeeds[yy]);
+ 				const precisePromise = fetchPreciseNongli(params);
+ 				const cachedNongli = getNongliLocalCache(params);
+-								let nongli = cachedNongli;
++				let nongli = cachedNongli;
+ 				let usedFallback = false;
+ 				if(!nongli){
+ 					if((missingSeed || force) && !this.state.loading){
+@@ -639,8 +648,19 @@ export const recalcMethods = {
+ 									this.setState({ displaySolarTime: nextDisplaySolarTime });
+ 								}
+ 							}).catch(()=>null);
+-							if(!usedFallback && getNongliKey(refinedNongli) === baseNongliKey){
+-								return;
++							// horosa_sanshi_render_slice_v1(S6):精算农历同键短路。fallback 路径原本因
++							// usedFallback 无条件补跑一轮 recalcByNongli,但六键(年/月/日干支/时辰/节气/闰年)
++							// 逐字相同的精算结果在 performRecalcByNongli 里也只会撞 recalcSignature 早退 ——
++							// 白付一次去抖定时器 + 全套签名计算。仅当上一轮已产出健康盘面(dunjia 在位且无
++							// recalcError)才跳过;键不同、或上一轮失败(保留这次兜底重试机会)照旧全算,
++							// 非 fallback 路径的既有短路语义逐字不变。
++							if(getNongliKey(refinedNongli) === baseNongliKey){
++								if(!usedFallback){
++									return;
++								}
++								if(this.state.dunjia && !this.lastRecalcError){
++									return;
++								}
+ 							}
+ 						this.recalcByNongli(fields, refinedNongli);
+ 					}).catch(()=>null);

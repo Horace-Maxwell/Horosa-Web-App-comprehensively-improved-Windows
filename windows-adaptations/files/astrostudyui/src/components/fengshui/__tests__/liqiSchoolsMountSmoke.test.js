@@ -33,7 +33,8 @@ import { LIQI_SCHOOLS } from '../FengShuiMain';
 import LiqiWorkspace, { LIQI_UNAVAILABLE_HINT } from '../LiqiWorkspace';
 
 jest.setTimeout(120000);
-const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'LiqiWorkspace.js'), 'utf8');
+// 门面按「子模块 + 门面」全集读(上游 v3.15.0 起理气工作台拆成 liqiWorkspace/ 下的子模块)
+const SRC = require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', 'LiqiWorkspace.js'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // school 传数组 = 同一实例上依次切到各派(页内切换流派),返回最后一派的状态

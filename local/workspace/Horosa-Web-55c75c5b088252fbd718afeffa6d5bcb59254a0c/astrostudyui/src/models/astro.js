@@ -1,38 +1,55 @@
+// 星盘页 dva 模型(model 对象与改写模块级状态的挂钩句柄 / 主链中止控制器在这里;模块级助手按职责拆在 astro/ 下):
+//   fields(空字段表 = 非默认捕获的基准、字段 → 排盘请求参数)→ chartFlow(是否带主限法、响应校验与报错、抽屉收起、提交代次、
+//   步进预取任务构造与登记、挂钩分发)。astro/ 下的文件没有默认导出,dva 的模型扫描按校验跳过它们。
+// 读源码的检查读「子模块 + 门面」全集(scripts/source-sets.json)。
 import { normalizeBaziCalibreOverride, recordPinsDayBoundary } from '../utils/baziCalibreScope';
 import {getStore, } from '../utils/storageutil';
-import { Modal, message, } from 'antd';
+import { message } from 'antd';
 import { RECORD_DISPLAY_FIELDS } from '../utils/localRecordStore';
 import DateTime from '../components/comp/DateTime';
 import * as service from '../services/astro';
 import {randomStr,} from '../utils/helper';
-import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
-import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
-import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, mainChainAbortEnabled, stepPrefetchSkewEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
-import { submitStepPrefetch, getStepPrefetcher, registerStepSelectHandler } from '../utils/stepPrefetch';
+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, mainChainAbortEnabled } from '../utils/perfFlags';
+import { submitStepPrefetch } from '../utils/stepPrefetch';
 // R4-B2(horosa_step_prefetch_arm_v1):「选步长即武装」——构造器经 registerArmPlanBuilder
 // 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
-// [Windows-ahead] stepStreak:horosa_pump_skew_v1 连击计量读端(见 buildStepPrefetchTasks 偏斜分支)。
-import { registerArmPlanBuilder, armStepPrefetch, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
-// (F1 收敛后 early-boot 守卫由 armStepPrefetch 体内承担,本文件不再直接消费 backendBootGate。)
+import { reportStepUnit, currentStepUnit, shouldArmForTab } from '../utils/stepPrefetchArm';
 // R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
 import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
 import { perfBegin } from '../utils/perfMark';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
-import { applyRecordToFields, registerFieldsBaselineFactory } from '../utils/recordFieldsRestore';
+import { applyRecordToFields } from '../utils/recordFieldsRestore';
 import { applyZiweiRecordSettings, restoreZiweiUserSeed, dropZiweiSessionTablesUnlessFor } from '../utils/ziweiRecordSettings';
-import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverridesFromFields } from '../utils/classicalChartGlobals';
 // 「新盘种子」:随盘键(黄道 / 宫制 / 时间算法 / 八字长生·神煞 / 宿法 / 印占 / 主限法口径)的新命盘缺省 = 上次亲手设的值;
 // 没存过 = 内建默认逐字节零回归;载入记录时由 recordFieldsRestore 先复位到内建默认(记录自带口径永远优先)。
-import { newChartSeedValue, newChartSeedExtraEntries } from '../utils/newChartSeeds';
-import { PD_EXTRA_SETTING_KEYS, pdExtraRequestParams } from '../utils/primaryDirectionSync';
+import { newChartSeedValue } from '../utils/newChartSeeds';
+import { newEmptyFields, fieldsToParams } from './astro/fields';
+import { shouldIncludePrimaryDirection, isValidChartResponse, showChartServiceError, closeAllDrawer, takeChartCommitTicket, chartCommitTicketLive, buildStepPrefetchTasks, hooking, now } from './astro/chartFlow';
+import { speculativePrecomputeEnabled } from '../utils/perfFlags';
+export { fieldsToParams as __fieldsToParamsForTest } from './astro/fields';
+export { buildStepPrefetchTasks as __buildStepPrefetchTasksForTest } from './astro/chartFlow';
 
-let dtm = new DateTime();
+// doHook rAF 合并用:未执行的上一帧任务句柄(latest-wins,见 *doHook)。
+let pendingHookFrame = null;
+// /chart 主链在途请求的 AbortController(模块级单例:新发先 abort 旧)。
+let chartMainAbortCtl = null;
 
-// newEmptyFields = 「非默认捕获」的基准注册(工厂注入防循环 import:
-// recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
-registerFieldsBaselineFactory(()=>newEmptyFields());
+// R4-B5(horosa_option_prefetch_v1):选项投机的 /chart 变体任务构造器 —— 与真点/步进预取
+// 共用同一 fieldsToParams 路径(键逐字节同是命中的唯一前提)。
+registerOptionChartTaskBuilder((variantFields, astroState)=>{
+	const param = fieldsToParams(variantFields);
+	param.cid = null;
+	param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+	return {
+		name: 'chart',
+		path: '/chart',
+		run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+	};
+});
+
+// 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
+// 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
 
 // PERF-R8 P0(纯观测,horosa_interaction_span_v1 配套):排盘 saga 成功提交 chartObj 后打
 // refresh-end mark,并与 pages/index.js 的 horosa:tab:*:refresh-start 配 measure ——
@@ -51,809 +68,6 @@ function markChartRefreshEnd(){
 		}
 	}catch(e){ /* observation only */ }
 }
-
-function newEmptyFields(){
-	const fields = {
-		cid: {
-			value: null,
-			name: ['cid'],
-		},
-		ad:{
-			value: dtm.ad,
-			name: ['ad'],
-		},
-		date: {
-			value: dtm.clone(),   // 不再直接引用模块级 dtm(共享引用被外部改写会串)
-			name: ['date'],
-		},
-		time: {
-			value: dtm.clone(),
-			name: ['time'],
-		},
-		zone: {
-			value: dtm.zone,
-			name: ['zone'],
-		},
-		lat: {
-			value: DefLat,
-			name: ['lat'],
-		},
-		lon: {
-			value: DefLon,
-			name: ['lon'],
-		},
-		gpsLat: {
-			value: DefGpsLat,
-			name: ['gpsLat'],
-		},
-		gpsLon: {
-			value: DefGpsLon,
-			name: ['gpsLon'],
-		},
-		name: {
-			value: null,
-			name: ['name'],
-		},
-		pos: {
-			value: null,
-			name: ['pos'],
-		},
-		hsys: {
-			value: newChartSeedValue('hsys'),   // 新盘种子(缺省宫制见 newChartSeeds)
-			name: ['hsys'],
-		},
-		indiaHsys: {
-			value: newChartSeedValue('indiaHsys'),   // 新盘种子(缺省 AstroConst.INDIA_HOUSE_SYSTEM_DEFAULT)
-			name: ['indiaHsys'],
-		},
-		indiaAyanamsa: {
-			value: newChartSeedValue('indiaAyanamsa'),   // 新盘种子(缺省 AstroConst.INDIA_AYANAMSA_DEFAULT)
-			name: ['indiaAyanamsa'],
-		},
-		zodiacal: {
-			value: newChartSeedValue('zodiacal'),   // 新盘种子(缺省 0)
-			name: ['zodiacal'],
-		},
-		siderealAyanamsa: {
-			value: newChartSeedValue('siderealAyanamsa'),   // 新盘种子(缺省 '')
-			name: ['siderealAyanamsa'],
-		},
-		tradition: {
-			value: 0,
-			name: ['tradition'],
-		},
-		strongRecption: {
-			value: 0,
-			name: ['strongRecption'],
-		},
-		simpleAsp: {
-			value: 0,
-			name: ['simpleAsp'],
-		},
-		virtualPointReceiveAsp: {
-			value: 0,
-			name: ['virtualPointReceiveAsp'],
-		},
-		doubingSu28: {
-			value: newChartSeedValue('doubingSu28'),   // 新盘种子(缺省 0)
-			name: ['doubingSu28'],
-		},
-		guolaoLifeMode: {
-			value: 'asc',
-			name: ['guolaoLifeMode'],
-		},
-		guolaoNodeMode: {
-			value: 'northKetuSouthRahu',
-			name: ['guolaoNodeMode'],
-		},
-		guolaoAyanamsa: {
-			value: '',
-			name: ['guolaoAyanamsa'],
-		},
-		guolaoTrueSolarTime: {
-			value: 'true',
-			name: ['guolaoTrueSolarTime'],
-		},
-		guolaoNodeType: {
-			value: 'mean',
-			name: ['guolaoNodeType'],
-		},
-		guolaoLilithType: {
-			value: 'mean',
-			name: ['guolaoLilithType'],
-		},
-		guolaoZiqiMode: {
-			value: 'real',
-			name: ['guolaoZiqiMode'],
-		},
-		guolaoBodyMode: {
-			value: 'taiyin',
-			name: ['guolaoBodyMode'],
-		},
-		guolaoTuibianMethod: {
-			value: 'jiyuan',
-			name: ['guolaoTuibianMethod'],
-		},
-		guolaoGufaPrecess: {
-			value: 0,
-			name: ['guolaoGufaPrecess'],
-		},
-		guolaoEqTropicalAnchor: {
-			value: 'dongzhi',
-			name: ['guolaoEqTropicalAnchor'],
-		},
-		// 占星(希腊化)G12/G13/G15/G20-P2:西占月交点真平 / 区分昼夜缓冲 / 迦勒底界狮子首星 / 三分集 / 福点反转。
-		// 默认(平/几何地平/狮子木首/Dorothean/反转ON)= 当前零回归;仅非默认才下发(见 fieldsToParams 条件透传)。
-		// 种子改从全局仓取(utils/classicalChartGlobals,「设置→星盘设置」写入、safeStorage 持久化):
-		// 用户从未改过设置时全局仓值==内建默认 → 逐字节零回归;改过则重启/新盘自动带全局偏好,
-		// 载入命盘时 record 显式键(applyRecordToFields)照旧覆盖本种子(每盘保真优先)。
-		westNodeType: {
-			value: classicalGlobalValue('westNodeType'),
-			name: ['westNodeType'],
-		},
-		sectBuffer: {
-			value: classicalGlobalValue('sectBuffer'),
-			name: ['sectBuffer'],
-		},
-		sunriseMode: {
-			value: classicalGlobalValue('sunriseMode'),   // 日出 / 日没口径(播种全局;主盘构参只读 fields,缺此键重启后主盘回日心口径)
-			name: ['sunriseMode'],
-		},
-		leoBoundFirst: {
-			value: classicalGlobalValue('leoBoundFirst'),
-			name: ['leoBoundFirst'],
-		},
-		triplicity: {
-			value: classicalGlobalValue('triplicity'),
-			name: ['triplicity'],
-		},
-		lotReversal: {
-			value: classicalGlobalValue('lotReversal'),
-			name: ['lotReversal'],
-		},
-		// 界系/双子界序:schema 历史无此二键(缺省=不下发);仅全局仓非默认时才播种 wrapper,
-		// 保持「默认态 fields 键集与请求体逐字节不变」。
-		...(classicalGlobalOverrides().termsVariant !== undefined ? {
-			termsVariant: { value: classicalGlobalValue('termsVariant'), name: ['termsVariant'] },
-		} : {}),
-		...(classicalGlobalOverrides().geminiBoundEmended !== undefined ? {
-			geminiBoundEmended: { value: classicalGlobalValue('geminiBoundEmended'), name: ['geminiBoundEmended'] },
-		} : {}),
-		// 2026-07 二批:落宫前移/太阳三态/空亡口径/恒星轨/映点容许度(排盘级,后端 perchart 参数化)。
-		// 种子=全局仓值(默认==后端现硬编码值);下发与否由 classicalBackendOverrides 条件判定。
-		houseCuspAdvance: {
-			value: classicalGlobalValue('houseCuspAdvance'),
-			name: ['houseCuspAdvance'],
-		},
-		cazimiOrb: {
-			value: classicalGlobalValue('cazimiOrb'),
-			name: ['cazimiOrb'],
-		},
-		combustOrb: {
-			value: classicalGlobalValue('combustOrb'),
-			name: ['combustOrb'],
-		},
-		underBeamsOrb: {
-			value: classicalGlobalValue('underBeamsOrb'),
-			name: ['underBeamsOrb'],
-		},
-		vocMode: {
-			value: classicalGlobalValue('vocMode'),
-			name: ['vocMode'],
-		},
-		vocIncludeOuter: {
-			value: classicalGlobalValue('vocIncludeOuter'),
-			name: ['vocIncludeOuter'],
-		},
-		fixedStarOrb: {
-			value: classicalGlobalValue('fixedStarOrb'),
-			name: ['fixedStarOrb'],
-		},
-		fixedStarOrbMode: {
-			value: classicalGlobalValue('fixedStarOrbMode'),
-			name: ['fixedStarOrbMode'],
-		},
-		antisciaOrb: {
-			value: classicalGlobalValue('antisciaOrb'),
-			name: ['antisciaOrb'],
-		},
-		// 二批第十键 viaCombustaVariant 此前独漏播种(九键有它没有)→用户改 narrow 重启后
-		// 首发盘 fields 无此键、classicalBackendOverridesFromFields 取 undefined 不下发,静默回落 standard。
-		viaCombustaVariant: {
-			value: classicalGlobalValue('viaCombustaVariant'),
-			name: ['viaCombustaVariant'],
-		},
-		// 三个 0/1 流派开关(点公式文档序/交点入旺/土星旺20°):schema 历史无此三键,
-		// 照 termsVariant 条件播种范式——仅全局仓非默认才播 wrapper,默认态 fields 键集逐字节不变。
-		...(classicalGlobalOverrides().lotsDocReverse !== undefined ? {
-			lotsDocReverse: { value: classicalGlobalValue('lotsDocReverse'), name: ['lotsDocReverse'] },
-		} : {}),
-		...(classicalGlobalOverrides().nodeExaltation !== undefined ? {
-			nodeExaltation: { value: classicalGlobalValue('nodeExaltation'), name: ['nodeExaltation'] },
-		} : {}),
-		// 天文口径批五键:同 termsVariant 条件播种范式(schema 历史无此键,仅全局非默认才播,
-		// 默认态 fields 键集逐字节不变;eclipseTimeMode 纯全局显示口径不进 fields)。
-		...(classicalGlobalOverrides().combustOwnChariotExempt !== undefined ? {
-			combustOwnChariotExempt: { value: classicalGlobalValue('combustOwnChariotExempt'), name: ['combustOwnChariotExempt'] },
-		} : {}),
-		...(classicalGlobalOverrides().westLilithType !== undefined ? {
-			westLilithType: { value: classicalGlobalValue('westLilithType'), name: ['westLilithType'] },
-		} : {}),
-		...(classicalGlobalOverrides().topocentricMoon !== undefined ? {
-			topocentricMoon: { value: classicalGlobalValue('topocentricMoon'), name: ['topocentricMoon'] },
-		} : {}),
-		...(classicalGlobalOverrides().stationMarking !== undefined ? {
-			stationMarking: { value: classicalGlobalValue('stationMarking'), name: ['stationMarking'] },
-		} : {}),
-		...(classicalGlobalOverrides().hermeticLotsReversal !== undefined ? {
-			hermeticLotsReversal: { value: classicalGlobalValue('hermeticLotsReversal'), name: ['hermeticLotsReversal'] },
-		} : {}),
-		...(classicalGlobalOverrides().erosConstruction !== undefined ? {
-			erosConstruction: { value: classicalGlobalValue('erosConstruction'), name: ['erosConstruction'] },
-		} : {}),
-		...(classicalGlobalOverrides().lotFortuneVariant !== undefined ? {
-			lotFortuneVariant: { value: classicalGlobalValue('lotFortuneVariant'), name: ['lotFortuneVariant'] },
-		} : {}),
-		...(classicalGlobalOverrides().lotFatherCombustAlt !== undefined ? {
-			lotFatherCombustAlt: { value: classicalGlobalValue('lotFatherCombustAlt'), name: ['lotFatherCombustAlt'] },
-		} : {}),
-		...(classicalGlobalOverrides().lotProjection !== undefined ? {
-			lotProjection: { value: classicalGlobalValue('lotProjection'), name: ['lotProjection'] },
-		} : {}),
-		...(classicalGlobalOverrides().dignityDebilities !== undefined ? {
-			dignityDebilities: { value: classicalGlobalValue('dignityDebilities'), name: ['dignityDebilities'] },
-		} : {}),
-		...(classicalGlobalOverrides().almutenTripMode !== undefined ? {
-			almutenTripMode: { value: classicalGlobalValue('almutenTripMode'), name: ['almutenTripMode'] },
-		} : {}),
-		...(classicalGlobalOverrides().planetaryHourMethod !== undefined ? {
-			planetaryHourMethod: { value: classicalGlobalValue('planetaryHourMethod'), name: ['planetaryHourMethod'] },
-		} : {}),
-		...(classicalGlobalOverrides().orbSystem !== undefined ? {
-			orbSystem: { value: classicalGlobalValue('orbSystem'), name: ['orbSystem'] },
-		} : {}),
-		...(classicalGlobalOverrides().luminaryOrbBonus !== undefined ? {
-			luminaryOrbBonus: { value: classicalGlobalValue('luminaryOrbBonus'), name: ['luminaryOrbBonus'] },
-		} : {}),
-		...(classicalGlobalOverrides().aspectIncludeCusps !== undefined ? {
-			aspectIncludeCusps: { value: classicalGlobalValue('aspectIncludeCusps'), name: ['aspectIncludeCusps'] },
-		} : {}),
-		...(classicalGlobalOverrides().aspectIncludeLots !== undefined ? {
-			aspectIncludeLots: { value: classicalGlobalValue('aspectIncludeLots'), name: ['aspectIncludeLots'] },
-		} : {}),
-		...(classicalGlobalOverrides().aspectIncludeMidpoints !== undefined ? {
-			aspectIncludeMidpoints: { value: classicalGlobalValue('aspectIncludeMidpoints'), name: ['aspectIncludeMidpoints'] },
-		} : {}),
-		...(classicalGlobalOverrides().solarReturnVariant !== undefined ? {
-			solarReturnVariant: { value: classicalGlobalValue('solarReturnVariant'), name: ['solarReturnVariant'] },
-		} : {}),
-		...(classicalGlobalOverrides().returnLatitudeMode !== undefined ? {
-			returnLatitudeMode: { value: classicalGlobalValue('returnLatitudeMode'), name: ['returnLatitudeMode'] },
-		} : {}),
-		...(classicalGlobalOverrides().vulcanCalc !== undefined ? {
-			vulcanCalc: { value: classicalGlobalValue('vulcanCalc'), name: ['vulcanCalc'] },
-		} : {}),
-		houseStartMode: {
-			// 新盘种子(缺省 0 八字;宿占页亲手改记一笔,旧版偏好 suzhanHouseStartMode 已一次性并入)
-			value: newChartSeedValue('houseStartMode'),
-			name: ['houseStartMode'],
-		},
-				predictive: {
-					value: 1,
-					name: ['predictive'],
-				},
-				showPdBounds: {
-					value: 1,
-					name: ['showPdBounds'],
-				},
-		pdtype: {
-			value: newChartSeedValue('pdtype'),   // 新盘种子(缺省 0)
-			name: ['pdtype'],
-		},
-		pdMethod: {
-			value: newChartSeedValue('pdMethod'),   // 新盘种子(缺省 'core_alchabitius')
-			name: ['pdMethod'],
-		},
-		pdTimeKey: {
-			value: newChartSeedValue('pdTimeKey'),   // 新盘种子(缺省 'Ptolemy')
-			name: ['pdTimeKey'],
-		},
-		// 主限法 P0 补齐维(默认=引擎缺省,fieldsToParams 仅非默认才下发 → 零回归):
-		pdProjection: {
-			value: newChartSeedValue('pdProjection'),   // 新盘种子(缺省 'ptolemy')
-			name: ['pdProjection'],
-		},
-		pdFrame: {
-			value: newChartSeedValue('pdFrame'),   // 新盘种子(缺省 'alcabitius')
-			name: ['pdFrame'],
-		},
-		pdFramework: {
-			value: newChartSeedValue('pdFramework'),   // 新盘种子(缺省 'aspect')
-			name: ['pdFramework'],
-		},
-		pdParallel: {
-			value: newChartSeedValue('pdParallel'),   // 新盘种子(缺省 0)
-			name: ['pdParallel'],
-		},
-		pdRaptParallel: {
-			value: newChartSeedValue('pdRaptParallel'),   // 新盘种子(缺省 0)
-			name: ['pdRaptParallel'],
-		},
-		pdTimeKeyCustom: {
-			value: null,
-			name: ['pdTimeKeyCustom'],
-		},
-		pdSignificators: {
-			value: newChartSeedValue('pdSignificators'),   // 新盘种子(缺省 null = 不扩展)
-			name: ['pdSignificators'],
-		},
-		pdPromissorTypes: {
-			value: newChartSeedValue('pdPromissorTypes'),   // 新盘种子(缺省 null = 不扩展)
-			name: ['pdPromissorTypes'],
-		},
-		// 主限法设置项登记表(相位侧 / 传统逆向 / 取点四项):新盘种子,缺省 = 登记表缺省
-		...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, { value: newChartSeedValue(key), name: [key] }])),
-		pdaspects: {
-			value: [0, 60, 90, 120, 180],
-			name: ['pdaspects'],
-		},
-		timeAlg: {
-			value: newChartSeedValue('timeAlg'),   // 新盘种子(缺省 0)
-			name: ['timeAlg'],
-		},
-		phaseType: {
-			value: newChartSeedValue('phaseType'),   // 新盘种子(缺省 0)
-			name: ['phaseType'],
-		},
-		godKeyPos: {
-			value: newChartSeedValue('godKeyPos'),   // 新盘种子(缺省 '年')
-			name: ['godKeyPos'],
-		},
-		orbs:{
-			value: undefined,
-			name: ['orbs'],
-		},
-		orbScale:{
-			value: undefined,
-			name: ['orbScale'],
-		},
-		after23NewDay: {
-			value: defaultAfter23NewDay(),
-			name: ['after23NewDay'],
-		},
-		// v3 第二开关·晚子时·时柱起干模式 (与 after23NewDay 完全独立)
-		lateZiHourUseNextDay: {
-			value: defaultLateZiHourUseNextDay(),
-			name: ['lateZiHourUseNextDay'],
-		},
-		// schema 本没有的种子键(印占大多数选项):只在种子非缺省时才新建 entry,默认态键集逐字节不变
-		...newChartSeedExtraEntries(),
-		adjustJieqi: {
-			value: 0,
-			name: ['adjustJieqi'],
-		},
-		gender: {
-			value: 1,
-			name: ['gender'],
-		},
-		southchart: {
-			value: 0,
-			name: ['southchart'],
-		},
-		group: {
-			value: null,
-			name: ['group'],
-		},
-		memoZiWei:{
-			value: null,
-			name: ['memoZiWei'],
-		},
-		memoBaZi:{
-			value: null,
-			name: ['memoBaZi'],
-		},
-		memoAstro:{
-			value: null,
-			name: ['memoAstro'],
-		},
-		memo74:{
-			value: null,
-			name: ['memo74'],
-		},
-		memoGua:{
-			value: null,
-			name: ['memoGua'],
-		},
-		memoLiuReng:{
-			value: null,
-			name: ['memoLiuReng'],
-		},
-		memoQiMeng:{
-			value: null,
-			name: ['memoQiMeng'],
-		},
-		memoSuZhan:{
-			value: null,
-			name: ['memoSuZhan'],
-		},
-
-	};
-
-	return fields;
-}
-
-function fieldsToParams(fields){
-	const params = {
-		cid: fields.cid.value,
-		ad: fields.date.value.ad,
-		date: fields.date.value.format('YYYY/MM/DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.date.value.zone,
-		lat: fields.lat.value,
-		lon: fields.lon.value,
-		gpsLat: fields.gpsLat.value,
-		gpsLon: fields.gpsLon.value,
-		hsys: fields.hsys.value,
-		southchart: fields.southchart.value,
-		zodiacal: fields.zodiacal.value,
-		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
-		// 自定义恒星黄道 'user' 档:随行附历元参数(fields 优先,缺读当前槽;后端 SIDM_USER)。
-		...((fields.siderealAyanamsa && `${fields.siderealAyanamsa.value}` === 'user')
-			? require('../utils/customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
-			: {}),
-		tradition: fields.tradition.value,
-		// termsVariant/geminiBoundEmended 手写条件段已删:spread(下行)按 spec 全覆盖
-		// 且归一化更严(int 强转+值域校验);旧手写段在 spread 前=恒被覆盖的死代码,唯一「生效」
-		// 场景是 termsVariant=4 无合法表时 spread 自删而手写键存活→请求带 4 被后端回落——
-		// 删除后前端即降级不发 4,恰是 WP-7 设计意图。
-		// 2026-07 二批九键(落宫/三态/空亡/恒星/映点):共享 helper 条件透传,默认不下发零回归。
-		...classicalBackendOverridesFromFields(fields),
-		doubingSu28: fields.doubingSu28.value,
-		guolaoLifeMode: fields.guolaoLifeMode ? fields.guolaoLifeMode.value : 'asc',   // R2 含地支(自定命宫,BaZi 按地支当 custom)
-		// 七政四余 G6/G10/G11：报时星太阳时(真/平/关)+ 四余取法(罗计真平/月孛真平)。默认(真/平/平)不下发 → body 零变、不扰缓存键(同 termsVariant 条件透传);仅非默认才传 Java→Python。
-		...(fields.guolaoTrueSolarTime && (fields.guolaoTrueSolarTime.value === 'mean' || fields.guolaoTrueSolarTime.value === 'off') ? { trueSolarTime: fields.guolaoTrueSolarTime.value } : {}),
-		...(fields.guolaoNodeType && fields.guolaoNodeType.value === 'true' ? { guolaoNodeType: 'true' } : {}),
-		...(fields.guolaoLilithType && fields.guolaoLilithType.value === 'true' ? { guolaoLilithType: 'true' } : {}),
-		// 授时历古法(用制 6)推变法 + 古宿岁差:仅非默认(纪元闭式·不随岁差)才下发 → body 零变、不扰缓存键(同上条件透传)。
-		...(fields.guolaoTuibianMethod && (fields.guolaoTuibianMethod.value === 'jintui' || fields.guolaoTuibianMethod.value === 'huiyuan') ? { guolaoTuibianMethod: fields.guolaoTuibianMethod.value } : {}),
-		...(fields.guolaoGufaPrecess && (fields.guolaoGufaPrecess.value === 1 || fields.guolaoGufaPrecess.value === '1') ? { guolaoGufaPrecess: 1 } : {}),
-		...(fields.guolaoEqTropicalAnchor && fields.guolaoEqTropicalAnchor.value === 'chunfen' ? { guolaoEqTropicalAnchor: 'chunfen' } : {}),
-		// 占星(希腊化)G12/G13/G15/G20-P2:西占月交点真平 / 区分昼夜缓冲 / 迦勒底界狮子首星 / 三分集 / 福点反转。
-		// 默认(平/几何地平/狮子木首/Dorothean/反转ON)不下发 → body 零变、不扰缓存键(同 termsVariant/guolao* 条件透传);仅非默认才传给 Java→Python。
-		...(fields.westNodeType && fields.westNodeType.value === 'true' ? { westNodeType: 'true' } : {}),
-		...(fields.sectBuffer && fields.sectBuffer.value === 'ptolemy5' ? { sectBuffer: 'ptolemy5' } : {}),
-		...(fields.leoBoundFirst && (fields.leoBoundFirst.value === 1 || fields.leoBoundFirst.value === '1') ? { leoBoundFirst: 1 } : {}),
-		...(fields.triplicity && fields.triplicity.value && fields.triplicity.value !== 'Dorothean' ? { triplicity: fields.triplicity.value } : {}),
-		...(fields.lotReversal && (fields.lotReversal.value === 0 || fields.lotReversal.value === '0') ? { lotReversal: 0 } : {}),
-		// lotsDocReverse/nodeExaltation 两个 0/1 开关已并入
-		// classicalBackendOverridesFromFields 单一真值源(上方 spread),此处不再手写——
-		// 曾因手写副本只覆盖主盘,13宫盘/12分盘/合盘全部丢参(与主盘同档流派分叉)。
-		strongRecption: fields.strongRecption.value,
-		simpleAsp: fields.simpleAsp.value,
-		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
-		predictive: fields.predictive.value,
-		showPdBounds: fields.showPdBounds ? fields.showPdBounds.value : 1,
-		pdtype: fields.pdtype ? fields.pdtype.value : 0,
-		pdMethod: fields.pdMethod ? fields.pdMethod.value : 'core_alchabitius',
-		pdTimeKey: fields.pdTimeKey ? fields.pdTimeKey.value : 'Ptolemy',
-		...(fields.pdProjection && fields.pdProjection.value && fields.pdProjection.value !== 'ptolemy' ? { pdProjection: fields.pdProjection.value } : {}),
-		...(fields.pdFrame && fields.pdFrame.value && fields.pdFrame.value !== 'alcabitius' ? { pdFrame: fields.pdFrame.value } : {}),
-		...(fields.pdFramework && fields.pdFramework.value && fields.pdFramework.value !== 'aspect' ? { pdFramework: fields.pdFramework.value } : {}),
-		...(fields.pdParallel && (fields.pdParallel.value === 1 || fields.pdParallel.value === '1') ? { pdParallel: 1 } : {}),
-		...(fields.pdRaptParallel && (fields.pdRaptParallel.value === 1 || fields.pdRaptParallel.value === '1') ? { pdRaptParallel: 1 } : {}),
-		...(fields.pdTimeKeyCustom && fields.pdTimeKeyCustom.value ? { pdTimeKeyCustom: fields.pdTimeKeyCustom.value } : {}),
-		...(fields.pdSignificators && Array.isArray(fields.pdSignificators.value) && fields.pdSignificators.value.length ? { pdSignificators: fields.pdSignificators.value } : {}),
-		...(fields.pdPromissorTypes && Array.isArray(fields.pdPromissorTypes.value) && fields.pdPromissorTypes.value.length ? { pdPromissorTypes: fields.pdPromissorTypes.value } : {}),
-		...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, fields[key] ? fields[key].value : undefined]))),
-		pdaspects: fields.pdaspects.value,
-		name: fields.name.value,
-		pos: fields.pos.value,
-		group: fields.group ? fields.group.value : null,
-		after23NewDay: (fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
-		lateZiHourUseNextDay: (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
-		orbs: (fields.orbs && fields.orbs.value) ? fields.orbs.value : undefined,
-		orbScale: (fields.orbScale && fields.orbScale.value) ? fields.orbScale.value : undefined,
-	};
-
-	if(params.pdaspects && params.pdaspects instanceof String){
-		params.pdaspects = JSON.parse(params.pdaspects);
-	}
-
-	return params;
-}
-
-function shouldIncludePrimaryDirection(state){
-	// primarydirsphere = WS-3 主限天球(3D):与表格/盘同吃 PD 数据(/chart 携带
-	// predictives.primaryDirection),三件套登记之一(另两处:primaryDirectionSync
-	// VALID_DIRECTION_SUB_TABS + jest 枚举断言)。
-	return !!(
-		state
-		&& state.currentTab === 'direction'
-		&& (state.currentSubTab === 'primarydirect'
-			|| state.currentSubTab === 'primarydirchart'
-			|| state.currentSubTab === 'primarydirsphere')
-	);
-}
-
-function isValidChartResponse(rsp){
-	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
-}
-
-// Mac issue #12 / Win #11 #14: 委托到 components/common/ChartServiceErrorModal 渲染富对话框
-// (dva 的 model parser 不支持 JSX,所以 React 端必须放独立组件文件)。
-// fallback 用经典 Modal.error 防止任何加载/导入异常导致用户拿不到反馈。
-function showChartServiceError(extraDetail){
-	// 先探活再定弹窗:服务在线但本次计算失败(如参数异常/超出星历数据域)≠「服务未就绪」。
-	// 误报「未就绪」会把用户引向重启/防火墙排查,掩盖真实原因(全年份域工程实测坑)。
-	try {
-		fetch(`${ServerRoot}/horosaIdentity`, { method: 'GET' }).then((r) => {
-			if(r && r.ok){
-				Modal.error({
-					title: '排盘失败：该时刻或参数计算失败',
-					content: '本地服务在线,但此次排盘未能完成。常见原因:日期超出星历数据域(公元前 12999 ~ 公元 16799)、参数组合异常。请调整时间/参数后重试;若反复失败请反馈该时刻。',
-				});
-			}else{
-				showChartServiceErrorRich(extraDetail);
-			}
-		}).catch(() => {
-			showChartServiceErrorRich(extraDetail);
-		});
-	} catch(e) {
-		Modal.error({ title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。' });
-	}
-}
-
-
-function closeAllDrawer(msg){
-	console.log(msg);
-	const drawer = {
-		query: false,
-		selectplanet: false,
-		selectchartdisplay: false,
-		selectasp: false,
-		selectorb: false,
-		register: false,
-		login: false,
-		resetpwd: false,
-		changepwd: false,
-		changeparams: false,
-		chartlist: false,
-		chartedit: false,
-		chartadd: false,
-		caselist: false,
-		caseedit: false,
-		caseadd: false,
-		chartdeeplearn: false,
-		memo: false,
-		chartsgps: false,
-		commtools: false,
-		homepage: false,
-	};
-	return drawer;
-}
-
-// doHook rAF 合并用:未执行的上一帧任务句柄(latest-wins,见 *doHook)。
-let pendingHookFrame = null;
-// 主盘提交代次(单一出处,模块级):fetch / fetchByChartData / nowChart / fetchByFields 四个换主盘的入口
-// 在第一个 yield 之前同步取号(fetchByFields 与主链 AbortController 同一原子段取),/chart 回来后、落库之前
-// 不是最新的一次就静默作废(不 save 不弹错)——「最后发起的那次才落库」(latest-wins),跨入口同样成立:
-// 连着载入两张命盘、载入在途时步进时间 / 点此刻 / 载入事盘,晚到的旧响应都不再把新盘盖回去。
-// 正确性不随性能开关:快车道开关只管 fields 先不先行提交,不管旧响应丢不丢。
-let chartCommitGen = 0;
-function takeChartCommitTicket(){
-	chartCommitGen += 1;
-	return chartCommitGen;
-}
-function chartCommitTicketLive(ticket){
-	return ticket === chartCommitGen;
-}
-// /chart 主链在途请求的 AbortController(模块级单例:新发先 abort 旧)。
-let chartMainAbortCtl = null;
-
-// —— WP-P1 步进预取:主请求 settle 后,把「下一步」的盘预先算好塞进缓存 ——
-// 步长套用与 DateTimeSelector 的 clickPlus/clickMinus 逐字节同法('m'档=±4 分钟);
-// 深度 k 的时间必须【克隆后逐次 add*】(月末 clamp 与用户连点出的真序列一致,
-// 1月31日+1M+1M=3月28日≠+2M —— 一步到位会臆造出用户永远点不出来的参数,预取即白打)。
-function applyPrefetchStep(dt, unit, dir){
-	if(unit === 'y'){ dt.addYear(dir); }
-	else if(unit === 'M'){ dt.addMonth(dir); }
-	else if(unit === 'd'){ dt.addDate(dir); }
-	else if(unit === 'h'){ dt.addHour(dir); }
-	else { dt.addMinute(4 * dir); }
-	return dt;
-}
-
-function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
-	const dt0 = fieldValues && fieldValues.date && fieldValues.date.value;
-	// 🔴 能力守卫必须查全步进方法,不能只查 clone:预取是优化,任何「不像 DateTime」的
-	// 日期态(异常来源/测试替身)都必须让它整体静默让路,而不是把 TypeError 抛进
-	// fetchByFields 主流程。
-	if(!dt0 || typeof dt0.clone !== 'function'
-		|| typeof dt0.addYear !== 'function' || typeof dt0.addMonth !== 'function'
-		|| typeof dt0.addDate !== 'function' || typeof dt0.addHour !== 'function'
-		|| typeof dt0.addMinute !== 'function'){
-		return [];
-	}
-	// 计划(数组序 == 提交序):
-	//   有向(用户已点 ±):[+1, -1, +2..+depth] —— 同向连点压倒性,反向覆盖「拨过头往回」;
-	//     depth 缺省 2 时提交序逐字节等于旧 [+1,+2,-1](tech+1,chart+1,tech-1,chart-1,chart+2,tech+2)。
-	//   武装(R4-B2,dir=0 且带 depth):[±1, ±2, .. ±depth] 对称交错(+ 先)——
-	//     选完步长 +/− 概率对等,±1 即时命中,远窗吃空闲。
-	//   旧调用(无 depth、无向):[±1] 各一,行为不变。
-	const depth = stepHint && Number.isFinite(stepHint.depth)
-		? Math.max(0, Math.min(5, Math.floor(stepHint.depth)))
-		: 0;
-	let plan;
-	if(stepHint && stepHint.dir){
-		const d = Math.max(2, depth || 2);
-		// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3
-		// 且间隔 <2s 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,
-		// 丢弃零损;任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
-		// 判定失败=不偏(fail-open 回对称计划)。kill:horosa.perf.stepPrefetchSkew。
-		let skew = false;
-		try{
-			if(stepPrefetchSkewEnabled()){
-				const s = stepStreak(astroState.currentTab);
-				skew = s.count >= 3 && s.dir === stepHint.dir
-					&& (!stepHint.unit || s.unit === stepHint.unit)
-					&& (Date.now() - s.at) < 2000;
-			}
-		}catch(e){ /* 不偏 */ }
-		if(skew){
-			plan = [];
-			for(let k = 1; k <= Math.min(d + 1, 5); k += 1){
-				plan.push({ k, dir: stepHint.dir });
-			}
-		}else{
-			plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
-			for(let k = 2; k <= d; k += 1){
-				plan.push({ k, dir: stepHint.dir });
-			}
-		}
-	}else if(depth > 0){
-		plan = [];
-		for(let k = 1; k <= depth; k += 1){
-			plan.push({ k, dir: 1 });
-			plan.push({ k, dir: -1 });
-		}
-	}else{
-		plan = [{ k: 1, dir: 1 }, { k: 1, dir: -1 }];
-	}
-	const unit = (stepHint && stepHint.unit) || 'm';
-	// 本地漏斗技法(紫微/遁甲)的武装:/chart 不在其步进路径上,预取它纯属浪费 —— 只做技法端点。
-	const skipChart = !!(stepHint && stepHint.skipChart);
-	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存。
-	// 🔴 传给登记方的必须是【已步进到目标时间的 f2】(旧版传的是基准 fields,构出来的是
-	//    「此刻」的参数 —— 与用户下一步要看的盘不是同一张,预取白打;死表期潜伏未爆,R4-B2 修)。
-	const extra = getStepPrefetcher(astroState.currentTab);
-	const chartTasks = [];
-	const techTasks = [];
-	for(const pl of plan){
-		// 整个单步构造包进 try:clone 出来的对象若丢了步进能力、或构参路径抛任何异常,
-		// 都只作废这一个占位 —— 预取构造永不外抛(占位保序,排序阶段按位配对)。
-		let f2;
-		let label;
-		let param;
-		try{
-			let dt = dt0.clone();
-			for(let i = 0; i < pl.k; i += 1){
-				dt = applyPrefetchStep(dt, unit, pl.dir);
-			}
-			f2 = {
-				...fieldValues,
-				date: { ...fieldValues.date, value: dt },
-				time: { ...fieldValues.time, value: dt },
-			};
-			label = `${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`;
-			param = fieldsToParams(f2);   // 🔴 与正式请求同一构参路径 —— 缓存键逐字节同键是预取生效的唯一前提
-		}catch(e){
-			chartTasks.push(null);         // 非法日期(如越 startTime)静默跳过(占位保序)
-			techTasks.push(null);
-			continue;
-		}
-		param.cid = null;
-		param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-		if(skipChart){
-			chartTasks.push(null);   // 本地漏斗武装:占位保序,只发技法端点
-		}else{
-			chartTasks.push({
-				name: `chart${label}`,
-				path: '/chart',   // R4-B1 运行时白名单契约:无 path 的任务会被 submitStepPrefetch 丢弃
-				// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
-				run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
-			});
-		}
-		let mine = null;
-		if(extra){
-			try{
-				const more = extra(f2, stepHint);
-				if(Array.isArray(more) && more.length){
-					mine = more.map((t)=>({ ...t, name: `${(t && t.name) || 'tech'}${label}` }));
-				}
-			}catch(e){ /* 技法预取器出错不碍主流程 */ }
-		}
-		techTasks.push(mine);
-	}
-	// 排序即价值:近窗(k==1)技法端点先于 chart(非占星页 gate 面板的是技法端点,旧序 chart
-	// 在前时技法任务恒被预算砍掉);远窗(k>=2)chart 先把共享底盘备好、技法端点跟队。
-	// 经典有向 [+1,-1,+2] 在此规则下的输出与旧实现逐字节同序。
-	const tasks = [];
-	const emit = (arr, idx)=>{
-		const v = arr[idx];
-		if(!v){ return; }
-		if(Array.isArray(v)){ tasks.push(...v); return; }
-		tasks.push(v);
-	};
-	for(let i = 0; i < plan.length; i += 1){
-		if(plan[i].k <= 1){
-			emit(techTasks, i);
-			emit(chartTasks, i);
-		}else{
-			emit(chartTasks, i);
-			emit(techTasks, i);
-		}
-	}
-	return tasks;
-}
-
-// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
-// R4-B2(武装引擎接管上游触发线):上游触发面(opt-in 宿主 + 5s 去重)保持原样;
-// ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
-// NO_ARM/early-boot/reportStepUnit(settle 兜底取档靠它)全在 armStepPrefetch 体内。
-// [Windows-only] F1 收敛(v3.7.1,gotcha #90):旧形态在此处**内联复刻** armStepPrefetch
-// 的全部守卫后直发 submitStepPrefetch —— 语义同路但绕过 arm 台账,__horosaPrefetch.arms
-// 在主盘时间条上恒 0(验收探针的「武装线活着」信号盲区,R12-P2 实测 arms=0 即此)。
-// 改为委托:同守卫、同构造器(planBuilder=buildStepPrefetchTasks 注入)、同 5s 去重,
-// 唯一行为差 = stats.arms/lastReason 正确入账。sameMinute 闸天然豁免(不传 selectorDatetime,
-// v3.5.1 裁决:opt-in 宿主已在源头滤掉旁路时间条)。
-registerStepSelectHandler((unit)=>{
-	armStepPrefetch('unit-select', { unit });
-});
-
-// R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-// 选步长/切页/本地漏斗 settle 的武装全部经由它,与真点步进共用同一 fieldsToParams 路径 ——
-// 「预取参数与用户真点逐字节同键」的纪律因此自动继承。
-registerArmPlanBuilder((fieldValues, hint, astroState)=>buildStepPrefetchTasks(fieldValues, hint, astroState));
-
-// R4-B5(horosa_option_prefetch_v1):选项投机的 /chart 变体任务构造器 —— 与真点/步进预取
-// 共用同一 fieldsToParams 路径(键逐字节同是命中的唯一前提)。
-registerOptionChartTaskBuilder((variantFields, astroState)=>{
-	const param = fieldsToParams(variantFields);
-	param.cid = null;
-	param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-	return {
-		name: 'chart',
-		path: '/chart',
-		run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
-	};
-});
-
-function hooking(hook, currentTab, fields, chartObj){
-	if(currentTab === 'indiachart' || currentTab === 'locastro'
-		|| currentTab === 'hellenastro' || currentTab === 'guolao'
-		|| currentTab === 'germanytech' || currentTab === 'jieqichart'
-		|| currentTab === 'cntradition' || currentTab === 'cnyibu' || currentTab === 'otherbu'
-		|| currentTab === 'fengshui' || currentTab === 'sanshiunited' || currentTab === 'aianalysis'
-		|| currentTab === 'bazi' || currentTab === 'ziwei' || currentTab === 'guazhan'
-		|| currentTab === 'liureng' || currentTab === 'dunjia' || currentTab === 'taiyi'
-		|| currentTab === 'shusuan' || currentTab === 'yanqin' || currentTab === 'mingother'
-		|| currentTab === 'auxchart' || currentTab === 'planetarium'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun(fields, chartObj)
-		}
-	}else if(currentTab === 'direction'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun(chartObj);
-		}
-	}
-
-}
-
-let now = new DateTime();
-
-// 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
-// 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
-export { fieldsToParams as __fieldsToParamsForTest, buildStepPrefetchTasks as __buildStepPrefetchTasksForTest };
 
 const model = {
 	namespace: 'astro',
@@ -994,7 +208,6 @@ const model = {
 			zone: { value: now.zone, name: ['zone'] },
 		},
 	},
-	
 
 	reducers: {
 		// 用户操作触发的 fields 写入(左栏 / 表单 / 显示设置 / 跳转到盘…):与 save 相同,另把「用户已动手」代次 +1。
@@ -1078,9 +291,9 @@ const model = {
 					type = 3;
 					memo = currentChart.memo74.value;
 				}
-				st.memoType = type;	
+				st.memoType = type;
 				st.memo = memo;
-			}else if(values.memoType !== undefined && values.memoType !== null && 
+			}else if(values.memoType !== undefined && values.memoType !== null &&
 				(values.byChartData === undefined || values.byChartData === null)){
 				let type = values.memoType;
 				let memo = currentChart.memoAstro.value;
@@ -1169,7 +382,7 @@ const model = {
 			let drawer = closeAllDrawer('*closeDrawer');
             yield put({
                 type: 'save',
-                payload: {  
+                payload: {
 					drawerVisible: drawer,
                 },
             });
@@ -1188,7 +401,7 @@ const model = {
 
             yield put({
                 type: 'save',
-                payload: {  
+                payload: {
 					drawerVisible: drawer,
                 },
             });
@@ -1197,7 +410,7 @@ const model = {
 				yield put({
 					type: 'app/fetchImgToken',
 					payload: { },
-				});	
+				});
 			}else if(values.key === 'chartadd'){
 				yield put({
 					type: 'user/newCurrentChart',
@@ -1233,7 +446,7 @@ const model = {
 					yield put({
 						type: 'fetchFateEvents',
 						payload: record,
-					});		
+					});
 				}else{
 					const userstate = yield select((s)=>s.user);
 					if(userstate.currentChart.cid.value && userstate.currentChart.cid.value !== ''){
@@ -1259,7 +472,7 @@ const model = {
 						yield put({
 							type: 'fetchFateEvents',
 							payload: record,
-						});			
+						});
 					}
 				}
 			}else if(values.key === 'chartedit'){
@@ -1268,10 +481,10 @@ const model = {
 					yield put({
 						type: 'user/setCurrentChart',
 						payload: {
-							...values.record, 
+							...values.record,
 							drawerVisible: drawer
 						},
-					});		
+					});
 				}else{
 					const userstate = yield select((s)=>s.user);
 					if(userstate.currentChart.cid.value && userstate.currentChart.cid.value !== ''){
@@ -1309,7 +522,7 @@ const model = {
 						yield put({
 							type: 'user/setCurrentChart',
 							payload: record,
-						});			
+						});
 					}else{
 						// 当前这张还没存过:编辑 = 把它存为命盘(带上它的批注)
 						yield put({
@@ -1318,9 +531,9 @@ const model = {
 								key: 'chartadd',
 								fromCurrent: true,
 							},
-						});			
+						});
 					}
-		
+
 				}
 			}else if(values.key === 'planetselect'){
 
@@ -1414,7 +627,7 @@ const model = {
             const state = yield select((s)=>s.astro);
 			yield put({
                 type: 'doHook',
-                payload: {  
+                payload: {
 					chartObj: Result,
 					fields: state.fields,
                 },
@@ -1461,7 +674,6 @@ const model = {
 			const birthIsBc = typeof values.birth === 'string' && values.birth.trim().charAt(0) === '-';
 			tm.setAd(birthIsBc ? -1 : (values.ad ? values.ad : 1));
 			tm.setZone(values.zone);
-
 
 			fields = buildFields(state.fields);
 			const param = fieldsToParams(fields);
@@ -1592,7 +804,7 @@ const model = {
 
 			yield put({
                 type: 'doHook',
-                payload: {  
+                payload: {
 					chartObj: Result,
 					fields: fields,
 					drawerVisible: values.drawerVisible,
@@ -1602,10 +814,10 @@ const model = {
 			if(values.drawerVisible){
 				yield put({
 					type: 'save',
-					payload: {  
+					payload: {
 						drawerVisible: values.drawerVisible,
 					},
-				});	
+				});
 			}
 		},
 
@@ -1864,7 +1076,7 @@ const model = {
 			const chartEpochNext = (((yield select((s)=>s.astro)) || {}).chartEpoch || 0) + 1;
             yield put({
                 type: 'save',
-                payload: {  
+                payload: {
 					fields: fields,
 					chartObj: Result,
 					drawerVisible: drawer,
@@ -1909,7 +1121,7 @@ const model = {
 					...values,
 					skipFetchByChartData: true,
 				},
-			});		
+			});
 
 			// 曾有 `const localOnly = true` 写死的服务端 fetchFateEvents 分支
 			// (登录多用户时代残留,永不可达)——纯本地桌面形态定谳后收敛为本地唯一路径。
@@ -1938,7 +1150,7 @@ const model = {
 
             yield put({
                 type: 'openDrawer',
-                payload: {  
+                payload: {
 					key: 'chartlist'
                 },
             });

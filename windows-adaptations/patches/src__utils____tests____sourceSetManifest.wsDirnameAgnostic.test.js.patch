@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js b/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
-index 51e65a4f..0b0ad159 100644
+index 87df1079..99dac791 100644
 --- a/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
 +++ b/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
 @@ -8,7 +8,9 @@ const SRC = path.resolve(__dirname, '..', '..');
@@ -13,7 +13,7 @@ index 51e65a4f..0b0ad159 100644
  const PY_FACADES = Object.keys(PY_SOURCE_SETS);
  const pyModule = (rel)=>rel.replace(/\.py$/, '').split('/').join('.');
  
-@@ -106,13 +108,15 @@ describe('拆成子模块的大文件 · 登记表合同', ()=>{
+@@ -184,13 +186,15 @@ describe('拆成子模块的大文件 · 登记表合同', ()=>{
  		expect({ depth, min }).toEqual({ depth: 0, min: 0 });
  	});
  
@@ -31,3 +31,14 @@ index 51e65a4f..0b0ad159 100644
  	});
  });
  
+@@ -401,7 +405,9 @@ describe('读源码的测试 · 写法合同(全集读法不许被绕过 / 截
+ 				if(new RegExp(`['"\`]${segs[segs.length - 2]}['"\`]\\s*,\\s*['"\`]${segs[segs.length - 1].replace('.', '\\.')}['"\`]`).test(src)){ return true; }
+ 				return [...src.matchAll(/['"\`](\.\.?\/[^'"\`\n]+)['"\`]/g)].some((m)=>path.resolve(path.dirname(f), m[1]) === path.join(SRC, rel));
+ 			}).map(([rel])=>rel);
+-			const rel = path.relative(SRC, f);
++			// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):登记表 WHOLE_TREE_WALKERS 的键是正斜杠相对路径,
++			// path.relative 在 Windows 给反斜杠 ⇒ 登记过的走查测试一律查不到、整条假红。归一到 POSIX 分隔符(macOS 上为 no-op)。
++			const rel = path.relative(SRC, f).split(path.sep).join('/');
+ 			if(named.length && !WHOLE_TREE_WALKERS[rel]){ bad.push(`${rel} → ${named.join(' ')}`); }
+ 		});
+ 		expect(bad).toEqual([]);

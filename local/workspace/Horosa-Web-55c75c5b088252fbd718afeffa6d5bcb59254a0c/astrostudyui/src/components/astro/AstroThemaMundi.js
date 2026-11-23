@@ -8,6 +8,7 @@ import { THEMA_MUNDI, SIGN_EN, SIGN_CN, PLANET_CN, parseSignDegree } from '../..
 import { astroSymbol } from './AstroExtraCommon';
 // 范式位派生与三条含义文案住 utils/astroClassicalDerived 单源(AI 快照 [古典·世界范式盘] 段同引)。
 import { themaPositions, THEMA_MUNDI_BULLETS } from '../../utils/astroClassicalDerived';
+import { pressable } from '../../utils/pressable';
 
 const MUTED = 'var(--horosa-muted, #999)';
 const BORDER = 'var(--horosa-border, rgba(120,120,120,0.28))';
@@ -76,7 +77,7 @@ class AstroThemaMundi extends Component{
 			<div className="horosa-info-card horosa-classical-card">
 				<div className="horosa-classical-card-title" style={{ cursor: 'pointer', justifyContent: 'space-between' }}
 					role="button" aria-expanded={open}
-					onClick={()=>this.setState({ open: !open })}>
+					{...pressable(()=>this.setState({ open: !open }), { role: false })}>
 					<span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
 						<span className="horosa-classical-zh">世界范式盘</span>
 						<span className="horosa-classical-en">Thema Mundi</span>

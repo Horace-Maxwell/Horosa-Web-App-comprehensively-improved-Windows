@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMain.js b/astrostudyui/src/components/xuanshi/XuanShiMain.js
-index c341150d..2f05c876 100644
+index f9803db8..8be2e063 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMain.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMain.js
 @@ -6,6 +6,8 @@ import {
@@ -11,7 +11,7 @@ index c341150d..2f05c876 100644
  import XuanShiEvents from './XuanShiEvents';
  // 🔴 天象/地图两个子页必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
  //   两者各自 `import * as echarts from 'echarts'`,静态引它们就把 echarts(vendors-viz 1291KB,
-@@ -203,16 +205,27 @@ export default class XuanShiMain extends React.Component {
+@@ -204,16 +206,27 @@ export default class XuanShiMain extends React.Component {
  	async loadSummary() {
  		if (this.state.summary || this.state.summaryLoading) { return; }
  		this.setState({ summaryLoading: true, summaryErr: '' });

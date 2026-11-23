@@ -1,0 +1,82 @@
+diff --git a/astrostudyui/src/components/lrzhan/main/rightTabs.js b/astrostudyui/src/components/lrzhan/main/rightTabs.js
+index 6ed94a10..d50e6977 100644
+--- a/astrostudyui/src/components/lrzhan/main/rightTabs.js
++++ b/astrostudyui/src/components/lrzhan/main/rightTabs.js
+@@ -19,6 +19,7 @@ import { FreezeSubTab } from '../../comp/FreezeInactive';
+ import { QIZHENG_PLANET_COLOR, QIZHENG_WUXING_COLOR } from './ganzhiHelpers';
+ import { buildReferenceDocumentText, buildOverviewReferenceText, filterBiFaListByQuery } from './referenceOverview';
+ import { LiuRengRefCard, LiuRengRefEmpty, LiuRengRefFacts, LiuRengRefGroupTitle } from '../LiuRengRefCard';
++import { buildQiZhengItems } from './ganzhiHelpers';
+ const TabPane = Tabs.TabPane;
+ 
+ export const rightTabMethods = {
+@@ -387,8 +388,8 @@ export const rightTabMethods = {
+ 			xiaojuMainItems,
+ 			xiaojuReferenceItems,
+ 			overviewItems,
+-			qizhengItems,
+-			metaItems,
++			chart,
++			displayRunYear,
+ 		} = refData;
+ 		const ctx = refBundle && refBundle.context ? refBundle.context : null;
+ 		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
+@@ -400,6 +401,12 @@ export const rightTabMethods = {
+ 				onChange={(key)=>this.setState({ rightPanelTab: key })}
+ 				animated={false}
+ 			>
++				{/* horosa_freeze_subtabs_v1:右栏 8 面板 keep-alive(无 destroyInactiveTabPane),
++				    改前每次父重渲(切时间/改 13 项设置/换页签)都把 格局/信息/毕法(百余条条文 map)/
++				    参考/概览/占断/取象/七政 八个面板【全部】重跑一遍,而用户只看得见其中一个。
++				    函数式 FreezeSubTab:未激活过 → 连元素都不建;激活过但当前非激活 → sCU 跳过
++				    (DOM/实例/滚动位置/展开态全部保留,不卸载);切回 → 拿本轮最新 children 立刻渲一帧,
++				    不重发请求、不闪烁、无陈旧。kill-switch horosa.perf.freezeSubTabs=0 即回旧行为。 */}
+ 				<TabPane tab="格局" key="dage">
+ 					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
+ 					<div className="horosa-liureng-reference-tab-body">
+@@ -432,7 +439,11 @@ export const rightTabMethods = {
+ 					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="信息" key="meta">
+-					<FreezeSubTab active={activeTabKey === 'meta'}>{() => (
++					<FreezeSubTab active={activeTabKey === 'meta'}>{()=>{
++					// horosa_liureng_render_slice_v1(L2):9 组神煞/旬空/长生 meta 卡的数据在 thunk 内现算 ——
++					// 仅本面板激活时执行(FreezeSubTab 函数式 children 语义),输入取同一 commit 的 state,零陈旧。
++					const metaItems = this.buildQuickMetaItems(displayRunYear);
++					return (
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{metaItems && metaItems.length ? metaItems.map((group)=>(
+ 							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
+@@ -451,7 +462,8 @@ export const rightTabMethods = {
+ 							</Card>
+ 						)}
+ 					</div>
+-					)}</FreezeSubTab>
++					);
++					}}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="毕法" key="bifa">
+ 					<FreezeSubTab active={activeTabKey === 'bifa'}>{() => this.renderBiFaTab(ctx)}</FreezeSubTab>
+@@ -499,7 +511,11 @@ export const rightTabMethods = {
+ 					<FreezeSubTab active={activeTabKey === 'xiang'}>{() => this.renderXiangTab(ctx)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="七政" key="qizheng">
+-					<FreezeSubTab active={activeTabKey === 'qizheng'}>{() => (
++					<FreezeSubTab active={activeTabKey === 'qizheng'}>{()=>{
++					// horosa_liureng_render_slice_v1(L2):七政条目在 thunk 内现算,仅本面板激活时执行;
++					// AI 快照的 [七政] 段由 buildLiuRengSnapshotText 自行调 buildQiZhengItems,与此无涉。
++					const qizhengItems = buildQiZhengItems(chart);
++					return (
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{qizhengItems && qizhengItems.length ? (
+ 							<Card size='small'>
+@@ -553,7 +569,8 @@ export const rightTabMethods = {
+ 							</Card>
+ 						)}
+ 					</div>
+-					)}</FreezeSubTab>
++					);
++					}}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

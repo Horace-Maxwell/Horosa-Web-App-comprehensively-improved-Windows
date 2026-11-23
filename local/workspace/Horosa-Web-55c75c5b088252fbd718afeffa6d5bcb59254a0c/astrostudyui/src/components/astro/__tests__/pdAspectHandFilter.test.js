@@ -26,9 +26,9 @@ describe('pdAspectHandFilter(列筛选版)', () => {
 
 	it('② 列筛选维含左右相位两项,紧随冲 180° 之后', () => {
 		// eslint-disable-next-line global-require
-		const src = require('fs').readFileSync(
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(   // 拆成子模块的大文件按「门面 + 子模块」全集读
 			// eslint-disable-next-line global-require
-			require('path').join(__dirname, '..', 'AstroPrimaryDirection.js'), 'utf8');
+			require('path').join(__dirname, '..', 'AstroPrimaryDirection.js'));
 		const i180 = src.indexOf("value: 'ASP:180'");
 		const iDex = src.indexOf("value: 'HAND:dexter'");
 		const iSin = src.indexOf("value: 'HAND:sinister'");

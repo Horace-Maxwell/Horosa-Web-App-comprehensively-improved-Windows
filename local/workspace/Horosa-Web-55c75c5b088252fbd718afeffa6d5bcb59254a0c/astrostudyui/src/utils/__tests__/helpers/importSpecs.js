@@ -8,6 +8,8 @@
 //   发布前自检的 pf_imports(preflight/lib.sh → preflight/import_specs.js)也用它。
 // importsName(源码, { name, from, as }) —— 有没有一条 import 从 from 导入 name(as 给了就要求本地名 = as;不给 = 本地名同名)。
 // definesLocal(源码, 名) —— 本文件有没有自己定义这个名字(函数声明 / 变量 / 类;import 进来的不算)。
+// usesLocal(源码, 本地名) —— 本文件有没有真正用到这个名字(导入的或自定义的;只出现在 import 说明符里不算)。
+//   单源锁的正确判据是「用到的必须从单源引、不许自带副本」,而不是「必须引」—— 页面不再用某个工具时,死引用本就该删。
 // fileImportsName(文件绝对路径, { name, target, as }) —— 同 importsName,但来源按该文件所在目录解析成绝对路径再比
 //   (target = 被导入模块的绝对路径,带不带 .js 都行);拆成子模块的门面按 sourceSetFiles 逐个文件问,引用路径层级不同也照认。
 const fs = require('fs');
@@ -79,4 +81,10 @@ function fileImportsName(file, { name, target, as } = {}){
 	));
 }
 
-module.exports = { parseModule, importBindings, importsName, definesLocal, fileImportsName };
+function usesLocal(src, local){
+	let used = false;
+	traverse(parseModule(src), { Program(p){ const b = p.scope.getBinding(local); used = !!(b && b.referenced); p.stop(); } });
+	return used;
+}
+
+module.exports = { parseModule, importBindings, importsName, definesLocal, usesLocal, fileImportsName };

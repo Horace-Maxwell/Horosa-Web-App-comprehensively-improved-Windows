@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/horary/HoraryMain.js b/astrostudyui/src/components/horary/HoraryMain.js
-index 7922e4af..d4b746fe 100644
+index 2c112537..2551609d 100644
 --- a/astrostudyui/src/components/horary/HoraryMain.js
 +++ b/astrostudyui/src/components/horary/HoraryMain.js
 @@ -1,4 +1,5 @@
  import React, { Component } from 'react';   // 显式引 React:模块级 JSX 常量在 jest classic runtime 下必需
 +import { markPanelReady } from '../../utils/perfMark';
- import { Input, Checkbox, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
+ import { Input, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
  import PlusMinusTime from '../astro/PlusMinusTime';
  import TimeFieldTrigger from '../comp/QuickTimeField';
 @@ -523,6 +524,13 @@ class HoraryMain extends Component{

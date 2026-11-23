@@ -11,7 +11,7 @@ import { listLocalCharts, listLocalChartsTrash } from '../../utils/localcharts';
 import { listLocalCases, listLocalCasesTrash } from '../../utils/localcases';
 import { isDesktopBridgeAvailable, invokeDesktopCommand } from '../../utils/aiAnalysisDesktop';
 import { getAutoBackupStatus, describeAutoBackupFailure } from '../../utils/autoBackup';
-import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/fileSave';
 import { emitRecordsChanged } from '../../utils/recordStoreNotice';
 import { readBackupIncident, clearBackupIncident } from '../../utils/backupIncident';
 import { classifyStorageKey } from '../../utils/storageKeyRegistry';

@@ -14,6 +14,7 @@ import styles from './AgentActionBar.less';
 import { AGENT_TOOL_LABELS, toolLabel } from '../../utils/aiTools/labels';
 import AgentDiffPreview from './AgentDiffPreview';
 import { SCRIPT_KEEP_CLASS } from '../../utils/scriptMode';   // 工具参数 / 结果原样显示(界面繁体时不转换)
+import { pressable } from '../../utils/pressable';
 
 // 标签单源在 utils/aiTools/labels.js(面板「按工具名放行·禁用」同用);这里保留同名导出以免既有引用断链
 export { AGENT_TOOL_LABELS };
@@ -122,7 +123,7 @@ export default function AgentActionBar({ trace, messageId, streaming, onTraceCha
 					))}
 				</div>
 			) : null}
-			<div className={styles.head} onClick={()=>setOpen((v)=>!v)}>
+			<div className={styles.head} {...pressable(()=>setOpen((v)=>!v))}>
 				<span>助手动作 {results.length} 项 · 完成 {doneCount}{failCount ? ` · 失败 ${failCount}` : ''}{trace && trace.mode === 'text' ? ' · 围栏模式' : ''}{!enabled ? ' · 行动能力已关闭(只读)' : ''}</span>
 				<span>{open ? '收起' : '展开'}</span>
 			</div>

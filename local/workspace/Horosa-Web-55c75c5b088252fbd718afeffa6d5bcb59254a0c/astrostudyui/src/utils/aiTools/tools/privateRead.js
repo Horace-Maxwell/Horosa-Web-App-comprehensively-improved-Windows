@@ -8,6 +8,7 @@ import { listLocalCharts } from '../../localcharts';
 import { listLocalCases } from '../../localcases';
 import { GUIDE, RECORD_ID_PATTERN } from './_shared';
 import { buildSubjectFacts, clipText, isSubjectFactsEnabled } from '../../subjectFacts';
+import { switchHintText } from '../switchHints';
 
 export const CONVERSATION_LIST_MAX = 100;
 export const CONVERSATION_MESSAGES_MAX = 200;
@@ -35,6 +36,7 @@ export const listConversationsTool = {
 	undoKind: 'none',
 	origins: ['mcp'],
 	enabled: PRIVATE_GATE,
+	disabledHint: ()=>switchHintText('privateRead'),
 	description: `列出你与星阙 AI 的对话记录(标题、关联的命盘 / 事盘、合盘对方、最后一条消息时间),新的在前;query 按标题与案例名过滤。要看对话正文用 get_conversation。(需在「外部连接」里开「私人内容可读」)。${GUIDE}:用户要你参考以前与星阙 AI 的对话时调用。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false,
@@ -73,6 +75,7 @@ export const getConversationTool = {
 	undoKind: 'none',
 	origins: ['mcp'],
 	enabled: PRIVATE_GATE,
+	disabledHint: ()=>switchHintText('privateRead'),
 	description: `读取一段与星阙 AI 的对话正文(用户与 AI 的消息,按时间先后;默认取最后 limit 条,每条按 maxCharsPerMessage 截断)。conversationId 来自 list_conversations。(需开「私人内容可读」)。${GUIDE}:用户要你参考某段具体对话时调用。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['conversationId'],
@@ -103,6 +106,7 @@ export const getRecordDetailTool = {
 	undoKind: 'none',
 	origins: ['mcp'],
 	enabled: PRIVATE_GATE,
+	disabledHint: ()=>switchHintText('privateRead'),
 	description: `读取一张命盘 / 事盘的私人内容:通用备注、各技法批注、断事日志(新在前)、与其它档案的关系、标签;命盘另附命主实况(用户本人填写的命主真实情况,与星阙对话里发给 AI 的同一段;只有用户在星阙里对这张命盘打开了「发送」才附,否则为 null)。recordId 用 list_records 取。(需开「私人内容可读」)。${GUIDE}:用户要你参考某张档案的备注、断事日志或命主实况时调用。`,
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['recordId'],

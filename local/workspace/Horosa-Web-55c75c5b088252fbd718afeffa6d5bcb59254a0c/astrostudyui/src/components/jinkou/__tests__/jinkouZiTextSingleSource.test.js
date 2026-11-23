@@ -12,8 +12,12 @@ describe('金口诀取支单一来源', ()=>{
 		expect(typeof resolveJinKouDiFen).toBe('function');
 	});
 	test('源码:主页不再自带一份', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '..', 'JinKouMain.js'), 'utf8');
-		expect(src).toContain("import { resolveJinKouDiFen, normalizeZiFromText } from './JinKouState';");
+		const { readSource, importedFrom } = require('../../../utils/__tests__/helpers/sourceSet');
+		const facade = path.join(__dirname, '..', 'JinKouMain.js');
+		const src = readSource(facade);
+		// 按组件全集判(类方法拆在 main/ 下时,引入跟着用它的方法走)
+		const got = importedFrom(facade, path.join(__dirname, '..', 'JinKouState'));
+		expect(got.has('resolveJinKouDiFen') && got.has('normalizeZiFromText')).toBe(true);
 		expect(src).not.toContain('function normalizeZiFromText(');
 	});
 });

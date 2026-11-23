@@ -625,7 +625,7 @@ describe('地占 · 左栏闭合态短名(选项被遮挡之根治)', () => {
 
 	test('全部选项表之短名皆 ≤5 字(闭合态方不被截)', () => {
 		/* eslint-disable global-require */
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		const shorts = (src.match(/short: '([^']+)'/g) || []).map((x) => x.replace(/short: '|'/g, ''));
 		expect(shorts.length).toBeGreaterThanOrEqual(70);
 		const tooLong = shorts.filter((x) => x.length > 5);
@@ -634,7 +634,7 @@ describe('地占 · 左栏闭合态短名(选项被遮挡之根治)', () => {
 
 	test('高级传本闭合态为「随·短值」形态(既短又明示跟随预设)', () => {
 		/* eslint-disable global-require */
-		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const src = require('../../../utils/__tests__/helpers/sourceSet').readSource(require.resolve('../GeomancyMain'));
 		expect(src).toContain('`随·${this.effShort(f)}`');
 		expect(src).toContain('optionLabelProp="label"');
 	});

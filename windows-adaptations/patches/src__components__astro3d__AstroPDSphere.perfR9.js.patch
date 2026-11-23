@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroPDSphere.js b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-index 5b9d8fe2..309d815d 100644
+index a89ef1e2..49273225 100644
 --- a/astrostudyui/src/components/astro3d/AstroPDSphere.js
 +++ b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-@@ -182,6 +182,35 @@ function computeReqKey(req){
+@@ -183,6 +183,35 @@ function computeReqKey(req){
  	}
  }
  
@@ -38,7 +38,7 @@ index 5b9d8fe2..309d815d 100644
  // 表行不出自当前命主时给的空表(同一个引用)
  const NO_PD_ROWS = Object.freeze([]);
  
-@@ -237,6 +266,18 @@ class AstroPDSphere extends Component{
+@@ -238,6 +267,18 @@ class AstroPDSphere extends Component{
  		this.setTlZoom = this.setTlZoom.bind(this);
  	}
  

@@ -2,8 +2,8 @@
 // 受控约定:面板 state 初始化自引擎 chartOpt(localStorage['chart3dOpt'] 已持久化),
 // 每次变更调 engine.applyOption(key, val) —— 应用逻辑全在引擎,面板零业务分支。
 import React from 'react';
-import { Slider } from 'antd';
-import { XQPanel, XQSwitch, XQSelect, XQButton } from '../xq-ui';
+
+import { XQSwitch, XQSelect, XQButton, XQSlider } from '../xq-ui';
 
 const SWITCH_ROWS = [
 	['摄像机旋转'],
@@ -122,7 +122,7 @@ class Astro3DSettingsPanel extends React.Component {
 					{SLIDERS.map(({ key, min, max, step })=>(
 						<div key={key} className="horosa-a3ds-sliderrow">
 							<span className="horosa-a3ds-label">{key}</span>
-							<Slider min={min} max={max} step={step} value={Number(opt[key]) || 0}
+							<XQSlider min={min} max={max} step={step} value={Number(opt[key]) || 0}
 								tooltip={{ open: false }} onChange={(v)=>this.apply(key, v)} />
 							<em className="horosa-a3ds-val">{fmt(Number(opt[key]) || 0, step)}</em>
 						</div>

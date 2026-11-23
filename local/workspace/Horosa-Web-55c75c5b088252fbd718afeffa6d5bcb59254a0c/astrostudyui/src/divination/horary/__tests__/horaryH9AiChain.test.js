@@ -74,8 +74,9 @@ describe('H9③ 挂载 gear 键账(spec 驱动自证)', () => {
 		const schema = (mod.MOUNT_TECHNIQUE_SCHEMA || mod.default || {}).horary || (mod.getMountSchema ? mod.getMountSchema('horary') : null);
 		const judgeKeys = HORARY_PARAM_SPEC.filter((p) => p.scope === 'horary' && !p.sendToBackend).map((p) => 'hp_' + p.key);
 		// schema 形状因版本而异:退到源码文本断言(HORARY_JUDGE_FIELDS 由 spec .map 生成=单源自动)
-		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'utils', 'techniqueMountSettings.js'), 'utf8');
+		const path = require('path');
+		const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
+		const src = readSource(path.resolve(__dirname, '..', '..', '..', 'utils', 'techniqueMountSettings.js'));
 		expect(src).toContain("'hp_' + sp.key");
 		expect(src).toMatch(/HORARY_PARAM_SPEC[\s\S]{0,200}scope === 'horary'/);
 		expect(judgeKeys.length).toBeGreaterThanOrEqual(33);   // 22 旧+11 新(H2 五+H4b 一+H5 四+H7 一)

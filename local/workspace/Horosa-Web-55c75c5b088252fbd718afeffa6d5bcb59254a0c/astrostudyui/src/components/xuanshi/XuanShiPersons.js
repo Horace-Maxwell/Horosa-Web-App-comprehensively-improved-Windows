@@ -1,8 +1,9 @@
 import React from 'react';
-import { Spin, Empty, InputNumber } from 'antd';
+import { XQEmpty, XQInputNumber, XQSpin } from '../xq-ui';
 import * as d3 from 'd3';
 import { fetchPersonsGraph } from '../../services/xuanshi';
 import { getDeclaredZoom } from '../../utils/zoomDomain';
+import { pressable } from '../../utils/pressable';
 
 // 人物关系图 —— 照搬标准版 参考人物关系图页 的 d3 力导图:
 // 实时 forceSimulation(link/charge/center/collide)+ 节点可拖拽 + 滚轮缩放/平移
@@ -173,7 +174,7 @@ export default class XuanShiPersons extends React.Component {
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>人物关系图</span>
 				</div>
 				<div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -185,16 +186,16 @@ export default class XuanShiPersons extends React.Component {
 					</div>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
 						<span className="xuanshi-stat-sub">人物数</span>
-						<InputNumber size="small" min={20} max={200} value={topN} style={{ width: 72 }} onChange={(v) => this.setState({ topN: v || 100 })} />
+						<XQInputNumber size="small" min={20} max={200} value={topN} style={{ width: 72 }} onChange={(v) => this.setState({ topN: v || 100 })} />
 						<span className="xuanshi-stat-sub">最小共现</span>
-						<InputNumber size="small" min={1} max={20} value={minWeight} style={{ width: 60 }} onChange={(v) => this.setState({ minWeight: v || 1 })} />
-						<span className="xuanshi-btn is-primary" onClick={() => this.apply()}>应用</span>
+						<XQInputNumber size="small" min={1} max={20} value={minWeight} style={{ width: 60 }} onChange={(v) => this.setState({ minWeight: v || 1 })} />
+						<span className="xuanshi-btn is-primary" {...pressable(() => this.apply())}>应用</span>
 					</div>
 				</div>
 
 				<div className="xuanshi-card" style={{ padding: 8, marginTop: 16, overflow: 'hidden', position: 'relative' }}>
-					{loading ? <div className="xuanshi-center" style={{ minHeight: 460 }}><Spin tip="布局图谱…" /></div> : err ? (
-						<div className="xuanshi-center" style={{ minHeight: 460 }}><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
+					{loading ? <div className="xuanshi-center" style={{ minHeight: 460 }}><XQSpin tip="布局图谱…" /></div> : err ? (
+						<div className="xuanshi-center" style={{ minHeight: 460 }}><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
 					) : null}
 					<svg ref={this._svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'calc(75 * var(--horosa-lvh, 1vh))', display: loading || err ? 'none' : 'block', cursor: 'grab', touchAction: 'none' }} />
 				</div>

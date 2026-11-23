@@ -4,6 +4,7 @@
 // 同轮修 suzhan 遁甲外盘不再污染共享 'qimen' 槽(buildQimenSnapshotText 已删)。
 import fs from 'fs';
 import { buildAstroSnapshotContent } from '../astroAiSnapshot';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const CHART = {
 	chart: {
@@ -37,7 +38,7 @@ describe('[MU] relative/jieqi 嵌入调用传 headerless(源扫防回退)', () =
 		calls.forEach((c) => expect(c).toMatch(/headerless:\s*true/));
 	});
 	test('JieQiChartsMain 的 buildAstroSnapshotContent 调用带 headerless:true', () => {
-		const src = fs.readFileSync(require.resolve('../../components/jieqi/JieQiChartsMain.js'), 'utf8').replace(/\0/g, '');
+		const src = readSource(require.resolve('../../components/jieqi/JieQiChartsMain.js')).replace(/\0/g, '');
 		const calls = src.match(/buildAstroSnapshotContent\([^)]*\)/g) || [];
 		expect(calls.length).toBeGreaterThanOrEqual(1);
 		calls.forEach((c) => expect(c).toMatch(/headerless:\s*true/));

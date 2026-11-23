@@ -5,7 +5,7 @@ from flatlib import const
 from flatlib.datetime import Datetime
 from astrostudy.astroextra_parts.common import (
     PLANET_SWISS_IDS, norm360, norm180, safe_float, geo_to_degree, date_time_from_jd, swe_lon, sign_index,
-    sign_name_from_lon,
+    sign_name_from_lon, _SWE_LON_TL,
 )
 
 
@@ -63,35 +63,111 @@ def calc_ingresses(start_jd, end_jd, zone, planets):
     return sorted(events, key=lambda item: item['jd'])
 
 
+# ── 留 ────────────────────────────────────────────────────────────────────────────────────────────
+# 「留」= 黄经停止变化的那一刻,即黄经对时间的导数过零(黄经的极值点)。
+# 这里由**位置**求导,不用星历库自带的速度量:那个速度量在留附近只准到 1e-7 度 / 日量级,对走得慢的星来说
+# 「速度过零」比黄经真正的极值点偏出几十秒到几分钟(海王星约一分钟),而且它在秒的尺度上是一片噪声 ——
+# 用它求根,落在哪一秒取决于取样格点。旧写法的取样格点又随每个请求的起算时刻而不同,于是同一个天象在
+# 不同命例的表里时刻会差 1 秒,换一台机器也差 1 秒。
+# 现在三件事一起定:① 导数由 25 个等距位置做最小二乘四次拟合(Savitzky–Golay 一阶导,窗口 ±6 小时),
+# 位置的末位噪声被平均掉;② 逐日扫描的格点对齐到整数儒略日,与请求的起算时刻无关 —— 同一个天象任何命例里
+# 都是同一个数;③ 时刻取到分钟:拟合后的离散仍有百分之几秒,精确到秒的话落在整秒边界上的照样会差 1 秒。
+_STATION_HALF = 12             # 窗口每侧的点数(共 2 × 12 + 1 = 25 点)
+_STATION_STEP = 1.0 / 48.0     # 点距 30 分钟
+_STATION_WEIGHTS = None
+
+
+def _station_weights():
+    """四次多项式最小二乘拟合在窗口中心处一阶导的权(对等距点;用分数精确求一次,之后复用)。"""
+    global _STATION_WEIGHTS
+    if _STATION_WEIGHTS is None:
+        from fractions import Fraction
+        m, order = _STATION_HALF, 4
+        xs = [Fraction(x) for x in range(-m, m + 1)]
+        n = order + 1
+        mat = [[sum(x ** (i + k) for x in xs) for k in range(n)] + [Fraction(1 if i == 1 else 0)] for i in range(n)]
+        for c in range(n):                      # 高斯消元(分数运算,无舍入)
+            piv = next(r for r in range(c, n) if mat[r][c] != 0)
+            mat[c], mat[piv] = mat[piv], mat[c]
+            head = mat[c][c]
+            mat[c] = [v / head for v in mat[c]]
+            for r in range(n):
+                if r != c and mat[r][c] != 0:
+                    f = mat[r][c]
+                    mat[r] = [a - f * b for a, b in zip(mat[r], mat[c])]
+        u = [mat[i][n] for i in range(n)]
+        _STATION_WEIGHTS = tuple(float(sum(u[k] * x ** k for k in range(n))) for x in xs)
+    return _STATION_WEIGHTS
+
+
+def lon_rate(body, jd, ref_lon=None):
+    """黄经变化率(度 / 日),由位置求:以 jd 为中心的 25 个等距位置做四次拟合,取中心处的一阶导。"""
+    weights = _station_weights()
+    if ref_lon is None:
+        ref_lon = swe_lon(body, jd)[0]
+    # 这 25 个采样点每次都不同、之后不会再被问到:不进请求级黄经缓存(进了也命不中;每个留约一千个点,
+    #   长区间的扫描会把这份缓存撑到上 GB,到请求结束才放)。只是不缓存,取到的值不变。
+    memo = getattr(_SWE_LON_TL, 'memo', None)
+    _SWE_LON_TL.memo = None
+    try:
+        total = 0.0
+        for k, w in enumerate(weights):
+            total += w * norm180(swe_lon(body, jd + (k - _STATION_HALF) * _STATION_STEP)[0] - ref_lon)
+    finally:
+        _SWE_LON_TL.memo = memo
+    return total / _STATION_STEP
+
+
+def station_moment(body, lo, hi):
+    """[lo, hi] 内黄经变化率过零的时刻(儒略日)与转向;两端同号(这段里没有留)返回 None。"""
+    ref = swe_lon(body, 0.5 * (lo + hi))[0]
+    f_lo = lon_rate(body, lo, ref)
+    f_hi = lon_rate(body, hi, ref)
+    if not ((f_lo <= 0 <= f_hi) or (f_lo >= 0 >= f_hi)):
+        return None
+    direction = 'Direct' if f_hi > f_lo else 'Retrograde'   # 由逆转顺是顺留,由顺转逆是逆留
+    a, b, fa = lo, hi, f_lo
+    for _ in range(36):                          # 区间半日到一日半,36 次二分 ≈ 2e-11 日(远小于取到的分钟)
+        mid = 0.5 * (a + b)
+        fm = lon_rate(body, mid, ref)
+        if (fa <= 0 <= fm) or (fa >= 0 >= fm):
+            b = mid
+        else:
+            a, fa = mid, fm
+    return 0.5 * (a + b), direction
+
+
 def calc_stations(start_jd, end_jd, zone, planets):
     events = []
+    first_day = math.floor(start_jd) - 1         # 逐日扫描对齐到整数儒略日(与起算时刻无关);两头各多看一天
+    last_day = math.ceil(end_jd) + 1
     for body in planets:
         if body not in PLANET_SWISS_IDS or body in (const.SUN, const.MOON):
             continue
-        jd = start_jd
-        _, prev_speed, _ = swe_lon(body, jd)
-        while jd < end_jd:
-            nxt = min(jd + 1.0, end_jd)
-            lon, speed, _ = swe_lon(body, nxt)
+        day = first_day
+        _, prev_speed, _ = swe_lon(body, float(day))
+        while day < last_day:
+            nxt = day + 1
+            _, speed, _ = swe_lon(body, float(nxt))
+            # 粗筛仍用星历库的速度量(便宜;只用来圈出是哪一天),精确时刻在放宽半日的区间里由位置求
             if (prev_speed <= 0 <= speed) or (prev_speed >= 0 >= speed):
-                def f(x):
-                    _, s, _ = swe_lon(body, x)
-                    return s
-                hit_jd = refine_crossing(f, jd, nxt)
-                hit_lon, hit_speed, _ = swe_lon(body, hit_jd)
-                events.append({
-                    **date_time_from_jd(hit_jd, zone),
-                    'type': 'station',
-                    'body': body,
-                    # 留点上的速度本身约等于 0,判不了向;看留前留后:由逆转顺是顺留,由顺转逆是逆留
-                    'direction': 'Direct' if speed > prev_speed else 'Retrograde',
-                    'lon': hit_lon,
-                    'speed': hit_speed,
-                    'sign': sign_name_from_lon(hit_lon),
-                    'signlon': hit_lon % 30,
-                })
+                found = station_moment(body, day - 0.5, nxt + 0.5)
+                if found is not None:
+                    hit_jd = round(found[0] * 1440.0) / 1440.0      # 取到分钟
+                    if start_jd <= hit_jd <= end_jd and not any(e['body'] == body and abs(e['jd'] - hit_jd) < 0.5 for e in events):
+                        hit_lon, hit_speed, _ = swe_lon(body, hit_jd)
+                        events.append({
+                            **date_time_from_jd(hit_jd, zone),
+                            'type': 'station',
+                            'body': body,
+                            'direction': found[1],
+                            'lon': hit_lon,
+                            'speed': hit_speed,
+                            'sign': sign_name_from_lon(hit_lon),
+                            'signlon': hit_lon % 30,
+                        })
             prev_speed = speed
-            jd = nxt
+            day = nxt
     return sorted(events, key=lambda item: item['jd'])
 
 

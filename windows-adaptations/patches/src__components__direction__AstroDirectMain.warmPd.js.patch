@@ -1,62 +1,27 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index d2f17395..db7772d7 100644
+index 6dd31a2c..ff20ccda 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
-@@ -1,5 +1,11 @@
- import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
+@@ -1,6 +1,10 @@
+ // 星运页(组件类在这里;模块级助手按职责拆在 main/ 下):snapshot(主限法 / 法达表的 AI 快照正文与它用到的文字件)
+ //   · fetchFields(主限法取盘字段、推运响应解包与主限法子页签判定)。读源码的检查读「子模块 + 门面」全集(scripts/source-sets.json)。
  import { Component } from 'react';
-+// PERF-R9 Ship 7(Windows-ahead):技法步进预取登记 —— 与上游的懒加载改造无关,勿一并删。
-+// ★ 2026-08-02 教训:上游 v3.6.2 把天球改懒加载时重写了 import 区,我方补丁的 import hunk
-+// 整块被拒,而下面用到这两个符号的 hunk 却应用成功 ⇒ 用法在、绑定没有 = 打开星运页即
-+// ReferenceError(与 gotcha #84 逐字同型)。符号绑定门 v2 会拦,但别再让它跑到门那一步。
++// PERF-R9 Ship 7(Windows-ahead):技法步进预取登记 + 主限请求预热(预热两件在 ./pdWarm,见该文件头;import 与用法同轮核,gotcha #84)。
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
++import { warmPrimaryDirection, buildPrimaryDirectionRequestPure, registerPdPageClass } from './pdWarm';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
- import { readPdSphereStamp } from '../../utils/pdSphereStamp';
  import { recordNewChartSeeds } from '../../utils/newChartSeeds';
-@@ -712,6 +718,41 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
- 	return fields;
- }
+ import { message, } from 'antd';
+@@ -61,6 +65,7 @@ const AstroPDSphere = makeLazyBoundary(
+ );
  
-+// PERF-R8 P2:数据层预热 / 步进预取与真实首点必须同一构造(url + body 逐字节一致才命中 requestDedupe)。
-+// horosa_pd_request_facade_v1(v3.13.0):不再保留「纯函数复制体 + 类方法委托」—— 直接借类方法本体
-+// (getDesiredPdConfig / buildPrimaryDirectionRequest 只读 this.props.chartObj / this.props.fields,
-+// 后者另调 this.getDesiredPdConfig),上游每次扩维度都自动随行。复制体两度静默劣化:v3.6.0 丢 6 个字段
-+// (issue #59,界面选了发不出去)、v3.13.0 把 Field Plane 方向类型压成 0 并整组丢掉 pdExtra 新设置(gotcha #83④ / #114)。
-+// 外观对象只给这两样;上游若让这两个方法读别的 this 成员,预热会在 warm 的 try/catch 里静默落空
-+// (首点回到冷即付),绝不影响页面本身 —— 页面走的始终是类方法原样。
-+function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
-+	const facade = {
-+		props: { chartObj, fields },
-+		getDesiredPdConfig: AstroDirectMain.prototype.getDesiredPdConfig,
-+	};
-+	return AstroDirectMain.prototype.buildPrimaryDirectionRequest.call(facade, chartObj, override);
-+}
+ const TabPane = Tabs.TabPane;
 +
-+// PERF-R8 P2(数据层空闲预热):按当前盘+默认主限配置预热 /predict/pd —— 与星运首点
-+// (默认子页 primarydirect)同一构造、同一 url+body → requestDedupe L1/L2 命中(10min 内
-+// 首点 ≈0ms;超窗回落后端 paramhash 盘 ~百毫秒)。silent 且丢弃结果:绝不 dispatch、
-+// 绝不触碰全局 state(组件路径的 savePrimaryDirectionRows 副作用与预热无关)。失败静默。
-+export async function warmPrimaryDirection(chartObj, fields){
-+	try{
-+		const req = buildPrimaryDirectionRequestPure(chartObj, fields, {});
-+		if(!req){ return null; }
-+		return await request(`${Constants.ServerRoot}/predict/pd`, {
-+			body: JSON.stringify(req),
-+			silent: true,
-+			// PERF-R9 Ship 7:预热/预取一律零重试(显式声明,不吃任何调用链上的重试默认值)——
-+			// 后端重启窗口里 N 个深度预取绝不能变成 N×10 次退避重试风暴。
-+			retry: { retries: 0 },
-+		});
-+	}catch(e){
-+		return null; // 预热失败静默:首点回到冷即付的现状
-+	}
-+}
-+
- function unwrapPredictiveResponse(data){
- 	if(!data || typeof data !== 'object'){
- 		return null;
-@@ -874,6 +915,41 @@ class AstroDirectMain extends Component{
+ class AstroDirectMain extends Component{
+ 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+@@ -206,6 +211,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -98,7 +63,7 @@ index d2f17395..db7772d7 100644
  		}
  
  	}
-@@ -1338,6 +1414,8 @@ class AstroDirectMain extends Component{
+@@ -670,6 +710,8 @@ class AstroDirectMain extends Component{
  		this.syncCurrentSubTab();
  		this.ensurePrimaryDirectionReady();
  		this.saveDirectionSnapshot();
@@ -107,3 +72,13 @@ index d2f17395..db7772d7 100644
  		// 底部空白根治:静态 props.height-20 比实际工作区矮(链上全满仅本模块 inline 高偏矮)→ Tabs/表格
  		// 皆按偏矮值设死高度,页底留空白(用户实告 主限法 页底空条)。改测根容器真高驱动各页签高度。
  		this.measureRootHeight();
+@@ -1446,7 +1488,9 @@ class AstroDirectMain extends Component{
+ 	}
+ }
+ 
++registerPdPageClass(AstroDirectMain);   // horosa_pd_warm_module_v1:预热借类方法本体,类在此登记(见 ./pdWarm)
+ export {
+ 	AstroDirectMain,
++	warmPrimaryDirection,
+ };
+ export default AstroDirectMain;

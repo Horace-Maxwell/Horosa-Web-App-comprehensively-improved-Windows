@@ -3,7 +3,7 @@
 // 中性表述，纯展示零后端；绝不写软件名或内部章节号；书名只写公版古籍名，不写现代来源。
 import { Component } from 'react';
 import HelpBook from './HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 
 
 

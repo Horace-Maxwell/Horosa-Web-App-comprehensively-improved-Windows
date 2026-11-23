@@ -4,11 +4,12 @@
 //    源码形态由静态哨兵钉住(与 preflight 机械核互为镜像)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读
 // ⚠️ 不 import Astro3D 本体:其 three r185 ESM 链 jest transform 吃不动(_three.Ray is
 //    not a constructor);sph 已抽零依赖纯模块,源码形态由下方静态哨兵钉。
 import { sph } from '../sphMath';
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'Astro3D.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'Astro3D.js'));
 
 describe('sph 球面摆点公共式(黄道系,主限赤道系同构)', () => {
 	test('lon=0,lat=0 → (R,0,0)', () => {
@@ -123,7 +124,8 @@ describe('🔴 r0.185 迁移哨兵(旧 API 零回潮)', () => {
 		expect(code).not.toMatch(/new THREE\.TextGeometry\(/);
 	});
 	test('DRACOLoader 走本仓 patched 副本(webpack4 不吃 import.meta)', () => {
-		expect(SRC).toMatch(/from '\.\/vendor\/DRACOLoader'/);
+		expect(SRC).toMatch(/from '(\.\.?\/)+vendor\/DRACOLoader'/);   // 引入跟着用它的方法走(子文件在 astro3dMain/ 下)
+		expect(SRC).not.toMatch(/from 'three\/examples\/jsm\/loaders\/DRACOLoader'/);
 		const vendored = fs.readFileSync(path.join(__dirname, '..', 'vendor', 'DRACOLoader.js'), 'utf8');
 		const vendoredCode = vendored.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
 		expect(vendoredCode).not.toContain('import.meta');

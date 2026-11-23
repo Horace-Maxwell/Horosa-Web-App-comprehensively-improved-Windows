@@ -94,9 +94,8 @@ def parse_local_iso(text):
 
 def now_at_zone(offset_minutes):
     """此刻在出生地当地的墙钟 naive datetime(与段界同一坐标;缺偏移 → 回落本机当地,旧行为)。"""
-    if offset_minutes is None:
-        return datetime.now()
-    return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=int(offset_minutes))
+    from astrostudy import clock   # 「此刻」的唯一入口(批量验证钉住时钟时用带来的那一刻)
+    return clock.now_at_offset(offset_minutes)
 
 
 def format_dt(value):

@@ -3,12 +3,12 @@ import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // �
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { Component } from 'react';
-import { InputNumber, Spin } from 'antd';
+
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection  } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQInputNumber, XQSpin  } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
 import { postKentang } from '../../services/kentangPost';
@@ -21,6 +21,7 @@ import { FreezeSubTab } from '../comp/FreezeInactive';
 import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
 import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
 import { registerProcessCache } from '../../utils/processCacheRegistry';
+import { randomInt } from '../../utils/trueRandom';
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -630,7 +631,7 @@ class HuangJiMain extends Component{
 	}
 
 	randomHistoryYear(){
-		const historyYear = 1900 + Math.floor(Math.random() * 201);
+		const historyYear = 1900 + randomInt(201);   // 1900–2100 等概率(系统真随机数)
 		this.setState({ historyYear }, ()=>this.fetchPan(this.props.fields));
 	}
 
@@ -676,7 +677,7 @@ class HuangJiMain extends Component{
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field">
 							<span>历史年</span>
-							<InputNumber value={this.state.historyYear} onChange={this.changeHistoryYear} min={-4712} max={9999} />
+							<XQInputNumber value={this.state.historyYear} onChange={this.changeHistoryYear} min={-4712} max={9999} />
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>经典</span>
@@ -717,11 +718,11 @@ class HuangJiMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field">
 									<span>上卦数</span>
-									<InputNumber value={xOpt.upperNum} min={1} onChange={(v)=>this.changeXinyiOption('upperNum', v || 1)} />
+									<XQInputNumber value={xOpt.upperNum} min={1} onChange={(v)=>this.changeXinyiOption('upperNum', v || 1)} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>下卦数</span>
-									<InputNumber value={xOpt.lowerNum} min={1} onChange={(v)=>this.changeXinyiOption('lowerNum', v || 1)} />
+									<XQInputNumber value={xOpt.lowerNum} min={1} onChange={(v)=>this.changeXinyiOption('lowerNum', v || 1)} />
 								</label>
 							</>
 						) : null}
@@ -745,11 +746,11 @@ class HuangJiMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field">
 									<span>上/左笔画</span>
-									<InputNumber value={xOpt.upperStrokes} min={1} onChange={(v)=>this.changeXinyiOption('upperStrokes', v || 1)} />
+									<XQInputNumber value={xOpt.upperStrokes} min={1} onChange={(v)=>this.changeXinyiOption('upperStrokes', v || 1)} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>下/右笔画</span>
-									<InputNumber value={xOpt.lowerStrokes} min={1} onChange={(v)=>this.changeXinyiOption('lowerStrokes', v || 1)} />
+									<XQInputNumber value={xOpt.lowerStrokes} min={1} onChange={(v)=>this.changeXinyiOption('lowerStrokes', v || 1)} />
 								</label>
 							</>
 						) : null}
@@ -1016,7 +1017,7 @@ class HuangJiMain extends Component{
 		return (
 			<div className={`horosa-huangji-page horosa-astro-redesign horosa-huangji-redesign${embedded ? ' horosa-huangji-embedded' : ''}`} style={pageStyle}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">
-					<Spin spinning={this.state.loading}>
+					<XQSpin spinning={this.state.loading}>
 						<div className="horosa-astro-redesign-grid horosa-huangji-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-huangji-input-panel">
 								{this.renderInputPanel()}
@@ -1034,7 +1035,7 @@ class HuangJiMain extends Component{
 								{this.renderRightPanel()}
 							</div>
 						</div>
-					</Spin>
+					</XQSpin>
 					{!this.props.hideQuickDock && this.renderBottomQuickDock()}
 				</div>
 			</div>

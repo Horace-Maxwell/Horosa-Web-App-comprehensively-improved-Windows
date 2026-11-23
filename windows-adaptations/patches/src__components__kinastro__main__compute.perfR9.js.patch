@@ -1,0 +1,179 @@
+diff --git a/astrostudyui/src/components/kinastro/main/compute.js b/astrostudyui/src/components/kinastro/main/compute.js
+index 05c1a65a..e697b656 100644
+--- a/astrostudyui/src/components/kinastro/main/compute.js
++++ b/astrostudyui/src/components/kinastro/main/compute.js
+@@ -14,6 +14,37 @@ import { notePendingTime, pendingTimePatch } from '../../../utils/pendingTimeDra
+ import { chartDayBoundary } from '../../../utils/dayBoundaryResolve';
+ import { postKinAstro, buildSnapshotText, kinAstroSnapshotMeta, saveKinAstroAISnapshots } from './snapshot';
+ import { normalizeGanzhiInput } from './ziweiChart';
++import React from 'react';
++import { armStepPrefetch } from '../../../utils/stepPrefetchArm';
++import { chartSCUEnabled } from '../../../utils/perfFlags';
++import { markPanelReady } from '../../../utils/perfMark';
++import { readKinCenterContent } from './ziweiChart';
++
++// horosa_kinastro_center_memo_v1(PERF-R9 Ship 6)—— 中栏盘面 memo 槽。
++//
++// 病灶:本类被数算九家 + 演禽 + 策天 + 一掌经共壳复用,左栏塞了上百个受控控件
++// (铁板六项、南极十余项、蠢子十项、神数正传十八项…)。任一控件 onChange → setState →
++// 恒真 sCU → **整棵树重渲**:中栏盘面(策天/演禽还要重跑 buildKinAstroZiWeiChart +
++// buildZiWeiRulesForChart 造整张紫微盘)、右栏全部子页签、底部快捷栏,一并白跑一遍。
++// 而这些控件里有大半(zhengchuan* / yizhangjing* / heluo* / canpingMethod 等 native 子技法项)
++// 压根不进 buildPayload,盘面【逐字节不变】。
++// ⚠️ 反例订正:cetian* 诸项(cetianMethod/LunarMode/StarOrder/show*)**是**进 buildPayload 的
++//    (见 buildPayload 内 serviceKey==='cetian' 分支),且其 onChange 带 clickPlot 回调 → 重排 →
++//    新 pan(引用必变)→ 本 memo 照常失效重渲。列它当「不进 payload」的例子是错的,已删。
++//
++// 修法:把中栏包进本 memo 槽,比较函数只在「盘 + fields 引用 + 影响盘面的选项签名」三者
++// 全同时跳过。三项任一不同 → 返 false 照常重渲(拿的是父组件本轮最新的 render 闭包,
++// 零陈旧)。sig 由 kinSig() 单点给出,漏一项就等于「改了不刷新」——故那里只许多写不许少写。
++// kill-switch:与全站重组件 sCU 同闸(horosa.perf.chartSCU 置 '0' → 比较函数恒返 false =
++// 逐字回到「中栏每次都重渲」的旧行为)。全站每一处渲染守卫都必须可一键回退,本处不例外。
++const MemoSlot = React.memo(function KinAstroMemoSlot(props){
++	return props.render();
++}, function kinAstroSlotEqual(prev, next){
++	if(!chartSCUEnabled()){
++		return false;
++	}
++	return prev.pan === next.pan && prev.fields === next.fields && prev.sig === next.sig;
++});
+ 
+ export const computeMethods = {
+ 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前盘即时构建快照并回填,
+@@ -309,7 +340,15 @@ export const computeMethods = {
+ 	async fetchPan(fields){
+ 		if(this.config.native){
+ 			this.requestSeq += 1;
+-			this.setState({ loading: false, pan: null });
++			// horosa_panel_ready_v1:原生技法(参评/河洛/正传/一掌经)不打后端,中右栏由子组件
++			// 就着 props.fields 同步自算 —— 本次 setState 提交时子组件已随新 fields 渲完,
++			// 故就在它的回调里盖章(markPanelReady 内部再双 rAF 逼近「本帧已绘」)。
++			// horosa_panel_ready_attribution_key_v1:参数必须是页签归属键(moduleKey ==
++			// currentTab:shusuan/mingother/yanqin),不是 serviceKey('shaozi' 等)——
++			// perfMark 的归属校验按 currentTab 配对,键不一致时样本被静默丢弃(验收恒零样本)。
++			this.setState({ loading: false, pan: null }, ()=>{
++				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
++			});
+ 			return;
+ 		}
+ 		const payload = this.buildPayload(fields);
+@@ -341,7 +380,15 @@ export const computeMethods = {
+ 				return;
+ 			}
+ 			this.setState({ pan, loading: false }, ()=>{
++				// horosa_panel_ready_v1:这一次 setState 才是「盘落定」——中栏盘面与右栏各段
++				// 都由 pan 派生,故本回调即「点击 → 中右栏画完」的终点。必须是首行:放在
++				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
++				// 键契约(horosa_panel_ready_attribution_key_v1):页签归属键(hostModuleKey 优先)。
++				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
+ 				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan), this.props.hostModuleKey, this.props.fields);
++				// horosa_step_prefetch_arm_v1(b′):换轨/改选项后的 settle 也按当前技法武装 ±N
++				//(fetchByFields settle 只覆盖时间派发路径;/chart 不在本页步进路径上)。
++				try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
+ 			});
+ 		}catch(e){
+ 			if(this._inFlightSig === sig){
+@@ -359,6 +406,103 @@ export const computeMethods = {
+ 		this.setState({ rightPanelTab: key });
+ 	},
+ 
++	// ── horosa_kinastro_render_memo_v1(PERF-R9 Ship 6)──────────────────────────
++	// 「影响盘面/快照产出」的选项签名。中栏 memo 槽、快照缓存、可见页签缓存三处共用它。
++	// 🔴 只许多写不许少写:少一项 = 那项改了而中栏不刷新(功能降级),多一项只是少省一点。
++	//    收录判据 = 被 renderCenter/renderTiebanFramework/tiebanFrameworkOf 读到的 state。
++	//    (pan 自身与 props.fields 不进 sig,由 memo 槽按【引用】另行比较。)
++	//    另收中宫内容档位:策天/演禽中栏经 buildKinAstroZiWeiChart → readKinCenterContent 读本机存的档位
++	//    (不在 state 里;下拉改档只 bump centerContentRev 逼重渲),不进签名则改档后中栏停在旧档。
++	kinSig(){
++		return [
++			this.config.serviceKey,
++			this.state.gender,
++			this.state.tiebanSchool, this.state.tiebanKeSystem, this.state.tiebanKe,
++			this.state.tiebanTwinFen, this.state.tiebanGuofang,
++			readKinCenterContent(this.config.serviceKey),
++		].join('|');
++	},
++
++	// 快照文本:此前 renderRightPanel 与 renderBottomQuickDock 各算一遍(每次重渲两趟
++	// buildSnapshotText 全段拼接 + tiebanFrameworkSuffix→buildTiebanFramework 整套框架推演)。
++	// 按 (pan 引用, kinSig) 缓存;二者任一变即重算,产出逐字节同前。
++	snapshotText(){
++		const pan = this.state.pan;
++		const sig = this.kinSig();
++		if(this._snapCache && this._snapCache.pan === pan && this._snapCache.sig === sig){
++			return this._snapCache.text;
++		}
++		const base = buildSnapshotText(pan);
++		const suffix = this.tiebanFrameworkSuffix(pan);
++		const text = suffix ? `${base}\n\n${suffix}` : base;
++		this._snapCache = { pan, sig, text };
++		return text;
++	},
++
++	// 可见子页签:同上,原先右栏与底部快捷栏各跑一遍(每个候选页签都要 getTabSections 过滤全段)。
++	visibleTabsOf(snapshot){
++		const pan = this.state.pan;
++		const sig = this.kinSig();
++		if(this._tabsCache && this._tabsCache.pan === pan && this._tabsCache.sig === sig
++			&& this._tabsCache.snapshot === snapshot){
++			return this._tabsCache.tabs;
++		}
++		const tabs = this.config.tabs.filter((item)=>{
++			if(item.key === 'yanfa'){
++				return this.config.serviceKey === 'xianqin';
++			}
++			if(!pan){
++				return item.key === 'overview' || item.key === 'snapshot';
++			}
++			if(item.key === 'snapshot'){
++				return !!snapshot;
++			}
++			if(item.key === 'classics'){
++				const classics = pan && pan.classics;
++				return !!(classics && classics.sections && classics.sections.length);
++			}
++			if(item.key === 'settings'){
++				return this.config.serviceKey === 'cetian';
++			}
++			if(item.key === 'framework'){
++				return this.config.serviceKey === 'tieban' && !!pan;
++			}
++			return this.getTabSections(item.key).length > 0;
++		});
++		this._tabsCache = { pan, sig, snapshot, tabs };
++		return tabs;
++	},
++
++	// 下传给 native 子技法的 opts:此前每次 render 都新造对象 → 子组件 props 引用必变 →
++	// 子组件那边任何 props 浅比 sCU 都恒失效。此处按 JSON 签名固定引用:值不变 = 引用不变。
++	// (值一变即换新对象 → 子组件照常重渲;不缓存计算结果,只稳定引用。)
++	memoOpts(name, obj){
++		const sig = JSON.stringify(obj);
++		const store = this._optsMemo || (this._optsMemo = {});
++		const cur = store[name];
++		if(cur && cur.sig === sig){
++			return cur.value;
++		}
++		store[name] = { sig, value: obj };
++		return obj;
++	},
++
++	// 中栏槽:后端盘技法走 memo(左栏改与盘无关的选项时不再重造整张盘);
++	// native 技法中栏是子组件、由其自身 sCU 把关,此处透传不加层。
++	renderCenterSlot(){
++		if(this.config.native){
++			return this.renderCenter();
++		}
++		return (
++			<MemoSlot
++				pan={this.state.pan}
++				fields={this.props.fields}
++				sig={this.kinSig()}
++				render={()=>this.renderCenter()}
++			/>
++		);
++	},
++
+ 	// 一掌经右栏页签由它自己的组件画;这里记当前页,底部快捷栏才能点得到、亮得对。
+ 	setYizhangjingTab(key){
+ 		this.setState({ yizhangjingTab: key });

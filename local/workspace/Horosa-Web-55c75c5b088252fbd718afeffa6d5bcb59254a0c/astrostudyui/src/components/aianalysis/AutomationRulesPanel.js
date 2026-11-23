@@ -1,7 +1,8 @@
 // 自动化规则面板(P4;默认关、默认零规则):「当 X 发生,自动做 Y」。
 // 四道防失控在引擎里(总开关 / 深度守卫 / 每事件三条 / 每条冷却);面板只负责编辑与开关。onStatus:向折叠头上报状态(可选)。
 import React from 'react';
-import { Button, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, message } from 'antd';
+import { Button, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
+import { XQInputNumber, XQSwitch } from '../xq-ui';
 import { isAutomationEnabled, setAutomationEnabled, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
 import { AUTOMATION_EVENTS } from '../../utils/aiAgent/automation/events';
 import { actionTypesForEvent } from '../../utils/aiAgent/automation/actions';
@@ -97,7 +98,7 @@ export default function AutomationRulesPanel({ onStatus }){
 	return (
 		<div data-automation-rules="1" className={styles.subPanel}>
 			<AdvSwitchRow title="自动规则" desc={`「当 X 发生,自动做 Y」。规则全部你自己设,默认一条都没有;规则触发的动作最多再连带一层规则(链深 ${MAX_CHAIN_DEPTH},不会无限连锁),每个事件最多触发 ${MAX_RULES_PER_EVENT} 条,每条有冷却。`} checked={on}
-				control={<Switch checked={on} data-automation-switch="1" onChange={(v)=>{ setAutomationEnabled(!!v); setOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
+				control={<XQSwitch checked={on} data-automation-switch="1" onChange={(v)=>{ setAutomationEnabled(!!v); setOn(!!v); }} checkedChildren="开" unCheckedChildren="关" />} />
 			<div className={styles.subBody}>
 				<div className={styles.toolbarRow}>
 					<Button size="small" data-rule-new="1" onClick={()=>setForm({ ...EMPTY })}>新建规则</Button>
@@ -122,10 +123,10 @@ export default function AutomationRulesPanel({ onStatus }){
 						) : null}
 						<div>就:<Select style={{ width: '100%', marginTop: 4 }} value={form.actionType} data-rule-action="1" onChange={(v)=>setForm({ ...form, actionType: v })} options={actionTypesForEvent(form.event).map((t)=>({ value: t, label: ACTION_LABELS[t] || t }))} /> <span className={styles.soft}>{/* 只列这个事件上可达的动作 */}只列在「{EVENT_LABELS[form.event] || form.event}」上会真正执行的动作</span></div>
 						{form.actionType === 'archive-idle-conversations' ? (
-							<div>多久没动算「久」:<InputNumber min={1} max={365} value={form.days} data-rule-days="1" onChange={(v)=>setForm({ ...form, days: v })} addonAfter="天" style={{ marginLeft: 6 }} /></div>
+							<div>多久没动算「久」:<XQInputNumber min={1} max={365} value={form.days} data-rule-days="1" onChange={(v)=>setForm({ ...form, days: v })} addonAfter="天" style={{ marginLeft: 6 }} /></div>
 						) : null}
-						<div>冷却:<InputNumber min={0} max={86400} value={Math.round((form.cooldownMs || 0) / 1000)} data-rule-cooldown="1" onChange={(v)=>setForm({ ...form, cooldownMs: Math.max(0, Number(v) || 0) * 1000 })} addonAfter="秒" style={{ marginLeft: 6 }} /> <span className={styles.soft}>0 = 不冷却</span></div>
-						<div>启用:<Switch checked={form.enabled !== false} data-rule-enabled="1" onChange={(v)=>setForm({ ...form, enabled: v })} style={{ marginLeft: 6 }} /></div>
+						<div>冷却:<XQInputNumber min={0} max={86400} value={Math.round((form.cooldownMs || 0) / 1000)} data-rule-cooldown="1" onChange={(v)=>setForm({ ...form, cooldownMs: Math.max(0, Number(v) || 0) * 1000 })} addonAfter="秒" style={{ marginLeft: 6 }} /> <span className={styles.soft}>0 = 不冷却</span></div>
+						<div>启用:<XQSwitch checked={form.enabled !== false} data-rule-enabled="1" onChange={(v)=>setForm({ ...form, enabled: v })} style={{ marginLeft: 6 }} /></div>
 					</Space>
 				) : null}
 			</Modal>

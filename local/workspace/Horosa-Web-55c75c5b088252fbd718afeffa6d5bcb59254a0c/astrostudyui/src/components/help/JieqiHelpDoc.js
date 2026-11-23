@@ -4,7 +4,7 @@
 // 中性表述,纯展示零后端;选项名/取值与界面 label 一致。绝不写章节号或软件名;书名只写公版古籍名,不写现代来源;专名(Placidus 等)与 label 一致,可用。
 import { Component } from 'react';
 import HelpBook from './HelpBook';
-import { MUTED, h, p, ul, li, card, ct, body, title, kv } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body, kv } from './helpDocStyle';
 
 
 export const HELP_BOOK = {

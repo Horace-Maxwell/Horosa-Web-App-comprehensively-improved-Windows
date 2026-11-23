@@ -1,11 +1,12 @@
 diff --git a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
-index 6c1a70c4..d2ee4185 100644
+index 6df02835..6b14ecb3 100644
 --- a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
 +++ b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
-@@ -33,6 +33,14 @@ import { labelCropRect, labelRectCovers, labelPlanePositions, isFullLabelRect }
- import { LabelUploadQueue } from './labelUploadQueue';
- import { noise2, paintSkySurface, paintHorizonMistSurface, planetTextureSize, paintPlanetSurface, paintMoonPhase } from './textures';
- 
+@@ -11,6 +11,14 @@ import { rendererStarMethods } from './rendererStars';
+ import { rendererGridMethods } from './rendererGrids';
+ import { rendererAsterismMethods } from './rendererAsterisms';
+ import { rendererInteractionMethods } from './rendererInteraction';
++import { nowMs } from './skyMath';
 +import { planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled } from '../../../utils/perfFlags';
 +
 +// perf:planetariumRenderGating —— 天文馆渲染时机门控参数(只动时机不动内容):
@@ -13,11 +14,10 @@ index 6c1a70c4..d2ee4185 100644
 +//   SETTLE_MS:一次交互后维持满帧的时窗(拖动顺滑 + 覆盖惯性/收尾),之后回落到降帧。
 +const PLANETARIUM_IDLE_FRAME_MS = 100;
 +const PLANETARIUM_SETTLE_MS = 600;
-+
- // 星官分片建造:每帧最多占这么多毫秒(一帧 16.7ms 里留足渲染 + 重投影的余量)。
- const ASTERISM_BUILD_SLICE_MS = 6;
  
-@@ -42,6 +50,16 @@ export class PlanetariumRenderer {
+ export class PlanetariumRenderer {
+ 	constructor(canvas, onPick, onMetrics, onInteraction){
+@@ -18,6 +26,16 @@ export class PlanetariumRenderer {
  		this.onPick = onPick;
  		this.onMetrics = onMetrics;
  		this.onInteraction = onInteraction;
@@ -34,57 +34,8 @@ index 6c1a70c4..d2ee4185 100644
  		this.engine = new BABYLON.Engine(canvas, true, {
  			preserveDrawingBuffer: false,
  			stencil: false,
-@@ -163,6 +181,7 @@ export class PlanetariumRenderer {
- 				return;
- 			}
- 			evt.preventDefault();
-+			this.markCameraSettle();
- 			if(this.viewMode === 'orbit'){
- 				this.camera.radius = clamp(this.camera.radius + (evt.deltaY > 0 ? 64 : -64), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
- 				return;
-@@ -178,6 +197,7 @@ export class PlanetariumRenderer {
- 			if(this.onInteraction){
- 				this.onInteraction();
- 			}
-+			this.markCameraSettle();
- 			this.pointerDrag = {
- 				id: evt.pointerId,
- 				x: evt.clientX,
-@@ -213,6 +233,7 @@ export class PlanetariumRenderer {
- 				if(this.camera){ this.camera.lockedTarget = null; }
- 			}
- 			evt.preventDefault();
-+			this.markCameraSettle();
- 			if(this.viewMode === 'orbit'){
- 				if(this.onInteraction){
- 					this.onInteraction();
-@@ -339,22 +360,8 @@ export class PlanetariumRenderer {
- 			}
- 		});
- 
--		this.engine.runRenderLoop(()=>{
--			if(this.scene){
--				this.updateGroundScenePosition();
--				this.applyLabelVisibility();
--				this.applyGridLod();
--				this._labelUploads.tick();
--				this.scene.render();
--				if(this.onMetrics){
--					const fps = Math.round(this.engine.getFps());
--					this.onMetrics({
--						fps: Number.isFinite(fps) ? Math.min(240, Math.max(0, fps)) : 0,
--						meshes: this.scene.meshes.length,
--					});
--				}
--			}
--		});
-+		// perf:planetariumRenderGating —— 循环体抽成具名 _renderTick(可停/起 + 静止降帧 + metrics 节流),内容不变。
-+		this._startRenderLoop();
- 		this.resizeHandler = ()=>{
- 			if(this.engine){
- 				// Keep the backing store at full device resolution; re-apply on resize so
-@@ -3466,8 +3473,112 @@ export class PlanetariumRenderer {
- 		return true;
+@@ -81,8 +99,112 @@ export class PlanetariumRenderer {
+ 		this.initScene();
  	}
  
 +	// perf:planetariumRenderGating —— 每帧渲染体(原 runRenderLoop 闭包,内容一字不动;新增静止降帧 + metrics 节流)。

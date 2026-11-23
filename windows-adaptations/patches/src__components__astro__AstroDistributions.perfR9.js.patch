@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroDistributions.js b/astrostudyui/src/components/astro/AstroDistributions.js
-index f7fbaebe..579e6d26 100644
+index e233f650..0e5841b4 100644
 --- a/astrostudyui/src/components/astro/AstroDistributions.js
 +++ b/astrostudyui/src/components/astro/AstroDistributions.js
 @@ -21,6 +21,7 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';

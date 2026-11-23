@@ -65,4 +65,25 @@ describe('矢量 PDF 缺字换成字体里有的字', ()=>{
 		expect(src).toContain('f.encodeText = (t)=>enc(pdfSafeText(t, cs));');
 		expect(src).toContain('f.widthOfTextAtSize = (t, size)=>wid(pdfSafeText(t, cs), size);');
 	});
+	it('字体没有的繁体 / 异体汉字换成通行写法,不画成方框;字体里有的字原样', ()=>{
+		expect(CS.has('尅'.codePointAt(0))).toBe(false);   // 前提:字体确实缺
+		expect(pdfSafeText('主尅客,主勝', CS)).toBe('主克客,主勝');
+		expect(pdfSafeText('隂盛尅陽', CS)).toBe('阴盛克陽');
+		expect(pdfSafeText('齡 週 兇', CS)).toBe('龄 周 凶');
+		expect(pdfSafeText('✗ 宜:日月吉相', CS)).toBe('× 宜:日月吉相');
+		expect(pdfSafeText('日⟷上升', CS)).toBe('日↔上升');
+		expect(pdfSafeText('金⥮火', CS)).toBe('金⇅火');
+		expect(pdfSafeText('克 阴 照', CS)).toBe('克 阴 照');
+	});
+	it('对照表 = 现有字体与词典重新生成的结果;每个目标字两套字体里都有', ()=>{
+		const gen = require('../../../scripts/build-pdf-glyph-fallback.js');
+		const table = require('../../data/pdfGlyphFallback.json');
+		expect(fs.readFileSync(gen.OUT, 'utf8')).toBe(gen.render(gen.build()));
+		expect(Object.keys(table).length).toBeGreaterThan(1000);
+		Object.keys(table).forEach((k)=>{
+			expect([k, CS.has(k.codePointAt(0))]).toEqual([k, false]);
+			expect([k, covered(table[k], CS) && covered(table[k], CSB)]).toEqual([k, true]);
+		});
+		Object.keys(gen.VARIANTS).forEach((k)=>expect([k, table[k]]).toEqual([k, gen.VARIANTS[k]]));
+	});
 });

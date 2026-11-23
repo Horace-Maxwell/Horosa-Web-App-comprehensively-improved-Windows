@@ -6,7 +6,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
-import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
+import { norm360, polar, glyphTip } from './uranianDialShared';
 import { dialBaseDegText } from './UranianDialStyle';
 
 // 宇宙图(Cosmogram)= 量化盘第三盘式:外环按真实黄经(360°)画行星(=模数盘几何),

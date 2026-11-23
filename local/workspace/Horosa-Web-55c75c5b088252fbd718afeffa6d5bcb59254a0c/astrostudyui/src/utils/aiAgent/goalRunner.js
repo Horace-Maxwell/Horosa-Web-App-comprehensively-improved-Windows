@@ -91,7 +91,8 @@ export { droppedLayersNote, PROMPT_CACHE_BREAKPOINT as CACHE_BP } from '../aiPro
 // ---- 无头系统提示词:与页面同一套层/裁剪/缓存断点(不含资料检索与会话规则;目标任务只带挂载盘与技法) ----
 // techniqueOptionOverrides = 任务创建时的会话覆盖快照;生效挂载设置 = 覆盖 ?? 同类默认(resolveEffectiveTechniqueOptions,
 //   与对话页 effectiveTechniqueOptions 同一函数)。conversation = 本任务会话记录(取 persona / compact)。
-export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, partnerSource }){
+// materials / templates(可选,run_analysis 用):直接挂的资料与已渲染的模版,进与对话页同一个 buildContextLayers(资料带数据围栏);缺省 = 空(逐字节同此前)
+export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, partnerSource, materials, templates }){
 	const keys = Array.isArray(techniqueKeys) ? techniqueKeys.filter(Boolean) : [];
 	const ctx = source && source.record ? await getAnalysisSourceContext(source, { mode: keys.length ? 'meta' : 'full' }) : null;
 	const techniqueOptions = keys.length ? resolveEffectiveTechniqueOptions(keys, { record: source && source.record ? source.record : null, sessionOverrides: techniqueOptionOverrides }) : {};
@@ -115,7 +116,7 @@ export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemP
 		const chinese = getPairChineseTexts(source.record, partnerSource.record, keys, { selfName: source.title, otherName: partnerSource.title }, { optionsA: techniqueOptions, optionsB: popts });
 		if(chinese.bazi || chinese.ziwei){ partner.chinese = chinese; }
 	}
-	const layers = buildContextLayers({ sourceContext: ctx, techniqueContexts, materials: [], bundles: [], templates: [], retrievedChunks: [], conversationMessages: [], systemPrompt: systemPrompt || '', extraLayers, partner });
+	const layers = buildContextLayers({ sourceContext: ctx, techniqueContexts, materials: Array.isArray(materials) ? materials : [], bundles: [], templates: Array.isArray(templates) ? templates : [], retrievedChunks: [], conversationMessages: [], systemPrompt: systemPrompt || '', extraLayers, partner });
 	const numCtx = profile && profile.providerType === 'ollama' ? Number((profile.providerOptions || {}).num_ctx) || undefined : undefined;
 	// [Windows #80] 无头轮同样吃用户设的挂载字数预算(策略键是全局的,后台任务不该比对话页看得少)
 	// 裁剪 / 分段 / 断点 / 丢层留痕 / 指纹:与对话页同一个拼装函数(utils/aiPromptAssembly.js);无头从不带挥发层 → 稳定层非空即插断点
@@ -124,7 +125,7 @@ export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemP
 }
 
 // ---- 一个无头 Turn:落 user → 组历史 → 窗口裁剪 → 运行时循环 → 落 assistant ----
-export async function runHeadlessTurn({ profile, model, conversationId, userText, source, techniqueKeys, systemPrompt, origin = 'goal', taskId, signal, registry, requestApproval: reqApproval, requestElicitation: reqElicit, onTrace, thinkingLevel = 'off', techniqueOptionOverrides, partnerSource, deps }){
+export async function runHeadlessTurn({ profile, model, conversationId, userText, source, techniqueKeys, systemPrompt, origin = 'goal', taskId, signal, registry, requestApproval: reqApproval, requestElicitation: reqElicit, onTrace, thinkingLevel = 'off', techniqueOptionOverrides, partnerSource, materials, templates, deps }){
 	const d = deps || {};
 	const stream = d.requestAIAnalysisChatStream || requestAIAnalysisChatStream;
 	const saveMsg = d.saveConversationMessage || saveConversationMessage;
@@ -139,7 +140,7 @@ export async function runHeadlessTurn({ profile, model, conversationId, userText
 	try{ conversation = conversationId ? await (d.getStoreRecord || getStoreRecord)(AI_ANALYSIS_STORES.conversations, conversationId) : null; }
 	catch(e){ conversation = null; reportBackgroundFailure('headless.readConversation', e); }
 	// 合盘对方(无头分析出口可带):与对话页 / 编排子任务同一拼法;缺省 = 单盘(逐字节同此前)
-	const sys = await buildSys({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, ...(partnerSource ? { partnerSource } : {}) });
+	const sys = await buildSys({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, ...(partnerSource ? { partnerSource } : {}), ...(materials && materials.length ? { materials } : {}), ...(templates && templates.length ? { templates } : {}) });
 	// 历史过滤:本轮占位、仍在流的、以及刷新遗留的孤儿(载入时被修成 aborted + 固定正文)都不进请求体——模型不该读到「已停止生成」
 	const history = (await listMsgs(conversationId)).filter((m)=>m && m.id !== assistant.id && (m.role === 'user' || m.role === 'assistant') && m.streamStatus !== 'streaming' && `${m.content || ''}` !== ORPHAN_STREAMING_CONTENT)
 		.map((m)=>({ role: m.role, content: `${m.content || ''}`, ...(m.agentTrace ? { agentTrace: m.agentTrace } : {}) }));
@@ -297,7 +298,8 @@ export async function startGoalTask(taskId, deps){
 	const beat = setInterval(()=>{ heartbeatTask(taskId).catch((e)=>reportBackgroundFailure('goal.heartbeat', e)); }, RUNNER_HEARTBEAT_MS);
 	let judgeFails = 0; let consecutiveErrors = 0;
 	const t0 = Date.now();
-	const approve = async (call)=>{
+	// 无人值守(无头常驻服务起跑,deps.unattended):没人能批、没人能答 —— 审批只放行提议件、不给反问通道,工具面由 deps.registry 收成只读 + 提议
+	const approve = d.unattended ? async (call)=>!!(call && typeof call.name === 'string' && call.name.indexOf('propose_') === 0) : async (call)=>{
 		await patchTask(taskId, { status: 'waiting' });
 		await pushNotice({ level: 'action', title: '目标任务等你批准', body: `${task.title}:${call.name} ${approvalVerb(call)}`, taskId }, { desktop: true });
 		let ok = false;
@@ -307,7 +309,7 @@ export async function startGoalTask(taskId, deps){
 		if(cur && cur.status === 'waiting'){ await patchTask(taskId, { status: 'running' }); }
 		return ok;
 	};
-	const elicit = async (q)=>{
+	const elicit = d.unattended ? undefined : async (q)=>{
 		await patchTask(taskId, { status: 'waiting' });
 		await pushNotice({ level: 'action', title: '目标任务向你提问', body: `${task.title}:${q.question}`, taskId }, { desktop: true });
 		const r = await requestElicitation(`task:${taskId}`, q);
@@ -327,7 +329,7 @@ export async function startGoalTask(taskId, deps){
 			if(steer.length){ await patchTask(taskId, { instructions: (task.instructions || []).map((i)=>({ ...i, consumed: true })) }); }
 			const turnStart = Date.now();
 			// eslint-disable-next-line no-await-in-loop
-			const r = await runHeadlessTurn({ profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText, source, techniqueKeys: task.spec.techniques, systemPrompt: '', origin: 'goal', taskId, signal: loop.ac.signal, requestApproval: approve, requestElicitation: elicit, techniqueOptionOverrides: task.spec.techniqueOptionOverrides, deps: d });
+			const r = await runHeadlessTurn({ profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText, source, techniqueKeys: task.spec.techniques, systemPrompt: '', origin: 'goal', taskId, signal: loop.ac.signal, requestApproval: approve, requestElicitation: elicit, techniqueOptionOverrides: task.spec.techniqueOptionOverrides, deps: d, ...(d.registry ? { registry: d.registry } : {}) });
 			const calls = r.trace && Array.isArray(r.trace.rounds) ? r.trace.rounds.reduce((n, rd)=>n + ((rd.results || []).length), 0) : 0;
 			// 计价表无此模型时 cost 为 null:记 costUnpriced(任务行标「费用预算不可用」),不再按 0 累计伪装成「$0.000/上限」
 			const _du = r.usage ? deriveUsage(r.usage) : null;

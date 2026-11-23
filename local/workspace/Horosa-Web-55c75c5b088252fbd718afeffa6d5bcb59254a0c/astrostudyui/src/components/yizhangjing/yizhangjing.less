@@ -20,12 +20,12 @@
 	border-bottom: 1px solid var(--horosa-border, rgba(120, 120, 120, 0.22));
 }
 .horosa-yizhangjing-part {
-	font-size: 15px;
+	font-size: var(--horosa-fs-subtitle);
 	font-weight: 700;
 	color: var(--horosa-text, #1b2333);
 }
 .horosa-yizhangjing-sub {
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: var(--horosa-muted, #7a8699);
 }
 
@@ -69,14 +69,14 @@
 	.cell-tags { display: flex; align-items: center; gap: 4px; }
 	// 四柱落宫（年/月/日/时）：淡金描边药丸，作次级标记。
 	.cell-role {
-		font-size: 10px; font-weight: 700;
+		font-size: var(--horosa-fs-micro); font-weight: 700;
 		color: var(--horosa-gold, #9a6a25);
 		background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.16));
 		border-radius: 999px; padding: 0 6px; line-height: 15px; min-width: 15px; text-align: center;
 	}
 	// 命宫标记：实金药丸，作首级锚，压过四柱落宫标记(字色走 on-accent:亮色白字 / 暗色浅金底上深墨)。
 	.cell-ming {
-		font-size: 10px; font-weight: 800; color: var(--horosa-on-accent, #fff);
+		font-size: var(--horosa-fs-micro); font-weight: 800; color: var(--horosa-on-accent, #fff);
 		background: var(--horosa-gold, #9a6a25);
 		border-radius: 999px; padding: 0 6px; line-height: 15px; min-width: 15px; text-align: center;
 	}
@@ -102,14 +102,14 @@
 	border-radius: 14px;
 	border: 1px solid var(--horosa-border, rgba(120, 120, 120, 0.24));
 	background: var(--horosa-panel-soft, rgba(154, 106, 37, 0.05));
-	.hub-brand { font-size: 11px; color: var(--horosa-muted, #8894a6); letter-spacing: 0.06em; }
+	.hub-brand { font-size: var(--horosa-fs-caption); color: var(--horosa-muted, #8894a6); letter-spacing: 0.06em; }
 	.hub-title { font-size: 11.5px; color: var(--horosa-text-soft, #5c6a80); margin-top: 6px; }
 	.hub-star { font-size: 46px; font-weight: 800; line-height: 1.1; color: var(--horosa-gold, #9a6a25); }
-	.hub-meta { font-size: 12px; color: var(--horosa-text-soft, #5c6a80); }
+	.hub-meta { font-size: var(--horosa-fs-small); color: var(--horosa-text-soft, #5c6a80); }
 	.hub-tags {
 		display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px;
 		span {
-			font-size: 11px; padding: 2px 10px; border-radius: 999px;
+			font-size: var(--horosa-fs-caption); padding: 2px 10px; border-radius: 999px;
 			color: var(--horosa-gold, #9a6a25);
 			background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.14));
 		}
@@ -136,7 +136,7 @@
 		background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.1));
 		border-color: var(--horosa-gold, #9a6a25);
 	}
-	.pl { font-size: 11px; color: var(--horosa-muted, #7a8699); }
+	.pl { font-size: var(--horosa-fs-caption); color: var(--horosa-muted, #7a8699); }
 	/* 星名不拆字(放大档四柱格窄时「天福」两字不再上下各占一行;格按星名宽撑,四格仍放得下) */
 	.pstar { font-size: 22px; font-weight: 800; color: var(--horosa-gold, #9a6a25); margin: 2px 0 1px; letter-spacing: 0.02em; white-space: nowrap; }
 	.pmeta { font-size: 11.5px; color: var(--horosa-text-soft, #52627a); }
@@ -223,7 +223,7 @@
 	align-items: center;
 	gap: 8px;
 	margin-bottom: 8px;
-	span { font-size: 12px; color: var(--horosa-muted, #7a8699); }
+	span { font-size: var(--horosa-fs-small); color: var(--horosa-muted, #7a8699); }
 	.ant-select { min-width: 96px; }
 }
 
@@ -232,13 +232,13 @@
 	margin: 12px 0 6px;
 	padding-top: 10px;
 	border-top: 1px solid var(--horosa-border, rgba(120, 120, 120, 0.2));
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	font-weight: 700;
 	color: var(--horosa-gold, #9a6a25);
 }
 
 .horosa-yizhangjing-text {
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	line-height: 1.68;
 	color: var(--horosa-text, #1b2333);
 	p { margin: 0 0 6px; &:last-child { margin-bottom: 0; } }
@@ -258,7 +258,7 @@
 	gap: 10px;
 	padding: 3px 0;
 	border-bottom: 1px dashed var(--horosa-border, rgba(120, 120, 120, 0.18));
-	font-size: 13px;
+	font-size: var(--horosa-fs-body);
 	span { color: var(--horosa-muted, #7a8699); flex: 0 0 auto; }
 	strong { color: var(--horosa-text, #1b2333); text-align: right; }
 	// 当前所宗口诀组：金色加粗（以字重＋金色区分，不用蓝色系）。
@@ -266,7 +266,7 @@
 }
 
 .horosa-yizhangjing-note {
-	font-size: 12px;
+	font-size: var(--horosa-fs-small);
 	color: var(--horosa-muted, #7a8699);
 	line-height: 1.6;
 	margin: 6px 0 0;
@@ -303,8 +303,8 @@
 		border-color: var(--horosa-gold, #9a6a25);
 	}
 	td.lt { text-align: left; }
-	td.sm, th.sm { font-size: 11px; }
-	.dim { color: var(--horosa-text-soft, #52627a); font-size: 11px; }
+	td.sm, th.sm { font-size: var(--horosa-fs-caption); }
+	.dim { color: var(--horosa-text-soft, #52627a); font-size: var(--horosa-fs-caption); }
 }
 
 // 竖表：宽 12 列横表转 2 列纵表（省横向空间、窄栏可读）。行首 th＝紧凑左对齐标签列。
@@ -356,7 +356,7 @@
 	padding-bottom: 5px;
 	border-bottom: 1px dashed var(--horosa-gold-soft, rgba(154, 106, 37, 0.3));
 	.horosa-yizhangjing-shensha-pal {
-		font-size: 14px;
+		font-size: var(--horosa-fs-body-lg);
 		font-weight: 800;
 		color: var(--horosa-gold, #9a6a25);
 		letter-spacing: 0.02em;
@@ -394,7 +394,7 @@
 	}
 	.horosa-yizhangjing-shensha-text {
 		grid-area: text;
-		font-size: 12px;
+		font-size: var(--horosa-fs-small);
 		line-height: 1.55;
 		color: var(--horosa-text, #1b2333);
 	}
@@ -402,7 +402,7 @@
 
 /* ── WP-D/E 新增：人事宫角标 / 色带 / 四世权重带 / 六道徽章 / 掌诀图 / 流派徽 ── */
 .horosa-yizhangjing-cell .cell-palace {
-	font-size: 10px; font-weight: 700; line-height: 1.2; margin-top: 2px;
+	font-size: var(--horosa-fs-micro); font-weight: 700; line-height: 1.2; margin-top: 2px;
 	color: var(--horosa-gold, #9a6a25);
 	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.14));
 	border-radius: 999px; padding: 0 7px;
@@ -419,8 +419,8 @@
 		background: var(--horosa-surface, rgba(255, 255, 255, 0.03));
 		&.is-up { background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.14)); border-color: var(--horosa-gold, #9a6a25); }
 		&.is-down { background: var(--horosa-danger-soft, rgba(176, 72, 60, 0.08)); border-color: var(--horosa-danger-soft, rgba(176, 72, 60, 0.3)); }
-		.ss-shi { font-size: 10px; color: var(--horosa-text-soft, #5c6a80); }
-		.ss-star { font-size: 15px; font-weight: 800; color: var(--horosa-gold, #9a6a25); }
+		.ss-shi { font-size: var(--horosa-fs-micro); color: var(--horosa-text-soft, #5c6a80); }
+		.ss-star { font-size: var(--horosa-fs-subtitle); font-weight: 800; color: var(--horosa-gold, #9a6a25); }
 		.ss-w { font-size: 9.5px; color: var(--horosa-muted, #8894a6); }
 	}
 }
@@ -433,18 +433,18 @@
 	display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; justify-content: center;
 	.dao-badge {
 		display: inline-flex; align-items: center; gap: 4px; padding: 3px 11px; border-radius: 999px;
-		font-size: 12px; color: var(--horosa-muted, #8894a6);
+		font-size: var(--horosa-fs-small); color: var(--horosa-muted, #8894a6);
 		border: 1px dashed var(--horosa-border, rgba(120, 120, 120, 0.3));
 		background: transparent;
 		&.is-on { color: var(--horosa-gold, #9a6a25); border-style: solid; border-color: var(--horosa-gold, #9a6a25); background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.1)); }
 		&.is-upper.is-on { font-weight: 700; }
-		.dao-cnt { font-size: 10px; font-weight: 800; background: var(--horosa-gold, #9a6a25); color: var(--horosa-on-accent, #fff); border-radius: 999px; padding: 0 5px; }
+		.dao-cnt { font-size: var(--horosa-fs-micro); font-weight: 800; background: var(--horosa-gold, #9a6a25); color: var(--horosa-on-accent, #fff); border-radius: 999px; padding: 0 5px; }
 	}
 }
 
 /* 流派预设徽 */
 .horosa-yizhangjing-presetbadge {
-	display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+	display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: var(--horosa-fs-caption); font-weight: 700;
 	color: var(--horosa-gold, #9a6a25);
 	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.16));
 	border: 1px solid var(--horosa-gold-soft, rgba(154, 106, 37, 0.34));
@@ -457,13 +457,13 @@
 	display: flex; align-items: center; gap: 8px; margin: -2px 0 2px;
 }
 .horosa-yizhangjing-devbadge {
-	font-size: 11px; font-weight: 700; padding: 1px 9px; border-radius: 999px; white-space: nowrap;
+	font-size: var(--horosa-fs-caption); font-weight: 700; padding: 1px 9px; border-radius: 999px; white-space: nowrap;
 	color: var(--horosa-gold, #9a6a25);
 	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.18));
 	border: 1px solid var(--horosa-gold-soft, rgba(154, 106, 37, 0.4));
 }
 .horosa-yizhangjing-restorebtn {
-	font-size: 11px; font-weight: 700; cursor: pointer; padding: 1px 11px; border-radius: 999px;
+	font-size: var(--horosa-fs-caption); font-weight: 700; cursor: pointer; padding: 1px 11px; border-radius: 999px;
 	color: var(--horosa-on-accent, #fff); background: var(--horosa-gold, #9a6a25);
 	border: 1px solid var(--horosa-gold, #9a6a25);
 	&:hover { filter: brightness(1.08); }

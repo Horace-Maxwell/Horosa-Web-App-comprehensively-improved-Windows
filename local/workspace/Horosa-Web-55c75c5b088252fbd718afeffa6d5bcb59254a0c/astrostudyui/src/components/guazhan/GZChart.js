@@ -1,11 +1,11 @@
 import * as d3 from 'd3';
 import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
-import {randomStr, formatDate} from '../../utils/helper';
+import {formatDate} from '../../utils/helper';
 import { drawTextH, } from '../graph/GraphHelper';
 import Gua from '../gua/Gua';
 import TextTable from '../graph/TextTable';
-import { randYao, setupYao, ZiList, HourZi, getXunEmpty} from '../gua/GuaConst';
+import { randYao, setupYao, HourZi, getXunEmpty} from '../gua/GuaConst';
 import { LIUYAO_PRESETS } from '../gua/liuyaoSchools';
 import { fitSvgDesignBox, fitSvgTextWidth } from '../../utils/svgDesignBox';
 

@@ -5,7 +5,6 @@
 确定性:castMethod='manual' + seed 复现同盘。返回超集 JSON(旧字段兼容 + 新内核富数据)。
 """
 
-import secrets
 import traceback
 from numbers import Integral, Real
 
@@ -24,7 +23,8 @@ from astrostudy.geomancy import correspondences as geo_corr
 from astrostudy.geomancy.figures import (inverse, name as fig_name, opposite as fig_opposite,
                                          points, reverse, rotate as fig_rotate)
 from astrostudy.geomancy.traditions import PROFILES
-from astrostudy.geomancy.random_source import normalize_cast_method
+from astrostudy.geomancy.random_source import GEOMANCY_ENTROPY_BYTES, normalize_cast_method
+from astrostudy.truerandom import is_entropy_seed, new_entropy_seed
 from astrostudy.geomancy.ifa import odu_of as geo_odu_of
 from astrostudy.geomancy.numbers import all_numbers as geo_all_numbers, figure_number as geo_figure_number
 from astrostudy.geomancy.figures import is_palindrome as geo_is_palindrome, active_elements as geo_active_elements
@@ -33,8 +33,15 @@ from astrostudy.geomancy.vedic import vedic_overlay as geo_vedic
 # float('119e19')=1.19e21 这个科学记数法陷阱);webcetiansrv/webqizhengkinsrv 同款,勿另立口径。
 from websrv.horosa_engine_common import coord_to_float
 
-# 种子上界:与前端 InputNumber max 对齐(int32 正区间),保证回传种子可手填复现。
+# 手动整数种子的上界(int32 正区间)。
 _SEED_MAX = 2147483647
+
+
+def _entropy_seed_of(value):
+    """请求里的种子若是真随机记录则原样返回(去首尾空白),否则 None。"""
+    text = value.strip() if isinstance(value, str) else None
+    return text if is_entropy_seed(text) else None
+
 
 # 黄道星座中文
 _SIGN_ZH = {
@@ -254,7 +261,7 @@ def _figure_catalog(zodiac_system="classical", number_system="points", names_sys
 def _build_response(r, seed=None):
     """内核 compute_reading 结果 → 前端超集响应。
 
-    seed:本盘实际用于起卦的确定性种子(manual=输入种子;random/time=服务端生成)。
+    seed:本盘实际用于起卦的种子(手填整数 / 时间种子,或随机起卦的真随机记录)。
     回传给前端供「锁定复现 / 历史回放 / AI 快照」一致复现同盘。
     """
     zsys = r.get("zodiac_system", "classical")
@@ -314,7 +321,7 @@ def _build_response(r, seed=None):
         "profileId": (r.get("profile") or {}).get("id"),
     }
     if seed is not None:
-        reading["seed"] = int(seed)
+        reading["seed"] = seed if is_entropy_seed(seed) else int(seed)
     # 全流派补齐新增块(显式拷贝,缺一则前端该功能空转)
     reading["settings"] = _json_safe(r.get("settings") or {})
     if r.get("astro_erection"):
@@ -372,20 +379,26 @@ class GeomancySrv:
                 "manual": "manual", "time_seed": "time", "random": "rng",
             }.get(_clean(data.get("seedMode") or data.get("seed_mode"), "random"), "rng")
             cast_method = normalize_cast_method(cast_method)
-            manual_seed = _to_int(data.get("seed") or data.get("manualSeed"), None)
+            raw_seed = data.get("seed") or data.get("manualSeed")
+            entropy_seed = _entropy_seed_of(raw_seed)
+            manual_seed = None if entropy_seed else _to_int(raw_seed, None)
             time_seed = _to_int(data.get("timeSeed"), None)
-            # 落定一个确定性 int 种子:manual=输入(缺省 0);time=优先 timeSeed,缺则真随机生成;
-            # random/皮肤(dice/sand/coins/tablets)=有显式 seed 则用,否则真随机生成。
-            # 三者都成确定 int 再喂内核 → random/time 也可复现,且把实际种子回传前端。
-            if cast_method == "manual":
+            # 落定本盘的种子并回传前端(锁定 / 历史回放 / AI 快照据它原样重开):
+            #   · 种子是真随机记录(随机起卦,或重开一张随机起的盘)→ 回放记录,起卦法不论;
+            #   · manual = 手填整数(缺省 0);time = timeSeed —— 两者是确定性起法;
+            #   · random / 皮肤(dice / sand / coins / tablets)没带种子、time 没带 timeSeed → 当场取一段真随机记录。
+            if entropy_seed:
+                effective_seed = entropy_seed
+            elif cast_method == "manual":
                 effective_seed = manual_seed if manual_seed is not None else 0
             elif cast_method == "time":
-                effective_seed = time_seed if time_seed is not None else secrets.randbelow(_SEED_MAX + 1)
+                effective_seed = time_seed if time_seed is not None else new_entropy_seed(GEOMANCY_ENTROPY_BYTES)
             else:
-                effective_seed = manual_seed if manual_seed is not None else secrets.randbelow(_SEED_MAX + 1)
-            # 按内核 make_rng 取值优先级喂入:time 模式走 time_seed,其余走 seed。
-            kernel_seed = None if cast_method == "time" else effective_seed
-            kernel_time_seed = effective_seed if cast_method == "time" else None
+                effective_seed = manual_seed if manual_seed is not None else new_entropy_seed(GEOMANCY_ENTROPY_BYTES)
+            # 按内核 make_rng 取值优先级喂入:time 模式的整数种子走 time_seed,其余(含真随机记录)走 seed。
+            by_time = cast_method == "time" and not is_entropy_seed(effective_seed)
+            kernel_seed = None if by_time else effective_seed
+            kernel_time_seed = effective_seed if by_time else None
             profile_id = _clean(data.get("tradition") or data.get("profile"), "european_classical")
             if profile_id not in PROFILES:
                 profile_id = "european_classical"

@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const read = (rel)=>fs.readFileSync(path.resolve(__dirname, '..', '..', rel), 'utf8');
+const read = (rel)=>require('../../../utils/__tests__/helpers/sourceSet').readSource(path.resolve(__dirname, '..', '..', rel));   // 拆成子模块的门面按全集读,其余文件原样读
 
 describe('世俗盘存案前补周期表', ()=>{
 	test('壳在存案快照之前先等宿主的 beforeSaveCase', ()=>{

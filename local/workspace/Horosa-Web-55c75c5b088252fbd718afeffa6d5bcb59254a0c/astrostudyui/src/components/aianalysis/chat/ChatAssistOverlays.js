@@ -7,8 +7,9 @@ import RewindConfirmModal from './RewindConfirmModal';
 import SubjectWorkspaceDrawer from './SubjectWorkspaceDrawer';
 import PlanCard from './PlanCard';
 import DoctorPanel from './DoctorPanel';
-import { Switch } from 'antd';
+import { XQSwitch } from '../../xq-ui';
 import { groupCommandItems, commandMatches } from '../../../utils/aiChat/commands';
+import { pressable } from '../../../utils/pressable';
 
 // /resume:最近 5 个对话 + 「启动时自动继续上次」开关(缺省关;打开浮层不写键,只在拨开关时写)
 function ResumePanel({ resume }){
@@ -19,11 +20,11 @@ function ResumePanel({ resume }){
 		<Modal title="继续上次对话" open visible onCancel={r.onClose} footer={null} width={460}>
 			<div data-resume-panel="1" style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
 				<label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-					<Switch size="small" checked={!!r.pref} data-resume-pref="1" onChange={(v)=>{ if(typeof r.onTogglePref === 'function'){ r.onTogglePref(!!v); } }} />
+					<XQSwitch size="small" checked={!!r.pref} data-resume-pref="1" onChange={(v)=>{ if(typeof r.onTogglePref === 'function'){ r.onTogglePref(!!v); } }} />
 					<span>启动时自动继续上次对话</span>
 				</label>
 				{items.length ? items.map((c)=>(
-					<div key={c.id} data-resume-item={c.id} data-active={r.activeId === c.id ? '1' : '0'} onClick={()=>{ if(typeof r.onOpen === 'function'){ r.onOpen(c); } }}
+					<div key={c.id} data-resume-item={c.id} data-active={r.activeId === c.id ? '1' : '0'} {...pressable(()=>{ if(typeof r.onOpen === 'function'){ r.onOpen(c); } })}
 						style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: r.activeId === c.id ? 'var(--horosa-surface-sunken, rgba(127,127,127,0.12))' : 'transparent' }}>
 						<span style={{ flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '(未命名对话)'}{c.sourceRef && c.sourceRef.title ? <span style={{ color: 'var(--horosa-text-soft, #8a8f99)' }}> · {c.sourceRef.title}</span> : null}</span>
 						<span style={{ flex: '0 0 auto', color: 'var(--horosa-text-soft, #8a8f99)' }}>{`${c.updatedAt || c.createdAt || ''}`.slice(0, 16).replace('T', ' ')}</span>
@@ -91,7 +92,7 @@ function HelpPanel({ help }){
 					<div key={g.group} data-command-help-group={g.group}>
 						<div style={{ fontSize: 11, letterSpacing: '0.04em', color: soft, marginBottom: 4 }}>{g.group}</div>
 						{g.items.map((it)=>(
-							<div key={`${it.kind}:${it.name}`} data-command-help-item={it.name} data-available={it.available === false ? '0' : '1'} onClick={()=>{ if(typeof h.onPick === 'function'){ h.onPick(it); } }}
+							<div key={`${it.kind}:${it.name}`} data-command-help-item={it.name} data-available={it.available === false ? '0' : '1'} {...pressable(()=>{ if(typeof h.onPick === 'function'){ h.onPick(it); } })}
 								style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', opacity: it.available === false ? 0.6 : 1 }}>
 								<span><b>/{it.name}</b>{it.argsHint ? <span style={{ color: soft }}> {it.argsHint}</span> : null}{(it.aliases || []).length ? <span style={{ color: soft }}> · 也可写 {(it.aliases || []).map((a)=>`/${a}`).join(' ')}</span> : null}</span>
 								<span>{it.help || it.label}</span>

@@ -2,9 +2,9 @@
 // 容许度自定义：逐星 orb（度）+ 整体缩放倍数。改后重新排盘（orbs/orbScale 随 /chart 下发）。
 // 仅下发被改动的逐星值（其余回退「默认×缩放」），缩放与逐星互不干扰。默认不下发 → 后端零回归。
 import { Component } from 'react';
-import { Slider } from 'antd';
+
 import { astroSymbol } from './AstroExtraCommon';
-import { XQButton, XQInputNumber, XQSettingGroup, XQSettingRow } from '../xq-ui';
+import { XQButton, XQInputNumber, XQSettingGroup, XQSettingRow, XQSlider } from '../xq-ui';
 
 // 默认容许度（度），与排盘引擎默认表一致。
 export const DEFAULT_ORBS = [
@@ -109,7 +109,7 @@ class AstroOrbSetting extends Component {
 
 					<XQSettingGroup title="整体缩放" hint={scaled ? `当前 ${scale}×` : '默认 1×'}>
 						<div className="horosa-orb-scale">
-							<Slider
+							<XQSlider
 								className="horosa-orb-scale-slider"
 								min={0.5} max={2.5} step={0.1}
 								value={scale}

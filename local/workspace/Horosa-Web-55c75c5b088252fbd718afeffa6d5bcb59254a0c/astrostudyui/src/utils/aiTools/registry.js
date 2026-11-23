@@ -3,6 +3,7 @@
 // outputSchema(可选,type:object):进 MCP 导出面(manifest),外部客户端据此校验 structuredContent;运行时 toolDefs 不取。
 // 工具定义可选键(原样透传,getTool 可读;不进 manifest):timeoutMs / referenceKeys /
 //   cacheable(仅 read 级;运行时同参去重的准入)/ cacheKey(args)(去重键的参数归一,缺省键排序序列化)。
+import { containsNeutral, equalsNeutral } from '../scriptNeutralMatch';
 import Ajv from 'ajv';
 import { emitAutomationEvent, emitAutomationEventSync } from '../aiAgent/automation/events';
 import { AGENT_TOOL_LEVELS, AGENT_UNDO_KINDS, TOOL_NAME_PATTERN, DENIED_TOOL_NAME_RE, TOOL_CATEGORIES, TOOL_ORIGINS, buildToolManifest, TOOL_CALL_ORIGINS } from './catalog';
@@ -62,6 +63,10 @@ export function registerTool(def){
 	const origin = def.origin === undefined ? 'builtin' : def.origin;
 	if(TOOL_ORIGINS.indexOf(origin) < 0){ throw new Error(`[aiTools] origin 只允许 ${TOOL_ORIGINS.join('|')}: ${name}`); }
 	if(def.enabled !== undefined && typeof def.enabled !== 'function'){ throw new Error(`[aiTools] enabled 须为函数: ${name}`); }
+	// disabledHint:可选函数,开关关时报错里说「开哪个开关」(switchHints.switchHintText 出文字);只有声明了 enabled 的工具才有意义
+	if(def.disabledHint !== undefined && (typeof def.disabledHint !== 'function' || typeof def.enabled !== 'function')){ throw new Error(`[aiTools] disabledHint 须为函数且须与 enabled 同时声明: ${name}`); }
+	// alwaysConfirm:始终要用户审批(不论审批档),只给写入类
+	if(def.alwaysConfirm !== undefined && (typeof def.alwaysConfirm !== 'boolean' || def.level !== 'additive')){ throw new Error(`[aiTools] alwaysConfirm 须为布尔且只用于写入类: ${name}`); }
 	// origins:可选,只对列出的调用来源开放(不在其它来源的目录里、直呼其名也拒);值域 TOOL_CALL_ORIGINS
 	if(def.origins !== undefined && (!Array.isArray(def.origins) || !def.origins.length || def.origins.some((o)=>TOOL_CALL_ORIGINS.indexOf(o) < 0))){ throw new Error(`[aiTools] origins 只允许 ${TOOL_CALL_ORIGINS.join('|')} 的非空子集: ${name}`); }
 	if(tools.has(name)){
@@ -100,6 +105,21 @@ function toolEnabled(def){
 	try{ return def.enabled() !== false; }catch(e){ return false; }
 }
 
+function disabledHintOf(def){
+	if(!def || typeof def.disabledHint !== 'function'){ return ''; }
+	try{ const t = def.disabledHint(); return typeof t === 'string' ? t : ''; }catch(e){ return ''; }
+}
+function disabledMessage(def){
+	const hint = disabledHintOf(def);
+	return `工具 ${def.name} 未启用(对应功能开关关闭)${hint ? `;${hint}` : ''}`;
+}
+// 外部桥用:名字不在 MCP 目录里时,分清「开关关着的内置工具」与「真没有这个工具」(只认内置、对该来源开放的;外部服务器工具一律算没有)
+export function disabledToolInfo(name, origin){
+	const def = tools.get(name);
+	if(!def || def.origin === 'external' || !originAllowed(def, origin) || toolEnabled(def)){ return null; }
+	return { code: 'E_TOOL_DISABLED', message: disabledMessage(def) };
+}
+
 function originAllowed(def, origin){
 	if(!def || !Array.isArray(def.origins)){ return true; }
 	return def.origins.indexOf(origin || 'in-app') >= 0;
@@ -114,6 +134,31 @@ export function exportToolManifest(opts){
 	return buildToolManifest(listTools().filter((d)=>(includeExternal || d.origin !== 'external') && (includeDisabled || toolEnabled(d)) && originAllowed(d, origin)));
 }
 
+// 这件工具不认的参数键(schema 写了 additionalProperties:false 的每一层都查;开放对象如 cast 的 options 不查)。
+// Ajv 的 removeAdditional 会把它们静默剥掉:拼错的 maxchars、想当然的 remove:true 都「成功」—— 后者在写入类上得到的是相反的动作。
+// 回路径数组(顶层写键名,嵌套写 a.b / a[0].b),最多 20 条。
+const UNKNOWN_ARGS_MAX = 20;
+export function unknownArgPaths(schema, args){
+	const out = [];
+	const walk = (sch, val, prefix)=>{
+		if(out.length >= UNKNOWN_ARGS_MAX || !sch || typeof sch !== 'object' || val === null || typeof val !== 'object'){ return; }
+		if(Array.isArray(val)){
+			if(sch.items && typeof sch.items === 'object' && !Array.isArray(sch.items)){ val.forEach((v, i)=>walk(sch.items, v, `${prefix}[${i}]`)); }
+			return;
+		}
+		const props = sch.properties && typeof sch.properties === 'object' ? sch.properties : null;
+		if(!props){ return; }
+		Object.keys(val).forEach((k)=>{
+			const path = prefix ? `${prefix}.${k}` : k;
+			if(Object.prototype.hasOwnProperty.call(props, k)){ walk(props[k], val[k], path); return; }
+			if(sch.additionalProperties === false && !sch.patternProperties && out.length < UNKNOWN_ARGS_MAX){ out.push(path); }
+		});
+	};
+	walk(schema, args, '');
+	return out;
+}
+const allowedArgKeys = (schema)=>Object.keys((schema && schema.properties) || {});
+
 function validateArgs(def, args){
 	let v = validators.get(def.name);
 	if(!v){
@@ -122,7 +167,55 @@ function validateArgs(def, args){
 	}
 	const data = (args && typeof args === 'object' && !Array.isArray(args)) ? JSON.parse(JSON.stringify(args)) : {};
 	const ok = v(data);
-	return { ok: !!ok, data, errors: ok ? [] : (v.errors || []).map((e)=>`${e.instancePath || '/'} ${e.message || ''}`.trim()) };
+	const errs = ok ? [] : (v.errors || []);
+	return { ok: !!ok, data, errors: errs.map((e)=>`${e.instancePath || '/'} ${e.message || ''}`.trim()), readable: errs.map((e)=>readableAjvError(def, e, data)) };
+}
+
+// 校验报错转成一句中文(字段路径 + 原因);枚举写错时按近似给「是不是要 …」(工具可再给 def.suggestEnum(path, value) 补中文名对照)
+const editDistance = (a, b)=>{
+	const x = `${a}`.toLowerCase(); const y = `${b}`.toLowerCase();
+	const d = Array.from({ length: x.length + 1 }, (_, i)=>[i].concat(new Array(y.length).fill(0)));
+	for(let j = 1; j <= y.length; j += 1){ d[0][j] = j; }
+	for(let i = 1; i <= x.length; i += 1){ for(let j = 1; j <= y.length; j += 1){ d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1)); } }
+	return d[x.length][y.length];
+};
+function valueAt(data, path){
+	return `${path || ''}`.split('/').filter(Boolean).reduce((o, k)=>(o && typeof o === 'object' ? o[k.replace(/~1/g, '/').replace(/~0/g, '~')] : undefined), data);
+}
+export function enumSuggestions(value, allowed){
+	const v = `${value == null ? '' : value}`.trim().toLowerCase();
+	if(!v || !Array.isArray(allowed)){ return []; }
+	const list = allowed.map((a)=>`${a}`);
+	// 比对走简繁中性(scriptNeutralMatch):繁体写法与简体候选同样命中
+	const exactCase = list.filter((a)=>equalsNeutral(a, v, { ci: true }));
+	if(exactCase.length){ return exactCase; }
+	const sub = list.filter((a)=>containsNeutral(a, v) || containsNeutral(v, a));
+	if(sub.length){ return sub.slice(0, 3); }
+	return list.map((a)=>({ a, d: editDistance(a, v) })).filter((x)=>x.d <= Math.max(2, Math.floor(v.length / 3))).sort((p, q)=>p.d - q.d).slice(0, 3).map((x)=>x.a);
+}
+function readableAjvError(def, e, data){
+	const path = e.instancePath || '/';
+	const p = e.params || {};
+	switch(e.keyword){
+	case 'enum': {
+		const value = valueAt(data, e.instancePath);
+		let sugg = [];
+		try{ sugg = (typeof def.suggestEnum === 'function' ? def.suggestEnum(e.instancePath, value) : null) || []; }catch(err){ sugg = []; }
+		if(!sugg.length){ sugg = enumSuggestions(value, p.allowedValues); }
+		const allowed = Array.isArray(p.allowedValues) ? p.allowedValues : [];
+		return `${path} 取值「${`${value}`.slice(0, 40)}」不在可选范围${sugg.length ? `;是不是要 ${sugg.join(' / ')}?` : ''}${allowed.length <= 12 ? `(可选:${allowed.join(' / ')})` : `(共 ${allowed.length} 个可选值)`}`;
+	}
+	case 'required': return `${path === '/' ? '' : `${path} `}缺少必填参数 ${p.missingProperty}`.trim();
+	case 'type': return `${path} 类型应为 ${p.type}`;
+	case 'minimum': case 'maximum': case 'exclusiveMinimum': case 'exclusiveMaximum': return `${path} 应 ${p.comparison} ${p.limit}`;
+	case 'minLength': return `${path} 至少 ${p.limit} 个字`;
+	case 'maxLength': return `${path} 最多 ${p.limit} 个字`;
+	case 'minItems': return `${path} 至少 ${p.limit} 项`;
+	case 'maxItems': return `${path} 最多 ${p.limit} 项`;
+	case 'pattern': return `${path} 写法不对(应匹配 ${p.pattern})`;
+	case 'additionalProperties': return `${path === '/' ? '' : `${path} `}有不认的键 ${p.additionalProperty}`.trim();
+	default: return `${path} ${e.message || ''}`.trim();
+	}
 }
 
 // ── 写入类的幂等键(客户端重试不重复写)──
@@ -234,6 +327,7 @@ export async function peekNoChange(name, args, ctx){
 	// 与 runToolOnce 同序:守卫先于 Ajv(过不了 = 判不了,交给执行路径如实回错)
 	const pre = guardAdditive(def.name, args, def.referenceKeys);
 	if(!pre.ok){ return null; }
+	if(unknownArgPaths(def.inputSchema, args).length){ return null; }   // 带不认的键:执行路径会拒,这里不预判
 	const checked = validateArgs(def, args);
 	if(!checked.ok){ return null; }
 	const r = await callNoChange(def, checked.data, ctx);
@@ -247,7 +341,7 @@ async function runToolOnce(name, args, ctx = {}){
 	}
 	// 功能开关关的工具不进 manifest;直呼其名(外部客户端/历史回放)一律拒,不执行
 	if(!toolEnabled(def)){
-		return { ok: false, code: 'E_TOOL_DISABLED', message: `工具 ${def.name} 未启用(对应功能开关关闭)` };
+		return { ok: false, code: 'E_TOOL_DISABLED', message: disabledMessage(def) };
 	}
 	// origins 合同:只对列出的来源开放;别的来源直呼其名一律拒,不执行
 	if(!originAllowed(def, ctx.origin)){
@@ -264,9 +358,15 @@ async function runToolOnce(name, args, ctx = {}){
 	if(!guard.ok){
 		return { ok: false, code: guard.code, message: guard.code === 'E_FORBIDDEN_KEY' ? `参数含禁用键(只增不删): ${guard.keys.join(',')}` : '工具不存在' };
 	}
+	// 不认的参数键:写入类一律拒(零写入)—— 带着没被理解的参数去写,可能正好写反(add_record_tag remove:true 曾照样把标签加上);
+	// 读类照做,但在回包里点名(ignoredArgs + assumptions),调用方才知道那个参数没生效
+	const unknownArgs = unknownArgPaths(def.inputSchema, args);
+	if(unknownArgs.length && def.level === 'additive'){
+		return { ok: false, code: 'E_ARGS_INVALID', message: `参数里有 ${def.name} 不认的键: ${unknownArgs.join(', ')}(未执行;可用的键: ${allowedArgKeys(def.inputSchema).join(', ')})`, data: { errors: unknownArgs.map((k)=>`/${k} 不是这件工具的参数`), unknownArgs, allowedArgs: allowedArgKeys(def.inputSchema) } };
+	}
 	const validated = validateArgs(def, args);
 	if(!validated.ok){
-		return { ok: false, code: 'E_ARGS_INVALID', message: `参数不合规: ${validated.errors.join('; ')}`, data: { errors: validated.errors } };
+		return { ok: false, code: 'E_ARGS_INVALID', message: `参数不合规: ${(validated.readable && validated.readable.length ? validated.readable : validated.errors).join('; ')}`, data: { errors: validated.errors } };
 	}
 	// 调用方已取消 / 已超时(桥的中止信号):写入类一律不开始执行(零写入)—— 客户端早已收到超时,再写就是重试时的重复
 	if(def.level === 'additive' && ctx.signal && ctx.signal.aborted){
@@ -341,6 +441,10 @@ async function runToolOnce(name, args, ctx = {}){
 		// 自动化事件:只增类动作成功后广播(引擎默认关;origin 透传给深度守卫)
 		emitAutomationEvent('tool.after', { toolName: def.name, level: def.level, origin: ctx.origin || 'in-app', actionId });
 		return { ...result, undo: { actionId, kind: undo.kind, label: undoLabel(undo.kind) } };
+	}
+	// 读类带了不认的键:结果照给,同时点名(调用方据此知道那个参数没生效)
+	if(unknownArgs.length){
+		return { ...result, ignoredArgs: unknownArgs, assumptions: [...(Array.isArray(result.assumptions) ? result.assumptions : []), `这些不是 ${def.name} 的参数,已忽略: ${unknownArgs.join(', ')}(可用的键: ${allowedArgKeys(def.inputSchema).join(', ')})`] };
 	}
 	return result;
 }

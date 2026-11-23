@@ -468,8 +468,8 @@ def test_day_night_uses_apparent_sunrise():
 def test_varga_variant_registry_front_back_parity():
     """前端分盘变体选项(AstroConst.INDIA_VARGA_VARIANT_CHARTS)与后端注册表逐项同构。"""
     from astrostudy.india.varga import VARGA_VARIANT_CHOICES
-    src = open(os.path.join(ROOT, '..', 'astrostudyui', 'src', 'constants', 'AstroConst.js'),
-               encoding='utf-8').read()
+    from source_sets import read_ui_source   # 常量表拆成子模块:按「门面 + 子模块」全集读
+    src = read_ui_source(os.path.join(ROOT, '..', 'astrostudyui', 'src', 'constants', 'AstroConst.js'))
     block = src[src.index('export const INDIA_VARGA_VARIANT_CHARTS'):]
     block = block[:block.index('];\n') + 2]
     front = {}

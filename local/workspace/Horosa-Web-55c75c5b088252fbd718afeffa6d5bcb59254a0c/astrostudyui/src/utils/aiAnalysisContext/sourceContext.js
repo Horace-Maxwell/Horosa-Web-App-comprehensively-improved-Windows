@@ -18,6 +18,7 @@ import { fetchChart } from '../../services/astro';
 import { getStore } from '../storageutil';
 import { recordClassicalFallback, buildFieldObject, fieldParams, saveGeneratedTechniqueSnapshot } from './recordFields';
 import { generateCaseTechniqueSnapshot } from './regenCase';
+import { currentGlobalSetup } from '../globalSetupStore';
 
 // (summarizeCasePayload 已迁 aiAnalysisSources.js —— 顶部 import)
 
@@ -177,7 +178,8 @@ function hasMatchingSavedAstroSnapshot(record){
 function liveVoidClassical(){
 	try{
 		const st = getStore();
-		const app = st && st.app ? st.app : null;
+		// 没有页面状态(无头)时读全局设置单源:界面在时 app 仓与它同值,无头里 set_settings facet=app 直写的就是它
+		const app = st && st.app ? st.app : currentGlobalSetup();
 		return app && (app.voidClassical === 1 || app.voidClassical === '1' || app.voidClassical === true) ? 1 : 0;
 	}catch(e){
 		return 0;
@@ -226,7 +228,16 @@ async function fetchChartDetailsSection(params, detailSettings){
 		const data = await request(`${Constants.ServerRoot}/astroextra/chartdetails`, {
 			body: JSON.stringify({ ...params, ...chartDetailRequestFields(detailSettings || CHART_DETAIL_SETTINGS.load()) }), silent: true, timeoutMs: 20000,
 		});
-		return buildChartDetailsText(data && data.Result ? data.Result : data);
+		const result = data && data.Result ? data.Result : data;
+		const summary = buildChartDetailsText(result);
+		const fullKeys = detailSettings && Array.isArray(detailSettings.detailFullTables) ? detailSettings.detailFullTables : [];
+		if(!fullKeys.length){ return summary; }
+		let full = '';
+		try{
+			const { buildChartDetailFullTables } = await import(/* webpackChunkName: "chart-detail-tables-text" */ '../../components/astro/chartDetailTablesText');
+			full = buildChartDetailFullTables(result, fullKeys, detailSettings);
+		}catch(e){ full = ''; }
+		return [summary, full].filter(Boolean).join('\n\n');
 	}catch(e){
 		return '';
 	}

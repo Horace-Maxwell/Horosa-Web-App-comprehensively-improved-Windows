@@ -87,12 +87,12 @@ describe('cast_technique options', ()=>{
 });
 
 describe('金口诀地分 / 印度盘问事:求测者给的起课输入同样锁住', ()=>{
-	it('🔴 cast_technique:金口诀带地分、印度盘带问事时刻或问数 → 拒,不排队不起盘;判读口径键照常透传', async ()=>{
+	it('🔴 cast_technique:金口诀带地分、印度盘带问数 → 拒,不排队不起盘(问事时刻放行);判读口径键照常透传', async ()=>{
 		const jk = await runTool('cast_technique', { technique: 'jinkou', source: timepoint, options: { diFen: '午' } }, ctx());
 		expect([jk.code, jk.data && jk.data.castInputKeys]).toEqual(['E_ARGS_INVALID', ['diFen']]);
 		const chartSrc = { kind: 'natal', birth: '1990-05-18 10:00', place: '北京' };
 		const ip = await runTool('cast_technique', { technique: 'indiachart', source: chartSrc, options: { indiaPrashnaTime: '2026/03/01 10:00:00', indiaPrashnaNumber: 77 } }, ctx());
-		expect([ip.code, ip.data && ip.data.castInputKeys]).toEqual(['E_ARGS_INVALID', ['indiaPrashnaTime', 'indiaPrashnaNumber']]);
+		expect([ip.code, ip.data && ip.data.castInputKeys]).toEqual(['E_ARGS_INVALID', ['indiaPrashnaNumber']]);   // 问事时刻已放行,只问数照拒
 		const ipn = await runTool('cast_technique', { technique: 'indiachart', source: chartSrc, options: { indiaPrashnaNumber: 77 } }, ctx());
 		expect(ipn.code).toBe('E_ARGS_INVALID');
 		expect(getAnalysisTechniqueContexts).not.toHaveBeenCalled();

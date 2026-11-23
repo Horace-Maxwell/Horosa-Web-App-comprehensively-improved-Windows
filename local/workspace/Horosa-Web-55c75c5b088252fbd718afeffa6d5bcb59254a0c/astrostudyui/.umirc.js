@@ -1,4 +1,8 @@
 const buildForFile = process.env.BUILD_FOR_FILE === '1';
+// 共享源码(多个技法 / 页面都在用的组件、工具、数据、常量)—— 两个共享 cacheGroup 共用这一条判据
+const SHARED_SRC_RE = /[\\/]src[\\/](components[\\/](kinastro|comp|xq-ui)|utils|data|constants)[\\/]/;
+// 首屏路由块:根路由 "/" 的布局层与首页(umi 路由块的固定名)
+const FIRST_SCREEN_ROUTE_CHUNKS = new Set(['layouts__index', 'p__index']);
 
 export default {
 	publicPath: buildForFile ? './' : '/static/',
@@ -50,8 +54,10 @@ export default {
 					// async,p__index 组=40 == 上限,哨兵咬)→ 56 续留余量,同判据同回退。
 					// 判据:任何组的 Promise.all 长度 == 本值即再次顶格(scripts/check-chunk-dup.js
 					// 哨兵盯)。请求数多 = 桌面本地协议零成本/web 静态托管可并发,回灌才是真税。
+					// 56 再顶格(外部接口新增一批工具后,umi 组 = 56 == 上限,layouts__index 与 p__index 回灌 41 个共有模块)→ 72(最大组 58),同判据同回退。
+					// 72 再顶格(AI 助手子系统改成首帧后 import() 接线,布局层这一组要 72 个分包)→ 96,同判据同回退。
 					// 回退 kill-switch:HOROSA_SPLIT_MAXREQ=16。
-					maxAsyncRequests: Number(process.env.HOROSA_SPLIT_MAXREQ || 56),
+					maxAsyncRequests: Number(process.env.HOROSA_SPLIT_MAXREQ || 96),
 					cacheGroups: {
 						vendorsGl: {
 							name: 'vendors-gl',
@@ -106,9 +112,24 @@ export default {
 							minChunks: 1,
 							reuseExistingChunk: true,
 						},
+						// 首屏共享块:shared-technique 曾是「全技法共载」的一整块(5.2MB),首页只要其中一部分也得整块下,
+						// 是首屏批次里最大的一件。按「首屏路由块(布局层 / 首页)有没有在用」把共享源码分两组:首屏用到的进
+						// shared-first-screen(随首屏批次),只被懒页面共享的留在 shared-technique(进哪个页面才随它下)。
+						// 判据只看谁在用,不维护文件清单;minSize 0 —— 首屏那部分再小也不能落回 shared-technique 把整块拖进首屏。
+						// 兜底:check-chunk-dup.js ⑥ 首屏字节预算 + ⑦ 懒共享块不得进首屏批次;源码层 firstScreenStaticGraph 合同。
+						sharedFirstScreen: {
+							name: 'shared-first-screen',
+							test: (module, chunks) => SHARED_SRC_RE.test((module.nameForCondition && module.nameForCondition()) || '')
+								&& chunks.some((c) => FIRST_SCREEN_ROUTE_CHUNKS.has(c.name)),
+							chunks: 'async',
+							priority: 21,
+							minChunks: 2,
+							minSize: 0,
+							reuseExistingChunk: true,
+						},
 						sharedTechnique: {
 							name: 'shared-technique',
-							test: /[\\/]src[\\/](components[\\/](kinastro|comp|xq-ui)|utils|data|constants)[\\/]/,
+							test: SHARED_SRC_RE,
 							chunks: 'async',
 							priority: 20,
 							minChunks: 2,

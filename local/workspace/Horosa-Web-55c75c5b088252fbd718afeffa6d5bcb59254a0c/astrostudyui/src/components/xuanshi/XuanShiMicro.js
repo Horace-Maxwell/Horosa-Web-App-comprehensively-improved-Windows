@@ -1,7 +1,9 @@
 import React from 'react';
-import { Spin, Empty, Select, Input } from 'antd';
+import { Select, Input } from 'antd';
+import { XQEmpty, XQSpin } from '../xq-ui';
 import { fetchMicrochronology } from '../../services/xuanshi';
 import { flagEnabled } from '../../utils/perfFlags';
+import { pressable } from '../../utils/pressable';
 
 // 本页渲染上限(与后端 celestial.MICRO_LIST_LIMIT 同值):列表只画前 N 条,超出时提示「仅显示前 300 条」。
 const MICRO_RENDER_LIMIT = 300;
@@ -76,7 +78,7 @@ export default class XuanShiMicro extends React.Component {
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
-					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
+					<span className="xuanshi-crumb" {...pressable(() => this.props.onHome && this.props.onHome())}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>图谱</span>
 					<span className="xuanshi-crumb-sep">/</span><span>天象微年表</span>
 				</div>
@@ -91,7 +93,7 @@ export default class XuanShiMicro extends React.Component {
 						<Select allowClear showSearch size="small" placeholder="全部史书" style={{ minWidth: 150 }} value={history || undefined}
 							options={histOpts} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 						<Input.Search placeholder="征兆筛选(如:日食 / 彗 / 流星)" allowClear size="small" style={{ width: 200 }} defaultValue={omen} key={`mo-${isFiltered}`} onSearch={(v) => this.setFilter({ omen: v || '' })} />
-						{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12 }} onClick={() => this.setState({ history: '', omen: '', decade: null }, () => this.load())}>清空</span> : null}
+						{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12 }} {...pressable(() => this.setState({ history: '', omen: '', decade: null }, () => this.load()))}>清空</span> : null}
 					</div>
 				</div>
 
@@ -102,7 +104,7 @@ export default class XuanShiMicro extends React.Component {
 						{byDecade.map((d) => {
 							const sel = decade === d[0];
 							return (
-								<div key={d[0]} title={`${d[0]}s · ${d[1]} 条`} onClick={() => this.setFilter({ decade: sel ? null : d[0] })}
+								<div key={d[0]} title={`${d[0]}s · ${d[1]} 条`} {...pressable(() => this.setFilter({ decade: sel ? null : d[0] }))}
 									style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', flex: '0 0 22px', cursor: 'pointer' }}>
 									<div style={{ width: '100%', height: `${Math.round((d[1] / maxDec) * 160)}px`, borderRadius: '2px 2px 0 0', background: sel ? 'var(--vermilion)' : 'linear-gradient(180deg, var(--vermilion-soft), var(--vermilion))', opacity: sel ? 1 : 0.85 }} />
 									<div style={{ fontSize: 9, color: 'var(--ink-muted)', marginTop: 3, transform: 'rotate(45deg)', transformOrigin: 'left', whiteSpace: 'nowrap' }}>{d[0]}</div>
@@ -120,7 +122,7 @@ export default class XuanShiMicro extends React.Component {
 							<div className="xuanshi-celcol-list" style={{ maxHeight: 260 }}>
 								{byHistory.map((d) => {
 									const name = Array.isArray(d) ? d[0] : d; const n = Array.isArray(d) ? d[1] : '';
-									return <div key={name} className={`xuanshi-celcol-row${history === name ? ' is-active' : ''}`} onClick={() => this.setFilter({ history: history === name ? '' : name })}><span className="xuanshi-celcol-name">《{name}》</span><span className="xuanshi-celcol-n">{(n || 0).toLocaleString()}</span></div>;
+									return <div key={name} className={`xuanshi-celcol-row${history === name ? ' is-active' : ''}`} {...pressable(() => this.setFilter({ history: history === name ? '' : name }))}><span className="xuanshi-celcol-name">《{name}》</span><span className="xuanshi-celcol-n">{(n || 0).toLocaleString()}</span></div>;
 								})}
 							</div>
 						</div>
@@ -129,7 +131,7 @@ export default class XuanShiMicro extends React.Component {
 							<div className="xuanshi-celcol-list" style={{ maxHeight: 260 }}>
 								{byOmen.map((d) => {
 									const name = Array.isArray(d) ? d[0] : d; const n = Array.isArray(d) ? d[1] : '';
-									return <div key={name} className={`xuanshi-celcol-row${omen === name ? ' is-active' : ''}`} onClick={() => this.setFilter({ omen: omen === name ? '' : name })}><span className="xuanshi-celcol-name">{name}</span><span className="xuanshi-celcol-n">{(n || 0).toLocaleString()}</span></div>;
+									return <div key={name} className={`xuanshi-celcol-row${omen === name ? ' is-active' : ''}`} {...pressable(() => this.setFilter({ omen: omen === name ? '' : name }))}><span className="xuanshi-celcol-name">{name}</span><span className="xuanshi-celcol-n">{(n || 0).toLocaleString()}</span></div>;
 								})}
 							</div>
 						</div>
@@ -137,9 +139,9 @@ export default class XuanShiMicro extends React.Component {
 
 					{/* 右栏事件列表 */}
 					<div className="xuanshi-evlist is-spacious">
-						{loading ? <div className="xuanshi-center"><Spin tip="载入…" /></div> : err ? (
-							<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
-						) : !events.length ? <div className="xuanshi-center"><Empty description="无匹配天象" /></div> : (
+						{loading ? <div className="xuanshi-center"><XQSpin tip="载入…" /></div> : err ? (
+							<div className="xuanshi-center"><XQEmpty description={`载入失败:${err}`} /><span className="xuanshi-link" {...pressable(() => this.load())}>重试</span></div>
+						) : !events.length ? <div className="xuanshi-center"><XQEmpty description="无匹配天象" /></div> : (
 							<>
 								{events.slice(0, MICRO_RENDER_LIMIT).map((e, i) => (
 									<div className="xuanshi-evrow" key={`mev-${i}`} style={{ cursor: 'help' }}

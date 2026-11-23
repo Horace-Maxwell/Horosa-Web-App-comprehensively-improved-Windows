@@ -38,7 +38,7 @@ test('改回缺省 / 清空清单 = 删种子;不合法的清单不记', ()=>{
 });
 
 test('推运页「计算」入口把扩展项一并记种子(源码合同)', ()=>{
-	const src = require('fs').readFileSync(require('path').resolve(__dirname, '../../components/direction/AstroDirectMain.js'), 'utf8');
+	const src = require('./helpers/sourceSet').readSource(require('path').resolve(__dirname, '../../components/direction/AstroDirectMain.js'));
 	const i = src.indexOf('applyPrimaryDirectionConfig(pdMethod, pdTimeKey, pdYears, options){');
 	const body = src.slice(i, src.indexOf('this.props.dispatch(', i));
 	['pdRaptParallel', 'pdAntiscia', 'pdTerms', 'pdSignificators', 'pdPromissorTypes'].forEach((k)=>expect([k, body.indexOf(k) >= 0]).toEqual([k, true]));

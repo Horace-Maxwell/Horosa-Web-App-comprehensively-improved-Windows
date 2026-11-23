@@ -1,6 +1,7 @@
 import { Component } from 'react';
-import { Spin, Row, Col } from 'antd';
-import { XQTabs as Tabs, XQDatePicker, XQSelect as Select } from '../xq-ui';
+import { parseDateParts, formatSignedDate, civilJdnOfDateStr, civilDateStrOfJdn } from '../../utils/dateStrSafe';
+import { Row, Col } from 'antd';
+import { XQTabs as Tabs, XQDatePicker, XQSelect as Select, XQSpin } from '../xq-ui';
 import UpdatingBadge from '../common/UpdatingBadge';
 import styles from '../../css/styles.less';
 import { labelMomentOfCivilDateStr } from '../../utils/civilMoment';
@@ -31,6 +32,22 @@ function ephName(id){
 export function defaultEphemerisWindow(zone){
 	const now = DateTime.wallClockForChart(zone);
 	return { startDate: fmtDate(now), endDate: fmtDate(addDays(now, 90)), includeTransits: true };
+}
+// 挂载 / 外部智能体指定区间:只给起始日 = 起始日起 90 天;只给结束日 = 今日到结束日;两个都给照给;都不给 = 页面缺省。
+// 日期只认 YYYY-MM-DD(年 1–4 位;斜杠写法先归一),认不出的那一个当没给。回 { startDate, endDate }(只含定得下来的键,其余交给缺省)。
+export function ephemerisWindowFromOptions(startRaw, endRaw){
+	// 民用历单源:日期串 → JDN(不存在的日子 = 往返对不上 = 当没给)
+	const jdnOf = (v)=>{
+		const p = parseDateParts(v);
+		if(!p || p.year < 1){ return null; }
+		const j = civilJdnOfDateStr(formatSignedDate(p.year, p.month, p.day));
+		return Number.isFinite(j) && civilDateStrOfJdn(j) === formatSignedDate(p.year, p.month, p.day) ? j : null;
+	};
+	const s = jdnOf(startRaw); const e = jdnOf(endRaw);
+	const out = {};
+	if(s !== null){ out.startDate = civilDateStrOfJdn(s); out.endDate = civilDateStrOfJdn(e !== null && e >= s ? e : s + 90); }
+	else if(e !== null){ out.endDate = civilDateStrOfJdn(e); }
+	return out;
 }
 // opts:{ startDate, endDate, includeTransits }(缺=页面缺省:今日起 90 天、含行运触发)。无数据返回 ''(挂载显示「缺失」)。
 export async function buildEphemerisSnapshotText(chartObj, opts){
@@ -343,7 +360,7 @@ class AstroEphemeris extends Component{
 		const height = this.props.height ? this.props.height - 20 : 720;
 		const viewTab = this.state.viewTab || 'events';
 		return (
-			<Spin spinning={this.state.loading && !this.shownResult()}>
+			<XQSpin spinning={this.state.loading && !this.shownResult()}>
 				<div style={{ position: 'relative' }}>
 				{this.state.loading && this.shownResult() ? <UpdatingBadge /> : null}
 				<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{height, overflow: 'auto', paddingRight: 8}}>
@@ -449,7 +466,7 @@ class AstroEphemeris extends Component{
 					</Tabs>
 				</div>
 				</div>
-			</Spin>
+			</XQSpin>
 		);
 	}
 }

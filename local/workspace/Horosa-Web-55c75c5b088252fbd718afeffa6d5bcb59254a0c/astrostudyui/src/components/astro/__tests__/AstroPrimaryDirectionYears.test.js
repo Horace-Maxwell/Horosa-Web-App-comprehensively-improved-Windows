@@ -5,6 +5,12 @@ jest.mock('../../xq-ui', ()=>({
 	XQInputNumber: ()=>null,
 	XQSelect: Object.assign(()=>null, { Option: ()=>null }),
 	XQTable: ()=>null,
+	XQRadio: Object.assign(()=>null, { Group: ()=>null, Button: ()=>null }),
+	XQCheckbox: Object.assign(()=>null, { Group: ()=>null }),
+	XQSwitch: ()=>null,
+	XQSlider: ()=>null,
+	XQSpin: ()=>null,
+	XQEmpty: Object.assign(()=>null, { PRESENTED_IMAGE_SIMPLE: null }),
 }));
 jest.mock('../../xq-icons', ()=>()=>null);
 jest.mock('../../../utils/request', ()=>jest.fn());

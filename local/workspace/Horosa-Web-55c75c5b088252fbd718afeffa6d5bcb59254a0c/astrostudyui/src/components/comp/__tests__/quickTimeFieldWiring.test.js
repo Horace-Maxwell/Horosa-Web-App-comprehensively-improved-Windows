@@ -42,7 +42,7 @@ describe('快捷数字时间录入·接线', ()=>{
 		}).map((p)=>path.relative(root, p));
 		expect(bad).toEqual([]);
 		const xq = src('components/xq-ui/index.js');
-		['export function XQDatePicker', 'export function XQTimePicker', 'export function QuickDigitsHost', 'XQDatePicker.RangePicker = function XQRangePicker'].forEach((k)=>{
+		['export const XQDatePicker = React.forwardRef(function XQDatePicker(', 'export const XQTimePicker = React.forwardRef(function XQTimePicker(', 'export function QuickDigitsHost', 'XQDatePicker.RangePicker = React.forwardRef(function XQRangePicker('].forEach((k)=>{
 			expect(xq.indexOf(k) >= 0 ? 'ok' : `xq-ui 缺 ${k}`).toBe('ok');
 		});
 		expect(jsxNodesInFile(path.join(__dirname, '../../..', 'components/xq-ui/index.js'), 'QuickDigitsHost').length).toBe(3);

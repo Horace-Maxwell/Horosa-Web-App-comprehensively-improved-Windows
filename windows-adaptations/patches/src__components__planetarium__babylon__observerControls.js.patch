@@ -1,0 +1,42 @@
+diff --git a/astrostudyui/src/components/planetarium/babylon/observerControls.js b/astrostudyui/src/components/planetarium/babylon/observerControls.js
+index 60fcf9a8..54396eba 100644
+--- a/astrostudyui/src/components/planetarium/babylon/observerControls.js
++++ b/astrostudyui/src/components/planetarium/babylon/observerControls.js
+@@ -4,6 +4,7 @@
+ import { convertLatToStr, convertLonToStr } from '../../astro/AstroHelper';
+ import { dstAwareZoneAt } from '../../../utils/timezone';
+ import { fixedPopupFrame } from '../../../utils/zoomDomain';
++import { planetariumTimeEditDebounceEnabled } from '../../../utils/perfFlags';
+ 
+ export const observerControlMethods = {
+ 	getEffectiveFields(){
+@@ -118,12 +119,27 @@ export const observerControlMethods = {
+ 			document.removeEventListener('mousedown', this._onTimeEditorDocMouseDown, true);
+ 		}
+ 		this.playbackLastFrameTime = null;   // 换了时刻:上次播放 / 暂停那一帧作废(见 setupPlayback 暂停分支)
++		const confirmed = !!(res && res.confirmed);
++		const fireRequest = ()=>{
++			if(this._isUnmounted){ return; }
++			this.requestState({ requestKind: 'full', reason: 'time-edit', syncLabel: '重算此时天空...' });
++		};
+ 		this.setState({
+ 			time: dt,
+ 			selected: null,
+ 			speed: 0,
+-			...(res && res.confirmed ? { timeEditorOpen: false } : {}),
+-		}, ()=>this.requestState({ requestKind: 'full', reason: 'time-edit', syncLabel: '重算此时天空...' }));
++			...(confirmed ? { timeEditorOpen: false } : {}),
++		}, ()=>{
++			// C 去抖:显示与外推基线已同步更新(即时实时);只把「后端整盘重算」合并 —— 连续 +/- 期间不重复打后端,
++			//   「确定」或关总开关 → 立即重算。requestState 触发时读当下 this.state.time(=最后一次 setState 的值)→
++			//   最终结果精确无误,只是省掉中间多余的来回与 syncing 闪烁(不改任何计算内容)。
++			if(this._timeEditDebounce){ clearTimeout(this._timeEditDebounce); this._timeEditDebounce = null; }
++			if(confirmed || !planetariumTimeEditDebounceEnabled()){
++				fireRequest();
++			}else{
++				this._timeEditDebounce = setTimeout(()=>{ this._timeEditDebounce = null; fireRequest(); }, 220);
++			}
++		});
+ 	},
+ 
+ 	// 双击时间行键入 14 位数字 → 与编辑面板「确定」同路(confirmed=true:暂停播放 + 全量重取该时刻天象)。

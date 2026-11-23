@@ -8,15 +8,16 @@
 //                     其余文件:原样 fs.readFileSync(文件, 'utf8'),语义不变。
 // sourceSetFiles(文件) —— 全集的文件清单(绝对路径,子模块在前、门面在后;未登记的文件只含它自己)。
 // isSourceSetPart(文件) —— 是不是登记过的子模块(逐文件走查目录时跳过它、改由门面按全集读,见下)。
-// 门面路径可以是任一仓的 astrostudyui/src 下的路径(按路径尾部认登记项,子模块在同一个 src 根下找)。
+// 门面路径可以是任一份检出的 astrostudyui/src 下的路径(按路径尾部认登记项,子模块在同一个 src 根下找)。
 // Python 计算引擎的门面(登记表 pySets,路径相对 Horosa-Web/astropy):同样按路径尾部认,子模块在同一个 astropy 根下找。
 const fs = require('fs');
 const path = require('path');
 
 const MANIFEST = path.resolve(__dirname, '../../../../scripts/source-sets.json');
 const MANIFEST_JSON = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
-const SETS = MANIFEST_JSON.sets;
-const PY_SETS = MANIFEST_JSON.pySets || {};
+const MANIFEST_SETS = MANIFEST_JSON.sets;
+const SETS = { ...MANIFEST_SETS };
+const PY_SETS = { ...(MANIFEST_JSON.pySets || {}) };
 // [登记表, 路径尾部前缀]:前端门面的路径以 src 为基准,Python 门面以 astropy 为基准
 const GROUPS = [[SETS, '/src/'], [PY_SETS, '/astropy/']];
 
@@ -59,12 +60,72 @@ function readSource(file){
 // isSourceSetPart(文件) —— 文件是某个登记过的门面的子模块(在登记的子模块目录里、且登记了)。
 // 逐文件走查目录的检查(例:「挂 svg 的宿主组件必须订阅主题」)用它把子模块折回门面:跳过子模块、门面按全集读,
 // 判据口径与拆分前那份大文件相同(否则搬进子模块的那半边判据会在门面里「消失」)。
+// 全站样式某一区段按编号拆成的一组文件(08-xxx.less / 08b-xxx.less / 08c-xxx.less …)按登记次序拼起来读 = 拆分前那一个区段文件的全部规则。
+// name 给区段文件名或编号(如 '08-india-sanshi.less' / '08');读区段的检查用它,范围与拆分前一致(不会把别的区段也读进来)。
+function readAppSection(name){
+	const set = SETS['layouts/app.less'];
+	const num = `${name}`.match(/^(\d+)/);
+	if(!set || !num){ throw new Error(`readAppSection:认不出区段 ${name}`); }
+	const files = set.files.filter((f)=>{ const m = f.match(/^(\d+)[a-z]?-/); return m && m[1] === num[1]; });
+	if(!files.length){ throw new Error(`readAppSection:登记表里没有编号 ${num[1]} 的区段`); }
+	const root = path.resolve(__dirname, '../../..');
+	return files.map((f)=>fs.readFileSync(path.join(root, set.dir, f), 'utf8')).join('');
+}
+
 function isSourceSetPart(file){
 	const norm = path.resolve(`${file}`).split(path.sep).join('/');
 	return GROUPS.some(([sets, base])=>Object.keys(sets).some((rel)=>{
 		const set = sets[rel];
 		return set.files.some((f)=>norm.endsWith(`${base}${set.dir}/${f}`));
 	}));
+}
+
+// facadeOf(文件) —— 文件是某个登记过的门面的子模块时,返回那个门面的绝对路径;否则 null。
+// 按「整个组件 / 整个类」判的规则(例:类里有没有统一补字色的后处理、哪个 Hook setter 是本组件的)用它把子模块折回门面全集。
+function facadeOf(file){
+	const abs = path.resolve(`${file}`);
+	const norm = abs.split(path.sep).join('/');
+	for(const [sets, base] of GROUPS){
+		for(const rel of Object.keys(sets)){
+			const set = sets[rel];
+			const hit = set.files.find((f)=>norm.endsWith(`${base}${set.dir}/${f}`));
+			if(hit){ return abs.slice(0, abs.length - `${set.dir}/${hit}`.length) + rel; }
+		}
+	}
+	return null;
+}
+
+// mixinGroupsOf(文本) —— 文本(通常是门面全集)里 `mixinMethods(类名, 组a, 组b, …)` 的「方法对象名 → 类名」。
+// 按「同一个类」判的检查(代次归属、方法表…)用它把子文件里方法对象的对象方法认回那个类(按职责拆进子文件的类方法)。
+function mixinGroupsOf(text){
+	const out = new Map();
+	for(const m of `${text}`.matchAll(/\bmixinMethods\(\s*([A-Za-z_$][\w$]*)\s*,([^)]*)\)/g)){
+		m[2].split(',').map((x)=>x.trim()).filter(Boolean).forEach((g)=>out.set(g, m[1]));
+	}
+	return out;
+}
+
+// importedFrom(门面, 目标模块) —— 门面全集(子模块 + 门面)里,从目标模块(绝对路径,可不带 .js)引入的名字 → 引入它的文件。
+// 「这个组件从单一来源取某几个名字」类的检查用它:类方法 / 内层函数拆进子文件后,引入跟着用它的代码走、相对路径也跟着变,
+// 写死门面里的一行 import 原文会误红;按解析后的模块路径判才是原意。返回 Map(本地名 → [文件…]),默认导入记作 'default'。
+function importedFrom(facade, target){
+	const want = path.resolve(`${target}`).replace(/\.js$/, '');
+	const out = new Map();
+	sourceSetFiles(facade).forEach((f)=>{
+		const code = fs.readFileSync(f, 'utf8');
+		let ast;
+		try{ ast = require('@babel/parser').parse(code, { sourceType: 'module', errorRecovery: true, plugins: ['jsx', 'classProperties', 'dynamicImport', 'optionalChaining', 'nullishCoalescingOperator', 'objectRestSpread'] }); }catch(e){ return; }
+		ast.program.body.forEach((st)=>{
+			if(st.type !== 'ImportDeclaration' || !st.source.value.startsWith('.')){ return; }
+			if(path.resolve(path.dirname(f), st.source.value).replace(/\.js$/, '') !== want){ return; }
+			st.specifiers.forEach((sp)=>{
+				const nm = sp.type === 'ImportDefaultSpecifier' ? 'default' : (sp.type === 'ImportNamespaceSpecifier' ? '*' : sp.imported.name);
+				if(!out.has(nm)){ out.set(nm, []); }
+				out.get(nm).push(f);
+			});
+		});
+	});
+	return out;
 }
 
 // fnBody(文本, 签名[, 起点]) —— 从签名(函数开头的一段原文,如 'async function foo(' / 'function render(' / 'const foo = (')
@@ -208,4 +269,4 @@ function fnBody(text, signature, from = 0){
 	return null;
 }
 
-module.exports = { readSource, sourceSetFiles, isSourceSetPart, fnBody, SOURCE_SETS: SETS, PY_SOURCE_SETS: PY_SETS, SOURCE_SETS_MANIFEST: MANIFEST };
+module.exports = { readSource, readAppSection, sourceSetFiles, isSourceSetPart, facadeOf, importedFrom, mixinGroupsOf, fnBody, SOURCE_SETS: SETS, MANIFEST_SOURCE_SETS: MANIFEST_SETS, PY_SOURCE_SETS: PY_SETS, SOURCE_SETS_MANIFEST: MANIFEST };

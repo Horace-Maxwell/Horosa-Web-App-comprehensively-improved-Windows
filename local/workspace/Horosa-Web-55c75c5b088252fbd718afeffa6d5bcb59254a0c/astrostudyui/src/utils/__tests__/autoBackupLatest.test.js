@@ -93,7 +93,8 @@ describe('健康 / 降级备份', ()=>{
 		const src = fs.readFileSync(path.join(__dirname, '../../components/common/LocalStoreHealthBanner.js'), 'utf8');
 		const block = src.slice(src.indexOf("id: 'corruptReset'"), src.indexOf("const unkeptCount"));
 		expect(block).toMatch(/restoreFromLatestAutoBackup\(health\.corruptResetAt \|\| Date\.now\(\), \{ preferHealthy: true \}\)/);
-		const store = fs.readFileSync(path.join(__dirname, '../localRecordStore.js'), 'utf8');
+		const { readSource } = require('./helpers/sourceSet');
+		const store = readSource(path.join(__dirname, '../localRecordStore.js'));   // 门面 + 子文件全集
 		expect(store).toMatch(/corrupt: \{[^}]*at: corruptAt/);
 	});
 });

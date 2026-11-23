@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Spin, Empty } from 'antd';
-import { XQDrawer } from '../xq-ui';
+
+import { XQDrawer, XQEmpty, XQSpin } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { getInterp, sensitiveMeaning } from './interpretations.zh';
@@ -56,9 +56,9 @@ class AcgPointPanel extends Component {
 				style={{ overflow: 'auto', paddingBottom: 40, backgroundColor: 'transparent' }}
 			>
 				{loading ? (
-					<div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+					<div style={{ textAlign: 'center', padding: 40 }}><XQSpin /></div>
 				) : !report ? (
-					<Empty description="点击地图任意位置查看落点" />
+					<XQEmpty description="点击地图任意位置查看落点" />
 				) : (
 					<div className="horosa-acg-point">
 						<div style={{ marginBottom: 12, fontSize: 13, opacity: 0.8 }}>

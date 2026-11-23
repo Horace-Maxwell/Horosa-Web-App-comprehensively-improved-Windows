@@ -53,6 +53,8 @@ describe('六类各用示例输入建档', ()=>{
 		it(`🔴 ${type}:payload.module / 版本与页面同形、快照正文非空;cast_technique 读回的就是这份快照`, async ()=>{
 			const spec = CAST_SPECS[type];
 			const r = await runTool('cast_divination_case', base({ caseType: type, inputs: spec.example, event: `${type} 示例`, question: '问事业' }), ctx());
+			// 要本机计算服务排课的类型(金口诀):本套件离线,回可重试码、不建档(在线真跑见无头验证)
+			if(spec.needsBackend){ expect(r).toMatchObject({ ok: false, code: 'E_CAST_BACKEND_FAILED', retryable: true }); return; }
 			okShaped('cast_divination_case', r);
 			expect(r.data.created).toBe(true);
 			const rec = getLocalCase(r.data.cid);
@@ -159,5 +161,50 @@ describe('校验 / 容错 / 去重 / 撤销', ()=>{
 		expect(p2.qiZhi).toBe('午');   // 7 → 第 7 支
 		expect(p2.dayGan.length).toBe(1); expect(p2.dayZhi.length).toBe(1);
 		expect(p2.options.useDayGZ).toBe(true);
+	});
+	it('飞宫「年命佈局」(yearZhi)与小成图手录按「大衍蓍草」起法(countsMethod)', async ()=>{
+		const r1 = await runTool('cast_divination_case', base({ caseType: 'feigong', inputs: { yearZhi: '寅', dayGanZi: '甲子' }, event: '飞宫年命' }), ctx());
+		okShaped('cast_divination_case', r1);
+		const p1 = payloadOf(r1.data.cid);
+		expect(p1.qiZhi).toBe('寅');
+		expect([p1.options.qiMode, p1.options.yearZhi]).toEqual(['yearZhi', '寅']);
+		const counts = [9, 8, 7, 6, 7, 8];
+		const ry = await runTool('cast_divination_case', base({ caseType: 'xiaochengtu', inputs: { counts }, event: '小成图摇钱' }), ctx());
+		const rd = await runTool('cast_divination_case', base({ caseType: 'xiaochengtu', inputs: { counts, countsMethod: 'dayan' }, event: '小成图蓍草' }), ctx());
+		okShaped('cast_divination_case', ry); okShaped('cast_divination_case', rd);
+		const py = payloadOf(ry.data.cid); const pd = payloadOf(rd.data.cid);
+		expect([py.options.qiguaFa, pd.options.qiguaFa]).toEqual(['yaoqian', 'dayan']);
+		expect(pd.qi.ben.name).toBe(py.qi.ben.name);   // 同一组六爻 → 同卦,起法标签不同
+		expect(pd.qi.mode).toBe('dayan');
+		expect((await runTool('cast_divination_case', base({ caseType: 'xiaochengtu', inputs: { counts, countsMethod: 'coin' }, event: 'x' }), ctx())).code).toBe('E_ARGS_INVALID');
+	});
+});
+
+describe('六爻起卦细项与六爻页同名按钮同一算法', ()=>{
+	const pad = require('../../components/guazhan/LiuYaoCastPad');
+	const cast = (inputs, ev)=>runTool('cast_divination_case', base({ caseType: 'liuyao', inputs, event: ev }), ctx());
+	const guaOf = (cid)=>payloadOf(cid).gua;
+	it('纯函数金标:单数字 1234 → 上卦数位和 3、下卦 7、动爻 (10+0)%6=4;方位「北」+ 时辰 1', ()=>{
+		const g = pad.singleNumberGua('1234', 0);
+		expect([g.up, g.down, g.moving[0]]).toEqual([2, 6, 4]);
+		expect(pad.singleNumberGua('', 0)).toBe(null);
+		const f = pad.fangweiToGua(0, 1);
+		expect(f.moving).toEqual([((5 + 1 + 1 - 1) % 6) + 1]);
+	});
+	it('掷骰 / 测字 / 闻声 / 方位 / 单数字 各建得出事盘,且与纯函数同卦同动爻', async ()=>{
+		const d = await cast({ dice: [3, 5, 2] }, '掷骰'); okShaped('cast_divination_case', d);
+		const nd = pad.numsToGua(3, 5, 10);
+		const s1 = await cast({ strokes: [7, 12] }, '测字'); okShaped('cast_divination_case', s1);
+		const s2 = await cast({ sounds: [7, 12] }, '闻声'); okShaped('cast_divination_case', s2);
+		expect(guaOf(s1.data.cid).currentGua).toBe(guaOf(s2.data.cid).currentGua);   // 同两数 → 同卦
+		const nums = await cast({ numbers: [3, 5, 10] }, '同数米卦'); okShaped('cast_divination_case', nums);
+		expect(guaOf(d.data.cid).currentGua).toBe(guaOf(nums.data.cid).currentGua);   // 掷骰 = numsToGua(一, 二, 三骰之和)
+		expect(nd.moving).toEqual([4]);
+		const fw = await cast({ direction: '北', hourNum: 1 }, '方位'); okShaped('cast_divination_case', fw);
+		const n1 = await cast({ number: '1234', numberMoving: 'sum' }, '数字'); okShaped('cast_divination_case', n1);
+		expect((await cast({ direction: '北北' }, 'x')).code).toBe('E_ARGS_INVALID');
+		expect((await cast({ dice: [0, 1, 2] }, 'x')).code).toBe('E_ARGS_INVALID');
+		expect((await cast({ number: '12a' }, 'x')).code).toBe('E_ARGS_INVALID');
+		expect((await cast({ number: '12', numberMoving: 'random' }, 'x')).code).toBe('E_ARGS_INVALID');
 	});
 });

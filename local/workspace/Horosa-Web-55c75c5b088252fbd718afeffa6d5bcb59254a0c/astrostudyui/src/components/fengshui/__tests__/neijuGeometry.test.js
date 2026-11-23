@@ -415,7 +415,7 @@ describe('🔴 中宫必须可达（扇区表只有外八方，不补则「卫�
 	});
 	it('🔴 供给口必须经 inCenterPalace（否则中宫判据是死的）', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '../fengshuiEngine.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../fengshuiEngine.js'));
 		const body = src.slice(src.indexOf('buildNeijuGeoInput()'), src.indexOf('buildNeijuGeoInput()') + 700);
 		expect(body).toMatch(/inCenterPalace/);
 		expect(body).toMatch(/return 5;/);

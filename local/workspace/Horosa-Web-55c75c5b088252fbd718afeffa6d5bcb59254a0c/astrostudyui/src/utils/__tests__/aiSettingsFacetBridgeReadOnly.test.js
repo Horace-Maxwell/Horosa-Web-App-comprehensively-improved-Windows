@@ -1,11 +1,14 @@
-// 要工作区桥才写得了的设置面(当前盘口径 / 全局显示偏好):桥缺(无头 / 页面未就绪)时,描述标整面只读并写明原因、
-// 校验即拒、写入回 E_BRIDGE_UNAVAILABLE、撤销同拒 —— 四处同一判据 facetBridgeBlock;其余面不受桥影响。
+// 要工作区桥才写得了的设置面:桥缺(无头 / 页面未就绪)时,当前盘口径整面只读;全局显示偏好里纯界面项逐项只读(原因同写入拒绝),
+// 起盘 / 快照会读的几项(APP_DIRECT_KEYS)直写全局设置单源、可撤销 —— 判据同一个 facetBridgeBlock;其余面不受桥影响。
 import fs from 'fs';
 import path from 'path';
 import { registerBuiltinTools } from '../aiTools';
 import { getTool, __resetToolsForTests } from '../aiTools/registry';
 import { registerWorkspaceBridge } from '../aiTools/workspaceBridge';
-import { facetBridgeBlock, describeFacet, validateFacetValues, SETTING_FACETS } from '../aiTools/settingsFacets';
+import { facetBridgeBlock, describeFacet, validateFacetValues, SETTING_FACETS, APP_DIRECT_KEYS } from '../aiTools/settingsFacets';
+import { readStoredGlobalSetup, __resetGlobalSetupMirrorForTest } from '../globalSetupStore';
+import { undoAction, __resetLedgerForTests } from '../aiTools/ledger';
+import { setAgentEnabled } from '../aiAgent/prefs';
 
 const SAMPLE = { chart: { hsys: 0 }, app: { wheelArt: 'hellenistic' } };
 const BRIDGES = {
@@ -15,48 +18,70 @@ const BRIDGES = {
 	both: { changeCond: ()=>{}, dispatch: ()=>{} },
 };
 
-beforeEach(()=>{ window.localStorage.clear(); __resetToolsForTests(); registerBuiltinTools(); registerWorkspaceBridge(BRIDGES.none); });
+beforeEach(()=>{ window.localStorage.clear(); __resetGlobalSetupMirrorForTest(); __resetLedgerForTests(); __resetToolsForTests(); setAgentEnabled(true); registerBuiltinTools(); registerWorkspaceBridge(BRIDGES.none); });
+afterEach(()=>setAgentEnabled(false));
 afterAll(()=>{ registerWorkspaceBridge(BRIDGES.none); });
 
-test('🔴 缺桥:当前盘 / 全局显示两面描述整面只读(带原因),describe_settings 标 writable:false;校验与写入同一句拒绝', async ()=>{
-	for(const facet of ['chart', 'app']){
-		const blk = facetBridgeBlock(facet);
-		expect(blk && blk.code).toBe('E_BRIDGE_UNAVAILABLE');
-		const d = describeFacet(facet);
-		expect(d.ok).toBe(true);
-		expect(d.readOnly).toEqual(blk);
-		expect(d.items.length).toBeGreaterThan(3);
-		expect(d.items.every((it)=>it.settable === false && it.hint === blk.message)).toBe(true);
-		const desc = await getTool('describe_settings').run({ facet });
-		expect([desc.ok, desc.data.writable, desc.data.readOnlyReason]).toEqual([true, false, blk.message]);
-		expect(desc.summary).toContain('只读');
-		const v = validateFacetValues(facet, undefined, SAMPLE[facet]);
-		expect([v.ok, v.code, v.message]).toEqual([false, 'E_BRIDGE_UNAVAILABLE', blk.message]);
-		const w = await getTool('set_settings').run({ facet, values: SAMPLE[facet] });
-		expect([w.ok, w.code, w.message]).toEqual([false, 'E_BRIDGE_UNAVAILABLE', blk.message]);
-		expect(await getTool('set_settings').preview({ facet, values: SAMPLE[facet] })).toBe(null);   // 不出审批卡
-	}
-	expect(facetBridgeBlock('app').message).toContain('无头');
+test('🔴 缺桥:当前盘整面只读;全局显示纯界面项逐项只读、起盘会读的几项照常可写;校验与写入同一句拒绝', async ()=>{
+	const blk = facetBridgeBlock('chart');
+	expect(blk && blk.code).toBe('E_BRIDGE_UNAVAILABLE');
+	const d = describeFacet('chart');
+	expect(d.readOnly).toEqual(blk);
+	expect(d.items.every((it)=>it.settable === false && it.hint === blk.message)).toBe(true);
+	const desc = await getTool('describe_settings').run({ facet: 'chart' });
+	expect([desc.ok, desc.data.writable, desc.data.readOnlyReason]).toEqual([true, false, blk.message]);
+	const v = validateFacetValues('chart', undefined, SAMPLE.chart);
+	expect([v.ok, v.code, v.message]).toEqual([false, 'E_BRIDGE_UNAVAILABLE', blk.message]);
+	expect(await getTool('set_settings').preview({ facet: 'chart', values: SAMPLE.chart })).toBe(null);
+
+	const ablk = facetBridgeBlock('app');
+	expect(ablk.message).toContain('无头');
+	const a = describeFacet('app');
+	expect(a.readOnly).toBeUndefined();
+	const byKey = Object.fromEntries(a.items.map((it)=>[it.key, it]));
+	APP_DIRECT_KEYS.forEach((k)=>expect([k, byKey[k] && byKey[k].settable]).toEqual([k, true]));
+	expect([byKey.wheelArt.settable, byKey.wheelArt.hint]).toEqual([false, ablk.message]);
+	const adesc = await getTool('describe_settings').run({ facet: 'app' });
+	expect(adesc.data.writable).not.toBe(false);
+	const w = await getTool('set_settings').run({ facet: 'app', values: SAMPLE.app });   // 纯界面项:如实拒
+	expect([w.ok, w.code, w.message]).toEqual([false, 'E_BRIDGE_UNAVAILABLE', ablk.message]);
+	const mixed = await getTool('set_settings').run({ facet: 'app', values: { dayBoundary: 'after24', wheelArt: 'hellenistic' } });   // 混写:整次拒,一键不写
+	expect(mixed.code).toBe('E_BRIDGE_UNAVAILABLE');
+	expect(readStoredGlobalSetup()).toBe(null);
 });
 
-test('🔴 同一判据:四种桥状态 × 全部设置面 —— 描述只读 ⇔ 写入回 E_BRIDGE_UNAVAILABLE;桥在时两面恢复可改', async ()=>{
+test('🔴 缺桥时起盘会读的几项直写全局设置单源;撤销还原;之后读数一致', async ()=>{
+	const ctx = { origin: 'mcp', requestId: 'direct-1' };
+	const w = await getTool('set_settings').run({ facet: 'app', values: { voidClassical: 1, zeriSnapshotMaxRows: 30 } }, ctx);
+	expect(w.ok).toBe(true);
+	const stored = readStoredGlobalSetup();
+	expect([stored.voidClassical, stored.zeriSnapshotMaxRows]).toEqual([1, 30]);
+	const now = describeFacet('app').items.filter((it)=>it.key === 'voidClassical' || it.key === 'zeriSnapshotMaxRows').map((it)=>[it.key, it.current]);
+	expect(now).toEqual([['voidClassical', 1], ['zeriSnapshotMaxRows', 30]]);
+	const { runTool } = require('../aiTools/registry');
+	const r = await runTool('set_settings', { facet: 'app', values: { dayBoundary: 'after24' } }, { origin: 'mcp', requestId: 'direct-2' });
+	expect(r.ok).toBe(true);
+	expect(readStoredGlobalSetup().dayBoundary).toBe('after24');
+	const u = undoAction(r.undo.actionId);
+	expect(u && u.ok).toBe(true);
+	expect(readStoredGlobalSetup().dayBoundary).toBe(undefined);
+});
+
+test('🔴 同一判据:四种桥状态 —— 当前盘看 changeCond 整面;全局显示看 dispatch,缺时纯界面项拒、桥在时全可改', async ()=>{
 	const rows = [];
 	for(const [state, bridge] of Object.entries(BRIDGES)){
 		registerWorkspaceBridge(bridge);
 		for(const facet of ['chart', 'app']){
-			const ro = !!describeFacet(facet).readOnly;
+			const blocked = !!facetBridgeBlock(facet);
 			const desc = await getTool('describe_settings').run({ facet });
 			const w = await getTool('set_settings').run({ facet, values: SAMPLE[facet] });
-			rows.push([state, facet, ro, desc.data.writable !== false, w.code === 'E_BRIDGE_UNAVAILABLE']);
-			expect([state, facet, ro]).toEqual([state, facet, !!facetBridgeBlock(facet)]);
-			expect([state, facet, w.code === 'E_BRIDGE_UNAVAILABLE']).toEqual([state, facet, ro]);
-			expect([state, facet, desc.data.writable !== false]).toEqual([state, facet, !ro]);
-			if(!ro){ expect(describeFacet(facet).items.some((it)=>it.settable === true)).toBe(true); }
+			rows.push([state, facet, blocked]);
+			expect([state, facet, w.code === 'E_BRIDGE_UNAVAILABLE']).toEqual([state, facet, blocked]);
+			expect([state, facet, desc.data.writable !== false]).toEqual([state, facet, facet === 'app' || !blocked]);
+			expect(describeFacet(facet).items.some((it)=>it.settable === true)).toBe(facet === 'app' || !blocked);
 		}
 	}
-	// 判据只看本面要的那个函数:当前盘看 changeCond、全局显示看 dispatch
 	expect(rows.filter((r)=>r[2]).map((r)=>`${r[0]}:${r[1]}`).sort()).toEqual(['changeCondOnly:app', 'dispatchOnly:chart', 'none:app', 'none:chart']);
-	// 其余面不受桥影响
 	registerWorkspaceBridge(BRIDGES.none);
 	SETTING_FACETS.filter((f)=>f !== 'chart' && f !== 'app').forEach((f)=>expect([f, facetBridgeBlock(f)]).toEqual([f, null]));
 	expect(describeFacet('classical').readOnly).toBeUndefined();

@@ -76,9 +76,9 @@ describe('perfMark interaction span contract', () => {
 		// v3.6.0 起上游给 KinAstro 引入宿主嵌用(hostModuleKey):被宿主页嵌入时 currentTab=宿主键,
 		// 打点归属必须跟随(horosa_panel_ready_attribution_key_v1)。合法形 =
 		// markPanelReady(this.props.hostModuleKey || this.config.moduleKey);serviceKey 恒非法。
-		const src = fs.readFileSync(
-			path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js'),
-			'utf8'
+		// 门面按「子模块 + 门面」全集读(上游 v3.15.0 起策天页的方法拆在 kinastro/main/ 下)
+		const src = require('./helpers/sourceSet').readSource(
+			path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js')
 		);
 		expect(src.match(/markPanelReady\(this\.config\.serviceKey\)/g)).toBeNull();
 		const attributionMarks = src.match(/markPanelReady\(this\.props\.hostModuleKey \|\| this\.config\.moduleKey\)/g) || [];

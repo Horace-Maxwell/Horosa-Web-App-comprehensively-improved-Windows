@@ -11,8 +11,9 @@
  */
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'SanShiUnitedMain.js'));
 
 describe('sanshiStepFluency(连续进退四资产)', () => {
 	it('① 丢击根治:loading 分支记队列+时刻,resolve 侧 trailing 静默期补发', () => {

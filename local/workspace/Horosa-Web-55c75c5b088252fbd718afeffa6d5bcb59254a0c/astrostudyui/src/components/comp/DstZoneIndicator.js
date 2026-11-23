@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Row, Col } from 'antd';
 import { dstAwareZoneAt, dstDateField } from '../../utils/timezone';
+import { pressable } from '../../utils/pressable';
 
 // 时区 / 夏令时(DST)自动校正指示器(可复用)。
 // props:
@@ -60,7 +61,7 @@ export default class DstZoneIndicator extends Component{
 							mismatch ? (
 								<span className="horosa-dst-meta">
 									当前 {curZone}
-									<span className="horosa-dst-apply" onClick={this.onApply}>改用 {info.offset}</span>
+									<span className="horosa-dst-apply" {...pressable(this.onApply)}>改用 {info.offset}</span>
 								</span>
 							) : (
 								<span className="horosa-dst-meta">已按出生地与日期自动校正</span>

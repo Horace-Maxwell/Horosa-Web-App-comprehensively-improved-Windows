@@ -20,7 +20,7 @@ const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   
 const SRC = path.join(__dirname, '..', '..', '..');
 const PANEL = fs.readFileSync(path.join(SRC, 'components', 'astro', 'PdExtensionPanel.js'), 'utf8');
 const SPHERE = fs.readFileSync(path.join(SRC, 'components', 'astro3d', 'AstroPDSphere.js'), 'utf8');
-const TABLE = fs.readFileSync(path.join(SRC, 'components', 'astro', 'AstroPrimaryDirection.js'), 'utf8');
+const TABLE = readSource(path.join(SRC, 'components', 'astro', 'AstroPrimaryDirection.js'));
 const APPLESS = readSource(path.join(SRC, 'layouts', 'app.less'));
 
 const CLS = 'horosa-pdsphere-ext-pop';

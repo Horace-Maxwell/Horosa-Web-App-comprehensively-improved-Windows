@@ -7,7 +7,8 @@ import {
 import { clampTiebanKe } from '../tiebanFrameworkLocal';
 import fs from 'fs';
 import path from 'path';
-const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, sourceSetFiles } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { fileImportsName } = require('./helpers/importSpecs');   // 按 AST 认 import
 
 const fieldOf = (key, name)=>{
 	const schema = getTechniqueSettingsSchema(key);
@@ -56,7 +57,7 @@ describe('档位:页面藏起的档不列,现值所在档照列', ()=>{
 		expect(ke.displayValue(10, { tiebanKeSystem: 'qing8' })).toBe(1);
 		expect(ke.displayValue(10, { tiebanKeSystem: 'dou12' })).toBe(10);
 		expect(clampTiebanKe(12, 'ming100')).toBe(1);
-		const kin = fs.readFileSync(path.join(__dirname, '../../components/kinastro/KinAstroMain.js'), 'utf8');
+		const kin = readSource(path.join(__dirname, '../../components/kinastro/KinAstroMain.js'));
 		expect(kin).toContain('value={clampTiebanKe(this.state.tiebanKe, this.state.tiebanKeSystem)}');
 		expect(kin).toContain('const ke = clampTiebanKe(this.state.tiebanKe, value);');
 		expect(vals(fieldOf('geomancy', 'tradition').options)).toEqual(expect.arrayContaining(['greek', 'ifa']));
@@ -426,8 +427,8 @@ describe('命理类文字与页面同', ()=>{
 	});
 	test('紫微 / 八字 / 七政择日工作台:标签与档名取各自技法页(紫微直接引页面选项常量)', ()=>{
 		// 紫微:工作台(性别 / 时间算法 + 只读显示的排盘口径)与择日快照同读 ziweiOptions 的 ZIWEI_ZERI_SCAN_FIELDS 派生表(档名直接引页面选项常量)
-		expect(src('components/zeri/ZiweiZeriWorkbench.js')).toContain('{ZIWEI_ZERI_WORKBENCH_FIELDS.map((f) => (');
-		expect(src('components/zeri/ZiweiZeriWorkbench.js')).toContain('{ziweiZeriCalibreItems(pageOptions).map((x) => (');   // 只读口径与 AI 择日回包同一单源
+		expect(src('components/zeri/ZiweiZeriWorkbench.js')).toContain('fields: () => ZIWEI_ZERI_WORKBENCH_FIELDS');
+		expect(src('components/zeri/ZiweiZeriWorkbench.js')).toContain('const items = ziweiZeriCalibreItems(pageOptions);');   // 只读口径与 AI 择日回包同一单源
 		expect(src('components/ziwei/ziweiOptions.js')).toContain('return [...ZIWEI_ZERI_PAGE_FIELDS.filter(');
 		expect(src('components/ziwei/ziweiOptions.js')).toContain('export const ZIWEI_ZERI_PAGE_FIELDS = ZIWEI_ZERI_SCAN_FIELDS.filter(');
 		expect(src('divination/zeri/ziweiZeriSnapshot.js')).toContain('ZIWEI_ZERI_SCAN_FIELDS');
@@ -559,7 +560,7 @@ describe('金口诀时间基准进齿轮', ()=>{
 		const f = fieldOf('jinkou', 'timeBasis');
 		expect(f.default).toBe('direct');
 		expect(f.options).toEqual([{ value: 'direct', label: '直接时间' }, { value: 'trueSolar', label: '真太阳时' }]);
-		const page = fs.readFileSync(path.join(__dirname, '../../components/jinkou/JinKouMain.js'), 'utf8');
+		const page = require('./helpers/sourceSet').readSource(path.join(__dirname, '../../components/jinkou/JinKouMain.js'));
 		expect(page).toContain('<Option value="direct">直接时间</Option>');
 		expect(page).toContain('<Option value="trueSolar">真太阳时</Option>');
 		const rec = { cid: 'jk1', payload: JSON.stringify({ timeBasis: 'direct', diFen: '午' }) };
@@ -882,7 +883,10 @@ describe('塔罗「显示进阶对应」关着时,变体 / 现代行星注 / 宫
 	});
 	test('锁:四项的显示条件走存档门控,门控调 correspondenceOverlayOn(不另写一份判据)', ()=>{
 		const src = readSource(path.join(__dirname, '..', 'techniqueMountSettings.js'));
-		expect(src).toContain("import { correspondenceOverlayOn as tarotCorrespondenceOverlayOn } from '../components/tarot/engine/cardSchema';");
+		// 门控取自卡面结构的单一来源(按 AST 认;齿轮源码在门面或子模块里都行)
+		const cardSchema = path.join(__dirname, '..', '..', 'components', 'tarot', 'engine', 'cardSchema');
+		expect(sourceSetFiles(path.join(__dirname, '..', 'techniqueMountSettings.js'))
+			.some((f)=>fileImportsName(f, { name: 'correspondenceOverlayOn', as: 'tarotCorrespondenceOverlayOn', target: cardSchema }))).toBe(true);
 		const fn = src.match(/function tarotCorrespondenceContext\(options\)\{[\s\S]*?\n\}/);
 		expect(fn).toBeTruthy();
 		expect(fn[0]).toContain('tarotCorrespondenceOverlayOn(caps, resolveTarotSettings(deck, st).showCorrespondences)');

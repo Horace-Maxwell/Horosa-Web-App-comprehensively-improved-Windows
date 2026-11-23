@@ -3,15 +3,15 @@
 // 本面板只出结果:子页签 起禽/择日/占卜/投胎。纯前端引擎,零后端。
 import React, { Component } from 'react';
 import { Solar } from 'lunar-javascript';
-import { Tabs, Input, InputNumber } from 'antd';
-import { XQSelect, XQTable } from '../xq-ui';
+import { Tabs, Input } from 'antd';
+import { XQSelect, XQTable, XQInputNumber } from '../xq-ui';
 import {
 	YAO_TO_WUXING, DIZHI, DIZHI_TO_IDX, R_RING, mansionByIdx,
-	SIJI_WANG, YANQIN_12GONG_ZIWEI, TIANGAN,
+	YANQIN_12GONG_ZIWEI,
 } from './yanqinConst';
 import {
 	castQinChart, qinKeByWuxing, wuxingOfMansion, monthQin, toutaiDu,
-	yearQin, ganzhiOfDay, mansionOfDay, yuanJiangOfDay, huangHeiDao, jianChu,
+	ganzhiOfDay, yuanJiangOfDay, huangHeiDao, jianChu,
 	dingjuRiqin, dingjuYueqin, dingjuNianqin, seasonOfMansionHead,
 } from './yanqinEngine';
 import { resolveWoBi, YANQIN_PRESETS } from './yanqinSchools';
@@ -440,7 +440,7 @@ export default class YanQinBranchPanel extends Component {
 			<div>
 				<div className="yq-card">
 					<div className="yq-sec">拆字演禽(八门)· 独立起盘</div>
-					<div className="yq-kv">报数:<InputNumber size="small" min={1} value={chaiziNum} onChange={(v) => this.setState({ chaiziNum: v || 1 })} style={{ width: 80, marginLeft: 6 }} /></div>
+					<div className="yq-kv">报数:<XQInputNumber size="small" min={1} value={chaiziNum} onChange={(v) => this.setState({ chaiziNum: v || 1 })} style={{ width: 80, marginLeft: 6 }} /></div>
 					<div className="yq-kv">笔顺(逗号分隔):<Input size="small" value={chaiziStrokes} onChange={(e) => this.setState({ chaiziStrokes: e.target.value })} style={{ width: 180, marginLeft: 6 }} /></div>
 					<div className="yq-note">笔画配政:{Object.values(STROKE_LABELS).join('、')}</div>
 					<div className="yq-divider" />

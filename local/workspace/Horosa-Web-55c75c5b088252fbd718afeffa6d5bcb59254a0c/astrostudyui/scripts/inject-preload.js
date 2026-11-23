@@ -25,7 +25,9 @@ const MARK_END = '<!-- /horosa-preload -->';
 // check-chunk-dup 实测首屏批次=[vendors-d3, shared-technique, vendors~p__index, p__index],
 // 旧清单漏了前两个 = 最大件要等 umi.js 下载+解析+执行后才被发现(串行瀑布残余)。
 // 清单↔真实首屏批次由 check-chunk-dup 第⑤段自动对拍(漂移即构建红,防未来 chunk 改名再漏)。
-const CRITICAL_PREFIXES = ['layouts__index', 'vendors~layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
+// 共享源码按「首屏有没有在用」拆成 shared-first-screen(首屏)与 shared-technique(懒页面共享,不进首屏),
+// 首屏清单随之换成前者;后者若又出现在首屏批次,check-chunk-dup ⑦ 段当场红。
+const CRITICAL_PREFIXES = ['layouts__index', 'vendors~layouts__index', 'vendors~p__index', 'p__index', 'shared-first-screen', 'vendors-d3'];
 
 function main(){
 	const distName = process.argv[2] || (process.env.BUILD_FOR_FILE === '1' ? 'dist-file' : 'dist');
@@ -98,15 +100,15 @@ function main(){
 	}catch(e){
 		console.warn(`[inject-preload] 批次自动补齐异常(${e && e.message}) —— 仅注入前缀清单`);
 	}
-	// 核心五件必须齐 —— vendors~layouts 可有可无(R4-P1c:shared-technique/vendors-d3 入列)。
+	// 核心五件必须齐 —— vendors~layouts 可有可无(首屏共享块 / vendors-d3 入列)。
 	// 「vendors~p__index」是 splitChunks 的命名产物:一旦有别的异步入口(如布局层惰性载入的工具目录)
 	// 与页面共享同一批 vendor,webpack 就把它并进共享/数字 chunk,名字消失但模块仍在首屏批次里——
 	// 此时以 umi runtime 解析出的根路由批次为准(批次解析成功即不再苛求该名字;check-chunk-dup ⑤ 段
 	// 仍会对拍 preload↔批次恒等,缺件照样红)。批次解析失败才退回硬名单。
 	const batchParsed = links.some((l)=>/\/\d+\.[0-9a-f]+\.async\.js/.test(l));
 	const mustHave = batchParsed
-		? ['layouts__index', 'p__index', 'shared-technique', 'vendors-d3']
-		: ['layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
+		? ['layouts__index', 'p__index', 'shared-first-screen', 'vendors-d3']
+		: ['layouts__index', 'vendors~p__index', 'p__index', 'shared-first-screen', 'vendors-d3'];
 	for(const prefix of mustHave){
 		if(!links.some((l)=>l.includes(`${publicPath}${prefix}.`))){
 			console.error(`[inject-preload] 首屏关键 chunk「${prefix}」在产物中找不到 js —— 分包形态变了,先修 CRITICAL_PREFIXES 再构建`);

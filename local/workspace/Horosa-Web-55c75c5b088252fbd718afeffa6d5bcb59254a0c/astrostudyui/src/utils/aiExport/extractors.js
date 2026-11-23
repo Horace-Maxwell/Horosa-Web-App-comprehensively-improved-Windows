@@ -3,7 +3,7 @@
 import { isAstroLikeExportKey, DERIVED_ASTRO_MODULE_KEYS, DERIVED_ASTRO_NO_NATAL_FALLBACK_KEYS } from './presets';
 import { snapshotModuleKeyByContextKey, requestModuleSnapshotRefresh } from './settingsModel';
 import { findIndiaActivePane } from './contextResolve';
-import { applyAIExportSectionFilterToSnapshot, getAIExportEffectiveSectionsForTechnique } from './settingsGroups';
+import { getAIExportEffectiveSectionsForTechnique } from './settingsGroups';
 import { getStore } from '../storageutil';
 import {
 	getAstroCachedContent, getModuleCachedContent, getModuleSnapshotPayload, getSanshiDisplayFieldSignature,

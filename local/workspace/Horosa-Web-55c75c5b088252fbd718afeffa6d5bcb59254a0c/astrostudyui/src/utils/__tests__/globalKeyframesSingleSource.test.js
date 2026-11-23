@@ -9,7 +9,7 @@ const { readSource } = require('./helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '../..');
 const css = readSource(path.join(SRC, 'layouts/app.less'));
-const tarotJs = fs.readFileSync(path.join(SRC, 'components/tarot/TarotMain.js'), 'utf8');
+const tarotJs = readSource(path.join(SRC, 'components/tarot/TarotMain.js'));
 const lingqiJs = fs.readFileSync(path.join(SRC, 'components/lingqi/LingQiMain.js'), 'utf8');
 
 function walkLess(dir, out){

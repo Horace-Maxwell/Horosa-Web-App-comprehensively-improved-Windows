@@ -31,7 +31,7 @@ const NOT_NETWORK_RESULT = {
 	'utils/requestDedupe.js|done|{ at: Date.now(), value: warmHit.value }': 'L2 命中提升到 L1(值早已判过)',
 	'services/_requestCache.js|registry|s': '命名空间登记处,不是结果',
 	'utils/processCacheRegistry.js|REGISTRY|clear': '缓存登记处本身',
-	'components/astro/IndiaChart.js|indiaChartCache|resolved': '写前按载荷判据 hasCurrentJyotishPayload 校验(错误包没有载荷)',
+	'components/astro/indiaChart/request.js|indiaChartCache|resolved': '写前按载荷判据 hasCurrentJyotishPayload 校验(错误包没有载荷)',
 	'services/astro.js|chartMem|clonePlain(rsp)': '写前只认带 Result.params 的有效盘(错误包没有 params)',
 };
 

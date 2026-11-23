@@ -28,6 +28,7 @@ const traverse = require('@babel/traverse').default;
 const SRC = path.resolve(__dirname, '../..');
 const MIN = 3;
 const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const { readAppSection, readSource } = require('./helpers/sourceSet');
 
 // ── 登记表 ──
 // 定色面板:[文件, 命中处的一段原文(JS = 命中行;less = 选择器;'' = 整个文件), 面板底色, 理由]
@@ -36,7 +37,7 @@ const FIXED_BG = [
 	['components/planetarium/planetarium.less', 'planetarium', '#1e2e4f', '天文馆整页是定色夜空(.horosa-planetarium-page #050812,侧栏 rgba(7,11,24,.9),按钮 / 片最亮到 rgba(31,48,82,.95)),不随界面主题;按最亮的片算'],
 	['layouts/app/02-shell.less', 'pdsphere', '#141720', '主限天球工具条 / 下拉 / 浮层恒为定色暗底(#05080f · #0b1120 · #101725,按钮 rgba(255,255,255,.07) 压在上面 ≈ #141720),不随界面主题'],
 	['components/astro3d/AstroPDSphere.js', '', '#141720', '主限天球 3D 场景与它的图例 / 工具条 / 时间轴是定色暗底(#05080f / #070b14,按钮 rgba(255,255,255,.07) ≈ #141720)'],
-	['components/xq-ui/styles.less', '.xq-nav-', '#29251f', '导航命令面板是品牌定色暗面板(#050607 – #0b0d10,选中卡片金色淡底压上去最亮 ≈ #29251f),亮暗主题同一套'],
+	['components/xq-ui/styles/navigation.less', '.xq-nav-', '#29251f', '导航命令面板是品牌定色暗面板(#050607 – #0b0d10,选中卡片金色淡底压上去最亮 ≈ #29251f),亮暗主题同一套'],
 	['components/common/StartupGate.js', '', '#13262a', '启动遮罩与壳启动页同款定色暗底(#0e1414 → 卡片 #121a19,主按钮墨绿淡底 ≈ #13262a),此时主题样式尚未就绪'],
 	['components/acg/AcgD3Map.js', '寻宝图 ·', '#1c212a', '地图左下角图例条:底是 th.tipBg(两种地图底都取深色 rgba(16–28,20–33,28–42,.95)),金 / 蓝两色是热力图本身的色'],
 	['layouts/app/04-calendar.less', 'is-medal', '#c07b45', '择日排行名次奖牌:金 / 银 / 铜定色渐变实底(两主题同值),字是定色深墨;按最深的铜色算'],
@@ -49,7 +50,9 @@ function fixedBase(rel, text){
 }
 // 画在画布 / 3D 场景 / 图表库里的绘制参数(不是 DOM 文字):[文件, 理由]
 const NON_DOM = [
-	['components/astro3d/PDSphereEngine.js', '主限天球 three.js 文字精灵的绘制参数(画进 canvas 纹理,在定色暗夜空里;不是 DOM 字)'],
+	// 主限天球引擎的方法按职责拆在 astro3d/pdSphere/ 下:文字精灵在天球结构线(frames)与选中行(selection)两处画
+	['components/astro3d/pdSphere/frames.js', '主限天球 three.js 文字精灵的绘制参数(画进 canvas 纹理,在定色暗夜空里;不是 DOM 字)'],
+	['components/astro3d/pdSphere/selection.js', '主限天球 three.js 文字精灵的绘制参数(画进 canvas 纹理,在定色暗夜空里;不是 DOM 字)'],
 	['components/jinkou/JinKouPanChart.js', '金口诀盘面 d3 svg 绘制(表格格子文字经绘制助手画进 svg;盘面字归盘面主题审计)'],
 ];
 // 其余(装饰,或静态推不出的覆盖关系):[文件, 命中处的一段原文, 理由]
@@ -91,7 +94,7 @@ function literalInk(value){
 
 // ── 主题(01-base 的亮 / 经典白 / 暗块 + 02-shell 挂在根上的占星组)──
 const BASE = read('layouts/app/01-base.less');
-const SHELL = read('layouts/app/02-shell.less');
+const SHELL = readAppSection('02-shell.less');   // 区段按编号拆成一组(02 / 02b),主题块可能在任一份
 function blockVars(src, selectorLine){
 	const i = src.indexOf(selectorLine);
 	if(i < 0){ throw new Error(`主题块没找到:${selectorLine}`); }
@@ -194,6 +197,20 @@ function topLevelInit(ast, name){
 	}
 	return null;
 }
+// 模块导出名 → 初值:本文件顶层没有就跟 `export { 名 } from './子模块'` 转出链找(拆成子模块的门面只剩转出)
+function exportedInit(m, name, hops = 0){
+	if(!m || hops > 4){ return null; }
+	const init = topLevelInit(m.ast, name);
+	if(init){ return { init, m }; }
+	for(const st of m.ast.program.body){
+		if(st.type !== 'ExportNamedDeclaration' || !st.source){ continue; }
+		const sp = (st.specifiers || []).find((x)=>(x.exported.name || x.exported.value) === name);
+		if(!sp){ continue; }
+		const file = resolveImport(m.file, st.source.value);
+		return file ? exportedInit(moduleCtx(file), sp.local.name, hops + 1) : null;
+	}
+	return null;
+}
 function propValues(obj, prop){
 	const out = [];
 	obj.properties.forEach((p)=>{
@@ -260,9 +277,8 @@ function evalObj(node, ctx, depth, scope = null){
 		// 相对 import
 		const imp = ctx.imports[node.name];
 		if(imp && imp.kind === 'named'){
-			const m = moduleCtx(imp.file);
-			const i2 = m && topLevelInit(m.ast, imp.name);
-			return i2 ? evalObj(i2, m, depth + 1) : [];
+			const hit = exportedInit(moduleCtx(imp.file), imp.name);
+			return hit ? evalObj(hit.init, hit.m, depth + 1) : [];
 		}
 		if(imp && imp.kind === 'ns'){ return [{ ns: imp.file }]; }
 		return [];
@@ -273,9 +289,8 @@ function evalObj(node, ctx, depth, scope = null){
 		bases.forEach((b)=>{
 			if(b.ns){
 				if(node.computed){ return; }
-				const m = moduleCtx(b.ns);
-				const i2 = m && topLevelInit(m.ast, node.property.name);
-				if(i2){ out.push(...evalObj(i2, m, depth + 1)); }
+				const hit = exportedInit(moduleCtx(b.ns), node.property.name);
+				if(hit){ out.push(...evalObj(hit.init, hit.m, depth + 1)); }
 				return;
 			}
 			if(!b.node){ return; }
@@ -763,7 +778,7 @@ describe('写死的字色在三套页底上都要 ≥ 3:1(否则用主题语义�
 	});
 
 	it('风水八卦标记片:选中片 = 色板定色实底 + 白字(--chip 由组件按色板写入,静态扫不到),色板每色压白字都 ≥ 3:1', ()=>{
-		const eng = read('components/fengshui/fengshuiEngine.js');
+		const eng = readSource(path.join(SRC, 'components/fengshui/fengshuiEngine.js'));
 		const i = eng.indexOf('export const BAGUA_MARKER_TYPES = [');
 		expect(i).toBeGreaterThanOrEqual(0);
 		const block = eng.slice(i, eng.indexOf('];', i));

@@ -1,0 +1,126 @@
+diff --git a/astrostudyui/src/components/guolao/main/requests.js b/astrostudyui/src/components/guolao/main/requests.js
+index 598ec89e..4b2f57d1 100644
+--- a/astrostudyui/src/components/guolao/main/requests.js
++++ b/astrostudyui/src/components/guolao/main/requests.js
+@@ -12,6 +12,10 @@ import { GUOLAO_SU28_CACHE_REV, guolaoMem, pushCache, buildGuolaoKey, isChartObj
+ import { computeGuolaoSeedPatch, fieldsToParams, paramsWithMoiraTransit } from './params';
+ import { buildLocalMoiraRules, buildGuolaoSnapshotTextV2, guolaoSnapshotMeta } from './snapshot';
+ import { natalSourceKey, pickKeyedDerived } from '../../../utils/derivedChartSource';
++import { guolaoMergedPaintEnabled } from '../../../utils/perfFlags';
++import { markPanelReady } from '../../../utils/perfMark';
++import { peekCachedPost } from '../../../services/_requestCache';
++import { stableMoiraKey } from '../../../services/qizheng';
+ 
+ export const requestMethods = {
+ 	async requestKinastroQizheng(){
+@@ -51,6 +55,10 @@ export const requestMethods = {
+ 				qizhengKinPanSig: natalSourceKey(params),
+ 				qizhengKinLoading: false,
+ 				qizhengKinError: '',
++			}, ()=>{
++				// horosa_panel_ready_v1:坚七政(kinastro 引擎)分支的唯一落定点 —— 中栏七政轮
++				// 与右栏信息 Tabs 同吃 qizhengKinPan,这一次 setState 之后两栏全部画完。
++				markPanelReady('guolao');
+ 			});
+ 			// 🔴 全站共用槽只归主页实例写(择日内嵌实例写它=候选时刻内容污染主页槽,审查实抓)
+ 			if(pan && pan.snapshot && (this.props.techniqueScope || 'guolao') === 'guolao'){
+@@ -68,6 +76,9 @@ export const requestMethods = {
+ 				this.setState({
+ 					qizhengKinLoading: false,
+ 					qizhengKinError: e && e.message ? e.message : '七政四余服务暂不可用',
++				}, ()=>{
++					// horosa_panel_ready_v1:坚七政失败终态(错误卡上屏即本次交互结束)。
++					markPanelReady('guolao');
+ 				});
+ 			}
+ 			return null;
+@@ -122,6 +133,9 @@ export const requestMethods = {
+ 			moiraPanelTransitParams: clonePlain(nextTransitParams),
+ 			moiraLoading: false,
+ 		}, ()=>{
++			// horosa_panel_ready_v1:旧多段路径的**唯一**终点(applyChartObj→requestMoiraTransitChart
++			// →requestMoiraRules 全部汇入此处),中栏盘面 + 右栏 rules 在这一次 setState 里一起落定。
++			markPanelReady('guolao');
+ 			// 规则落地即补拍快照:阶段一在 moiraRules 未归时已产首版(lazy 200-800ms
+ 			// 即物化冻结,导出直吃缓存),不补拍则 AI 侧恒丢 [虚实]/[本命化曜]/[流年流曜] 三段、
+ 			// [神煞] 降级历法源——页面/refresh/无头三路都等规则,唯存盘路裸拍(不同构)。
+@@ -213,6 +227,9 @@ export const requestMethods = {
+ 					moiraTransitChartObjSig: natalSourceKey(rootParams || this.genParams()),
+ 					moiraTransitLoading: false,
+ 					moiraLoading: false,
++				}, ()=>{
++					// horosa_panel_ready_v1:无根盘/根参数的降级终点(不再走 commitMoiraPanel)。
++					markPanelReady('guolao');
+ 				});
+ 				this._pendingMoiraChartObj = null;
+ 				return result;
+@@ -237,6 +254,9 @@ export const requestMethods = {
+ 					this.setState({
+ 						...(this._pendingMoiraChartObj ? { chartObj: this._pendingMoiraChartObj } : {}),
+ 						moiraLoading: false,
++					}, ()=>{
++						// horosa_panel_ready_v1:流年盘失败且无根盘的终点。
++						markPanelReady('guolao');
+ 					});
+ 					this._pendingMoiraChartObj = null;
+ 				}
+@@ -396,7 +416,11 @@ export const requestMethods = {
+ 		}
+ 		if(!chartObj){
+ 			settleTrigger(this, 'guolaoBundle', bundleTrig, false);   // 无盘可画 = 失败,同参允许立即重试
+-			this.setState({ moiraLoading: false, moiraTransitLoading: false });
++			// horosa_panel_ready_v1:取盘失败的终态也要收口,否则本次交互的计时会悬着、
++			// 被下一次交互错配(观测口径要求每次交互恰好一条 panel-ready)。
++			this.setState({ moiraLoading: false, moiraTransitLoading: false }, ()=>{
++				markPanelReady('guolao');
++			});
+ 			return;
+ 		}
+ 		if(natalFailed){ settleTrigger(this, 'guolaoBundle', bundleTrig, false); }   // 画的是回落旧盘 → 同参允许重试
+@@ -415,11 +439,21 @@ export const requestMethods = {
+ 		}
+ 		if(needTransit && !transitRaw){ settleTrigger(this, 'guolaoBundle', bundleTrig, false); }   // 流年盘未取到 → 同参允许重试
+ 		const transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, this.props.fields) : null;
+-		this.setState({
+-			moiraTransitChartObj: transitObj,
+-			moiraTransitChartObjSig: natalSourceKey(params),
+-			moiraTransitLoading: false,
+-		});
++		// [horosa_guolao_render_slice_v1 G5] 全命中路径中间帧合并:Moira 规则已在缓存(同步窥探)
++		// ⇒ 下面的规则取回是 Promise.resolve 级,跳过「先画流年环」的中间 setState,终态一次落齐
++		// (终态字节一致,少一整轮重渲)。窥探为假(冷/在途)⇒ 保留中间帧 = 流年环照旧先行上屏,
++		// 绝不让流年环等规则往返。窥探真而取时被 LRU 逐出的极角:流年环与规则同帧上屏,终态不变。
++		// 流年盘与其来源键 moiraTransitChartObjSig 必须同帧写(shownMoiraTransitChartObj 按键比对;
++		// 只写盘不写键 = 合并路径下流年环整个不显示),中间帧与终态帧都带。
++		const rulesPeekHit = guolaoMergedPaintEnabled()
++			&& peekCachedPost('qizheng/moira', stableMoiraKey({ params, transitParams }));
++		if(!rulesPeekHit){
++			this.setState({
++				moiraTransitChartObj: transitObj,
++				moiraTransitChartObjSig: natalSourceKey(params),
++				moiraTransitLoading: false,
++			});
++		}
+ 		let rsp = null;
+ 		let fallbackReason = 'empty-response';
+ 		try{
+@@ -445,12 +479,19 @@ export const requestMethods = {
+ 			: remoteRules;
+ 		this.setState({
+ 			moiraRules: rules,
++			// G5:流年盘字段并入终态帧(慢路径下与中间帧同引用 = 幂等无额外工作;
++			// 合并路径下这里是它唯一的落点)。来源键同帧写(见上 G5 注)。
++			moiraTransitChartObj: transitObj,
++			moiraTransitChartObjSig: natalSourceKey(params),
+ 			moiraPanelChartObj: chartObj,
+ 			moiraPanelTransitChartObj: transitObj,
+ 			moiraPanelTransitParams: transitParams,
+ 			moiraLoading: false,
+ 			moiraTransitLoading: false,
+ 		}, ()=>{
++			// horosa_panel_ready_v1:主路径(单闸门 requestGuolaoBundle)终点 —— 中栏命盘轮 + 流年环
++			// + 右栏 Moira 面板(rules/流曜/格局)全部落定的那一次 setState。
++			markPanelReady('guolao');
+ 			// 同 commitMoiraPanel:阶段二规则取齐即补拍,快照终版带全 Moira 段。
+ 			this.saveGuolaoAISnapshot(params, chartObj);
+ 		});

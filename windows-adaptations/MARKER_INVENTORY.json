@@ -69,10 +69,6 @@
   "horosa_dedupe_chart3d_v1": {
    "astrostudyui/src/utils/requestDedupe.js": 1
   },
-  "horosa_dedupe_l1_lru_v1": {
-   "astrostudyui/src/utils/__tests__/requestDedupe.test.js": 1,
-   "astrostudyui/src/utils/requestDedupe.js": 3
-  },
   "horosa_dial_scu_v1": {
    "astrostudyui/src/components/germany/UranianDialMain.js": 1
   },
@@ -107,22 +103,23 @@
    "astrostudyui/src/components/germany/AstroGermany.js": 1,
    "astrostudyui/src/components/germany/MidpointMain.js": 1,
    "astrostudyui/src/components/germany/UranianDialMain.js": 1,
-   "astrostudyui/src/components/guazhan/GuaZhanMain.js": 1,
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 2,
+   "astrostudyui/src/components/guazhan/main/panels.js": 1,
    "astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js": 2,
+   "astrostudyui/src/components/guolao/main/kinPanels.js": 1,
+   "astrostudyui/src/components/guolao/main/quickPanels.js": 1,
    "astrostudyui/src/components/huangji/HuangJiMain.js": 5,
    "astrostudyui/src/components/jingjue/JingJueMain.js": 3,
-   "astrostudyui/src/components/jinkou/JinKouMain.js": 1,
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1,
-   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 1,
-   "astrostudyui/src/components/mundane/MundaneMain.js": 1,
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
+   "astrostudyui/src/components/jinkou/main/rightPanel.js": 1,
+   "astrostudyui/src/components/kinastro/main/rightPanel.js": 1,
+   "astrostudyui/src/components/lrzhan/main/rightTabs.js": 1,
+   "astrostudyui/src/components/mundane/main/cycleCards.js": 1,
+   "astrostudyui/src/components/sanshi/main/rightPanel.js": 1,
    "astrostudyui/src/components/shenyishu/ShenYiShuMain.js": 5,
    "astrostudyui/src/components/shusuan/ZhengChuanMain.js": 1,
    "astrostudyui/src/components/suzhan/SuZhanMain.js": 1,
    "astrostudyui/src/components/taixuan/TaiXuanMain.js": 4,
    "astrostudyui/src/components/taiyi/TaiYiMain.js": 1,
-   "astrostudyui/src/components/tarot/TarotMain.js": 1,
+   "astrostudyui/src/components/tarot/main/rightPanel.js": 1,
    "astrostudyui/src/components/tongshefa/TongSheFaMain.js": 1,
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 7,
    "astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js": 1,
@@ -135,9 +132,6 @@
   "horosa_fullscreen_state_v1": {
    "astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js": 3
   },
-  "horosa_gesture_start_v1": {
-   "astrostudyui/src/utils/perfMark.js": 2
-  },
   "horosa_guolao_doc_scu_v1": {
    "astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js": 1
   },
@@ -145,12 +139,15 @@
    "astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js": 1
   },
   "horosa_guolao_render_memo_v1": {
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 3
+   "astrostudyui/src/components/guolao/main/election.js": 2,
+   "astrostudyui/src/components/guolao/main/quickPanels.js": 1
   },
   "horosa_guolao_render_slice_v1": {
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 4,
+   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 2,
    "astrostudyui/src/components/guolao/GuoLaoInput.js": 1,
    "astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js": 3,
+   "astrostudyui/src/components/guolao/main/quickPanels.js": 1,
+   "astrostudyui/src/components/guolao/main/requests.js": 1,
    "astrostudyui/src/services/_requestCache.js": 1,
    "astrostudyui/src/utils/perfFlags.js": 1
   },
@@ -161,10 +158,12 @@
    "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 1
   },
   "horosa_india_fields_memo_v1": {
-   "astrostudyui/src/components/astro/IndiaChartMain.js": 3
+   "astrostudyui/src/components/astro/IndiaChartMain.js": 1,
+   "astrostudyui/src/components/astro/indiaMain/optionChanges.js": 2
   },
   "horosa_india_settings_memo_v1": {
-   "astrostudyui/src/components/astro/IndiaChartMain.js": 7
+   "astrostudyui/src/components/astro/IndiaChartMain.js": 3,
+   "astrostudyui/src/components/astro/indiaMain/optionChanges.js": 2
   },
   "horosa_interaction_span_v1": {
    "astrostudyui/src/models/astro.js": 2,
@@ -184,20 +183,21 @@
    "astrostudyui/src/components/calendar/HuangLiMain.js": 2,
    "astrostudyui/src/components/calendar/TongshuMain.js": 1,
    "astrostudyui/src/components/jingjue/JingJueMain.js": 1,
-   "astrostudyui/src/components/jinkou/JinKouMain.js": 2,
+   "astrostudyui/src/components/jinkou/JinKouMain.js": 1,
+   "astrostudyui/src/components/jinkou/main/pageState.js": 1,
    "astrostudyui/src/components/lrzhan/LiuRengMain.js": 2,
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/services/xuanshi.js": 1
   },
   "horosa_kinastro_center_memo_v1": {
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1
+   "astrostudyui/src/components/kinastro/main/compute.js": 1
   },
   "horosa_kinastro_render_memo_v1": {
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1
+   "astrostudyui/src/components/kinastro/main/compute.js": 1
   },
   "horosa_lazy_healing_wrap_v1": {
    "astrostudyui/src/components/cnyibu/CnYiBuMain.js": 1,
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1
+   "astrostudyui/src/components/kinastro/main/lazyPanels.js": 1
   },
   "horosa_lazy_right_panels_v1": {
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
@@ -207,13 +207,11 @@
    "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
   },
   "horosa_liureng_render_slice_v1": {
-   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 8,
+   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 1,
+   "astrostudyui/src/components/lrzhan/main/inputPanel.js": 4,
+   "astrostudyui/src/components/lrzhan/main/requests.js": 1,
+   "astrostudyui/src/components/lrzhan/main/rightTabs.js": 2,
    "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1
-  },
-  "horosa_live_time_propagation_v1": {
-   "astrostudyui/src/components/dunjia/DunJiaMain.js": 1,
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
-   "astrostudyui/src/components/sanshi/__tests__/liveTimePropagation.test.js": 3
   },
   "horosa_localip_lazy_v1": {
    "astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java": 1
@@ -223,7 +221,8 @@
    "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
   },
   "horosa_mac_only_test_guard_v1": {
-   "astropy/tests/test_native_prewarm_priority.py": 1
+   "astropy/tests/test_native_prewarm_priority.py": 1,
+   "astropy/tests/test_runtime_deps_slim.py": 1
   },
   "horosa_moira_stable_key_v1": {
    "astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js": 2,
@@ -241,9 +240,6 @@
   "horosa_no_state_mutation_v1": {
    "astrostudyui/src/components/commtools/BaziPattern.js": 1
   },
-  "horosa_numpy2_scalar_assert_v1": {
-   "astropy/tests/test_taiyi_game_theory_lp_fallback.py": 1
-  },
   "horosa_option_prefetch_v1": {
    "astrostudyui/src/models/astro.js": 3,
    "astrostudyui/src/utils/__tests__/optionPrefetch.test.js": 1,
@@ -251,11 +247,8 @@
    "astrostudyui/src/utils/perfFlags.js": 1
   },
   "horosa_panel_ready_attribution_key_v1": {
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 2,
+   "astrostudyui/src/components/kinastro/main/compute.js": 2,
    "astrostudyui/src/utils/__tests__/perfMark.test.js": 1
-  },
-  "horosa_panel_ready_attribution_v1": {
-   "astrostudyui/src/utils/perfMark.js": 1
   },
   "horosa_panel_ready_no_gen_void_v1": {
    "astrostudyui/src/utils/__tests__/perfMark.test.js": 1
@@ -292,7 +285,7 @@
    "astrostudyui/src/components/astro/AstroVedicProgressions.js": 1,
    "astrostudyui/src/components/astro/AstroYearSystem129.js": 1,
    "astrostudyui/src/components/astro/AstroZR.js": 1,
-   "astrostudyui/src/components/astro/IndiaChartMain.js": 2,
+   "astrostudyui/src/components/astro/indiaMain/dashaPanels.js": 2,
    "astrostudyui/src/components/astro3d/AstroChartMain3D.js": 1,
    "astrostudyui/src/components/auxchart/AstroDraconicLab.js": 1,
    "astrostudyui/src/components/auxchart/AstroHarmonicLab.js": 1,
@@ -307,7 +300,7 @@
    "astrostudyui/src/components/cntradition/CnTraditionMain.js": 1,
    "astrostudyui/src/components/commtools/CommToolsMain.js": 1,
    "astrostudyui/src/components/dice/DiceMain.js": 1,
-   "astrostudyui/src/components/dunjia/DunJiaMain.js": 2,
+   "astrostudyui/src/components/dunjia/main/compute.js": 2,
    "astrostudyui/src/components/election/ElectionMain.js": 1,
    "astrostudyui/src/components/feigong/FeiGongMain.js": 1,
    "astrostudyui/src/components/fengshui/FengShuiMain.js": 7,
@@ -315,25 +308,25 @@
    "astrostudyui/src/components/germany/UranianDialMain.js": 1,
    "astrostudyui/src/components/germany/UranianGraphicEphemeris.js": 1,
    "astrostudyui/src/components/germany/UranianHouseFrames.js": 1,
-   "astrostudyui/src/components/guazhan/GuaZhanMain.js": 1,
+   "astrostudyui/src/components/guazhan/main/cast.js": 1,
    "astrostudyui/src/components/guice/GuiceMain.js": 1,
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 7,
+   "astrostudyui/src/components/guolao/main/requests.js": 7,
    "astrostudyui/src/components/hellenastro/AstroChart13.js": 1,
    "astrostudyui/src/components/horary/HoraryMain.js": 1,
    "astrostudyui/src/components/huangji/HuangJiMain.js": 1,
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1,
    "astrostudyui/src/components/jingjue/JingJueMain.js": 1,
-   "astrostudyui/src/components/jinkou/JinKouMain.js": 1,
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 2,
-   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 1,
-   "astrostudyui/src/components/mundane/MundaneMain.js": 1,
-   "astrostudyui/src/components/planetarium/PlanetariumBabylon.js": 1,
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
+   "astrostudyui/src/components/jinkou/main/requests.js": 1,
+   "astrostudyui/src/components/kinastro/main/compute.js": 2,
+   "astrostudyui/src/components/lrzhan/main/requests.js": 1,
+   "astrostudyui/src/components/mundane/main/cycleCards.js": 1,
+   "astrostudyui/src/components/planetarium/babylon/stateFlow.js": 1,
+   "astrostudyui/src/components/sanshi/main/recalc.js": 1,
    "astrostudyui/src/components/shenyishu/ShenYiShuMain.js": 1,
    "astrostudyui/src/components/suzhan/SuZhanMain.js": 1,
    "astrostudyui/src/components/taixuan/TaiXuanMain.js": 1,
    "astrostudyui/src/components/taiyi/TaiYiMain.js": 1,
-   "astrostudyui/src/components/tarot/TarotMain.js": 1,
+   "astrostudyui/src/components/tarot/main/caseState.js": 1,
    "astrostudyui/src/components/tongshefa/TongSheFaMain.js": 1,
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js": 1,
@@ -351,14 +344,15 @@
    "astrostudyui/src/components/fengshui/FengShuiMain.js": 2
   },
   "horosa_pd_request_facade_v1": {
+   "astrostudyui/src/components/direction/__tests__/pdWarmRequestParity.test.js": 1,
+   "astrostudyui/src/components/direction/pdWarm.js": 1
+  },
+  "horosa_pd_warm_module_v1": {
    "astrostudyui/src/components/direction/AstroDirectMain.js": 1,
-   "astrostudyui/src/components/direction/__tests__/pdWarmRequestParity.test.js": 1
+   "astrostudyui/src/components/direction/pdWarm.js": 1
   },
   "horosa_pdsphere_lazy_v1": {
    "astrostudyui/src/components/direction/AstroDirectMain.js": 1
-  },
-  "horosa_perf_reset_v1": {
-   "astrostudyui/src/utils/perfMark.js": 1
   },
   "horosa_prefetch_pump_livelock_v1": {
    "astrostudyui/src/utils/__tests__/stepPrefetch.test.js": 2,
@@ -397,7 +391,8 @@
    "astrostudyui/src/utils/stepPrefetch.js": 2
   },
   "horosa_pump_skew_v1": {
-   "astrostudyui/src/models/astro.js": 4,
+   "astrostudyui/src/models/astro.js": 2,
+   "astrostudyui/src/models/astro/chartFlow.js": 2,
    "astrostudyui/src/utils/__tests__/stepPrefetch.test.js": 2,
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
@@ -406,33 +401,17 @@
    "astropy/tests/test_early_gate.py": 1,
    "astropy/websrv/webchartsrv.py": 8
   },
-  "horosa_sanshi_no_drop_step_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
-   "astrostudyui/src/components/sanshi/__tests__/sanshiStepFluency.test.js": 2
-  },
-  "horosa_sanshi_no_wait_chart_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
-   "astrostudyui/src/components/sanshi/__tests__/sanshiStepFluency.test.js": 2
-  },
-  "horosa_sanshi_outer_follow_time_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 2,
-   "astrostudyui/src/components/sanshi/__tests__/outerRingFollowsTime.test.js": 2,
-   "astrostudyui/src/models/astro.js": 1
+  "horosa_sanshi_prewarm_hook_v1": {
+   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1
   },
   "horosa_sanshi_render_slice_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 7,
+   "astrostudyui/src/components/sanshi/main/board.js": 1,
+   "astrostudyui/src/components/sanshi/main/inputPanel.js": 4,
+   "astrostudyui/src/components/sanshi/main/recalc.js": 2,
    "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1
   },
   "horosa_sanshi_render_smoke_v1": {
    "astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js": 1
-  },
-  "horosa_sanshi_snapshot_idle_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
-   "astrostudyui/src/components/sanshi/__tests__/sanshiStepFluency.test.js": 2
-  },
-  "horosa_sanshi_step_prefetch_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
-   "astrostudyui/src/components/sanshi/__tests__/sanshiStepFluency.test.js": 2
   },
   "horosa_scu_arraywise_v1": {
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1
@@ -451,12 +430,15 @@
    "astrostudyui/src/components/shusuan/ZhengChuanMain.js": 1,
    "astrostudyui/src/components/yizhangjing/YiZhangJingMain.js": 1
   },
+  "horosa_slice_local_delegate_v1": {
+   "astrostudyui/src/components/sanshi/__tests__/sanshiRecalcKeysCompleteness.test.js": 1
+  },
   "horosa_slice_prop_cover_v1": {
    "astrostudyui/src/components/astro/AstroChartMain.js": 1,
    "astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js": 1,
    "astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js": 1,
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 1,
-   "astrostudyui/src/components/guolao/__tests__/guolaoTransitMemoSunrise.test.js": 1
+   "astrostudyui/src/components/guolao/__tests__/guolaoTransitMemoSunrise.test.js": 1,
+   "astrostudyui/src/components/guolao/main/election.js": 1
   },
   "horosa_snapshot_idle_v1": {
    "astrostudyui/src/components/germany/AstroMidpoint.js": 2
@@ -482,7 +464,7 @@
    "astrostudyui/src/components/ruleziwei/RuleStars.js": 1
   },
   "horosa_step_prefetch_arm_v1": {
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1,
+   "astrostudyui/src/components/kinastro/main/compute.js": 1,
    "astrostudyui/src/models/astro.js": 1,
    "astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js": 1,
    "astrostudyui/src/utils/perfFlags.js": 1,
@@ -537,11 +519,14 @@
    "astrostudyui/src/utils/__tests__/helpers/importGraph.js": 1,
    "astrostudyui/src/utils/__tests__/helpers/namedImports.js": 1,
    "astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js": 1,
-   "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1
+   "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1,
+   "astrostudyui/src/utils/__tests__/sourceSetManifest.test.js": 1,
+   "astrostudyui/src/utils/__tests__/techniqueSnapshotCacheEqualsRefresh.test.js": 1
   },
   "horosa_win_shell_const_v1": {
    "astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js": 1,
    "astrostudyui/src/utils/__tests__/headlessApi.test.js": 1,
+   "astrostudyui/src/utils/__tests__/mcpBridgeStress.test.js": 1,
    "astrostudyui/src/utils/__tests__/shellStrings.test.js": 1
   },
   "horosa_win_shell_copy_v1": {
@@ -613,6 +598,9 @@
   },
   "horosa_ziwei_state_slice_v1": {
    "astrostudyui/src/components/ziwei/ZiWeiMain.js": 2
+  },
+  "horosa_ziwei_warm_cached_post_v1": {
+   "astrostudyui/src/components/ziwei/main/headless.js": 1
   }
  }
 }

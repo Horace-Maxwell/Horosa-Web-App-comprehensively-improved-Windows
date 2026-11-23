@@ -3,7 +3,7 @@
 import { Component } from 'react';
 import HelpBook from './HelpBook';
 
-import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import { MUTED, h, p, ul, li, card, ct, body } from './helpDocStyle';
 
 const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
 
@@ -226,7 +226,7 @@ export const HELP_BOOK = {
 						<div>
 						<div style={body}>
 							<div style={h}>方位角约定(先看这条)</div>
-							<p style={p}>本页所有「方位」读数——天体详情、空白天区读数、地平网格与方位刻度上的度数——都用<b>同一套约定:正南 0°、正西 90°、正北 180°、正东 270°</b>(即自南起、向西增)。它与画面上贴着地平线的<b>东 / 南 / 西 / 北</b>四方大字严格一致:对着「南」字看,读数就是 0° 附近。换算成常见的「自北起」写法,只需加减 180°。</p>
+							<p style={p}>本页所有「方位」读数——天体详情、空白天区读数、地平网格与方位刻度上的度数——都用<b>同一套约定:正北 0°、正东 90°、正南 180°、正西 270°</b>(即自北起、顺时针增),与「细节」页行星细节表、占星地图等处同口径。它与画面上贴着地平线的<b>东 / 南 / 西 / 北</b>四方大字一致:对着「北」字看,读数就是 0° 附近。</p>
 							<div style={h}>三套坐标与格式</div>
 							<ul style={ul}>
 								<li style={li}><b>地平坐标</b>:高度(视高度,度)与方位(上条约定);高度为负即在地平以下。</li>

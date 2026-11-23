@@ -12,8 +12,9 @@ function RootLayout(props){
     const {children, location} = props;
     moment.locale('zh-cn');
 
+    // 两字按钮不自动插空格(「今 日」挨着「3天」字距不一):全站统一关掉
     return (
-        <ConfigProvider locale={zhCN}>
+        <ConfigProvider locale={zhCN} autoInsertSpaceInButton={false}>
             <App>
                 {children}
             </App>

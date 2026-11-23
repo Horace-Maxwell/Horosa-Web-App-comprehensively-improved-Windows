@@ -15,7 +15,7 @@ jest.mock('js-rsa', ()=>({
 	},
 }));
 
-import { encryptRSA, __resetRsaSessionKeyForTest } from '../rsahelper';
+import { encryptRSA, __resetRsaSessionKeyForTest, __sessionTxtKeyForTest } from '../rsahelper';
 
 const rsaPart = (blob)=>blob.split(',')[1];
 const payloadPart = (blob)=>blob.split(',')[0];
@@ -66,5 +66,27 @@ describe('RSA 会话密钥复用', ()=>{
 		// 束仍在(模块态未清)→ 复用,不再新增
 		encryptRSA('{"a":3}');
 		expect(mockRsaState.encCalls).toBe(2);
+	});
+});
+
+// 传输钥(AES 钥的十六个字符)取自系统随机源,不用 Math.random:把 Math.random 钉成常数,钥照样每次不同、字符不重复成一串。
+describe('传输钥的随机来源', ()=>{
+	beforeEach(()=>{ __resetRsaSessionKeyForTest(); window.localStorage.removeItem('horosa.perf.rsaSessionKey'); });
+	afterEach(()=>{ __resetRsaSessionKeyForTest(); });
+	test('Math.random 钉死后,四十次换钥得四十把不同的钥,字符落在 37 个符号里', ()=>{
+		const spy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
+		try{
+			const keys = new Set();
+			const symbols = new Set();
+			for(let i = 0; i < 40; i++){
+				__resetRsaSessionKeyForTest();
+				const k = __sessionTxtKeyForTest();
+				expect(k).toMatch(/^[a-z0-9_]{16}$/);
+				keys.add(k);
+				k.split('').forEach((c)=>symbols.add(c));
+			}
+			expect(keys.size).toBe(40);
+			expect(symbols.size).toBeGreaterThan(30);   // 640 个字符几乎用遍 37 个符号;若取自被钉死的 Math.random 只会有 1 个
+		}finally{ spy.mockRestore(); }
 	});
 });

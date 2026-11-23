@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { readSource } from '../../../utils/__tests__/helpers/sourceSet';   // 拆成子模块的大文件按「门面 + 子模块」全集读
 import DateTime from '../DateTime';
 
 // 时刻字段带秒:输入面板把时间重组后会提交回全局,请求把时间发给排盘,任一处降到「分」都会丢秒,
@@ -13,7 +14,7 @@ const SOURCES = [
 
 describe('时刻字段不降到分钟', ()=>{
 	it.each(SOURCES)('%s', (rel)=>{
-		const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+		const src = readSource(path.join(ROOT, rel));   // 拆成子模块的页面按全集读
 		expect(src).not.toMatch(/\.time\.value\.format\('HH:mm'\)/);
 		expect(src).not.toMatch(/parse\([^)]*'YYYY-MM-DD HH:mm'\)/);
 	});

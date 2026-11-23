@@ -5,10 +5,11 @@ import { getLocalChartsStoreHealth } from '../../utils/localcharts';
 import { getLocalCasesStoreHealth } from '../../utils/localcases';
 import { getShadowMirrorStatus, getShadowAhead, mergeShadowAhead, discardShadowAhead, shadowAheadCids, SHADOW_RECONCILED_EVENT } from '../../utils/shadowMirror';
 import { emitRecordsChanged } from '../../utils/recordStoreNotice';
-import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/fileSave';
 import { hasCarriedRestoreResult } from '../../utils/restoreResultCarry';
 import { readBackupIncident, observeBackupHealth, storeHealthKind, clearBackupIncident, BACKUP_INCIDENT_EVENT } from '../../utils/backupIncident';
 import { listCorruptUnarchivedKeys, CORRUPT_UNARCHIVED_EVENT } from '../../utils/safeStorage';
+import { SystemNotice, SystemNoticeRow, SystemNoticeButton } from './SystemNotice';
 
 // 本地储存横幅:localRecordStore 写路径发现储存根坏(非 quota 异常/句柄不可得)时
 // 降级为内存模式 —— 会话内数据仍可用,但**重启即丢**。此前该状态只有一行 console.warn,
@@ -257,49 +258,16 @@ export default function LocalStoreHealthBanner(){
 	}
 	if(!notices.length){ return null; }
 
-	const wrapStyle = {
-		position: 'fixed', top: 0, left: 0, right: 0,
-		zIndex: 2001,
-		display: 'flex', justifyContent: 'center',
-		pointerEvents: 'none',
-	};
-	const barStyle = {
-		marginTop: 44,
-		maxWidth: '96%',
-		padding: '8px 14px',
-		borderRadius: 8,
-		fontSize: 13,
-		lineHeight: 1.4,
-		color: '#7a4f01',
-		background: 'rgba(255, 244, 222, 0.97)',
-		border: '1px solid rgba(214, 158, 46, 0.55)',
-		boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)',
-		pointerEvents: 'auto',
-		display: 'flex',
-		flexDirection: 'column',
-		gap: 6,
-		cursor: 'default',
-	};
-	const rowStyle = { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' };
-	const btnStyle = {
-		padding: '3px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
-		border: '1px solid rgba(214, 158, 46, 0.7)',
-		background: 'rgba(255, 255, 255, 0.7)',
-		color: '#7a4f01',
-	};
-
 	return (
-		<div style={wrapStyle} aria-live="polite">
-			<div style={barStyle}>
-				{notices.map((n)=>(
-					<div key={n.id} style={rowStyle}>
-						<span>💾⚠️ {n.text}</span>
-						{(n.actions || []).map((a)=><button key={a.label} type="button" onClick={a.run} style={btnStyle}>{a.label}</button>)}
-						<button type="button" onClick={()=>{ if(typeof n.onDismiss === 'function'){ n.onDismiss(); } setDismissed((d)=>({ ...d, [n.id]: true })); }} style={btnStyle}>知道了</button>
-					</div>
-				))}
-			</div>
-		</div>
+		<SystemNotice tone="warn" layer="over" stack>
+			{notices.map((n)=>(
+				<SystemNoticeRow key={n.id}>
+					<span>{n.text}</span>
+					{(n.actions || []).map((a)=><SystemNoticeButton key={a.label} onClick={a.run}>{a.label}</SystemNoticeButton>)}
+					<SystemNoticeButton onClick={()=>{ if(typeof n.onDismiss === 'function'){ n.onDismiss(); } setDismissed((d)=>({ ...d, [n.id]: true })); }}>知道了</SystemNoticeButton>
+				</SystemNoticeRow>
+			))}
+		</SystemNotice>
 	);
 }
 

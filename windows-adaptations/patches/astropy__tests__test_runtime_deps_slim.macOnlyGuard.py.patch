@@ -1,0 +1,17 @@
+diff --git a/astropy/tests/test_runtime_deps_slim.py b/astropy/tests/test_runtime_deps_slim.py
+index 5a41edfa..bd5736ff 100644
+--- a/astropy/tests/test_runtime_deps_slim.py
++++ b/astropy/tests/test_runtime_deps_slim.py
+@@ -148,6 +148,12 @@ def test_linux_requirements_are_the_mac_list_minus_the_ui_frameworks():
+     """Linux 上跑批量 / 命题验证的依赖清单 = mac 清单去掉界面框架(与桌面安装包同一张排除表)。
+     两份清单各写各的会漂:这里钉住「只差禁包」;mac 清单加了依赖、Linux 清单没跟上即红。"""
+     req = os.path.abspath(os.path.join(ROOT, '..', '..', 'scripts', 'requirements'))
++    # horosa_mac_only_test_guard_v1(Windows 适配,跨平台安全,建议上游化):两份清单是 macOS / Linux 的依赖清单
++    # (仓库根 scripts/requirements/),Windows 树没有该目录(内嵌解释器的依赖集由打包侧的载荷锁钉住)——
++    # 与其 FileNotFoundError 红,不如按「本树没有被测资产」跳过;清单在的树上原样跑。
++    if not os.path.isdir(req):
++        import pytest
++        pytest.skip('scripts/requirements (macOS / Linux dependency lists) is not part of this tree')
+     mac = _requirement_names(os.path.join(req, 'mac-python.txt'))
+     linux = _requirement_names(os.path.join(req, 'linux-python.txt'))
+     expected = [(n, line) for n, line in mac if n not in FORBIDDEN_RUNTIME_MODULES]

@@ -9,7 +9,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import { applyAppearanceToDocument, subscribeAppearance, syncChartPalette, chartColorThemeFor, currentAppearance, APPEARANCE_APPLIED_EVENT, DARK_CHART_COLOR_THEME, APPEARANCE_DARK, APPEARANCE_LIGHT } from '../appearance';
 import { watchChartAppearance, buildChartDrawSig, sameChartDrawSig } from '../chartDrawGuard';
 import { applyLightFlavorAttribute, currentChartThemeKey } from '../appearance';
-const { readSource, isSourceSetPart } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const { readSource, isSourceSetPart, sourceSetFiles } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 const COMPONENTS = path.join(SRC, 'components');
@@ -63,9 +63,12 @@ describe('源码级三锁', ()=>{
 	it('🔴 ② 组件里零私自观察 data-horosa-appearance;③ setColorTheme( 只在 utils/appearance.js', ()=>{
 		const offenders = walk(COMPONENTS, []).filter((f)=>/attributeFilter:\s*\[[^\]]*data-horosa-appearance/.test(fs.readFileSync(f, 'utf8'))).map((f)=>path.relative(SRC, f));
 		expect(offenders).toEqual([]);
+		// 定义它的常量表(门面 + 子模块:定义在 AstroConst/colors.js)与唯一调用方 appearance.js 不算
+		const definer = new Set(sourceSetFiles(path.join(SRC, 'constants', 'AstroConst.js')).map((f)=>path.relative(SRC, f).split(path.sep).join('/')));
+		expect(definer.size).toBeGreaterThan(1);   // 判据自证:常量表确是拆过的全集
 		const callers = walk(SRC, []).filter((f)=>{
 			const rel = path.relative(SRC, f).split(path.sep).join('/');
-			if(rel === 'constants/AstroConst.js' || rel === 'utils/appearance.js'){ return false; }
+			if(definer.has(rel) || rel === 'utils/appearance.js'){ return false; }
 			return /setColorTheme\(/.test(fs.readFileSync(f, 'utf8'));
 		}).map((f)=>path.relative(SRC, f));
 		expect(callers).toEqual([]);

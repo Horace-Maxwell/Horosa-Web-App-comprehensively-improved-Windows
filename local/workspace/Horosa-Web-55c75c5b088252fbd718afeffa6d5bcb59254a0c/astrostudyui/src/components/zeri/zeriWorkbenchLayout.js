@@ -7,6 +7,8 @@ export const ZERI_WB_TOP_STYLE = {
 	borderBottom: '1px solid var(--horosa-border)',
 	flex: '0 1 auto',
 	minHeight: 0,
+	// 参数区最多占左列 46%:展开全部下拉时它自己滚,「构造条件」始终有一半以上的高度(此前参数区不让步,矮窗下条件只剩一两行)
+	maxHeight: '46%',
 	overflowY: 'auto',
 };
 

@@ -9,7 +9,8 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { Spin, Tabs } from 'antd';
+import { Tabs } from 'antd';
+import { XQSpin } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
@@ -628,7 +629,7 @@ class ZhengChuanMain extends Component {
 		if (aux) {
 			return (
 				<div className="horosa-zhengchuan-page">
-					{loading ? <div className="horosa-zhengchuan-loading"><Spin size="small" /> 条文库载入中（条文号已出，正文稍候）</div> : null}
+					{loading ? <div className="horosa-zhengchuan-loading"><XQSpin size="small" /> 条文库载入中（条文号已出，正文稍候）</div> : null}
 					{body}
 				</div>
 			);
@@ -646,7 +647,7 @@ class ZhengChuanMain extends Component {
 						<div className="horosa-huangji-board-time">{m._gender === '女' ? '坤造' : '乾造'}</div>
 					</div>
 					{this.pillarGrid(m._pillars)}
-					{loading ? <div className="horosa-zhengchuan-loading"><Spin size="small" /> 条文库载入中（条文号已出，正文稍候）</div> : null}
+					{loading ? <div className="horosa-zhengchuan-loading"><XQSpin size="small" /> 条文库载入中（条文号已出，正文稍候）</div> : null}
 					{body}
 				</div>
 			</>

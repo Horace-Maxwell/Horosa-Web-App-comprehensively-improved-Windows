@@ -1,7 +1,7 @@
 import React, { Component, createRef, Suspense } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { Spin } from 'antd';
-import { XQTabs as Tabs } from '../xq-ui';
+
+import { XQTabs as Tabs, XQSpin } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
 import { makeHealingFactory } from '../../utils/lazyBoundary';
 // 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
@@ -325,7 +325,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="宿盘" key="suzhan">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'suzhan'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<SuZhanMain 
 									ref={this.attachChildRef('suzhan')}
 									value={this.props.chart}
@@ -344,7 +344,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="金口诀" key="jinkou">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'jinkou'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<JinKouMain
 									ref={this.attachChildRef('jinkou')}
 									value={this.props.chart}
@@ -360,7 +360,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="统摄法" key="tongshefa">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'tongshefa'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<TongSheFaMain
 									ref={this.attachChildRef('tongshefa')}
 									value={this.props.chart}
@@ -375,7 +375,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="皇极经世" key="huangji">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'huangji'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<HuangJiMain
 									ref={this.attachChildRef('huangji')}
 									value={this.props.chart}
@@ -391,7 +391,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="五兆" key="wuzhao">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'wuzhao'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<WuZhaoMain
 									ref={this.attachChildRef('wuzhao')}
 									value={this.props.chart}
@@ -407,7 +407,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="太玄" key="taixuan">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'taixuan'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<TaiXuanMain
 									ref={this.attachChildRef('taixuan')}
 									value={this.props.chart}
@@ -423,7 +423,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="皇极轨策" key="guice">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'guice'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<GuiceMain
 									ref={this.attachChildRef('guice')}
 									value={this.props.chart}
@@ -440,7 +440,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="小六壬" key="xiaoliuren">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'xiaoliuren'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<XiaoLiuRenMain
 									ref={this.attachChildRef('xiaoliuren')}
 									value={this.props.chart}
@@ -457,7 +457,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="小成图" key="xiaochengtu">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'xiaochengtu'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<XiaoChengTuMain
 									ref={this.attachChildRef('xiaochengtu')}
 									value={this.props.chart}
@@ -474,7 +474,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="飞宫小奇门" key="feigong">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'feigong'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<FeiGongMain
 									ref={this.attachChildRef('feigong')}
 									value={this.props.chart}
@@ -491,7 +491,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="荆诀" key="jingjue">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'jingjue'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<JingJueMain
 									ref={this.attachChildRef('jingjue')}
 									value={this.props.chart}
@@ -507,7 +507,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="神易数" key="shenyishu">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'shenyishu'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<ShenYiShuMain
 									ref={this.attachChildRef('shenyishu')}
 									value={this.props.chart}
@@ -524,7 +524,7 @@ class CnYiBuMain extends Component{
 					<TabPane tab="地占" key="geomancy">
 						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 						<FreezeSubTab active={tab === 'geomancy'}>{() => (
-							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 								<GeomancyMain
 									ref={this.attachChildRef('geomancy')}
 									value={this.props.chart}
@@ -539,7 +539,7 @@ class CnYiBuMain extends Component{
 					</TabPane>
 
 					<TabPane tab="灵棋经" key="lingqi">
-						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+						<Suspense fallback={<div className="horosa-guice-loading"><XQSpin size="small" /> 载入中</div>}>
 							<LingQiMain
 								ref={this.attachChildRef('lingqi')}
 								value={this.props.chart}

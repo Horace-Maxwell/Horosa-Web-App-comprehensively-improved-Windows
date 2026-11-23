@@ -8,6 +8,7 @@ import cnlunar
 import jsonpickle
 
 from astrostudy.civil_calendar import civil_jdn_display, civil_ymd_valid, display_year, format_display_date, parse_civil_date
+from astrostudy.truerandom import request_entropy_seed, seed_display_text
 from websrv.helper import enable_crossdomain
 from websrv.horosa_engine_common import (
     build_snapshot as _build_snapshot,
@@ -419,7 +420,7 @@ def _build_sections(payload):
                 _row("日柱", gz.get("day")),
                 _row("时柱", gz.get("hour")),
                 _row("起筮时段", tx.get("period")),
-                _row("起筮种子", payload.get("seed")),
+                _row("起筮种子", seed_display_text(payload.get("seed"))),
                 _row("冬至起算", winter.get("date")),
                 _row("距冬至日", f"{winter.get('days')}日" if winter.get("days") is not None else None),
             ],
@@ -471,7 +472,10 @@ def build_taixuan_pan(data):
     month = max(1, min(12, _to_int(data.get("month"), 1)))
     day = max(1, min(31, _to_int(data.get("day"), 1)))
     hour = max(0, min(23, _to_int(data.get("hour"), 0)))
-    seed = _to_int(data.get("seed"), raw_year * 1000000 + month * 10000 + day * 100 + hour)
+    # 种子:真随机记录(随机起筮,或重开一盘随机起的)原样回放;否则取整数(手填 / 旧存案),没带则按起课时间派生(确定性)。
+    seed = request_entropy_seed(data.get("seed"))
+    if seed is None:
+        seed = _to_int(data.get("seed"), raw_year * 1000000 + month * 10000 + day * 100 + hour)
     # 日界/晚子时/时区:缺省 1/1/+08:00 = 旧行为,前端不带时字节不变。
     after23 = 1 if _to_int(data.get("after23NewDay"), 1) else 0
     hour_gan_next = 1 if _to_int(data.get("lateZiHourUseNextDay"), 1) else 0

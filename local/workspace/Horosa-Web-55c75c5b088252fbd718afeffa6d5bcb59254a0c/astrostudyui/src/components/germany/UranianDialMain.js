@@ -2,7 +2,7 @@ import { Component } from 'react';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import moment from 'moment';
-import { Row, Col, Slider, Tree, Collapse, Table, Modal, Input } from 'antd';
+import { Row, Col, Tree, Collapse, Table, Modal, Input } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
@@ -17,10 +17,10 @@ import { factorLabel, composeShort, pairKey, FACTOR_MEANINGS, PAIR_MEANINGS, CLA
 import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
 import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBaseLabel } from './UranianDialStyle';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
-import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, XQInputNumber } from '../xq-ui';
+import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, XQInputNumber, XQSlider } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolComparisonRows, germanyMidpointRequestParams } from './UranianSchools';
-import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
+import { tnpGlyph } from './UranianGlyphs';
 import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
 import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, chartOrbOverridesFromFields, chartOrbOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { getPageLayoutWidth, getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
@@ -1008,10 +1008,10 @@ export default class UranianDialMain extends Component {
 					{/* B8 扩展映点轴(15°固定星座):折叠盘上与基本轴重合,仅 360° 模数盘有别(映点卡随注)。 */}
 					<div style={{ ...rowSty, marginBottom: 10 }}><span>扩展映点轴 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>15°固定星座</span></span><XQSwitch size="small" checked={!!this.state.extendedAxes} onChange={(v) => this.saveDisp({ extendedAxes: v })} /></div>
 					<div style={{ marginBottom: 2, fontSize: 12 }}>容许度 <b>{this.state.orb}°</b></div>
-					<Slider min={0.5} max={3} step={0.5} value={this.state.orb} onChange={(v) => this.saveDisp({ orb: v })} />
+					<XQSlider min={0.5} max={3} step={0.5} value={this.state.orb} onChange={(v) => this.saveDisp({ orb: v })} />
 					{/* 个人点放宽容许度(Basic Five;下发后端 personalOrb,且前端读数/树/图同口径放宽)。 */}
 					<div style={{ marginTop: 8, marginBottom: 2, fontSize: 12 }}>个人点容许度 <b>{this.state.orbPersonal}°</b></div>
-					<Slider min={0.5} max={6} step={0.5} value={this.state.orbPersonal} onChange={(v) => this.saveDisp({ orbPersonal: v })} />
+					<XQSlider min={0.5} max={6} step={0.5} value={this.state.orbPersonal} onChange={(v) => this.saveDisp({ orbPersonal: v })} />
 				</XQSideSection>
 			</div>
 		);

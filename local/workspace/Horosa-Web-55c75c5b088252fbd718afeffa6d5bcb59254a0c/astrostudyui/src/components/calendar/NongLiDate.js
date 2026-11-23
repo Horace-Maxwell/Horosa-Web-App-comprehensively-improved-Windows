@@ -4,6 +4,7 @@ import { Row, Col, Popover, } from 'antd';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import DateTime from '../comp/DateTime';
+import { pressable } from '../../utils/pressable';
 
 class NongLiDate extends Component{
 	constructor(props) {
@@ -146,7 +147,7 @@ class NongLiDate extends Component{
 
 		return (
 			<Popover trigger='hover' title={poptitle} content={popcontent}>
-				<div className={className} onClick={this.onClick}>
+				<div className={className} {...pressable(this.onClick)}>
 					<Row style={{textAlign: 'center'}}>
 						<Col span={24}>{gongli}</Col>
 					</Row>

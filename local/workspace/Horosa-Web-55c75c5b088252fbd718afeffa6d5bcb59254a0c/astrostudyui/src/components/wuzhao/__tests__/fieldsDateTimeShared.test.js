@@ -1,14 +1,15 @@
 // 起盘 fields → 年月日时分秒 / 起盘请求参数 的拆解单一来源 utils/fieldsDateTime:
 // 太乙 / 金口诀(取时与文本拆解)、五兆 / 皇极(带时区与全局日界缺省)不再各抄一份。
-import fs from 'fs';
 import path from 'path';
+import { readSource, sourceSetFiles } from '../../../utils/__tests__/helpers/sourceSet';
+import { fileImportsName } from '../../../utils/__tests__/helpers/importSpecs';
 import DateTime from '../../comp/DateTime';
 import { parseFieldsDateTime, parseFieldsDateTimeWithDayBoundary, parseDateTimeText } from '../../../utils/fieldsDateTime';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../../utils/dayBoundary';
 import { parseDateParts } from '../../../utils/dateStrSafe';
 
 const COMP = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(COMP, rel), 'utf8');
+const read = (rel)=>readSource(path.join(COMP, rel));   // 拆成子模块的计算模块按「门面 + 子模块」全集读
 
 function dt(text){
 	const d = new DateTime();
@@ -80,7 +81,11 @@ describe('源码:四处调用方改从单一来源取', ()=>{
 	test('太乙 / 金口诀 计算模块', ()=>{
 		['taiyi/TaiYiCalc.js', 'jinkou/JinKouCalc.js'].forEach((rel)=>{
 			const src = read(rel);
-			expect(src).toContain("import { parseFieldsDateTime, parseDateTimeText } from '../../utils/fieldsDateTime';");
+			// 两个名字都从单一来源引(按 AST 认;引入写在门面或子模块里都行)
+			const target = path.join(COMP, '..', 'utils', 'fieldsDateTime');
+			['parseFieldsDateTime', 'parseDateTimeText'].forEach((name)=>{
+				expect([rel, name, sourceSetFiles(path.join(COMP, rel)).some((f)=>fileImportsName(f, { name, target }))]).toEqual([rel, name, true]);
+			});
 			expect(src).not.toContain('function parseFieldsDateTime(');
 			expect(src).not.toContain('function parseDateTimeText(');
 		});

@@ -2,7 +2,8 @@
 // AI 做过的动作(账本里涉及该 cid 的,撤销复用 undoAction)、弱关联资料(名字含命主名)。零业务逻辑,不改任何数据。
 // 另有「命主实况」一节:这张命盘发不发命主实况(与挂载预览卡同一个开关)+「编辑命主实况」(打开命盘列表里的同一份问卷)。
 import React from 'react';
-import { Drawer, Button, Tag, Switch, message } from 'antd';
+import { Drawer, Button, Tag, message } from 'antd';
+import { XQSwitch } from '../../xq-ui';
 import { listMemories, subscribeMemory, toggleMemory } from '../../../utils/aiChat/memory';
 import { listActions, undoAction, subscribeLedger } from '../../../utils/aiTools/ledger';
 import { setSubjectFactsEnabled } from '../../../utils/subjectFacts';
@@ -56,7 +57,7 @@ export default function SubjectWorkspaceDrawer({ open, source, conversations, ma
 							<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
 								<span style={{ flex: '1 1 auto' }}>{facts.facts.count ? (facts.enabled ? `发给 AI:${facts.facts.count} 项` : `${facts.facts.count} 项,未发送`) : '还没有填写'}</span>
 								<span style={soft}>发给 AI</span>
-								<Switch size="small" checked={!!facts.enabled} data-subject-facts-switch={facts.enabled ? 'on' : 'off'} onChange={(on)=>setSubjectFactsEnabled(facts.cid, on)} />
+								<XQSwitch size="small" checked={!!facts.enabled} data-subject-facts-switch={facts.enabled ? 'on' : 'off'} onChange={(on)=>setSubjectFactsEnabled(facts.cid, on)} />
 								<Button size="small" type="link" data-subject-facts-edit="1" onClick={()=>{ if(openSubjectFactsEditor(source, dispatch) && typeof onClose === 'function'){ onClose(); } }}>编辑命主实况</Button>
 							</div>
 						) : <div style={soft}>只有已存档的命盘有命主实况(事盘与即时起盘没有)。</div>}

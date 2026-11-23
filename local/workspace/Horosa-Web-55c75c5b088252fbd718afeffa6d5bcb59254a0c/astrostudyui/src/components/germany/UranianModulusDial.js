@@ -6,7 +6,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
-import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
+import { norm360, polar, glyphTip } from './uranianDialShared';
 import { dialBaseDegText } from './UranianDialStyle';
 
 // 真 360° 多环模数盘（与折叠盘并列的另一种汉堡技法）：三层同心环按真实黄道位置画行星，

@@ -22,6 +22,7 @@
 
 import swisseph
 from flatlib import const
+from astrostudy.stable_order import TIE_EPS, snap_mod
 
 
 def _meridian_cusps(jd, lat, lon):
@@ -45,7 +46,10 @@ def _house_of(lon, cusps):
     L = lon % 360
     for i in range(12):
         a, b = cusps[i], cusps[(i + 1) % 12]
-        if (L - a) % 360 < (b - a) % 360:
+        # 点恰在宫头上(该框就是拿它定的宫头)算进这一宫:差值被浮点末位带到 359.99… 时按 0 计;恰在下一宫头上的不算本宫
+        d = snap_mod(L - a, 360.0)
+        width = (b - a) % 360
+        if d < width and width - d > TIE_EPS:
             return i + 1
     return 12
 

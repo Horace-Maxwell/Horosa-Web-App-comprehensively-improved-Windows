@@ -12,7 +12,8 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { writePdSphereStamp } from '../../utils/pdSphereStamp';
 import { registerWebglFrameProvider } from '../../utils/pageScreenshot';
 // Popover / Checkbox 随「扩展」面板抽进 PdExtensionPanel 后本文件已不再直接用到。
-import { Button, Spin, Select } from 'antd';
+import { Button, Select } from 'antd';
+import { XQSpin, XQCheckbox, XQSlider } from '../xq-ui';
 import PdExtensionPanel from '../astro/PdExtensionPanel';
 import { PD_SIGNIFICATOR_OPTIONS, PD_PROMISSOR_TYPE_OPTIONS } from '../../utils/primaryDirectionSync';
 import PDSphereEngine from './PDSphereEngine';
@@ -953,14 +954,12 @@ class AstroPDSphere extends Component{
 						{[['ecliptic', '黄道'], ['equator', '赤道'], ['grid', '网格'], ['horizon', '地平'], ['meridian', '子午'], ['primeVertical', '卯酉'], ['labels', '标注']].map(([k, lb])=>{
 							const fl = this.state.frameLayers || {};
 							return (
-								<label key={k} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-									<input type="checkbox" checked={fl[k] !== false} style={{ verticalAlign: '-2px', marginRight: 4 }}
-										onChange={(e)=>{
+								<XQCheckbox key={k} className="horosa-pdsphere-check" checked={fl[k] !== false}
+									onChange={(e)=>{
 											const on = e.target.checked;
 											this.setState({ frameLayers: { ...fl, [k]: on } });
 											if(this.engine && this.engine.setFrameLayers){ this.engine.setFrameLayers({ [k]: on }); }
-										}}/>{lb}
-								</label>
+										}}>{lb}</XQCheckbox>
 							);
 						})}
 					</span>
@@ -1026,46 +1025,38 @@ class AstroPDSphere extends Component{
 						{[['aspect', '相位点']].map(([k, lb])=>{
 							const vt = this.state.virtualToggles || { aspect: true, antiscia: false, term: false };
 							return (
-								<label key={k} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-									<input type="checkbox" checked={!!vt[k]} style={{ verticalAlign: '-2px', marginRight: 4 }}
-										onChange={(e)=>{
+								<XQCheckbox key={k} className="horosa-pdsphere-check" checked={!!vt[k]}
+									onChange={(e)=>{
 											const next = { ...vt, [k]: e.target.checked };
 											this.setState({ virtualToggles: next });
 											if(this.engine && this.engine.setVirtualToggles){ this.engine.setVirtualToggles(next); }
-										}}/>{lb}
-								</label>
+										}}>{lb}</XQCheckbox>
 							);
 						})}
 						{/* 后天宫位宫首在黄道上的显示开关(纯前端派生,随「盘面宫制」;只是显示,不改弧) */}
-						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="在黄道上标十二宫首(按主限法标签设的盘面宫制;只是显示,不改弧)">
-							<input type="checkbox" checked={!!this.state.showHouses} style={{ verticalAlign: '-2px', marginRight: 4 }}
-								onChange={(e)=>{
+						<XQCheckbox className="horosa-pdsphere-check" title="在黄道上标十二宫首(按主限法标签设的盘面宫制;只是显示,不改弧)" checked={!!this.state.showHouses}
+							onChange={(e)=>{
 									const on = e.target.checked;
 									this.setState({ showHouses: on });
 									safeLocalStorageSet('horosa.pdsphere.showHouses', on ? '1' : '0');
 									if(this.engine && this.engine.setHouseDisplay){ this.engine.setHouseDisplay(on); }
-								}}/>宫位
-						</label>
+								}}>宫位</XQCheckbox>
 						{/* 播完自动复位(默认关=停在命中姿态;开=播完 900ms 缓动回本命,旧观感) */}
-						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-							<input type="checkbox" checked={!!this.state.autoResetAfterPlay} style={{ verticalAlign: '-2px', marginRight: 4 }}
-								onChange={(e)=>{
+						<XQCheckbox className="horosa-pdsphere-check" checked={!!this.state.autoResetAfterPlay}
+							onChange={(e)=>{
 									const on = e.target.checked;
 									this.setState({ autoResetAfterPlay: on });
 									safeLocalStorageSet('horosa.pdsphere.autoResetAfterPlay', on ? '1' : '0');
-								}}/>播完回位
-						</label>
+								}}>播完回位</XQCheckbox>
 						{/* 复合运动·真位层:周日旋转同时诸曜沿黄道自行(主限的物理实相);
 						    冻结迫星仍是命中载体,真位点+漂移线呈现「本命位vs真位」之差 */}
-						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-							title="播放时同时呈现周日旋转与诸曜黄道自行(真位);冻结迫星仍精确命中,真位点显示同一时间星体实际所在">
-							<input type="checkbox" checked={!!this.state.trueMotion} style={{ verticalAlign: '-2px', marginRight: 4 }}
-								onChange={(e)=>{
+						<XQCheckbox className="horosa-pdsphere-check"
+							title="播放时同时呈现周日旋转与诸曜黄道自行(真位);冻结迫星仍精确命中,真位点显示同一时间星体实际所在" checked={!!this.state.trueMotion}
+							onChange={(e)=>{
 									const on = e.target.checked;
 									this.setState({ trueMotion: on, trueInfo: on ? this.state.trueInfo : null });
 									if(this.engine && this.engine.setTrueMotion){ this.engine.setTrueMotion(on); }
-								}}/>复合运动
-						</label>
+								}}>复合运动</XQCheckbox>
 					</span>
 				</div>
 
@@ -1112,7 +1103,7 @@ class AstroPDSphere extends Component{
 							position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
 							justifyContent: 'center', zIndex: 3, pointerEvents: 'none',
 						}}>
-							<Spin tip="主限天球计算中…" />
+							<XQSpin tip="主限天球计算中…" />
 						</div>
 					) : null}
 					{this.state.err ? (
@@ -1142,11 +1133,11 @@ class AstroPDSphere extends Component{
 						borderBottom: '1px solid rgba(120,145,185,0.10)',
 					}}>
 						<span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>缩放</span>
-						<input
-							type="range" min={TL_ZOOM_MIN} max={TL_ZOOM_MAX} step={0.5}
+						<XQSlider
+							min={TL_ZOOM_MIN} max={TL_ZOOM_MAX} step={0.5} tooltipVisible={false}
 							value={Math.min(TL_ZOOM_MAX, Math.max(TL_ZOOM_MIN, Math.round(this.getPxPerYear() * 2) / 2))}
-							onChange={(e)=>this.setTlZoom(Number(e.target.value), null)}
-							style={{ width: 150, accentColor: '#5b8def' }}
+							onChange={(v)=>this.setTlZoom(Number(v), null)}
+							style={{ width: 150, margin: '0 6px' }}
 						/>
 						<span style={{ minWidth: 58, fontVariantNumeric: 'tabular-nums' }}>{this.getPxPerYear().toFixed(1)} px/年</span>
 						<Button size="small" style={BTN_DARK} onClick={()=>this.setTlZoom(null, null)}>适配</Button>

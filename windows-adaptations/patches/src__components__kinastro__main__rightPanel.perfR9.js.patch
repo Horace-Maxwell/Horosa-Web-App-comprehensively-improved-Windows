@@ -1,0 +1,129 @@
+diff --git a/astrostudyui/src/components/kinastro/main/rightPanel.js b/astrostudyui/src/components/kinastro/main/rightPanel.js
+index 846db5a2..5002c76d 100644
+--- a/astrostudyui/src/components/kinastro/main/rightPanel.js
++++ b/astrostudyui/src/components/kinastro/main/rightPanel.js
+@@ -15,6 +15,7 @@ import { fmtValue, buildSnapshotText, sectionByTitle } from './snapshot';
+ import { formatGeoRowValue } from './ziweiChart';
+ import { cetianDisplayToggles, YZJ_AUX_TABS } from './settings';
+ import { ZhengChuanMain } from './lazyPanels';
++import { FreezeSubTab } from '../../comp/FreezeInactive';
+ const { TabPane } = Tabs;
+ 
+ export const rightPanelMethods = {
+@@ -247,29 +248,8 @@ export const rightPanelMethods = {
+ 		if(this.config.serviceKey === 'yizhangjing'){
+ 			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} activeTab={this.state.yizhangjingTab || 'overview'} onTabChange={this.setYizhangjingTab} /></div>;
+ 		}
+-		const snapshot = (()=>{ const base = buildSnapshotText(this.state.pan); const suffix = this.tiebanFrameworkSuffix(this.state.pan); return suffix ? `${base}\n\n${suffix}` : base; })();
+-		const visibleTabs = this.config.tabs.filter((item)=>{
+-			if(item.key === 'yanfa'){
+-				return this.config.serviceKey === 'xianqin';
+-			}
+-			if(!this.state.pan){
+-				return item.key === 'overview' || item.key === 'snapshot';
+-			}
+-			if(item.key === 'snapshot'){
+-				return !!snapshot;
+-			}
+-			if(item.key === 'classics'){
+-				const classics = this.state.pan && this.state.pan.classics;
+-				return !!(classics && classics.sections && classics.sections.length);
+-			}
+-			if(item.key === 'settings'){
+-				return this.config.serviceKey === 'cetian';
+-			}
+-			if(item.key === 'framework'){
+-				return this.config.serviceKey === 'tieban' && !!this.state.pan;
+-			}
+-			return this.getTabSections(item.key).length > 0;
+-		});
++		const snapshot = this.snapshotText();
++		const visibleTabs = this.visibleTabsOf(snapshot);
+ 		const activeKey = visibleTabs.some((item)=>item.key === this.state.rightPanelTab)
+ 			? this.state.rightPanelTab
+ 			: (visibleTabs[0] ? visibleTabs[0].key : 'overview');
+@@ -277,23 +257,33 @@ export const rightPanelMethods = {
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs horosa-kinastro-tabs">
+ 				{visibleTabs.map((item)=>(
+ 					<TabPane tab={item.label} key={item.key}>
+-						{item.key === 'snapshot' ? (
+-							<pre className="horosa-huangji-snapshot">{snapshot}</pre>
+-						) : item.key === 'classics' ? (
+-							<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
+-						) : item.key === 'settings' ? (
+-							<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
+-						) : item.key === 'ziliao' && this.config.serviceKey === 'cetian' ? (
+-							this.renderCetianZiliao()
+-						) : item.key === 'yanfa' ? (
+-							<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
+-						) : item.key === 'framework' ? (
+-							<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
+-						) : this.config.serviceKey === 'cetian' ? (
+-							<div className="horosa-huangji-section-list">{renderCetianSectionList(this.getTabSections(item.key), this.state.pan, (secs)=>this.renderRows(secs))}</div>
+-						) : (
+-							<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
+-						)}
++						{/* horosa_freeze_subtabs_v1:右栏子页签冻结。此前每个 TabPane 的内容都在
++						    本方法里【当场求值】(getTabSections 过滤全段 + renderRows 造出全部行,
++						    铁板 7 目、南极 7 目、蠢子 7 目一次全造),而用户只看得见一目。
++						    改函数式:未激活的目连元素都不创建;已看过的目保持挂载(DOM/滚动位置/
++						    展开态全在),只是父组件重渲时不再穿透;切回去时拿本轮最新 children
++						    立刻渲一帧 —— 不重新挂载、不重取、不闪烁、零陈旧。 */}
++						<FreezeSubTab active={activeKey === item.key}>
++							{()=>(
++								item.key === 'snapshot' ? (
++									<pre className="horosa-huangji-snapshot">{snapshot}</pre>
++								) : item.key === 'classics' ? (
++									<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
++								) : item.key === 'settings' ? (
++									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
++								) : item.key === 'ziliao' && this.config.serviceKey === 'cetian' ? (
++									this.renderCetianZiliao()
++								) : item.key === 'yanfa' ? (
++									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
++								) : item.key === 'framework' ? (
++									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
++								) : this.config.serviceKey === 'cetian' ? (
++									<div className="horosa-huangji-section-list">{renderCetianSectionList(this.getTabSections(item.key), this.state.pan, (secs)=>this.renderRows(secs))}</div>
++								) : (
++									<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
++								)
++							)}
++						</FreezeSubTab>
+ 					</TabPane>
+ 				))}
+ 			</Tabs>
+@@ -301,29 +291,10 @@ export const rightPanelMethods = {
+ 	},
+ 
+ 	renderBottomQuickDock(){
+-		const snapshot = (()=>{ const base = buildSnapshotText(this.state.pan); const suffix = this.tiebanFrameworkSuffix(this.state.pan); return suffix ? `${base}\n\n${suffix}` : base; })();
+-		const visibleTabs = this.config.tabs.filter((item)=>{
+-			if(item.key === 'yanfa'){
+-				return this.config.serviceKey === 'xianqin';
+-			}
+-			if(!this.state.pan){
+-				return item.key === 'overview' || item.key === 'snapshot';
+-			}
+-			if(item.key === 'snapshot'){
+-				return !!snapshot;
+-			}
+-			if(item.key === 'classics'){
+-				const classics = this.state.pan && this.state.pan.classics;
+-				return !!(classics && classics.sections && classics.sections.length);
+-			}
+-			if(item.key === 'settings'){
+-				return this.config.serviceKey === 'cetian';
+-			}
+-			if(item.key === 'framework'){
+-				return this.config.serviceKey === 'tieban' && !!this.state.pan;
+-			}
+-			return this.getTabSections(item.key).length > 0;
+-		});
++		// 与右栏同源(snapshotText/visibleTabsOf 带缓存):此前这里把快照拼接与页签过滤
++		// 又整整算了第二遍,同一次重渲白付两倍。
++		const snapshot = this.snapshotText();
++		const visibleTabs = this.visibleTabsOf(snapshot);
+ 		// 一掌经的右栏页签不在 config.tabs 里(它自己画),快捷栏照它的页签列,和其它技法同一种用法。
+ 		const yzjTabs = this.config.serviceKey === 'yizhangjing'
+ 			? YZJ_AUX_TABS.filter((item)=>item.key !== 'shensha' || this.state.yizhangjingShensha)

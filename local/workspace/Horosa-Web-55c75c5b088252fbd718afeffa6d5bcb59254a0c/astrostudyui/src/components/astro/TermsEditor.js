@@ -4,8 +4,8 @@
 // 存 localStorage horosa.astro.customTerms.v1(storageKeyRegistry 已登记);下发由
 // classicalBackendOverrides termsVariant=4 特例块附 customTermsDay/Night(无合法表=降级不发 4)。
 import React from 'react';
-import { InputNumber, Input, message } from 'antd';
-import { XQModal, XQSelect, XQSegmented, XQButton, XQCheckItem } from '../xq-ui';
+import { Input, message } from 'antd';
+import { XQModal, XQSelect, XQSegmented, XQButton, XQCheckItem, XQInputNumber } from '../xq-ui';
 import {
 	TERMS_SIGNS_CN, TERMS_STARS, EGYPT_TEMPLATE, rowSum, validateTermsTable,
 	loadCustomTerms, saveCustomTerms,
@@ -125,7 +125,7 @@ export default class TermsEditor extends React.Component {
 												onChange={(v) => this.setCell(which, si, ti, 'star', v)}>
 												{TERMS_STARS.map((s) => (<Option key={s.value} value={s.value}>{s.label}</Option>))}
 											</XQSelect>
-											<InputNumber size="small" style={{ width: 56, marginLeft: 3 }} min={1} max={26} precision={0}
+											<XQInputNumber size="small" style={{ width: 56, marginLeft: 3 }} min={1} max={26} precision={0}
 												value={cell[1]} onChange={(v) => this.setCell(which, si, ti, 'width', v)} />
 										</td>
 									))}

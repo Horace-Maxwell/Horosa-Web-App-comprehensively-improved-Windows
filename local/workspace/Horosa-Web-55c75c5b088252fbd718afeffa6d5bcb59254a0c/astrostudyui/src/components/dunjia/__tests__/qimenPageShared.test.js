@@ -5,9 +5,10 @@ import path from 'path';
 import { clamp, safe, resolveCalcGeo, buildDisplaySolarParams, getNongliKey } from '../qimenPageShared';
 import * as SanShi from '../../sanshi/SanShiUnitedMain';
 import { getBoardTimeInfo } from '../DunJiaBoard';
+const { readSource, importedFrom } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的门面按「子模块 + 门面」全集读(scripts/source-sets.json)
 
 const COMP = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(COMP, rel), 'utf8');
+const read = (rel)=>readSource(path.join(COMP, rel));
 
 describe('qimenPageShared', ()=>{
 	test('clamp / safe', ()=>{
@@ -44,18 +45,23 @@ describe('qimenPageShared', ()=>{
 
 describe('源码:两页改从单一来源取', ()=>{
 	test('奇门主页 / 三式合一页不再各自定义', ()=>{
-		[['dunjia/DunJiaMain.js', "from './qimenPageShared';"], ['sanshi/SanShiUnitedMain.js', "from '../dunjia/qimenPageShared';"]].forEach(([rel, imp])=>{
+		// 按组件全集判(类方法拆在子文件里时,引入跟着用它的方法走、相对路径随之变):五个名字都从单一来源引入,全集里不另定义
+		const SHARED = path.join(COMP, 'dunjia', 'qimenPageShared');
+		['dunjia/DunJiaMain.js', 'sanshi/SanShiUnitedMain.js'].forEach((rel)=>{
 			const src = read(rel);
-			expect(src).toContain(`import { clamp, safe, resolveCalcGeo, buildDisplaySolarParams, getNongliKey } ${imp}`);
+			const got = importedFrom(path.join(COMP, rel), SHARED);
 			['clamp', 'safe', 'resolveCalcGeo', 'buildDisplaySolarParams', 'getNongliKey'].forEach((n)=>{
+				expect(`${rel}:${n}:${got.has(n)}`).toBe(`${rel}:${n}:true`);
 				expect(src).not.toMatch(new RegExp(`function ${n}\\(`));
+				expect(src).not.toMatch(new RegExp(`const ${n} = `));
 			});
 		});
 		expect(read('sanshi/SanShiUnitedMain.js')).toContain('export { clamp, safe };');
 	});
 	test('奇门主页的盘头时间信息取自 DunJiaBoard', ()=>{
 		const dj = read('dunjia/DunJiaMain.js');
-		expect(dj).toContain("import DunJiaBoard, { getBoardTimeInfo } from './DunJiaBoard';");
+		const fromBoard = importedFrom(path.join(COMP, 'dunjia/DunJiaMain.js'), path.join(COMP, 'dunjia', 'DunJiaBoard'));
+		expect(fromBoard.has('default') && fromBoard.has('getBoardTimeInfo')).toBe(true);
 		expect(dj).not.toContain('function getBoardTimeInfo(');
 		expect(dj).not.toContain('function parseDisplayDateHm(');
 		expect(read('dunjia/DunJiaBoard.js')).toContain('export function getBoardTimeInfo(pan){');

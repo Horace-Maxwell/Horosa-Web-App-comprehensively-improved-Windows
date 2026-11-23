@@ -7,7 +7,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWCommHouse from './ZWCommHouse';
 import D3Arrow from '../graph/D3Arrow';
-import { drawTextV, drawDashLine, } from '../graph/GraphHelper';
+import { drawDashLine, } from '../graph/GraphHelper';
 import { formatLonDms, formatLatDms } from '../astro/AstroHelper';   // 中宫经纬度按度分秒显示
 import { formatZoneLabel } from '../../utils/zoneText';   // 中宫时区按 UTC±HH:MM 显示
 import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:河洛一六共宗连线

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js b/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
-index d7ba02cc..57c69776 100644
+index 9629b151..6d918616 100644
 --- a/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
-@@ -665,7 +665,10 @@ function classInk(){
+@@ -680,7 +680,10 @@ function classInk(){
  function allHits(){
  	const out = [];
  	FILES.forEach((f)=>{

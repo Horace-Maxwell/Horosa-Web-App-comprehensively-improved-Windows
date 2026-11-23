@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/tongshefa/TongSheFaMain.js b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-index 9e13a30b..6184a7b8 100644
+index 5795d0ba..0ba893cd 100644
 --- a/astrostudyui/src/components/tongshefa/TongSheFaMain.js
 +++ b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-@@ -20,6 +20,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
+@@ -18,6 +18,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
  import styles from '../../css/styles.less';
  import { withLabelCell } from '../../utils/labelCell';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
- 
- const { Option } = Select;
- // 右栏四象取卦:键 = model.selected 的键,文 = 位名
-@@ -1148,6 +1150,13 @@ class TongSheFaMain extends Component{
+ import { SIXIANG_PICKS, BAGUA_LIST, DEFAULT_SELECTION, POSITION_META, POSITION_KEYS, BAGUA_SANJIE_ORDER, YAO_ORIGIN, LEFT_YAO_META, RIGHT_YAO_META, MATRIX_PANEL_META, FIVE_FRIEND_EXPLANATIONS, OBSERVE_32, SANJIE_TEXT, BAGUA_DETAIL } from './main/data';
+ import { safeText, normalizeSelection, getBagua, shortGuaName, linePolarity, lineAdmit, lineVerb, relationByElem, buildTongSheFaModel } from './main/model';
+ import { formatBaguaLabel, buildTongSheFaSnapshot, groupFiveFriendItems, fiveFriendDynamicText, patternExplanation } from './main/snapshot';
+@@ -82,6 +84,13 @@ class TongSheFaMain extends Component{
  	}
  
  	componentDidUpdate(prevProps, prevState){
@@ -25,7 +25,7 @@ index 9e13a30b..6184a7b8 100644
  		if(prevState.selected !== this.state.selected){
  			this.saveSnapshot();
  		}
-@@ -1997,6 +2006,8 @@ class TongSheFaMain extends Component{
+@@ -931,6 +940,8 @@ class TongSheFaMain extends Component{
  									</div>
  								))}
  							</div>
@@ -34,7 +34,7 @@ index 9e13a30b..6184a7b8 100644
  						<Tabs
  							activeKey={this.state.detailTab}
  							defaultActiveKey='observe32'
-@@ -2006,16 +2017,16 @@ class TongSheFaMain extends Component{
+@@ -940,16 +951,16 @@ class TongSheFaMain extends Component{
  								style={tabheight ? { height: tabheight } : undefined}
  							>
  							<TabPane tab='三十二观' key='observe32'>

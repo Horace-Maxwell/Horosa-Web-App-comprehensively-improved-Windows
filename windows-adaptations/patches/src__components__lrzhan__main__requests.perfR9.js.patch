@@ -1,0 +1,111 @@
+diff --git a/astrostudyui/src/components/lrzhan/main/requests.js b/astrostudyui/src/components/lrzhan/main/requests.js
+index cf107721..955f087c 100644
+--- a/astrostudyui/src/components/lrzhan/main/requests.js
++++ b/astrostudyui/src/components/lrzhan/main/requests.js
+@@ -15,6 +15,7 @@ import { stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../../utils/p
+ import { armStepPrefetch } from '../../../utils/stepPrefetchArm';
+ import { buildBirthFields, extractGanZi, resolveGuaYearGanZi, MaleRunYearList, FemaleRunYearList, calcRunYearLocal, getSolarYearFromField } from './birthRunYear';
+ import { getAppliedBirth, clonePlain, buildCacheKey, pushCache } from './panData';
++import { markPanelReady } from '../../../utils/perfMark';
+ 
+ export const requestMethods = {
+ 	genRunYearParams(){
+@@ -224,7 +225,12 @@ export const requestMethods = {
+ 		};
+ 
+ 		this.setState(st, ()=>{
+-			this.requestRunYear();
++			// horosa_panel_ready_v1:六壬「画完」= 主盘(本次 st)+ 右栏「流年」段(requestRunYear 的
++			// 二段 setState)都落定,按 owner 口径(中栏+右栏全画完)记的是后者。requestRunYear 有多条
++			// 早退分支(liureng 为空 / 缺日期 / 年份校验 Modal),挂在其 promise 上两态都能收口;
++			// markPanelReady 自带 generation 去重,重复调用为空操作。
++			const markReady = ()=>{ markPanelReady('liureng'); };
++			Promise.resolve(this.requestRunYear()).then(markReady, markReady);
+ 			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
+ 		});
+ 	},
+@@ -278,44 +284,54 @@ export const requestMethods = {
+ 		let result = fallbackRunYear ? { ...fallbackRunYear } : {};
+ 		const runyearKey = buildCacheKey(params);
+ 		try{
+-			let serverRes = {};
+-			const localRunyearHit = runyearKey ? getLiurengRunyearLocalCache(runyearKey) : null;
+-			if(runyearKey && this.runYearServerCache.has(runyearKey)){
+-				serverRes = clonePlain(this.runYearServerCache.get(runyearKey)) || {};
+-			}else if(runyearKey && this.runYearServerInflight.has(runyearKey)){
+-				serverRes = clonePlain(await this.runYearServerInflight.get(runyearKey)) || {};
+-				if(stale()){ return; }
+-			}else if(localRunyearHit){
+-				serverRes = clonePlain(localRunyearHit) || {};
+-				pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
+-			}else{
+-				const req = request(`${Constants.ServerRoot}/liureng/runyear`, {
+-					body: JSON.stringify(params),
+-					silent: true,
+-				}).then((data)=>{
+-					return data && data[Constants.ResultKey] ? { ...data[Constants.ResultKey] } : {};
+-				}).finally(()=>{
++			// horosa_liureng_render_slice_v1(L4):步进尾延迟里 /liureng/runyear 与 requestBirthYearGanZi
++			// 的 /liureng/gods(生辰年干支)原为串行两段 await,而二者互不相依 —— 端点不同、入参不同
++			// (前者吃 生辰+卦年干支,后者只吃生辰)、结果各归各家(serverRes/runYearServerCache vs
++			// birthYearGanZiCache),中间无共享可变量。仿 SanShiUnitedMain 奇门∥太乙范式:两 promise
++			// 先各自起、Promise.all 等齐,缓存命中侧照旧零请求。错误隔离与串行版同义:birthGanZi 侧
++			// 自带 try/catch 恒返 ''(绝不 reject);runyear 侧 reject 仍落本 catch 走 fallbackRunYear。
++			// 注意:外层 gods→requestRunYear 的先后是真数据依赖(本函数参数 guaYearGanZi 取自 gods
++			// 结果落的 state.liureng),不得并行,维持原序。
++			const serverResPromise = (async ()=>{
++				let serverRes = {};
++				const localRunyearHit = runyearKey ? getLiurengRunyearLocalCache(runyearKey) : null;
++				if(runyearKey && this.runYearServerCache.has(runyearKey)){
++					serverRes = clonePlain(this.runYearServerCache.get(runyearKey)) || {};
++				}else if(runyearKey && this.runYearServerInflight.has(runyearKey)){
++					serverRes = clonePlain(await this.runYearServerInflight.get(runyearKey)) || {};
++				}else if(localRunyearHit){
++					serverRes = clonePlain(localRunyearHit) || {};
++					pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
++				}else{
++					const req = request(`${Constants.ServerRoot}/liureng/runyear`, {
++						body: JSON.stringify(params),
++						silent: true,
++					}).then((data)=>{
++						return data && data[Constants.ResultKey] ? { ...data[Constants.ResultKey] } : {};
++					}).finally(()=>{
++						if(runyearKey){
++							this.runYearServerInflight.delete(runyearKey);
++						}
++					});
+ 					if(runyearKey){
+-						this.runYearServerInflight.delete(runyearKey);
++						this.runYearServerInflight.set(runyearKey, req);
++					}
++					serverRes = await req;
++					if(runyearKey){
++						pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
++						setLiurengRunyearLocalCache(runyearKey, clonePlain(serverRes));
+ 					}
+-				});
+-				if(runyearKey){
+-					this.runYearServerInflight.set(runyearKey, req);
+-				}
+-				serverRes = await req;
+-				if(runyearKey){
+-					pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
+-					setLiurengRunyearLocalCache(runyearKey, clonePlain(serverRes));
+ 				}
+-				if(stale()){ return; }
+-			}
++				return serverRes;
++			})();
++			const [serverRes, birthGanZi] = await Promise.all([serverResPromise, this.requestBirthYearGanZi()]);
++			// 请求代次(同上游「每个 await 之后都判」):并行版两段取数只在这一个 await 点汇合,判据并在此处。
++			if(stale()){ return; }
+ 			result = {
+ 				...serverRes,
+ 				...result,
+ 			};
+ 			const guaGanZi = extractGanZi(params.guaYearGanZi) || resolveGuaYearGanZi(this.state.liureng);
+-			const birthGanZi = await this.requestBirthYearGanZi();
+-			if(stale()){ return; }
+ 			let localRunYear = calcRunYearLocal(
+ 				birthGanZi,
+ 				guaGanZi,

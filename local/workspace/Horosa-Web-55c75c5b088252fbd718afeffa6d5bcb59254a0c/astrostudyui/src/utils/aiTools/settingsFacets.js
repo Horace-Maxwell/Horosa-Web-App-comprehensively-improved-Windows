@@ -4,7 +4,8 @@
 // page=技法页「排盘设置跨会话保留」(pageSettingsRegistry 登记的页;schema 在各页源文件里,惰性载入后缓存)。
 // 密钥/provider/备份/思考档一律不在面内(硬拒正则)。
 import * as AstroConst from '../../constants/AstroConst';
-import { APPEARANCE_MODES, normalizeAppearanceMode } from '../appearance';
+import * as AstroText from '../../constants/AstroText';
+import { APPEARANCE_MODES, normalizeAppearanceMode, currentLightFlavor, applyLightFlavorToDocument, LIGHT_FLAVOR_PAPER, LIGHT_FLAVOR_CLASSIC } from '../appearance';
 import { SUPPORTED_PD_METHODS, SUPPORTED_PD_TIME_KEYS } from '../primaryDirectionSync';
 import { TRIPLICITY_SYSTEMS } from '../triplicityRulers';
 import { SCHOOL_PRESET_OPTIONS } from '../../components/astro/schoolPresets';
@@ -18,6 +19,7 @@ import {
 	composeTechniqueDraft, pruneOptionsToNonDefault, sanitizeOptionsToSchema,
 } from '../techniqueMountSettings';
 import { DAY_BOUNDARY_AFTER23, DAY_BOUNDARY_AFTER24, normalizeDayBoundary, LATE_ZI_HOUR_NEXT_DAY, LATE_ZI_HOUR_TODAY, normalizeLateZiHourMode, announceGlobalSetupChanges } from '../dayBoundary';
+import { currentGlobalSetup, pickGlobalSetupPatch, mergeGlobalSetupWrite } from '../globalSetupStore';
 import { getStore } from '../storageutil';
 import { PAGE_SETTINGS_REGISTRY } from '../pageSettingsRegistry';
 import { validateSettingValue } from '../pageSettingsStore';
@@ -76,6 +78,7 @@ export const PAGE_FACET_TITLES = {
 export const PAGE_FACET_EXCLUDED = {
 	planetarium: '天文馆页模块顶层就要 3D 运行时(进页才加载)与整套星表数据,为改一项显示设置载入不划算;它的设置是纯显示偏好(图层表本就只读),由用户在页内调',
 };
+const NEVER_SEND_HINT = '本机全局项:只影响前端判读 / 显示,不进起盘请求;改了用户自己看盘也跟着变';
 const pageApiCache = new Map();
 export function pageFacetEntry(page){ return PAGE_SETTINGS_REGISTRY.find((p)=>p && p.page === `${page || ''}`) || null; }
 // 载入某页的设置件(definePageSettings 的产物);失败 / 未登记 → null
@@ -139,6 +142,7 @@ export function pageFieldLabel(page, key, spec, tech){
 	if(spec && typeof spec.label === 'string' && spec.label.trim()){ return spec.label; }
 	return mountFieldLabelOf(tech || page, key) || mountFieldLabelOf(page, key) || key;
 }
+export const PAGE_FACET_SCOPE_NOTE = '技法页设置:影响该技法页下次打开 / 新起卦(cast_random_case 新起的卦也按它);不影响已存档案的重算与 cast_technique 无头起盘 —— 那两处逐盘改口径用 facet=mount(cast_technique 的 options)。';
 function describePageFacet(page){
 	const entry = pageFacetEntry(page);
 	const api = entry ? pageApiCache.get(entry.page) : null;
@@ -160,12 +164,31 @@ function describePageFacet(page){
 		const settable = !castInput && (t === 'boolean' || t === 'number' || t === 'string' || (t === 'list' && Array.isArray(spec.oneOf)));
 		return { key: k, label: pageFieldLabel(entry.page, k, spec, castTech), group: `技法页·${entry.page}`, type: t, options, current: cur[k], ...currentDefaultFields(defs[k], factory[k]), min: spec.min, max: spec.max, settable, ...(castInput ? { hint: castInputItemHint('page', castTech, k, options) } : {}) };
 	});
-	return { ok: true, items, technique: entry.page, storageKey: entry.storageKey };
+	// 作用范围照实说:页面设置管「技法页下次打开 / 下次新起卦」(cast_random_case 新起的卦也按它);已存档案与 cast_technique 无头起盘不读它,
+	// 要逐盘改口径用 facet=mount(cast_technique 的 options)
+	return { ok: true, items, technique: entry.page, storageKey: entry.storageKey, scope: PAGE_FACET_SCOPE_NOTE };
 }
 export const DENIED_SETTING_KEY_RE = /apiKey|token|secret|provider|horosa\.sec\.|horosa\.perf\.|horosa\.debug\.|horosa\.ai\.analysis\.ui|password/i;
 
-// ── app 面(全局显示偏好):键集=globalSetup 字面量;三个显示数组只读(v1 不开放改写)。
-export const APP_PREF_READONLY_KEYS = ['chartDisplay', 'planetDisplay', 'lotsDisplay'];
+// ── app 面(全局显示偏好):键集=globalSetup 字面量。三个显示数组(盘面显示项 / 显示星体 / 显示希腊点)按整组替换可写
+//   (每个值须在星盘设置面板同一张可选表里,见 appDisplayArraySpec);只读键现为空表(导出名保留给白名单合同)。
+export const APP_PREF_READONLY_KEYS = [];
+// 盘面显示项里面板不列的位(3D 盘已淘汰、盘内信息)不开放写,整组替换时原样保留
+const CHART_DISPLAY_HIDDEN = [AstroConst.CHART_INFOINCIRCLE, AstroConst.CHART_3D_SKYBALL_LATLINE, AstroConst.CHART_3D_EARTH_LATLINE, AstroConst.CHART_3D_EARTH_LONLINE, AstroConst.CHART_3D_EARTH_RADIUS_SAMESKY, AstroConst.CHART_3D_EARTH, AstroConst.CHART_3D_PLANET_SYM];
+function appDisplayArraySpec(){
+	const txt = (id)=>(AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[id]) || `${id}`;
+	return [
+		{ key: 'chartDisplay', label: '盘面显示项(整组替换;与星盘设置「盘面显示」同一组勾选)', type: 'array',
+			options: AstroConst.CHART_OPTIONS.filter((o)=>CHART_DISPLAY_HIDDEN.indexOf(o) < 0).map((o)=>({ value: o, label: (AstroText.ChartOptionText && AstroText.ChartOptionText[`${o}`]) || `${o}` })),
+			normalize: (arr)=>{
+				const cur = ((getStore() || {}).app || {}).chartDisplay;
+				const keep = Array.isArray(cur) ? cur.map(Number).filter((o)=>CHART_DISPLAY_HIDDEN.indexOf(o) >= 0) : [];
+				return arr.concat(keep);
+			} },
+		{ key: 'planetDisplay', label: '显示星体(整组替换;与星盘「星体」选择面板同一张表)', type: 'array', options: AstroConst.LIST_POINTS.map((id)=>({ value: id, label: txt(id) })) },
+		{ key: 'lotsDisplay', label: '显示希腊点(整组替换;与星盘「希腊点」选择面板同一张表)', type: 'array', options: AstroConst.LOTS.map((id)=>({ value: id, label: txt(id) })) },
+	];
+}
 // colorTheme:全仓无消费者(盘面调色板已由界面明暗单源映射),不再暴露为可设项;键在 globalSetup 里只作迁移兼容保留 → 豁免
 export const APP_PREF_EXEMPT_KEYS = ['chartDisplayDefaultsVersion', 'planetDisplayDefaultsVersion', 'colorTheme'];
 // 由当前盘反查的只读项:schoolPreset(占星流派预设)在 globalSetup 里只是「上次在下拉里选的」记忆值,
@@ -195,6 +218,25 @@ const APP_PREF_DERIVED = {
 	},
 };
 export const APP_PREF_DERIVED_KEYS = Object.keys(APP_PREF_DERIVED);
+// 本机显示项(不在 app 仓里、各有自己的读写):界面简繁(经桥,工具层不导入显示层)/ 亮色配色档。纯显示,可撤销
+const APP_PREF_LOCAL = {
+	scriptMode: {
+		available: ()=>{ const b = getWorkspaceBridge() || {}; return typeof b.scriptModeRead === 'function' && typeof b.scriptModeWrite === 'function'; },
+		unavailableHint: '界面简繁要在打开的星阙界面里改(当前没有界面可切)',
+		read: ()=>{ const b = getWorkspaceBridge() || {}; return typeof b.scriptModeRead === 'function' ? b.scriptModeRead() : undefined; },
+		write: (v)=>{ const b = getWorkspaceBridge() || {}; if(typeof b.scriptModeWrite === 'function'){ Promise.resolve(b.scriptModeWrite(v)).catch(()=>{}); } },
+	},
+	lightFlavor: { available: ()=>typeof document !== 'undefined', unavailableHint: '没有页面可换配色', read: ()=>currentLightFlavor(), write: (v)=>{ applyLightFlavorToDocument(v); } },
+};
+export const APP_PREF_LOCAL_KEYS = Object.keys(APP_PREF_LOCAL);
+// 本机显示项此刻能不能改(没有界面 / 桥上没挂读写函数 = 如实只读);普通 app 键恒可改
+function localSettable(k){ const l = APP_PREF_LOCAL[k]; return !l || l.available() ? { settable: true } : { settable: false, hint: l.unavailableHint }; }
+// 写 app 面:本机显示项各走各的写入,其余照旧并进 app 仓(app/save + 广播)
+function writeAppValues(bridge, values){
+	const rest = {};
+	Object.keys(values || {}).forEach((k)=>{ if(APP_PREF_LOCAL[k]){ APP_PREF_LOCAL[k].write(values[k]); }else{ rest[k] = values[k]; } });
+	if(Object.keys(rest).length){ bridge.dispatch({ type: 'app/save', payload: rest }); broadcastAppPrefEvents(rest); }
+}
 const SWITCH_OPTIONS = [{ value: 0, label: '关' }, { value: 1, label: '开' }];
 export function appPrefSpec(){
 	return [
@@ -215,7 +257,10 @@ export function appPrefSpec(){
 		// 择日 AI 快照命中清单上限 / 附判读树行数(全局两键;app/save 持久化,与设置弹窗同源)
 		{ key: 'zeriSnapshotMaxRows', label: '择日快照命中清单上限(行)', type: 'number', min: ZERI_SNAPSHOT_MAX_ROWS_MIN, max: ZERI_SNAPSHOT_MAX_ROWS_MAX, normalize: (v)=>normalizeZeriSnapshotMaxRows(v) },
 		{ key: 'zeriSnapshotExplainRows', label: '择日快照附判读树行数', type: 'number', min: ZERI_SNAPSHOT_EXPLAIN_ROWS_MIN, max: ZERI_SNAPSHOT_EXPLAIN_ROWS_MAX, normalize: (v)=>normalizeZeriSnapshotExplainRows(v) },
-	];
+		// 本机显示项(各有自己的存储;见 APP_PREF_LOCAL)
+		{ key: 'scriptMode', label: '界面简繁(hans 简体 / hant 繁体)', type: 'select', options: [{ value: 'hans', label: '简体' }, { value: 'hant', label: '繁体' }] },
+		{ key: 'lightFlavor', label: '亮色配色档(paper 古典宣纸 / classic 经典白色;只在浅色外观下生效)', type: 'select', options: [{ value: LIGHT_FLAVOR_PAPER, label: '古典宣纸' }, { value: LIGHT_FLAVOR_CLASSIC, label: '经典白色' }] },
+	].concat(appDisplayArraySpec());
 }
 
 // ── chart 面(当前盘口径,走 changeCond 正门):键与值域
@@ -305,6 +350,23 @@ const BOOLISH_RAW = [true, false, 1, 0, '1', '0', 'true', 'false'];
 // field:技法齿轮的 schema 字段(带 normalize;describe 出的条目不带函数)
 function validateAgainst(item, raw, field){
 	if(!item){ return { ok: false }; }
+	// 整组替换的显示数组:每个值须在可选档里(按值或中文名认),去重、按档序排;空数组 = 全关(允许时)
+	if(item.type === 'array'){
+		// 数组原样;逗号 / 顿号分隔串拆开(不按空格拆:希腊点键名本身带空格);单个数值当一项(与 app 仓 normalizeDisplayList 收单值同口径)
+		const list = Array.isArray(raw) ? raw : (typeof raw === 'string' ? raw.split(/[,,、]+/).map((x)=>x.trim()).filter(Boolean) : (typeof raw === 'number' && Number.isFinite(raw) ? [raw] : null));
+		if(!list || list.length > 200){ return { ok: false }; }
+		const opts = item.options || [];
+		const picked = new Set();
+		for(const x of list){
+			const hit = opts.find((o)=>o.value === x || `${o.value}` === `${x}` || `${o.label}` === `${x}`);
+			if(!hit){ return { ok: false }; }
+			picked.add(hit.value);
+		}
+		if(!picked.size && item.allowEmpty === false){ return { ok: false }; }
+		let value = opts.filter((o)=>picked.has(o.value)).map((o)=>o.value);
+		if(typeof item.normalize === 'function'){ value = item.normalize(value); }
+		return { ok: true, value };
+	}
 	if(item.type === 'number'){
 		const emptyDefault = item.default === '' || item.default === null;
 		if(emptyDefault && (raw === '' || raw === null)){ return { ok: true, value: item.default }; }
@@ -355,6 +417,26 @@ export function facetBridgeBlock(facet){
 	const bridge = getWorkspaceBridge() || {};
 	return typeof bridge[need.fn] === 'function' ? null : { code: 'E_BRIDGE_UNAVAILABLE', message: need.message };
 }
+// 没有界面时(无头 / 页面未就绪)app 面里仍可直写的键:起盘 / 快照会读的那几项,经全局设置单源(globalSetupStore)落盘,
+//   与界面里改同一份存储、同一份内存镜像(日界 / 晚子时 / 释义开关 / 空亡古典义 / 择日快照行数);纯界面显示项(盘面风格 / 美术 / 外观 / 简繁 …)
+//   没有界面就没有意义,照旧如实只读。
+export const APP_DIRECT_KEYS = ['dayBoundary', 'lateZiHourMode', 'showAstroMeaning', 'showOnlyRulExaltReception', 'voidClassical', 'zeriSnapshotMaxRows', 'zeriSnapshotExplainRows'];
+function appDirectMode(){ return !!facetBridgeBlock('app'); }
+function appDirectWrite(values){
+	const patch = pickGlobalSetupPatch(values || {});
+	if(Object.keys(patch).length){ mergeGlobalSetupWrite(patch); broadcastAppPrefEvents(patch); }
+}
+// 撤销直写:写前没有的键 = 删掉(读方回落各自缺省),写前有的写回原值 —— 存储逐键回到写前
+function appDirectRestore(keys, snap){
+	const patch = {};
+	keys.forEach((k)=>{ if(APP_DIRECT_KEYS.indexOf(k) >= 0){ patch[k] = hasOwn(snap, k) ? snap[k] : undefined; } });
+	if(Object.keys(patch).length){ mergeGlobalSetupWrite(patch); broadcastAppPrefEvents(patch); }
+}
+// 没有界面时 app 面的读数:全局设置单源(界面在时与 app 仓同值)
+function appValuesNow(store){
+	if(store && store.app){ return store.app; }
+	return currentGlobalSetup() || {};
+}
 function markFacetReadOnly(facet, out){
 	const blk = facetBridgeBlock(facet);
 	if(!blk || !out || !out.ok){ return out; }
@@ -371,18 +453,23 @@ export function describeFacet(facet, technique, pendingValues){
 		return markFacetReadOnly('chart', { ok: true, items: chartFacetSpec().map((it)=>({ key: it.key, label: it.label, group: '当前盘口径', type: it.type, options: it.options || [], current: it.key === 'place' ? fieldValue(fields, 'pos') : fieldValue(fields, it.key), min: it.min, max: it.max, settable: true, ...(it.hint ? { hint: it.hint } : {}) })) });
 	}
 	if(facet === 'app'){
-		const app = store.app || {};
-		const items = appPrefSpec().map((it)=>({ key: it.key, label: it.label, group: '全局显示偏好', type: it.type, options: it.options || [], current: app[it.key], settable: true }));
+		const app = appValuesNow(store);
+		const direct = appDirectMode();
+		const blk = direct ? facetBridgeBlock('app') : null;
+		const items = appPrefSpec().map((it)=>({ key: it.key, label: it.label, group: '全局显示偏好', type: it.type, options: it.options || [], current: APP_PREF_LOCAL[it.key] ? APP_PREF_LOCAL[it.key].read() : app[it.key],
+			...(direct ? (APP_DIRECT_KEYS.indexOf(it.key) >= 0 ? { settable: true } : { settable: false, hint: blk.message }) : localSettable(it.key)) }));
 		APP_PREF_READONLY_KEYS.forEach((k)=>items.push({ key: k, label: `${k}(显示项数组,只读)`, group: '全局显示偏好', type: 'array', options: [], current: app[k], settable: false }));
 		APP_PREF_DERIVED_KEYS.forEach((k)=>{
 			const d = APP_PREF_DERIVED[k];
 			items.push({ key: k, label: d.label, group: d.group, type: d.type, options: d.options, current: d.read(store), settable: false, hint: d.hint });
 		});
-		return markFacetReadOnly('app', { ok: true, items });
+		// 没有界面:纯显示项逐项标只读(原因同写入拒绝),起盘 / 快照会读的几项照常可写 —— 不再整面只读
+		return direct ? { ok: true, items, partialReason: blk } : markFacetReadOnly('app', { ok: true, items });
 	}
+	// 页面「显示与样式」里有控件、只在前端判读 / 显示里用的项(send:'never' = 不进起盘请求,不等于不可改):照样可写,写的是本机全局项
 	if(facet === 'classical'){
 		const cur = getClassicalChartGlobals() || {};
-		return { ok: true, items: CLASSICAL_PARAM_SPEC.map((s)=>({ key: s.key, label: s.label, group: s.group, type: s.type, options: s.options || SWITCH_OPTIONS, current: cur[s.key], default: s.default, settable: s.send !== 'never', hint: s.hint })) };
+		return { ok: true, items: CLASSICAL_PARAM_SPEC.map((s)=>({ key: s.key, label: s.label, group: s.group, type: s.type, options: s.options || SWITCH_OPTIONS, current: cur[s.key], default: s.default, settable: true, hint: s.send === 'never' ? [s.hint, NEVER_SEND_HINT].filter(Boolean).join(';') : s.hint })) };
 	}
 	const t = `${technique || ''}`;
 	const schema = getTechniqueSettingsSchema(t);
@@ -429,7 +516,18 @@ export function describeFacet(facet, technique, pendingValues){
 				: (facet === 'technique' && settable ? { hint: [techniqueFieldScopeHint(f, schema), f.techniqueFacetValuesHint].filter((x)=>x).join(';') } : blankHint);
 			return { key: f.name, label: f.label, group: f.group || schema.group || t, type: f.type, options: opts, current: current ? current[f.name] : undefined, ...currentDefaultFields(curDefaults[f.name], f.default), min: f.min, max: f.max, settable, ...(seedMirror && f.recordKey ? { current: newChartSeedValue(f.recordKey) } : {}), ...(castInput ? { hint: castInputItemHint('mount', t, f.name, opts) } : (denied ? { hint: '此项助手不能改,请用户在技法页设置' } : (noStore ? { hint: '此项不在技法本地设置里(存在技法页的显示设置中),助手在这里改不了:请用户在技法页改;AI 分析口径用 facet=mount' } : (seedMirror ? { hint: '此项随盘:改当前盘请用户在技法页左栏选;新命盘缺省只认用户亲手改;AI 分析口径用 facet=mount' } : readOnlyHint)))) };
 		});
-	return { ok: true, items, technique: t };
+	// 此刻不显示的项(由别的项的取值决定出不出现):照样列出键名与「由谁决定」—— 此前只列当前显示的,
+	// 调用方无从知道还有这些键(如黄道星释逐层钻取的序号、变换盘只在某几种变换下才有的基准星),一次性覆盖时没法连同控制项一起给
+	const names = schema.fields.map((f)=>f.name);
+	const hiddenItems = facet !== 'mount' ? [] : schema.fields.filter((f)=>!isMountFieldVisible(f, visCtx, schema)).map((f)=>{
+		const seen = new Set();
+		if(f.when && typeof f.when === 'object'){ Object.keys(f.when).forEach((k)=>seen.add(k)); }
+		if(typeof f.showWhen === 'function' && typeof Proxy === 'function'){
+			try{ f.showWhen(new Proxy(visCtx, { get(target, k){ if(typeof k === 'string'){ seen.add(k); } return target[k]; } })); }catch(e){ /* 判据抛错:只记已读到的键 */ }
+		}
+		return { key: f.name, label: f.label, group: f.group || schema.group || t, type: f.type, controlledBy: names.filter((n)=>n !== f.name && seen.has(n)) };
+	});
+	return { ok: true, items, technique: t, ...(hiddenItems.length ? { hiddenItems } : {}) };
 }
 
 // 挂载面写入的两条拒绝(写前预览与执行同一份判据):只删键且同类默认里本来就没有这几项 = 没有可删的;删完同类默认变空 = 拒
@@ -502,7 +600,9 @@ function castInputNeutralValue(technique, key, raw, item, field){
 export function validateFacetValues(facet, technique, values){
 	// 缺桥的面整面拒(与描述标只读同一判据),不落到逐键的「不在可改白名单」
 	const blocked = facetBridgeBlock(facet);
-	if(blocked){ return { ok: false, ...blocked }; }
+	// app 面没有界面时只放行可直写的键(其余如实拒,原因同描述);chart 面照旧整面拒
+	const appDirectOk = blocked && facet === 'app' && values && typeof values === 'object' && Object.keys(values).length > 0 && Object.keys(values).every((k)=>APP_DIRECT_KEYS.indexOf(k) >= 0);
+	if(blocked && !appDirectOk){ return { ok: false, ...blocked }; }
 	let d = describeFacet(facet, technique, values);
 	if(!d.ok){ return d; }
 	// 上级项可按档名写(如「时家」):显隐要按归一后的档值判,否则按档名算出的上级值对不上,同一次写的子项被误判隐藏
@@ -726,8 +826,8 @@ export function readFacetValues(facet, technique, keys){
 	}
 	if(facet === 'app'){
 		const st = getStore() || {};
-		const app = st.app || {};
-		list.forEach((k)=>put(k, APP_PREF_DERIVED[k] ? APP_PREF_DERIVED[k].read(st) : app[k]));
+		const app = appValuesNow(st);
+		list.forEach((k)=>put(k, APP_PREF_DERIVED[k] ? APP_PREF_DERIVED[k].read(st) : (APP_PREF_LOCAL[k] ? APP_PREF_LOCAL[k].read() : app[k])));
 		return out;
 	}
 	if(facet === 'classical'){
@@ -935,10 +1035,12 @@ export async function applyFacetValues(facet, technique, values){
 	}
 	if(facet === 'app'){
 		const blk = facetBridgeBlock('app');
-		if(blk){ return { ok: false, ...blk }; }
-		const dispatch = bridge.dispatch;
-		dispatch({ type: 'app/save', payload: { ...values } });
-		broadcastAppPrefEvents(values);
+		if(blk){
+			if(!Object.keys(values || {}).every((k)=>APP_DIRECT_KEYS.indexOf(k) >= 0)){ return { ok: false, ...blk }; }
+			appDirectWrite(values);
+			return { ok: true, applied: values, note: '没有打开的界面:已直接写进全局设置(之后的起盘 / 快照按新值)' };
+		}
+		writeAppValues(bridge, { ...values });
 		return { ok: true, applied: values };
 	}
 	if(facet === 'classical'){
@@ -986,7 +1088,7 @@ export function restoreSettingsSnapshot(payload){
 		const universe = snapshotFacet('chart').keys;
 		if(keys.some((k)=>universe.indexOf(k) < 0)){ return { ok: false, code: 'E_UNDO_NOT_APPLICABLE' }; }
 	}else if(facet === 'app'){
-		if(facetBridgeBlock('app')){ return { ok: false, ...facetBridgeBlock('app') }; }
+		if(facetBridgeBlock('app') && keys.some((k)=>APP_DIRECT_KEYS.indexOf(k) < 0)){ return { ok: false, ...facetBridgeBlock('app') }; }
 		const allowed = appPrefSpec().map((sp)=>sp.key);
 		if(keys.some((k)=>allowed.indexOf(k) < 0)){ return { ok: false, code: 'E_UNDO_NOT_APPLICABLE' }; }
 	}else if(facet === 'page'){
@@ -1018,10 +1120,10 @@ export function restoreSettingsSnapshot(payload){
 		return { ok: true };
 	}
 	if(facet === 'app'){
+		if(facetBridgeBlock('app')){ appDirectRestore(keys, snap); return { ok: true }; }
 		const back = {};
 		keys.forEach((k)=>{ if(hasOwn(snap, k)){ back[k] = snap[k]; } });
-		bridge.dispatch({ type: 'app/save', payload: back });
-		broadcastAppPrefEvents(back);
+		writeAppValues(bridge, back);
 		return { ok: true };
 	}
 	if(facet === 'classical'){

@@ -6,12 +6,13 @@ import AstroChartMain from '../astro/AstroChartMain';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
-import styles from '../../css/styles.less';
+import '../../css/styles.less';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { registerProcessCache } from '../../utils/processCacheRegistry';
 import { markPanelReady } from '../../utils/perfMark';
 
-function fieldsToParams(fields){
+// export:AI 无头复算(aiAnalysisContext/derivedLabsHeadless)与页面同一份构参、同一份取数缓存
+export function fieldsToParams(fields){
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
 		time: fields.time.value.format('HH:mm:ss'),
@@ -92,7 +93,7 @@ function buildChart13Key(params, endpoint){
 	}
 }
 
-async function fetchChart13Cached(params, silent, endpoint){
+export async function fetchChart13Cached(params, silent, endpoint){
 	const ep = endpoint || 'chart13';
 	const key = buildChart13Key(params, ep);
 	if(key && chart13Mem.has(key)){

@@ -1,7 +1,7 @@
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
 import {randomStr, creatTooltip,} from '../../utils/helper';
-import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { drawTextH, drawTextV} from '../graph/GraphHelper';
 import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj, } from './LRShenJiangDoc';
 
 function extractBranch(value){

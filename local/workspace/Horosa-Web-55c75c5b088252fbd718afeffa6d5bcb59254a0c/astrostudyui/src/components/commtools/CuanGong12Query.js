@@ -4,7 +4,7 @@ import { XQSelect as Select } from '../xq-ui';
 import { isNumber } from '../../utils/helper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import styles from '../../css/styles.less';
+import '../../css/styles.less';
 
 const { Option } = Select;
 

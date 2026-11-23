@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { wrapperPropsEqual } from '../../../utils/chartUpdateGuard';
 import { jsxNodes } from '../../../utils/__tests__/helpers/jsxProps';
+const { readSource, isSourceSetPart } = require('../../../utils/__tests__/helpers/sourceSet');
 
 const SRC = path.resolve(__dirname, '../../..');
 
@@ -10,8 +11,9 @@ function hostsOf(dir, out = []){
 	fs.readdirSync(dir, { withFileTypes: true }).forEach((entry)=>{
 		const file = path.join(dir, entry.name);
 		if(entry.isDirectory() && entry.name !== '__tests__'){ hostsOf(file, out); }
-		else if(entry.name.endsWith('.js')){
-			const source = fs.readFileSync(file, 'utf8');
+		else if(entry.name.endsWith('.js') && !isSourceSetPart(file)){
+			// 子模块折回门面:「用卜算壳 + 自己有 state」按整个组件判(类方法拆在子文件里时两者分在不同文件)
+			const source = readSource(file);
 			if(source.includes('<DivinationChartShell') && source.includes('this.setState(')){ out.push(path.relative(SRC, file)); }
 		}
 	});

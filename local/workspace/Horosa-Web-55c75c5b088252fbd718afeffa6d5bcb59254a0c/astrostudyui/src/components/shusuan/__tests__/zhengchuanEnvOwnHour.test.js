@@ -31,7 +31,7 @@ describe('正传天象下拉随本人时支', ()=>{
 		expect(zcEnvOptionsFor(eff({ zhengchuanAskHourZhi: '', zcOwnHourZhi: '亥' }))).toEqual(ZC_ENV_NIGHT);
 		expect(zcEnvShown(eff({ zhengchuanAskHourZhi: '', zcOwnHourZhi: '亥' }), '晴')).toBe('');
 		const fs = require('fs'); const path = require('path');
-		const host = fs.readFileSync(path.join(__dirname, '../../kinastro/KinAstroMain.js'), 'utf8');
+		const host = readSource(path.join(__dirname, '../../kinastro/KinAstroMain.js'));
 		expect(host).toContain('<Select value={zcEnvShown(this.zcEffectiveAskHourZhi(), this.state.zhengchuanEnv)}');
 		expect((host.match(/onOwnHourZhi=\{this\.onZcOwnHourZhi\}/g) || []).length).toBe(2);
 	});

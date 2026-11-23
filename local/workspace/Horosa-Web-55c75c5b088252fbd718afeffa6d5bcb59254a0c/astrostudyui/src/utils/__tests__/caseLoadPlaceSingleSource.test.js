@@ -147,7 +147,7 @@ describe('静态:四路载入与新增表单不许绕开 casePlaceGroup 逐键�
 	const strip = (s)=>s.split('\n').map((l)=>l.replace(/\/\/.*$/, '')).join('\n');
 	test('kentangCaseSave(casePlaceGroup 本体以外)/ user 模型载入与新增 / 盘壳载入', ()=>{
 		const ks = fs.readFileSync(path.join(UI_SRC, 'utils/kentangCaseSave.js'), 'utf8');
-		const user = fs.readFileSync(path.join(UI_SRC, 'models/user.js'), 'utf8');
+		const user = require('./helpers/sourceSet').readSource(path.join(UI_SRC, 'models/user.js'));   // 门面 + 子模块全集
 		const shell = fs.readFileSync(path.join(UI_SRC, 'components/divination/DivinationChartShell.js'), 'utf8');
 		const groupBody = bodyOf(ks, 'export function casePlaceGroup(', '\n}\n');
 		expect(groupBody.length).toBeGreaterThan(50);
